@@ -790,7 +790,10 @@ Provide:
       );
       const experiences: Experience[] = [];
 
-      for (const key of keys) {
+      for (const found of keys) {
+        // In-memory search includes its namespace; SQLite returns a bare key.
+        const prefix = 'learning-optimization:';
+        const key = found.startsWith(prefix) ? found.slice(prefix.length) : found;
         const experienceId = await this.memory.get<string>(key, LEARNING_NS);
         if (experienceId) {
           // #493: rehydrate `timestamp` at the kv-read seam — the sort

@@ -78,6 +78,10 @@ export interface OptimizeResult {
   experiencesUsed: number;
   evidenceStatus?: 'insufficient-evidence';
   unmeasured?: string[];
+  /** Figures that were modelled, not observed (#1099). */
+  estimated?: string[];
+  /** How improvement and confidence were derived, when optimization ran. */
+  evaluation?: { method: 'held-out'; trainingSamples: number; heldOutSamples: number };
   strategiesEvaluated: number;
   bestStrategy: Strategy;
   improvement: number;
@@ -396,7 +400,8 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
         retryCount: 3,
         timeout: 30000,
       },
-      expectedOutcome: { [objective.metric]: 70 },
+      // #1099: the current strategy's outcome was never measured here.
+      expectedOutcome: {},
     };
 
     // Convert objective to domain type, properly cast constraints
@@ -416,6 +421,9 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
     let improvement = 0;
     let confidence = 0;
     let validationResults: ValidationResult[] = [];
+    let unmeasured: string[] = [];
+    let estimated: string[] | undefined;
+    let evaluation: OptimizeResult['evaluation'];
 
     if (experiences.length >= 20) {
       const optimizeResult = await metricsOptimizer.optimizeStrategy(
@@ -433,6 +441,16 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
       improvement = optimizeResult.value.improvement * 100; // Convert to percentage
       confidence = optimizeResult.value.confidence;
       validationResults = optimizeResult.value.validationResults;
+      const derived = optimizeResult.value.evaluation;
+      if (derived) {
+        evaluation = {
+          method: derived.method,
+          trainingSamples: derived.trainingSamples,
+          heldOutSamples: derived.heldOutSamples,
+        };
+        estimated = derived.estimated;
+        unmeasured = [...(derived.unmeasured ?? [])];
+      }
     } else {
       // Not enough data - recommend default strategy
       const contextForRecommendation: PatternContext = {
@@ -445,16 +463,20 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
         parameters: recommendResult.value.parameters,
         expectedOutcome: recommendResult.value.expectedOutcome,
       };
+      unmeasured = ['improvement', 'confidence'];
+    }
+    if (Object.keys(bestStrategy.expectedOutcome).length === 0) {
+      unmeasured.push('expectedOutcome');
     }
 
     return {
       inputSource: 'recorded-experiences',
       experiencesUsed: experiences.length,
       strategiesEvaluated: experiences.length >= 20 ? 1 : 0,
-      ...(experiences.length < 20 ? {
-        evidenceStatus: 'insufficient-evidence' as const,
-        unmeasured: ['improvement', 'confidence'],
-      } : {}),
+      ...(experiences.length < 20 ? { evidenceStatus: 'insufficient-evidence' as const } : {}),
+      ...(unmeasured.length > 0 ? { unmeasured } : {}),
+      ...(estimated ? { estimated } : {}),
+      ...(evaluation ? { evaluation } : {}),
       bestStrategy,
       improvement,
       confidence,

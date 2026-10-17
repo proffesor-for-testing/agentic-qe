@@ -7,7 +7,6 @@ import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err, DomainName } from '../../../shared/types/index.js';
 import { MemoryBackend } from '../../../kernel/interfaces.js';
 import { toError } from '../../../shared/error-utils.js';
-import { secureRandom } from '../../../shared/utils/crypto-random.js';
 import { rehydrateDates } from '../../../shared/utils/kv-date-rehydrate.js';
 import {
   Strategy,
@@ -17,6 +16,7 @@ import {
   ABTestConfig,
   ABTestResult,
   StrategyEvaluation,
+  OptimizationEvaluation,
   Experience,
   PatternContext,
   IStrategyOptimizerService,
@@ -40,6 +40,15 @@ const DEFAULT_CONFIG: MetricsOptimizerConfig = {
   improvementThreshold: 0.05,
   explorationRate: 0.1,
 };
+
+/** Namespace every optimizer record is written under. */
+const LEARNING_NS = { namespace: 'learning-optimization' } as const;
+
+/** Share of the most recent experiences held out from fitting (#1099). */
+const HELD_OUT_FRACTION = 0.2;
+
+/** Relative tolerance within which an observed outcome matches the prediction. */
+const VALIDATION_TOLERANCE = 0.2;
 
 /**
  * SEC-003: Dangerous keys that could lead to prototype pollution
@@ -98,17 +107,18 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
         );
       }
 
-      // Calculate current performance
-      const currentPerformance = this.evaluateStrategyPerformance(
-        currentStrategy,
-        experiences,
-        objective
-      );
+      // #1099: fit on the older experiences and validate on the most recent
+      // ones, which the fit never saw, so confidence is a held-out measurement
+      // rather than a score on the data the optimizer was fitted to.
+      const ordered = [...experiences].sort((a, b) => timeOf(a) - timeOf(b));
+      const heldOutSize = Math.max(1, Math.floor(ordered.length * HELD_OUT_FRACTION));
+      const training = ordered.slice(0, -heldOutSize);
+      const heldOut = ordered.slice(-heldOutSize);
 
       // Generate optimized parameters
       const optimizedParameters = await this.optimizeParameters(
         currentStrategy.parameters,
-        experiences,
+        training,
         objective
       );
 
@@ -116,34 +126,41 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
       const optimizedStrategy: Strategy = {
         name: `${currentStrategy.name}-optimized`,
         parameters: optimizedParameters,
-        expectedOutcome: this.predictOutcome(optimizedParameters, experiences),
+        expectedOutcome: this.predictOutcome(optimizedParameters, training),
       };
 
-      // Validate optimization
+      // Validate the fitted expectation against the held-out experiences
       const validationResults = await this.validateOptimization(
         currentStrategy,
         optimizedStrategy,
-        experiences.slice(-10) // Use recent experiences for validation
+        heldOut
       );
 
-      // Calculate improvement
-      const optimizedPerformance = this.evaluateStrategyPerformance(
-        optimizedStrategy,
-        experiences,
-        objective
-      );
+      // The optimized strategy has never run, so its improvement cannot be
+      // observed. It is modelled as the change in parameter score between the
+      // two strategies on the held-out experiences, and labelled an estimate.
       const improvement = this.calculateImprovement(
-        currentPerformance,
-        optimizedPerformance,
+        this.scoreParameters(currentStrategy.parameters, heldOut, objective),
+        this.scoreParameters(optimizedParameters, heldOut, objective),
         objective
       );
 
-      // Calculate confidence
-      const confidence = this.calculateOptimizationConfidence(
-        experiences.length,
-        improvement,
-        validationResults
-      );
+      // Confidence is the share of held-out experiences whose observed
+      // outcome matched the fitted expectation.
+      const confidence = validationResults.length > 0
+        ? validationResults.filter((r) => r.passed).length / validationResults.length
+        : 0;
+
+      const unmeasured: string[] = [];
+      if (improvement === undefined) unmeasured.push('improvement');
+      if (validationResults.length === 0) unmeasured.push('confidence');
+      const evaluation: OptimizationEvaluation = {
+        method: 'held-out',
+        trainingSamples: training.length,
+        heldOutSamples: heldOut.length,
+        estimated: improvement === undefined ? [] : ['improvement'],
+        ...(unmeasured.length > 0 ? { unmeasured } : {}),
+      };
 
       const domain = this.inferDomainFromExperiences(experiences);
 
@@ -153,9 +170,10 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
         objective,
         currentStrategy,
         optimizedStrategy,
-        improvement,
+        improvement: improvement ?? 0,
         confidence,
         validationResults,
+        evaluation,
       };
 
       // Store optimization result
@@ -176,17 +194,25 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
     testConfig: ABTestConfig
   ): Promise<Result<ABTestResult>> {
     try {
-      // Simulate or retrieve test results
-      const metricsA = await this.collectStrategyMetrics(
-        strategyA,
-        testConfig.metric,
-        testConfig.minSamples
-      );
-      const metricsB = await this.collectStrategyMetrics(
-        strategyB,
-        testConfig.metric,
-        testConfig.minSamples
-      );
+      // Recorded observations only (#1099): never pad with simulated samples.
+      const metricsA = await this.collectStrategyMetrics(strategyA, testConfig.metric);
+      const metricsB = await this.collectStrategyMetrics(strategyB, testConfig.metric);
+
+      // An arm with no recorded sample is never evidence, whatever minSamples says.
+      const minSamples = Math.max(1, testConfig.minSamples);
+      if (metricsA.length < minSamples || metricsB.length < minSamples) {
+        const insufficient: ABTestResult = {
+          winner: 'inconclusive',
+          evidenceStatus: 'insufficient-evidence',
+          unmeasured: [testConfig.metric, 'stdDev', 'pValue'],
+          strategyAMetrics: { samples: metricsA.length },
+          strategyBMetrics: { samples: metricsB.length },
+          sampleSizeA: metricsA.length,
+          sampleSizeB: metricsB.length,
+        };
+        await this.storeABTestResult(strategyA, strategyB, insufficient);
+        return ok(insufficient);
+      }
 
       // Calculate statistics
       const meanA = this.calculateMean(metricsA);
@@ -199,7 +225,7 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
 
       // Determine winner
       let winner: 'A' | 'B' | 'inconclusive';
-      if (pValue < 1 - testConfig.confidenceLevel) {
+      if (pValue !== undefined && pValue < 1 - testConfig.confidenceLevel) {
         winner = meanA > meanB ? 'A' : 'B';
       } else {
         winner = 'inconclusive';
@@ -217,7 +243,10 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
           stdDev: stdB,
           samples: metricsB.length,
         },
-        pValue,
+        // Neither arm varied, so the t statistic is undefined (#1099).
+        ...(pValue === undefined
+          ? { unmeasured: ['pValue'], pValueUnavailableReason: 'zero-variance' as const }
+          : { pValue }),
         sampleSizeA: metricsA.length,
         sampleSizeB: metricsB.length,
       };
@@ -257,7 +286,8 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
         return ok({
           name: 'default-strategy',
           parameters: this.getDefaultParameters(context),
-          expectedOutcome: { success_rate: 0.7 },
+          // #1099: nothing was measured for the default, so expect nothing.
+          expectedOutcome: {},
         });
       }
 
@@ -378,7 +408,7 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
     limit = 100
   ): Promise<Result<MetricsSnapshot[]>> {
     try {
-      const keys = await this.memory.search(
+      const keys = await this.searchLearningKeys(
         `learning:metrics:history:${strategyId}:*`,
         limit
       );
@@ -388,7 +418,7 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
         // #493: rehydrate `timestamp` at the kv-read seam — without this,
         // the sort below throws once any snapshot exists in the kv.
         const snapshot = rehydrateDates(
-          await this.memory.get<MetricsSnapshot>(key),
+          await this.memory.get<MetricsSnapshot>(key, LEARNING_NS),
           ['timestamp'],
         );
         if (snapshot) {
@@ -444,21 +474,14 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
   // Private Helper Methods
   // ============================================================================
 
-  private evaluateStrategyPerformance(
-    _strategy: Strategy,
-    experiences: Experience[],
-    objective: OptimizationObjective
-  ): number {
-    let totalScore = 0;
-    let count = 0;
-
-    for (const exp of experiences) {
-      const metricValue = (exp.result.outcome[objective.metric] as number) ?? 0;
-      totalScore += metricValue;
-      count++;
-    }
-
-    return count > 0 ? totalScore / count : 0;
+  /**
+   * Keys matching `pattern` under LEARNING_NS, ready for a namespaced get().
+   * In-memory search includes its namespace; SQLite returns a bare key.
+   */
+  private async searchLearningKeys(pattern: string, limit: number): Promise<string[]> {
+    const prefix = `${LEARNING_NS.namespace}:`;
+    const found = await this.memory.search(pattern, limit, LEARNING_NS);
+    return found.map((key) => (key.startsWith(prefix) ? key.slice(prefix.length) : key));
   }
 
   private async optimizeParameters(
@@ -587,12 +610,19 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
     validationExperiences: Experience[]
   ): Promise<ValidationResult[]> {
     const results: ValidationResult[] = [];
+    // Nothing was predicted, so there is nothing to validate.
+    const expected = Object.entries(optimized.expectedOutcome);
+    if (expected.length === 0) return results;
 
     for (const exp of validationExperiences) {
-      const expected = optimized.expectedOutcome;
-      const passed = Object.entries(expected).every(([key, value]) => {
-        const actual = (exp.result.outcome[key] as number) ?? 0;
-        return Math.abs(actual - value) / Math.max(value, 1) < 0.2;
+      // A metric the experience did not record is not evidence either way.
+      const comparable = expected.filter(
+        ([key]) => typeof exp.result.outcome[key] === 'number'
+      );
+      if (comparable.length === 0) continue;
+      const passed = comparable.every(([key, value]) => {
+        const actual = exp.result.outcome[key] as number;
+        return Math.abs(actual - value) / Math.max(value, 1) < VALIDATION_TOLERANCE;
       });
 
       results.push({
@@ -605,40 +635,19 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
     return results;
   }
 
+  /** Relative change; undefined when there is no baseline to compare with. */
   private calculateImprovement(
     currentPerf: number,
     optimizedPerf: number,
     objective: OptimizationObjective
-  ): number {
-    if (currentPerf === 0) return optimizedPerf > 0 ? 1 : 0;
+  ): number | undefined {
+    if (currentPerf === 0) return undefined;
 
     const diff = optimizedPerf - currentPerf;
     const improvement =
       objective.direction === 'maximize' ? diff / currentPerf : -diff / currentPerf;
 
     return Math.max(-1, Math.min(1, improvement));
-  }
-
-  private calculateOptimizationConfidence(
-    sampleSize: number,
-    improvement: number,
-    validationResults: ValidationResult[]
-  ): number {
-    // Base confidence from sample size
-    const sampleConfidence = Math.min(
-      1,
-      sampleSize / (this.config.minSamplesForOptimization * 2)
-    );
-
-    // Validation pass rate
-    const passRate =
-      validationResults.filter((r) => r.passed).length /
-      Math.max(validationResults.length, 1);
-
-    // Improvement significance
-    const improvementConfidence = Math.abs(improvement) > this.config.improvementThreshold ? 1 : 0.5;
-
-    return sampleConfidence * 0.3 + passRate * 0.5 + improvementConfidence * 0.2;
   }
 
   private inferDomainFromExperiences(experiences: Experience[]): DomainName {
@@ -661,32 +670,27 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
     return maxDomain;
   }
 
+  /**
+   * Values of `metric` recorded for this strategy through trackMetrics(),
+   * whose strategy id is the strategy name. Only recorded observations are
+   * returned; the caller decides whether there are enough (#1099).
+   */
   private async collectStrategyMetrics(
     strategy: Strategy,
-    metric: string,
-    minSamples: number
+    metric: string
   ): Promise<number[]> {
-    const keys = await this.memory.search(
-      `learning:metrics:history:*:*`,
-      minSamples * 2
+    const keys = await this.searchLearningKeys(
+      `learning:metrics:history:${strategy.name}:*`,
+      1000
     );
     const metrics: number[] = [];
 
     for (const key of keys) {
-      const snapshot = await this.memory.get<MetricsSnapshot>(key);
-      if (
-        snapshot &&
-        snapshot.metrics[metric] !== undefined
-      ) {
-        metrics.push(snapshot.metrics[metric]);
+      const snapshot = await this.memory.get<MetricsSnapshot>(key, LEARNING_NS);
+      const value = snapshot?.metrics[metric];
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        metrics.push(value);
       }
-    }
-
-    // If not enough real data, generate simulated data
-    while (metrics.length < minSamples) {
-      const expected = strategy.expectedOutcome[metric] || 0.5;
-      const variation = (secureRandom() - 0.5) * 0.2;
-      metrics.push(expected + variation);
     }
 
     return metrics;
@@ -704,7 +708,8 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
     return Math.sqrt(squaredDiffs.reduce((a, b) => a + b, 0) / values.length);
   }
 
-  private calculatePValue(groupA: number[], groupB: number[]): number {
+  /** Undefined when neither group varies: the test statistic is undefined. */
+  private calculatePValue(groupA: number[], groupB: number[]): number | undefined {
     // Simplified p-value calculation using Welch's t-test approximation
     const meanA = this.calculateMean(groupA);
     const meanB = this.calculateMean(groupB);
@@ -714,7 +719,7 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
     const nB = groupB.length;
 
     const se = Math.sqrt(varA / nA + varB / nB);
-    if (se === 0) return 0.5;
+    if (se === 0) return undefined;
 
     const t = Math.abs(meanA - meanB) / se;
 
@@ -877,7 +882,7 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
     const key = `learning:metrics:aggregated:${strategyId}`;
     const existing = await this.memory.get<{
       metrics: Record<string, { sum: number; count: number }>;
-    }>(key);
+    }>(key, LEARNING_NS);
 
     const aggregated = existing?.metrics || {};
 
@@ -945,4 +950,10 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
       { namespace: 'learning-optimization', ttl: 86400 * 7 }
     );
   }
+}
+
+/** Epoch milliseconds of an experience; kv reads may hand back an ISO string. */
+function timeOf(experience: Experience): number {
+  const ms = new Date(experience.timestamp).getTime();
+  return Number.isNaN(ms) ? 0 : ms;
 }

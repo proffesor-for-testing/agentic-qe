@@ -385,12 +385,19 @@ export class LearningOptimizationCoordinator
 
         if (optimizationResult.success) {
           strategiesOptimized = 1;
-          improvements.push({
-            metric: objective.metric,
-            before: this.calculateMetricValue(experiences, objective.metric),
-            after: optimizationResult.value.optimizedStrategy.expectedOutcome[objective.metric] || 0,
-            percentChange: optimizationResult.value.improvement * 100,
-          });
+          // #1099: `after` is the fitted expectation and `percentChange` the
+          // optimizer's estimate; neither was observed. Report no improvement
+          // rather than a 0 stand-in when the metric was never predicted.
+          const after = optimizationResult.value.optimizedStrategy.expectedOutcome[objective.metric];
+          if (typeof after === 'number') {
+            improvements.push({
+              metric: objective.metric,
+              before: this.calculateMetricValue(experiences, objective.metric),
+              after,
+              percentChange: optimizationResult.value.improvement * 100,
+              estimated: true,
+            });
+          }
         }
       }
 
@@ -527,6 +534,7 @@ export class LearningOptimizationCoordinator
         domainsOptimized,
         totalStrategies,
         avgImprovement: totalStrategies > 0 ? totalImprovement / totalStrategies : 0,
+        improvementEstimated: true,
         byDomain,
       };
 
@@ -1727,9 +1735,8 @@ export class LearningOptimizationCoordinator
         retryCount: 3,
         concurrency: 4,
       },
-      expectedOutcome: {
-        success_rate: 0.8,
-      },
+      // #1099: the default strategy has never run, so no outcome is expected.
+      expectedOutcome: {},
     };
   }
 

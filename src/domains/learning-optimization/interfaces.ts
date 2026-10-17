@@ -140,9 +140,26 @@ export interface OptimizedStrategy {
   readonly objective: OptimizationObjective;
   readonly currentStrategy: Strategy;
   readonly optimizedStrategy: Strategy;
+  /** Relative improvement; an estimate, see `evaluation.estimated` (#1099). */
   readonly improvement: number;
+  /** Share of held-out experiences matching the fitted expectation. */
   readonly confidence: number;
   readonly validationResults: ValidationResult[];
+  readonly evaluation?: OptimizationEvaluation;
+}
+
+/**
+ * How an optimization's figures were derived (#1099). The optimizer fits on
+ * the older experiences and validates on the most recent ones it never saw.
+ */
+export interface OptimizationEvaluation {
+  readonly method: 'held-out';
+  readonly trainingSamples: number;
+  readonly heldOutSamples: number;
+  /** Figures that were modelled, not observed: the optimized strategy never ran. */
+  readonly estimated: string[];
+  /** Figures that could not be computed from the experiences given. */
+  readonly unmeasured?: string[];
 }
 
 export interface OptimizationObjective {
@@ -362,9 +379,15 @@ export interface ABTestConfig {
 
 export interface ABTestResult {
   readonly winner: 'A' | 'B' | 'inconclusive';
+  /** Set when either strategy has fewer recorded samples than `minSamples`. */
+  readonly evidenceStatus?: 'insufficient-evidence';
+  readonly unmeasured?: string[];
   readonly strategyAMetrics: Record<string, number>;
   readonly strategyBMetrics: Record<string, number>;
-  readonly pValue: number;
+  /** Absent when there was not enough recorded evidence to test. */
+  readonly pValue?: number;
+  /** Why pValue is absent although both arms had enough samples. */
+  readonly pValueUnavailableReason?: 'zero-variance';
   readonly sampleSizeA: number;
   readonly sampleSizeB: number;
 }
@@ -540,17 +563,22 @@ export interface Improvement {
   readonly before: number;
   readonly after: number;
   readonly percentChange: number;
+  /** True when `after` and `percentChange` were modelled, not observed (#1099). */
+  readonly estimated?: boolean;
 }
 
 export interface OptimizationReport {
   readonly domainsOptimized: number;
   readonly totalStrategies: number;
+  /** Mean of the optimizers' estimated improvements (#1099). */
   readonly avgImprovement: number;
+  readonly improvementEstimated?: boolean;
   readonly byDomain: Record<DomainName, DomainOptimizationResult>;
 }
 
 export interface DomainOptimizationResult {
   readonly strategiesOptimized: number;
+  /** Estimated, see OptimizedStrategy.evaluation (#1099). */
   readonly avgImprovement: number;
   readonly bestStrategy: Strategy;
 }
