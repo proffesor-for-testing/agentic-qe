@@ -18,7 +18,7 @@ import { createInterface } from 'node:readline';
 
 const bundle = resolve('dist/mcp/bundle.js');
 const UNHANDLED = [
-  'assess-quality', 'index-code', 'scan-security', 'validate-requirements',
+  'assess-quality', 'optimize-learning', 'scan-security', 'validate-requirements',
   'validate-contracts', 'test-accessibility', 'run-chaos',
 ] as const;
 

@@ -34,7 +34,7 @@ function runCli(args: string[]) {
 }
 
 describe.skipIf(!existsSync(cli) && !process.env.CI)('built CLI task submit rejects task types no domain executes (#1075)', () => {
-  it.each(['index-code', 'scan-security'])('rejects %s up front instead of waiting out --timeout', type => {
+  it.each(['assess-quality', 'scan-security'])('rejects %s up front instead of waiting out --timeout', type => {
     const result = runCli(['task', 'submit', type, '--wait', '--timeout', '30000', '--no-progress']);
     expect(result.error).toBeUndefined();
     expect(result.status).toBe(1);
