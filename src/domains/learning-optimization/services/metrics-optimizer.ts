@@ -237,11 +237,19 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
   async recommendStrategy(context: PatternContext): Promise<Result<Strategy>> {
     try {
       // Search for strategies that worked well in similar contexts
-      const keys = await this.memory.search('learning:strategy:optimized:*', 100);
+      const keys = await this.memory.search(
+        'learning:strategy:optimized:*', 100, { namespace: 'learning-optimization' },
+      );
       const candidates: Array<{ strategy: Strategy; score: number }> = [];
 
-      for (const key of keys) {
-        const optimized = await this.memory.get<OptimizedStrategy>(key);
+      for (const found of keys) {
+        // SQLite returns bare keys; in-memory search includes the namespace.
+        // get() applies that namespace separately, as storeOptimizationResult does.
+        const prefix = 'learning-optimization:';
+        const key = found.startsWith(prefix) ? found.slice(prefix.length) : found;
+        const optimized = await this.memory.get<OptimizedStrategy>(
+          key, { namespace: 'learning-optimization' },
+        );
         if (optimized && optimized.confidence > 0.6) {
           const contextScore = this.scoreContextMatch(optimized, context);
           const performanceScore = optimized.improvement * optimized.confidence;
