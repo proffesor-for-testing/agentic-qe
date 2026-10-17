@@ -145,6 +145,22 @@ export type Severity = 'critical' | 'high' | 'medium' | 'low' | 'info';
 
 export type Priority = 'p0' | 'p1' | 'p2' | 'p3';
 
+export const ALL_PRIORITIES: readonly Priority[] = ['p0', 'p1', 'p2', 'p3'];
+
+/**
+ * Type guard for a user-supplied task priority (CLI flags, MCP arguments).
+ * Validate at the boundary so an unknown priority is rejected instead of being
+ * silently accepted (#1108).
+ */
+export function isPriority(value: unknown): value is Priority {
+  return typeof value === 'string' && (ALL_PRIORITIES as readonly string[]).includes(value);
+}
+
+/** Shared rejection message so `task_submit` and `aqe task submit` stay in parity (#1108). */
+export function invalidPriorityMessage(value: unknown): string {
+  return `Invalid priority: ${String(value)}. Valid priorities: ${ALL_PRIORITIES.join(', ')}`;
+}
+
 // ============================================================================
 // Configuration Types
 // ============================================================================

@@ -13,7 +13,7 @@ import {
   formatDuration,
 } from './interfaces.js';
 import type { TaskType } from '../../coordination/queen-coordinator.js';
-import { ALL_DOMAINS, DomainName, Priority, isDomainName } from '../../shared/types/index.js';
+import { ALL_DOMAINS, DomainName, Priority, invalidPriorityMessage, isDomainName, isPriority } from '../../shared/types/index.js';
 import { createTimedSpinner } from '../utils/progress.js';
 import { parseJsonOption } from '../helpers/safe-json.js';
 import { type OutputFormat, writeOutput, toJSON } from '../utils/ci-output.js';
@@ -97,6 +97,13 @@ export class TaskHandler implements ICommandHandler {
       return this.cleanupAndExit(1);
     }
 
+    // #1108: reject a priority outside the allowed set. Parity with MCP
+    // `task_submit`.
+    if (!isPriority(options.priority)) {
+      console.error(chalk.red(`\n  ${invalidPriorityMessage(options.priority)}\n`));
+      return this.cleanupAndExit(1);
+    }
+
     // #734 C: a CLI-submitted task runs inside this process and is not
     // persisted, so a detached submit would report an ID for work that is
     // abandoned when the command exits. Refuse it rather than claim success.
@@ -134,7 +141,7 @@ export class TaskHandler implements ICommandHandler {
 
       const result = await context.queen!.submitTask({
         type: taskType,
-        priority: options.priority as Priority,
+        priority: options.priority,
         targetDomains,
         payload,
         timeout: parseInt(options.timeout, 10),
