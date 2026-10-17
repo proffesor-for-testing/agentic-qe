@@ -513,13 +513,16 @@ describe('Task Handlers', () => {
       expect(result.data!.type).toBe('analyze-coverage');
     }, 30000);
 
-    it('should infer security scan type', async () => {
+    // #1081: no security-compliance handler executes scan-security, so the
+    // inferred task is rejected with the reason instead of left running.
+    it('should reject an inferred security scan type that no domain executes', async () => {
       const result = await handleTaskOrchestrate({
         task: 'Scan for security vulnerabilities',
       });
 
-      expect(result.success).toBe(true);
-      expect(result.data!.type).toBe('scan-security');
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("No handler for task type 'scan-security' in domain security-compliance");
+      expect(result.error).toContain("task_orchestrate inferred 'scan-security'");
     }, 30000);
 
     it('should respect strategy parameter', async () => {
@@ -534,7 +537,7 @@ describe('Task Handlers', () => {
 
     it('should map priority to internal format', async () => {
       const result = await handleTaskOrchestrate({
-        task: 'Critical security scan',
+        task: 'Critical coverage analysis',
         priority: 'critical',
       });
 
@@ -569,12 +572,12 @@ describe('Task Handlers', () => {
     }, 30000);
 
     it('should infer domain from task description when context.project is missing (Fix #282)', async () => {
-      // Security task should infer security-compliance domain
-      const secResult = await handleTaskOrchestrate({
-        task: 'Scan for security vulnerabilities and XSS issues',
+      // Defect task should infer defect-intelligence domain
+      const defectResult = await handleTaskOrchestrate({
+        task: 'Predict defects in the payment module',
       });
-      expect(secResult.success).toBe(true);
-      expect(secResult.data!.routing).toBeDefined();
+      expect(defectResult.success).toBe(true);
+      expect(defectResult.data!.routing).toBeDefined();
 
       // Coverage task should infer coverage-analysis domain
       const covResult = await handleTaskOrchestrate({
