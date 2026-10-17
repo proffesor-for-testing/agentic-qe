@@ -22,7 +22,6 @@ import { LearningOptimizationCoordinator } from '../../../src/domains/learning-o
 import { calculateChecksum } from '../../../src/domains/learning-optimization/coordinator-helpers';
 import { LearningConsolidationProtocol } from '../../../src/coordination/protocols/learning-consolidation';
 import { LearningOptimizeTool } from '../../../src/mcp/tools/learning-optimization/optimize';
-import { TimeRange } from '../../../src/shared/value-objects/index.js';
 import type { Experience, LearnedPattern } from '../../../src/domains/learning-optimization/interfaces';
 
 const NS = { namespace: 'learning-optimization' } as const;
@@ -195,26 +194,15 @@ describe('#1055 active pattern reads (real SQLite)', () => {
       expect(result.success && result.value.map((p) => p.id).sort()).toEqual([...ids].sort());
     });
 
-    it('reports when the key scan hits its cap', async () => {
+    it('reads every active pattern even when the first scan request is smaller than the store (#1071)', async () => {
       const { readActivePatterns } = await import('../../../src/domains/learning-optimization/active-patterns');
-      await learnTwo();
-      const onTruncated = vi.fn();
-      await readActivePatterns(memory, { retrieve: NS, scanLimit: 3, onTruncated });
-      expect(onTruncated).toHaveBeenCalledWith(3);
+      const ids = await learnTwo();
+      const patterns = await readActivePatterns(memory, { retrieve: NS, scanPageSize: 1 });
+      expect(patterns.map((p) => p.id).sort()).toEqual([...ids].sort());
     });
   });
 
   describe('other readers of the same prefix', () => {
-    // The consolidation protocol still reads the backend's default namespace
-    // (#1071). Mirror only for its classification fixture; coordinator export
-    // must read the real service namespace without this workaround.
-    async function mirrorToDefaultNamespace(): Promise<void> {
-      const keys = await memory.search('learning:pattern:*', 1000, NS);
-      for (const key of keys) {
-        await memory.set(key, await memory.get(key, NS), { persist: true });
-      }
-    }
-
     it('coordinator export includes only the active pattern, once', async () => {
       const { active } = await learnTwoAndConsolidate();
       const coordinator = new LearningOptimizationCoordinator(
@@ -256,18 +244,16 @@ describe('#1055 active pattern reads (real SQLite)', () => {
 
     it('consolidation protocol excludes provenance as well as archives', async () => {
       const { active } = await learnTwoAndConsolidate();
-      await mirrorToDefaultNamespace();
+      // #1071: the protocol reads the service's namespace directly.
       const protocol = new LearningConsolidationProtocol(
         { publish: vi.fn(), subscribe: vi.fn() } as never,
         memory,
         {} as never,
         {} as never,
       );
-      const range = TimeRange.lastNDays(1);
-      const patterns = await (protocol as unknown as {
-        getPatternsForDomain: (d: string, t: TimeRange) => Promise<LearnedPattern[]>;
-      }).getPatternsForDomain('code-intelligence', range);
-      expect(patterns.map((p) => p.id)).toEqual([active]);
+      const gathered = await protocol.gatherPatterns();
+      if (!gathered.success) throw gathered.error;
+      expect(gathered.value.flatMap((g) => g.patterns.map((p) => p.id))).toEqual([active]);
     });
   });
 

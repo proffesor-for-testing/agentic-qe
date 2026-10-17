@@ -8,6 +8,8 @@ import { Result, ok, err, DomainName, AgentId, ALL_DOMAINS } from '../../../shar
 import { MemoryBackend } from '../../../kernel/interfaces.js';
 import { toError } from '../../../shared/error-utils.js';
 import { rehydrateDates } from '../../../shared/utils/kv-date-rehydrate.js';
+import { searchAllKeys } from '../../../shared/utils/namespaced-search.js';
+import { LEARNING_NS } from '../active-patterns.js';
 import {
   Knowledge,
   KnowledgeType,
@@ -112,18 +114,15 @@ export class TransferSpecialistService implements IKnowledgeSynthesisService {
       // Secondary domain/type indexes store IDs, not Knowledge objects, and
       // shareKnowledge() need not create them. Read canonical shared records
       // from the same namespace as both writers, then filter and rank before
-      // applying the caller's result limit. Keep the scan bounded by config.
-      const keys = await this.memory.search(
-        'learning:knowledge:shared:*',
-        this.config.maxKnowledgeItems,
-        { namespace: 'learning-optimization' },
-      );
+      // applying the caller's result limit. #1071: every key is read (the
+      // config value only sizes the first scan request), so the domain filter
+      // sees every item instead of an arbitrary first page.
+      const keys = await searchAllKeys(this.memory, 'learning:knowledge:shared:*', {
+        retrieve: LEARNING_NS,
+        pageSize: this.config.maxKnowledgeItems,
+      });
 
-      for (const found of keys) {
-        // In-memory search returns namespace-prefixed keys; SQLite returns
-        // bare keys. get() already receives the namespace separately.
-        const prefix = 'learning-optimization:';
-        const key = found.startsWith(prefix) ? found.slice(prefix.length) : found;
+      for (const key of keys) {
         // #493: rehydrate Date fields at the kv-read seam. `createdAt` is
         // consumed by validateRelevance().getTime() and `expiresAt` is
         // compared via `new Date() > knowledge.expiresAt` — both broken
@@ -137,8 +136,9 @@ export class TransferSpecialistService implements IKnowledgeSynthesisService {
         }
       }
 
-      // Sort by relevance score
-      results.sort((a, b) => b.relevanceScore - a.relevanceScore);
+      // Sort by relevance score; equal scores fall back to id order so the
+      // caller's limit always keeps the same items (#1071).
+      results.sort((a, b) => b.relevanceScore - a.relevanceScore || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 
       // Apply semantic search if embedding provided
       if (query.embedding && query.embedding.length > 0) {
@@ -402,16 +402,17 @@ export class TransferSpecialistService implements IKnowledgeSynthesisService {
     filter?: { types?: KnowledgeType[]; minRelevance?: number }
   ): Promise<Result<TransferResult[]>> {
     try {
-      const keys = await this.memory.search(
-        `learning:knowledge:project:${sourceProject}:*`,
-        500
-      );
+      // #1071: read project knowledge from the namespace it is written to
+      // below, every key, in key order.
+      const keys = await searchAllKeys(this.memory, `learning:knowledge:project:${sourceProject}:*`, {
+        retrieve: LEARNING_NS,
+      });
       const results: TransferResult[] = [];
 
       for (const key of keys) {
         // #493: rehydrate Date fields at the kv-read seam.
         const knowledge = rehydrateDates(
-          await this.memory.get<Knowledge>(key),
+          await this.memory.get<Knowledge>(key, LEARNING_NS),
           ['createdAt', 'expiresAt'],
         );
         if (!knowledge) continue;

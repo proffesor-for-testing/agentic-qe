@@ -4,7 +4,8 @@
  */
 
 import { LoggerFactory } from '../../logging/index.js';
-import { readActivePatterns } from './active-patterns.js';
+import { readActivePatterns, LEARNING_NS } from './active-patterns.js';
+import { searchAllKeys } from '../../shared/utils/namespaced-search.js';
 import { v4 as uuidv4 } from 'uuid';
 import { toError } from '../../shared/error-utils.js';
 import { rehydrateDates } from '../../shared/utils/kv-date-rehydrate.js';
@@ -1046,12 +1047,8 @@ export class LearningOptimizationCoordinator
       // Export patterns (#1055: active patterns only — creation provenance
       // and archives share the `learning:pattern:` prefix). One read covers
       // every target domain; the previous per-domain loop exported each
-      // pattern once per target domain.
-      const activePatterns = await readActivePatterns(this.memory, {
-        retrieve: { namespace: 'learning-optimization' },
-        onTruncated: (scanned) =>
-          logger.warn('Pattern export key scan hit its cap; export may be incomplete', { scanned }),
-      });
+      // pattern once per target domain. #1071: every key is read, no cap.
+      const activePatterns = await readActivePatterns(this.memory, { retrieve: LEARNING_NS });
       for (const pattern of activePatterns) {
         if (targetDomains.includes(pattern.domain)) {
           patterns.push(pattern);
@@ -1059,9 +1056,10 @@ export class LearningOptimizationCoordinator
       }
       this.updateWorkflowProgress(workflowId, 30);
 
-      // Export knowledge
+      // Export knowledge. #1071: no result cap; queryKnowledge reads every
+      // shared item before filtering, so other domains cannot crowd these out.
       const knowledgeResult = await this.transferService.queryKnowledge({
-        limit: 1000,
+        limit: Number.POSITIVE_INFINITY,
       });
       if (knowledgeResult.success) {
         for (const item of knowledgeResult.value) {
@@ -1073,13 +1071,13 @@ export class LearningOptimizationCoordinator
 
       this.updateWorkflowProgress(workflowId, 60);
 
-      // Export strategies
-      const strategyKeys = await this.memory.search(
-        `learning:strategy:optimized:*`,
-        200
-      );
+      // Export strategies from the namespace their writers use (#1071), every
+      // key, in key order.
+      const strategyKeys = await searchAllKeys(this.memory, 'learning:strategy:optimized:*', {
+        retrieve: LEARNING_NS,
+      });
       for (const key of strategyKeys) {
-        const strategy = await this.memory.get<OptimizedStrategy>(key);
+        const strategy = await this.memory.get<OptimizedStrategy>(key, LEARNING_NS);
         if (strategy && targetDomains.includes(strategy.domain)) {
           strategies.push(strategy);
         }
@@ -1179,8 +1177,10 @@ export class LearningOptimizationCoordinator
 
       // Import knowledge
       for (const item of modelExport.knowledge) {
+        // #1071: compare against the record in the namespace written below.
         const existing = await this.memory.get<Knowledge>(
-          `learning:knowledge:shared:${item.id}`
+          `learning:knowledge:shared:${item.id}`,
+          LEARNING_NS
         );
 
         if (existing) {
@@ -1220,8 +1220,10 @@ export class LearningOptimizationCoordinator
 
       // Import strategies
       for (const strategy of modelExport.strategies) {
+        // #1071: compare against the record in the namespace written below.
         const existing = await this.memory.get<OptimizedStrategy>(
-          `learning:strategy:optimized:${strategy.id}`
+          `learning:strategy:optimized:${strategy.id}`,
+          LEARNING_NS
         );
 
         if (existing) {
