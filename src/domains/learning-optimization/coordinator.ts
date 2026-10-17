@@ -5,6 +5,7 @@
 
 import { LoggerFactory } from '../../logging/index.js';
 import { readActivePatterns, LEARNING_NS } from './active-patterns.js';
+import { partitionByRewardSource } from './reward-source.js';
 import { searchAllKeys } from '../../shared/utils/namespaced-search.js';
 import { v4 as uuidv4 } from 'uuid';
 import { toError } from '../../shared/error-utils.js';
@@ -349,7 +350,10 @@ export class LearningOptimizationCoordinator
       // Get experiences from the last cycle
       const timeRange = TimeRange.lastNDays(1);
       const experiencesResult = await this.getExperiencesForDomain(domain, timeRange);
-      const experiences = experiencesResult.success ? experiencesResult.value : [];
+      // #1109: the reported `before` value and the optimizer use measured outcomes only.
+      const experiences = experiencesResult.success
+        ? partitionByRewardSource(experiencesResult.value).measured
+        : [];
 
       this.updateWorkflowProgress(workflowId, 20);
 

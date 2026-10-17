@@ -682,6 +682,8 @@ export class LearningOptimizationPlugin extends BaseDomainPlugin {
         duration: 0,
       },
       reward: 0.8,
+      // #1109: generation is recorded before any run, so no outcome exists yet.
+      rewardSource: 'assigned',
       // ADR-110: real matched-pattern IDs from test-generation/coordinator.ts's
       // GeneratedTests.patternsUsed. This event always represents a successful
       // generation, so nulls won't fire from here in practice — threaded for
@@ -729,6 +731,7 @@ export class LearningOptimizationPlugin extends BaseDomainPlugin {
         duration: payload.duration,
       },
       reward: successRate,
+      rewardSource: 'measured',
     });
 
     // Record production metric
@@ -768,6 +771,8 @@ export class LearningOptimizationPlugin extends BaseDomainPlugin {
         duration: 0,
       },
       reward: 1 - payload.riskScore,
+      // #1109: finding a gap is not an observed success of the detection.
+      rewardSource: 'assigned',
     });
   }
 
@@ -795,6 +800,7 @@ export class LearningOptimizationPlugin extends BaseDomainPlugin {
         duration: 0,
       },
       reward: payload.passed ? 1 : 0,
+      rewardSource: 'measured',
     });
   }
 
@@ -821,7 +827,9 @@ export class LearningOptimizationPlugin extends BaseDomainPlugin {
         outcome: { probability: payload.probability },
         duration: 0,
       },
-      reward: 0.7, // Predictions are valuable
+      reward: 0.7,
+      // #1109: the prediction has not been confirmed or refuted yet.
+      rewardSource: 'assigned',
     });
   }
 
@@ -856,6 +864,8 @@ export class LearningOptimizationPlugin extends BaseDomainPlugin {
         duration: 0,
       },
       reward: 0.8,
+      // #1109: the analysis has no observed outcome to score.
+      rewardSource: 'assigned',
     });
   }
 

@@ -8,6 +8,7 @@ import { Result, ok, err, DomainName } from '../../../shared/types/index.js';
 import { MemoryBackend } from '../../../kernel/interfaces.js';
 import { toError } from '../../../shared/error-utils.js';
 import { rehydrateDates } from '../../../shared/utils/kv-date-rehydrate.js';
+import { partitionByRewardSource } from '../reward-source.js';
 import {
   Strategy,
   OptimizedStrategy,
@@ -96,13 +97,18 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
   async optimizeStrategy(
     currentStrategy: Strategy,
     objective: OptimizationObjective,
-    experiences: Experience[]
+    input: Experience[]
   ): Promise<Result<OptimizedStrategy>> {
     try {
+      // #1109: fit and validate on measured outcomes only.
+      const { measured: experiences, assignedExcluded } = partitionByRewardSource(input);
       if (experiences.length < this.config.minSamplesForOptimization) {
+        const excluded = assignedExcluded > 0
+          ? ` (${assignedExcluded} with an assigned reward excluded)`
+          : '';
         return err(
           new Error(
-            `Need at least ${this.config.minSamplesForOptimization} experiences for optimization`
+            `Need at least ${this.config.minSamplesForOptimization} measured experiences for optimization${excluded}`
           )
         );
       }
@@ -304,9 +310,23 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
    */
   async evaluateStrategy(
     strategy: Strategy,
-    experiences: Experience[]
+    input: Experience[]
   ): Promise<Result<StrategyEvaluation>> {
     try {
+      // #1109: an assigned reward says nothing about how the strategy performed.
+      const { measured: experiences, assignedExcluded } = partitionByRewardSource(input);
+      if (experiences.length === 0) {
+        return ok({
+          strategy,
+          metrics: {},
+          strengths: [],
+          weaknesses: [],
+          improvementAreas: [],
+          evidenceStatus: 'insufficient-evidence',
+          ...(assignedExcluded > 0 ? { assignedRewardsExcluded: assignedExcluded } : {}),
+        });
+      }
+
       // Calculate metrics
       const metrics: Record<string, number> = {};
       const successRate = this.calculateSuccessRate(experiences);

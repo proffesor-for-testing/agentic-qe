@@ -536,14 +536,15 @@ describe('MetricsOptimizerService', () => {
   });
 
   describe('edge cases', () => {
-    it('should handle empty experiences array in evaluateStrategy', async () => {
+    it('reports insufficient evidence, not a 0% success rate, for no experiences (#1109)', async () => {
       const strategy = createTestStrategy();
 
       const result = await service.evaluateStrategy(strategy, []);
 
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.value.metrics['success_rate']).toBe(0);
+        expect(result.value.evidenceStatus).toBe('insufficient-evidence');
+        expect(result.value.metrics).toEqual({});
       }
     });
 
