@@ -205,6 +205,8 @@ export interface ITestCaseResult {
   status: 'passed' | 'failed' | 'skipped';
   /** Runner-reported duration in ms; omitted when the runner reported none. */
   duration?: number;
+  /** The runner's failure message for a failed test, when it reported one. */
+  failureMessage?: string;
 }
 
 export interface IFileCoverageData {

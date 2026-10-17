@@ -528,7 +528,33 @@ export const testExecuteConfig: DomainHandlerConfig<TestExecuteParams, TestExecu
       unmeasuredReasons[field] = reason;
     };
 
-    const workerStats: Record<string, unknown> = { avgExecutionTime: duration / Math.max(total, 1) };
+    // Per-test results come from the runner's own report, or are left out.
+    const testCases = Array.isArray(data.testCases)
+      ? data.testCases as Array<{ name: string; file: string; status: string; duration?: number }>
+      : undefined;
+    const results = testCases?.map(testCase => ({ id: generateTestId(), ...testCase }));
+    if (!results) {
+      markUnmeasured('results', 'The test runner report did not list every test case, so per-test results are omitted.');
+    }
+
+    // The average test time is the mean of the runner-reported per-test
+    // durations. The task's wall time (`duration`) includes runner start-up and
+    // skipped tests, so dividing it by `total` would contradict `results`.
+    const testDurations = (testCases ?? [])
+      .map(testCase => testCase.duration)
+      .filter((d): d is number => typeof d === 'number' && Number.isFinite(d));
+    const avgTestDuration = testDurations.length > 0
+      ? testDurations.reduce((sum, d) => sum + d, 0) / testDurations.length
+      : undefined;
+    if (avgTestDuration === undefined) {
+      const reason = 'The runner reported no per-test durations; the task wall time is in `duration`.';
+      markUnmeasured('workerStats.avgExecutionTime', reason);
+      markUnmeasured('summary.avgDuration', reason);
+    }
+
+    const workerStats: Record<string, unknown> = avgTestDuration !== undefined
+      ? { avgExecutionTime: avgTestDuration }
+      : {};
     const noWorkerData = 'No worker tasks were recorded by the metrics collector for this process.';
     const workersUsed = MetricsCollector.getWorkersUsed();
     if (workersUsed > 0) workerStats.workersUsed = workersUsed;
@@ -547,16 +573,9 @@ export const testExecuteConfig: DomainHandlerConfig<TestExecuteParams, TestExecu
       markUnmeasured('retryStats', noWorkerData);
     }
 
-    // Per-test results come from the runner's own report, or are left out.
-    const testCases = Array.isArray(data.testCases)
-      ? data.testCases as Array<{ name: string; file: string; status: string; duration?: number }>
-      : undefined;
-    const results = testCases?.map(testCase => ({ id: generateTestId(), ...testCase }));
-    if (!results) {
-      markUnmeasured('results', 'The test runner report did not list every test case, so per-test results are omitted.');
-    }
-
-    const learning = generateV2LearningFeedback('test-executor');
+    // No `learning` block: the run's experience is recorded asynchronously by
+    // the learning-optimization plugin from TestRunCompleted, so this response
+    // cannot name its id or confirm that it was written (#1110).
 
     return {
       // V2-compatible fields
@@ -566,10 +585,9 @@ export const testExecuteConfig: DomainHandlerConfig<TestExecuteParams, TestExecu
       summary: {
         totalTests: total,
         passRate: total > 0 ? (passed / total) * 100 : 0,
-        avgDuration: duration / Math.max(total, 1),
+        ...(avgTestDuration !== undefined ? { avgDuration: avgTestDuration } : {}),
         ...(efficiency !== null ? { parallelEfficiency: efficiency } : {}),
       },
-      learning,
       ...(unmeasured.length > 0 ? { unmeasured, unmeasuredReasons } : {}),
       // V3 fields
       taskId,

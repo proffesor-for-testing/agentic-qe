@@ -384,13 +384,15 @@ describe('Domain Handlers', { timeout: 30000 }, () => {
       expect(result.data!.summary!.passRate).toBeGreaterThanOrEqual(0);
     }, 30000);
 
-    it('should include learning feedback', async () => {
+    it('does not report a placeholder learning block (#1110)', async () => {
       const result = await handleTestExecute({
         testFiles: ['tests/sample.test.ts'],
       });
 
       expect(result.success).toBe(true);
-      expect(result.data!.learning).toBeDefined();
+      // The run's experience is recorded by the learning plugin from
+      // TestRunCompleted; this response cannot name it, so it does not claim it.
+      expect(result.data!.learning).toBeUndefined();
     }, 30000);
 
     it('should handle test suites parameter', async () => {

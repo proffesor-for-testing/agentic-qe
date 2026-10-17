@@ -69,7 +69,7 @@ describe('#1110 runner-reported test cases', () => {
     expect(result.value).toMatchObject({ total: 3, passed: 1, failed: 1, skipped: 1 });
     expect(result.value.testCases).toEqual([
       { name: 'math adds', file, status: 'passed', duration: 2 },
-      { name: 'math fails', file, status: 'failed', duration: 4 },
+      { name: 'math fails', file, status: 'failed', duration: 4, failureMessage: 'expected 1 to be 3' },
       { name: 'math later', file, status: 'skipped' },
     ]);
     const runRecord = set.mock.calls.find(([key]) => String(key).startsWith('test-run:'));

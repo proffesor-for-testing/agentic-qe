@@ -9,17 +9,29 @@
 import type { ITestCaseResult } from '../interfaces';
 
 const SKIPPED_STATUSES = new Set(['skipped', 'pending', 'todo']);
+/** Upper bound on a reported failure message, so one stack cannot swamp the output. */
+const MAX_FAILURE_MESSAGE_LENGTH = 4000;
 
 interface RunnerAssertion {
   status?: unknown;
   fullName?: unknown;
   title?: unknown;
   duration?: unknown;
+  failureMessages?: unknown;
 }
 
 interface RunnerFileResult {
   name?: unknown;
   assertionResults?: RunnerAssertion[];
+}
+
+function failureMessageOf(assertion: RunnerAssertion): string | undefined {
+  if (!Array.isArray(assertion.failureMessages)) return undefined;
+  const message = assertion.failureMessages.filter((m): m is string => typeof m === 'string').join('\n').trim();
+  if (!message) return undefined;
+  return message.length > MAX_FAILURE_MESSAGE_LENGTH
+    ? `${message.slice(0, MAX_FAILURE_MESSAGE_LENGTH)}… [truncated]`
+    : message;
 }
 
 function toStatus(status: unknown): ITestCaseResult['status'] | undefined {
@@ -39,7 +51,10 @@ export function testCasesFromRunnerReport(
   const cases: ITestCaseResult[] = [];
   for (const fileResult of report.testResults as RunnerFileResult[]) {
     const file = typeof fileResult?.name === 'string' ? fileResult.name : fallbackFile;
-    for (const assertion of fileResult?.assertionResults ?? []) {
+    const assertions = Array.isArray(fileResult?.assertionResults) ? fileResult.assertionResults : [];
+    for (const assertion of assertions) {
+      // A malformed entry is skipped; the caller's count check then drops the list.
+      if (!assertion || typeof assertion !== 'object') continue;
       const status = toStatus(assertion.status);
       if (!status) continue;
       const name = typeof assertion.fullName === 'string' && assertion.fullName
@@ -49,7 +64,12 @@ export function testCasesFromRunnerReport(
       const duration = typeof assertion.duration === 'number' && Number.isFinite(assertion.duration)
         ? assertion.duration
         : undefined;
-      cases.push({ name, file, status, ...(duration !== undefined ? { duration } : {}) });
+      const failureMessage = status === 'failed' ? failureMessageOf(assertion) : undefined;
+      cases.push({
+        name, file, status,
+        ...(duration !== undefined ? { duration } : {}),
+        ...(failureMessage ? { failureMessage } : {}),
+      });
     }
   }
   return cases.length > 0 ? cases : undefined;

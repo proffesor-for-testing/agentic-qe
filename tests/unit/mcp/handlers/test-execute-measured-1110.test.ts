@@ -22,11 +22,13 @@ describe('#1110 test_execute_parallel output', () => {
   it('omits worker and retry figures nothing measured, and lists them as unmeasured', () => {
     const result = map({});
 
-    expect(result.workerStats).toEqual({ avgExecutionTime: 10 });
+    expect(result.workerStats).toEqual({});
     expect(result.retryStats).toBeUndefined();
     expect(result.summary).not.toHaveProperty('parallelEfficiency');
+    expect(result.summary).not.toHaveProperty('avgDuration');
     expect(result.unmeasured).toEqual(expect.arrayContaining([
       'workerStats.workersUsed', 'workerStats.efficiency', 'workerStats.loadBalance', 'retryStats', 'results',
+      'workerStats.avgExecutionTime', 'summary.avgDuration',
     ]));
     expect(Object.keys(result.unmeasuredReasons ?? {})).toEqual(result.unmeasured);
   });
@@ -53,6 +55,23 @@ describe('#1110 test_execute_parallel output', () => {
     expect(result.unmeasured).not.toContain('results');
   });
 
+  it('averages the runner-reported test durations, not wall time over a count that includes skipped tests', () => {
+    const result = map({ testCases: [
+      { name: 'a', file: 'f', status: 'passed', duration: 10 },
+      { name: 'b', file: 'f', status: 'failed', duration: 50 },
+      { name: 'c', file: 'f', status: 'skipped' },
+    ] });
+
+    // Wall time is 40 ms over 4 counted tests (10 ms); the measured mean is 30 ms.
+    expect(result.workerStats).toMatchObject({ avgExecutionTime: 30 });
+    expect(result.summary).toMatchObject({ avgDuration: 30 });
+    expect(result.unmeasured).not.toContain('summary.avgDuration');
+  });
+
+  it('carries no placeholder learning block with an invented agentId', () => {
+    expect(map({})).not.toHaveProperty('learning');
+  });
+
   it('reports collector figures once tasks were actually recorded', () => {
     MetricsCollector.startTask('task-1', 'worker-a');
     MetricsCollector.completeTask('task-1', true);
@@ -61,7 +80,7 @@ describe('#1110 test_execute_parallel output', () => {
     expect(result.workerStats).toMatchObject({ workersUsed: 1, efficiency: 1, loadBalance: 1 });
     expect(result.retryStats).toEqual({ totalRetries: 0, successfulRetries: 0, maxRetriesReached: 0 });
     expect(result.summary).toMatchObject({ parallelEfficiency: 1 });
-    expect(result.unmeasured).toEqual(['results']);
+    expect(result.unmeasured).toEqual(['results', 'workerStats.avgExecutionTime', 'summary.avgDuration']);
   });
 });
 
@@ -84,6 +103,28 @@ describe('#1110 testCasesFromRunnerReport', () => {
       { name: 'a later', file: '/p/a.test.ts', status: 'skipped' },
       { name: 'a todo', file: '/p/a.test.ts', status: 'skipped' },
     ]);
+  });
+
+  it('includes the runner failure message for failed tests', () => {
+    const cases = testCasesFromRunnerReport({ testResults: [{ name: 'f', assertionResults: [
+      { status: 'failed', fullName: 'breaks', failureMessages: ['AssertionError: expected 1 to be 3', '    at f.ts:3'] },
+      { status: 'failed', fullName: 'no message', failureMessages: [] },
+      { status: 'passed', fullName: 'ok', failureMessages: ['ignored'] },
+      { status: 'failed', fullName: 'huge', failureMessages: ['x'.repeat(5000)] },
+    ] }] }, 'f');
+
+    expect(cases![0].failureMessage).toBe('AssertionError: expected 1 to be 3\n    at f.ts:3');
+    expect(cases![1]).not.toHaveProperty('failureMessage');
+    expect(cases![2]).not.toHaveProperty('failureMessage');
+    expect(cases![3].failureMessage).toHaveLength(4000 + '… [truncated]'.length);
+  });
+
+  it('skips null or non-object assertion entries instead of throwing', () => {
+    const report = { testResults: [null, { name: 'f', assertionResults: [null, 7, { status: 'passed', fullName: 'ok' }] },
+      { name: 'g', assertionResults: 'not-an-array' }] };
+
+    expect(() => testCasesFromRunnerReport(report, 'x')).not.toThrow();
+    expect(testCasesFromRunnerReport(report, 'x')).toEqual([{ name: 'ok', file: 'f', status: 'passed' }]);
   });
 
   it('returns undefined when the report lists no tests', () => {
