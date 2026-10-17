@@ -9,6 +9,8 @@ import { TypeScriptParser } from '../../../shared/parsers';
 import { FileReader } from '../../../shared/io';
 import { NomicEmbedder } from '../../../shared/embeddings';
 import { MemoryBackend } from '../../../kernel/interfaces';
+import { findProjectRoot } from '../../../kernel/project-root.js';
+import { confineIndexPaths } from '../index-path-guard';
 // ADR-051: LLM Router for AI-enhanced knowledge extraction
 import type { HybridRouter, ChatResponse } from '../../../shared/llm';
 import { toErrorMessage, toError } from '../../../shared/error-utils.js';
@@ -79,6 +81,11 @@ export interface KnowledgeGraphConfig {
    * doesn't trip the FileReader path-traversal guard.
    */
   basePath?: string;
+  /**
+   * #1096: directory that indexing is confined to (by realpath). Defaults to
+   * `basePath` when set, otherwise the detected project root.
+   */
+  projectRoot?: string;
 }
 
 /**
@@ -132,6 +139,7 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
   private allEdgesCache?: KGEdge[];
   private readonly tsParser: TypeScriptParser;
   private readonly fileReader: FileReader;
+  private readonly projectRoot: string;
   private readonly embedder: NomicEmbedder;
   /** ADR-051: Optional LLM router for AI-enhanced extraction */
   private readonly llmRouter?: HybridRouter;
@@ -159,7 +167,13 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
     }
 
     this.tsParser = new TypeScriptParser();
-    this.fileReader = new FileReader(this.config.basePath ? { basePath: this.config.basePath } : undefined);
+    // #1096: confine reads to the project root by realpath, so a symlink
+    // inside the project cannot pull an outside file into the graph.
+    this.projectRoot = this.config.projectRoot ?? this.config.basePath ?? findProjectRoot();
+    this.fileReader = new FileReader({
+      ...(this.config.basePath ? { basePath: this.config.basePath } : {}),
+      projectRoot: this.projectRoot,
+    });
     this.embedder = new NomicEmbedder({
       enableFallback: true,
     });
@@ -203,23 +217,38 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
     try {
       const { paths, incremental = false, includeTests = true, languages } = request;
 
+      // #1096: index only regular files whose realpath is inside the project
+      // root; everything else is reported in `skipped`, never counted.
+      const { accepted, skipped } = await confineIndexPaths(
+        paths, this.projectRoot, this.config.basePath ?? process.cwd(),
+      );
+      let filesIndexed = 0;
+
       // Clear existing graph if not incremental
       if (!incremental) {
         await this.clear();
+      } else {
+        // #511: a file deleted since the last index must not leave its old
+        // nodes/edges behind, even though it is no longer indexed.
+        for (const entry of skipped) {
+          if (entry.reason === 'not-found') await this.removeFileFromGraph(entry.path);
+        }
       }
 
-      for (const path of paths) {
+      for (const path of accepted) {
         try {
           // Filter by language if specified
           if (languages && languages.length > 0) {
             const ext = this.getFileExtension(path);
             if (!this.matchesLanguage(ext, languages)) {
+              skipped.push({ path, reason: 'excluded-by-language' });
               continue;
             }
           }
 
           // Skip test files if not included
           if (!includeTests && this.isTestFile(path)) {
+            skipped.push({ path, reason: 'excluded-test-file' });
             continue;
           }
 
@@ -232,6 +261,7 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
           const result = await this.indexFile(path, incremental);
           nodesCreated += result.nodes;
           edgesCreated += result.edges;
+          filesIndexed++;
         } catch (fileError) {
           errors.push({
             file: path,
@@ -259,7 +289,7 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
 
       // Store indexing metadata
       await this.storeIndexMetadata({
-        filesIndexed: paths.length - errors.length,
+        filesIndexed,
         nodesCreated,
         edgesCreated,
         duration,
@@ -267,12 +297,13 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
       });
 
       return ok({
-        filesIndexed: paths.length - errors.length,
+        filesIndexed,
         nodesCreated,
         edgesCreated,
         duration,
         errors,
         warnings,
+        skipped,
       });
     } catch (error) {
       return err(toError(error));
@@ -685,7 +716,19 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
     // STALE pre-edit text. Eviction guarantees fresh reads; the two reads within
     // this method (entities + imports) still share one cache fill, so they stay
     // mutually consistent.
-    this.fileReader.invalidateCache(filePath);
+    try {
+      this.fileReader.invalidateCache(filePath);
+    } catch {
+      // #1096: a path the reader's legacy validator rejects (e.g. a project
+      // root outside cwd) is never cached; the read below decides.
+    }
+
+    // #1096: a file that cannot be read (removed since it was confined, or
+    // blocked by the reader) is an error, not an indexed file node.
+    const readable = await this.fileReader.readFile(filePath);
+    if (!readable.success) {
+      throw readable.error;
+    }
 
     // #511: on an incremental re-index, drop this file's prior nodes/edges
     // first so renamed/removed entities and stale outgoing imports don't

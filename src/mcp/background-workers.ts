@@ -38,9 +38,17 @@ export async function startBackgroundWorkers(
     // (workers/daemon.ts) is the contracted default; matches the
     // shutdownDaemon() call site in entry.ts.
     const daemon = getDaemon();
-    await daemon.start();
+    // #1066: start() runs every worker's first tick one after another, which
+    // can take minutes. Let it finish in the background so the QualityDaemon
+    // (and the HTTP server after us) do not wait for it.
+    void daemon.start().catch((startError: unknown) => {
+      log(`[MCP] WARNING: Background workers failed to start: ${startError}\n`);
+    });
     const status = daemon.getStatus();
-    log(`[MCP] Background workers started (${status.workerManager.totalWorkers} workers)\n`);
+    log(
+      `[MCP] Background workers started (${status.workerManager.totalWorkers} workers; ` +
+        'first runs continue in the background)\n',
+    );
 
     // IMP-10: Start QualityDaemon with persistent memory (Finding 1 & 2 resolution)
     try {

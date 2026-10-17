@@ -13,6 +13,7 @@ describe('task CLI failure exit codes (#734)', () => {
   const submitTask = vi.fn();
   const getTaskStatus = vi.fn();
   const cancelTask = vi.fn();
+  const validateTaskExecutable = vi.fn();
   let program: Command;
 
   beforeEach(() => {
@@ -22,9 +23,10 @@ describe('task CLI failure exit codes (#734)', () => {
     ensure.mockResolvedValue(true);
     submitTask.mockResolvedValue({ success: true, value: 'task-1' });
     getTaskStatus.mockReturnValue({ status: 'completed' });
+    validateTaskExecutable.mockReturnValue({ success: true, value: undefined });
     program = new Command();
     new TaskHandler(cleanup, ensure).register(program, {
-      queen: { submitTask, getTaskStatus, cancelTask },
+      queen: { submitTask, getTaskStatus, cancelTask, validateTaskExecutable },
     } as unknown as CLIContext);
   });
   afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
@@ -54,6 +56,21 @@ describe('task CLI failure exit codes (#734)', () => {
     await run('submit', 'execute-tests', '--wait', '--no-progress');
     expect(submitTask).toHaveBeenCalledTimes(1);
     expect(cleanup).toHaveBeenCalledWith(1);
+  });
+
+  // #1075: a type no domain plugin executes would sit in `running` until the
+  // --timeout expired. It must be rejected before a task is submitted.
+  it('rejects a task type no domain executes before submitting it', async () => {
+    const errors = vi.mocked(console.error);
+    validateTaskExecutable.mockReturnValue({
+      success: false,
+      error: new Error("No handler for task type 'index-code' in domain code-intelligence (supported: index)"),
+    });
+    await run('submit', 'index-code', '--wait', '--no-progress');
+    expect(validateTaskExecutable).toHaveBeenCalledWith('index-code', []);
+    expect(submitTask).not.toHaveBeenCalled();
+    expect(cleanup).toHaveBeenCalledWith(1);
+    expect(errors.mock.calls.flat().join('\n')).toContain("No handler for task type 'index-code'");
   });
 
   it('exits nonzero when task status is not found', async () => {

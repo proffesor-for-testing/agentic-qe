@@ -42,6 +42,8 @@ export interface QueenTask {
   readonly createdAt: Date;
   readonly requester?: string;
   readonly correlationId?: string;
+  /** Trusted caller executes and reports results; Queen still tracks assignment. */
+  readonly executionOwner?: 'queen' | 'caller';
 }
 
 export type TaskType =
@@ -174,6 +176,8 @@ export interface IQueenCoordinator {
   dispose(): Promise<void>;
 
   // Task Management
+  /** #1075: reject a task type that no candidate domain plugin executes. */
+  validateTaskExecutable(type: TaskType, targetDomains?: readonly DomainName[]): Result<void, Error>;
   submitTask(task: Omit<QueenTask, 'id' | 'createdAt'>): Promise<Result<string, Error>>;
   cancelTask(taskId: string): Promise<Result<void, Error>>;
   getTaskStatus(taskId: string): TaskExecution | undefined;
@@ -308,6 +312,15 @@ export const DEFAULT_QUEEN_CONFIG: QueenConfig = {
   // V3 Integration: Enable intelligent model routing by default
   enableRouting: true,
 };
+
+/**
+ * Domains configured for a task type, or [] when the type is unknown.
+ * Task types arrive from MCP/CLI callers, so the lookup uses own properties
+ * only: `constructor` or `__proto__` must not resolve through Object.prototype.
+ */
+export function getTaskDomains(type: string): readonly DomainName[] {
+  return Object.hasOwn(TASK_DOMAIN_MAP, type) ? TASK_DOMAIN_MAP[type as TaskType] : [];
+}
 
 /**
  * Initialize the TASK_DOMAIN_MAP entries that need ALL_DOMAINS at runtime.

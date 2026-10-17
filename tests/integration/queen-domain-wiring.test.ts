@@ -288,8 +288,8 @@ describe('Queen-Domain Coordinator Integration', () => {
     });
   });
 
-  describe('Event Fallback', () => {
-    it('should use event fallback for domains without executeTask handlers', async () => {
+  describe('Domains without an executeTask handler (#1081)', () => {
+    it('fails the task with the reason instead of leaving it running on the event fallback', async () => {
       // Submit a task to legacy domain
       const result = await queen.submitTask({
         type: 'generate-tests',
@@ -300,17 +300,15 @@ describe('Queen-Domain Coordinator Integration', () => {
       });
 
       expect(result.success).toBe(true);
+      if (!result.success) return;
 
-      // Wait for event to be dispatched
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // Verify event was received by legacy plugin
-      expect(legacyPlugin.eventsReceived.length).toBeGreaterThan(0);
-
-      const taskEvent = legacyPlugin.eventsReceived.find(
-        (e: any) => e.type === 'TaskAssigned'
-      );
-      expect(taskEvent).toBeDefined();
+      // Nothing answers a TaskAssigned event, so the task must not wait on one.
+      expect(legacyPlugin.eventsReceived.find((e: any) => e.type === 'TaskAssigned')).toBeUndefined();
+      expect(queen.getTaskStatus(result.value)).toMatchObject({
+        status: 'failed',
+        error: expect.stringContaining("No handler for task type 'generate-tests' in domain test-generation"),
+      });
+      expect(queen.getHealth().runningTasks).toBe(0);
     });
   });
 
@@ -326,9 +324,14 @@ describe('Queen-Domain Coordinator Integration', () => {
         targetDomains: ['test-execution'],
       });
 
-      // Task submission succeeds but will use event fallback
-      // since no handler exists for 'unknown-task-type'
+      // Submission is accepted, but no handler exists for 'unknown-task-type',
+      // so the task ends failed with the reason rather than running forever.
       expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(queen.getTaskStatus(result.value)).toMatchObject({
+        status: 'failed',
+        error: expect.stringContaining("No handler for task type 'unknown-task-type'"),
+      });
     });
   });
 

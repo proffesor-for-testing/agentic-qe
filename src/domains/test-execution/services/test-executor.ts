@@ -16,6 +16,7 @@ import {
   ParallelExecutionRequest,
   TestRunResult,
   FailedTest,
+  ITestCaseResult as TestCase,
   ExecutionStats,
 } from '../interfaces';
 import { MemoryBackend } from '../../../kernel/interfaces';
@@ -27,6 +28,7 @@ import { secureRandom, secureRandomInt } from '../../../shared/utils/crypto-rand
 import { writeTestRunEvidence } from '../../quality-assessment/quality-evidence.js';
 import { istanbulLineHits } from '../../../coordination/handlers/handler-utils.js';
 import { fileCoverageKey } from '../../coverage-analysis/collected-metrics.js';
+import { mergeTestCases, testCasesFromRunnerReport } from './runner-test-cases.js';
 import { getTestRunnerExecutionError, TestRunnerExecutionError } from '../../../shared/test-runner-verdict.js';
 import { createVitestJsonReport, type VitestJsonReport } from '../../../shared/vitest-json-report.js';
 import { jestExactPathPattern, runnerFilePath } from '../../../shared/test-runner-args.js';
@@ -160,6 +162,7 @@ export class TestExecutorService implements ITestExecutionService {
         skipped: results.skipped,
         duration,
         failedTests: results.failedTests,
+        ...(results.testCases ? { testCases: results.testCases } : {}),
         coverage: results.coverage,
         fileCoverages: results.fileCoverages,
       };
@@ -229,6 +232,7 @@ export class TestExecutorService implements ITestExecutionService {
         skipped: aggregated.skipped,
         duration,
         failedTests: aggregated.failedTests,
+        ...(aggregated.testCases ? { testCases: aggregated.testCases } : {}),
         coverage: aggregated.coverage,
         fileCoverages: aggregated.fileCoverages,
       };
@@ -454,12 +458,14 @@ Provide:
       ? this.mergeSequentialCoverage(executionResults)
       : undefined;
     const separateRuns = testFiles.length > 1 && !this.config.simulateForTesting;
+    const testCases = mergeTestCases(executionResults);
     return {
       total: passed + failed + skipped,
       passed,
       failed,
       skipped,
       failedTests,
+      ...(testCases ? { testCases } : {}),
       coverage: separateRuns ? merged?.summary : this.aggregateCoverage(coverages),
       fileCoverages: separateRuns ? merged?.perFile
         : allFileCoverages.length > 0 ? allFileCoverages : undefined,
@@ -641,7 +647,7 @@ Provide:
           return;
         }
         if (reportText === undefined) {
-          finish(err(new Error(`The current Vitest JSON report is missing for ${fileLabel}.`)));
+          finish(err(new TestRunnerExecutionError(`The current Vitest JSON report is missing for ${fileLabel}.`)));
           return;
         }
         const parseResult = this.parseTestOutput(reportText, stderr, fileLabel, framework, code);
@@ -868,12 +874,14 @@ Provide:
         if (executionError) return err(executionError);
 
         const covData = this.extractCoverageFromJson(json);
+        const testCases = this.reportedTestCases(json, file, passed + failed + skipped);
         return ok({
           total: passed + failed + skipped,
           passed,
           failed,
           skipped,
           failedTests,
+          ...(testCases ? { testCases } : {}),
           coverage: covData.summary,
           fileCoverages: covData.perFile.length > 0 ? covData.perFile : undefined,
           rawCoverageMap: isRecord(json.coverageMap) && !json.coverageMap.total ? json.coverageMap : undefined,
@@ -886,6 +894,15 @@ Provide:
     // Fallback: parse summary line from vitest output
     // Example: "Tests  5 passed | 1 failed | 1 skipped (7)"
     return this.parseTestSummaryLine(stdout, stderr, file, exitCode);
+  }
+
+  /**
+   * #1110: the report's per-test entries, kept only when they account for
+   * every counted test; a partial list would misstate the run.
+   */
+  private reportedTestCases(json: Record<string, unknown>, file: string, total: number): TestCase[] | undefined {
+    const cases = testCasesFromRunnerReport(json, file);
+    return cases && cases.length === total ? cases : undefined;
   }
 
   /**
@@ -931,12 +948,14 @@ Provide:
       if (executionError) return err(executionError);
 
       const covData = this.extractCoverageFromJson(json);
+      const testCases = this.reportedTestCases(json, file, passed + failed + skipped);
       return ok({
         total: passed + failed + skipped,
         passed,
         failed,
         skipped,
         failedTests,
+        ...(testCases ? { testCases } : {}),
         coverage: covData.summary,
         fileCoverages: covData.perFile.length > 0 ? covData.perFile : undefined,
         rawCoverageMap: isRecord(json.coverageMap) && !json.coverageMap.total ? json.coverageMap : undefined,
@@ -1220,6 +1239,9 @@ Provide:
       aggregated.failedTests.push(...result.failedTests);
     }
 
+    const testCases = mergeTestCases(results);
+    if (testCases) aggregated.testCases = testCases;
+
     aggregated.coverage = this.aggregateCoverage(
       results.map(r => r.coverage).filter((c): c is NonNullable<typeof c> => c !== undefined)
     );
@@ -1425,7 +1447,9 @@ Provide:
     // #1028 N1: the record names the test files it ran, so per-test duration
     // is compared only between runs of the same test set.
     const files = testFiles && testFiles.length > 0 ? [...new Set(testFiles)].sort() : undefined;
-    await this.memory.set(`test-run:${runId}`, files ? { ...result, testFiles: files } : result, {
+    // Per-test entries are returned to the caller, not persisted with the run record.
+    const { testCases: _testCases, ...record } = result;
+    await this.memory.set(`test-run:${runId}`, files ? { ...record, testFiles: files } : record, {
       namespace: 'test-execution',
       persist: true,
     });
@@ -1566,6 +1590,8 @@ interface TestExecutionResult {
   failed: number;
   skipped: number;
   failedTests: FailedTest[];
+  /** #1110: per-test entries from the runner report, when it listed every test. */
+  testCases?: TestCase[];
   coverage?: CoverageFigures;
   /** Per-file coverage entries for granular storage */
   fileCoverages?: FileCoverageFigures[];

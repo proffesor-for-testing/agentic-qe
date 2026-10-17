@@ -214,12 +214,10 @@ export class CapturedExperienceBridge {
 //
 // When the row's `domain` field matches a known QE domain, we ALSO emit a
 // domain-specific event in the legacy flat `basePayload` shape that the
-// existing per-domain handlers already accept (e.g. `handleTestRunCompleted`
-// reads `runId/passed/failed/duration` fields — they're undefined when fed
-// from a hook row, which means those handlers will record degenerate
-// experiences, but that path was already shipped in v3.9.27 and changing
-// its shape would break out-of-tree subscribers. Future enrichment of the
-// basePayload should add fields, not rename them).
+// existing per-domain handlers already accept. Future enrichment of the
+// basePayload should add fields, not rename them. A domain whose events
+// need data a row does not carry (a run's results, coverage figures) gets
+// no domain-specific event at all — see #1008 and #1095.
 
 function mapRowToEvents(row: ExperienceRow): DomainEvent[] {
   const timestamp = parseTimestamp(row.completed_at);
@@ -299,14 +297,15 @@ function mapDomainSpecificEvent(
         payload: basePayload,
       });
 
+    // #1095: a test-execution experience row is a record that the tool ran,
+    // not a test run. It carries no run id and no passed/failed/skipped
+    // counts, so it must not masquerade as `TestRunCompleted`: consumers key
+    // their records by `runId` and would write `...:undefined` kv keys, and
+    // learning would record a 0% success rate. The real event is published
+    // by the test-execution coordinator with the run's actual results.
+    // Learning still receives the row via `learning.ExperienceCaptured`.
     case 'test-execution':
-      return buildEvent({
-        type: 'test-execution.TestRunCompleted',
-        source: 'test-execution',
-        correlationId,
-        timestamp,
-        payload: basePayload,
-      });
+      return null;
 
     // #1008: a coverage-analysis experience row is a record that the tool
     // ran, not a coverage report or a gap. It carries no line/branch figures

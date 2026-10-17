@@ -1,6 +1,7 @@
 /**
  * MCP-CLI parity for #734 case D: `task_submit` over stdio must reject an
- * unknown target domain, as `aqe task submit --domain` does.
+ * unknown target domain, as `aqe task submit --domain` does. #1108 adds the
+ * same parity for an invalid priority.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
@@ -79,6 +80,17 @@ describe.skipIf(!existsSync(bundle) && !process.env.CI)('MCP task_submit domain 
     const result = await call('task_submit', { type: 'analyze-coverage', priority: 'p3', targetDomains: ['no-such-domain'] });
     expect(result.success).toBe(false);
     expect(result.error).toContain('Unknown domain: no-such-domain');
+    const list = await call('task_list', {});
+    expect(list.success).toBe(true);
+    expect(list.data).toHaveLength(0);
+  }, 60000);
+
+  it('rejects an invalid priority without creating a task (#1108)', async () => {
+    for (const priority of ['bogus', '__proto__']) {
+      const result = await call('task_submit', { type: 'analyze-coverage', priority, targetDomains: ['coverage-analysis'] });
+      expect(result.success).toBe(false);
+      expect(result.error).toBe(`Invalid priority: ${priority}. Valid priorities: p0, p1, p2, p3`);
+    }
     const list = await call('task_list', {});
     expect(list.success).toBe(true);
     expect(list.data).toHaveLength(0);

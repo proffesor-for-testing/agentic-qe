@@ -18,7 +18,19 @@ import {
 import { TimeRange } from '../../shared/value-objects/index.js';
 import { EventBus, MemoryBackend } from '../../kernel/interfaces.js';
 import { toError } from '../../shared/error-utils.js';
-import { readActivePatterns } from '../../domains/learning-optimization/active-patterns.js';
+import { rehydrateDates } from '../../shared/utils/kv-date-rehydrate.js';
+import { searchAllKeys } from '../../shared/utils/namespaced-search.js';
+import { LoggerFactory } from '../../logging/index.js';
+import {
+  readActivePatterns,
+  LEARNING_NS,
+} from '../../domains/learning-optimization/active-patterns.js';
+import {
+  archiveSelectedPattern,
+  emptyArchiveCounts,
+  isWithinRetentionGrace,
+  type ArchiveCounts,
+} from './learning-consolidation-archive.js';
 import type {
   LearnedPattern,
   PatternType,
@@ -26,6 +38,8 @@ import type {
   IPatternLearningService,
   IKnowledgeSynthesisService,
 } from '../../domains/learning-optimization/interfaces.js';
+
+const logger = LoggerFactory.create('learning-consolidation-protocol');
 
 // ============================================================================
 // Protocol Configuration
@@ -44,6 +58,18 @@ export interface LearningConsolidationConfig {
   analysisWindowWeeks: number;
   /** Enable cross-project transfer */
   enableCrossProjectTransfer: boolean;
+  /**
+   * Report what would be merged and archived without writing anything
+   * (#1071). On by default: the protocol reads the real learned patterns in
+   * `learning-optimization`, so archiving them is opt-in (`dryRun: false`).
+   */
+  dryRun: boolean;
+  /**
+   * Patterns created less than this many days ago are never archived by the
+   * retention or trim rules, so a new pattern gets time to build confidence
+   * and usage before it is judged (#1071).
+   */
+  retentionGraceDays: number;
 }
 
 const DEFAULT_CONFIG: LearningConsolidationConfig = {
@@ -53,6 +79,8 @@ const DEFAULT_CONFIG: LearningConsolidationConfig = {
   minConfidenceThreshold: 0.5,
   analysisWindowWeeks: 4,
   enableCrossProjectTransfer: true,
+  dryRun: true,
+  retentionGraceDays: 7,
 };
 
 // ============================================================================
@@ -77,6 +105,7 @@ export interface PatternConsolidatedEvent extends DomainEvent {
     patternsAfterCount: number;
     mergedPatternIds: string[];
     removedPatternIds: string[];
+    dryRun: boolean;
   };
 }
 
@@ -87,6 +116,7 @@ export interface LearningConsolidationCompletedEvent extends DomainEvent {
     stats: ConsolidationStats;
     insights: WeeklyInsight[];
     duration: number;
+    dryRun: boolean;
   };
 }
 
@@ -122,7 +152,10 @@ export interface ConsolidationStats {
   domainsProcessed: number;
   totalPatternsAnalyzed: number;
   patternsMerged: number;
+  /** Patterns selected for removal (in a dry run, the ones that would be). */
   patternsRemoved: number;
+  /** Selected patterns actually archived (always 0 in a dry run). */
+  patternsArchived: number;
   patternsRetained: number;
   knowledgeItemsUpdated: number;
   improvementOpportunities: number;
@@ -149,6 +182,8 @@ export interface TransferablePattern {
 
 export interface ConsolidationResult {
   consolidationId: string;
+  /** True when nothing was merged, archived or written (#1071). */
+  dryRun: boolean;
   startedAt: Date;
   completedAt: Date;
   stats: ConsolidationStats;
@@ -163,11 +198,14 @@ export interface DomainConsolidationReport {
   patternsAfterCount: number;
   mergedPatterns: MergedPatternInfo[];
   removedPatterns: RemovedPatternInfo[];
+  /** Outcome of archiving `removedPatterns` (all zero but `selected` in a dry run). */
+  archiveCounts: ArchiveCounts;
   topPerformingPatterns: LearnedPattern[];
   improvementAreas: string[];
 }
 
 export interface MergedPatternInfo {
+  /** Id of the merged pattern; empty in a dry run, where nothing is merged. */
   resultPatternId: string;
   sourcePatternIds: string[];
   mergeReason: string;
@@ -228,7 +266,9 @@ export class LearningConsolidationProtocol {
       const domainReports: DomainConsolidationReport[] = [];
       let totalMerged = 0;
       let totalRemoved = 0;
+      let totalArchived = 0;
       let totalRetained = 0;
+      const dryRun = this.config.dryRun;
 
       for (const domainGroup of gatheredPatterns.value) {
         const consolidationResult = await this.consolidatePatterns(
@@ -239,18 +279,22 @@ export class LearningConsolidationProtocol {
           domainReports.push(consolidationResult.value);
           totalMerged += consolidationResult.value.mergedPatterns.length;
           totalRemoved += consolidationResult.value.removedPatterns.length;
+          totalArchived += consolidationResult.value.archiveCounts.archived;
           totalRetained += consolidationResult.value.patternsAfterCount;
         }
       }
 
-      // Step 3: Update knowledge base with consolidated patterns
-      const knowledgeUpdateResult = await this.updateKnowledgeBase(domainReports);
+      // Step 3: Update knowledge base with consolidated patterns (writes, so
+      // skipped in a dry run)
+      const knowledgeUpdateResult = dryRun
+        ? ok(0)
+        : await this.updateKnowledgeBase(domainReports);
 
-      // Step 4: Prepare patterns for cross-project transfer
-      const transferResult = await this.prepareTransfer(
-        consolidationId,
-        domainReports
-      );
+      // Step 4: Prepare patterns for cross-project transfer (a dry run does
+      // not announce transfers for patterns it did not consolidate)
+      const transferResult = dryRun
+        ? ok<TransferablePattern[]>([])
+        : await this.prepareTransfer(consolidationId, domainReports);
 
       // Step 5: Generate weekly insights
       const insights = await this.generateInsights(
@@ -269,6 +313,7 @@ export class LearningConsolidationProtocol {
         ),
         patternsMerged: totalMerged,
         patternsRemoved: totalRemoved,
+        patternsArchived: totalArchived,
         patternsRetained: totalRetained,
         knowledgeItemsUpdated: knowledgeUpdateResult.success
           ? knowledgeUpdateResult.value
@@ -281,11 +326,22 @@ export class LearningConsolidationProtocol {
           : 0,
       };
 
+      logger.info('Learning consolidation finished', {
+        consolidationId,
+        dryRun,
+        analyzed: stats.totalPatternsAnalyzed,
+        merged: totalMerged,
+        selectedForRemoval: totalRemoved,
+        archived: totalArchived,
+        retained: totalRetained,
+      });
+
       // Publish completion event
       await this.publishCompletedEvent(consolidationId, stats, insights, duration);
 
       const result: ConsolidationResult = {
         consolidationId,
+        dryRun,
         startedAt,
         completedAt,
         stats,
@@ -295,7 +351,9 @@ export class LearningConsolidationProtocol {
       };
 
       // Store result for historical analysis
-      await this.storeConsolidationResult(result);
+      if (!dryRun) {
+        await this.storeConsolidationResult(result);
+      }
 
       return ok(result);
     } catch (error) {
@@ -314,9 +372,10 @@ export class LearningConsolidationProtocol {
     try {
       const domainGroups: DomainPatternGroup[] = [];
       const timeRange = TimeRange.lastNDays(this.config.analysisWindowWeeks * 7);
+      const activePatterns = await this.readActivePatterns();
 
       for (const domain of ALL_DOMAINS) {
-        const patterns = await this.getPatternsForDomain(domain, timeRange);
+        const patterns = this.getPatternsForDomain(activePatterns, domain, timeRange);
         if (patterns.length > 0) {
           const stats = this.calculateDomainStats(patterns, timeRange);
           domainGroups.push({ domain, patterns, stats });
@@ -330,15 +389,24 @@ export class LearningConsolidationProtocol {
   }
 
   /**
-   * Get patterns for a specific domain
+   * Every active learned pattern, read once per run.
+   *
+   * #1055: active patterns only, excluding `:creation:` provenance and
+   * `:archived:` records. #1071: read from `learning-optimization`, where
+   * LearningCoordinatorService writes them, not the backend default.
    */
-  private async getPatternsForDomain(
+  private readActivePatterns(): Promise<LearnedPattern[]> {
+    return readActivePatterns(this.memory, { retrieve: LEARNING_NS });
+  }
+
+  /**
+   * Patterns of one domain created or used within the analysis window
+   */
+  private getPatternsForDomain(
+    patterns: LearnedPattern[],
     domain: DomainName,
     timeRange: TimeRange
-  ): Promise<LearnedPattern[]> {
-    // #1055: active patterns only — excludes `:creation:` provenance as well
-    // as `:archived:` records, before get() and before the scan cap applies.
-    const patterns = await readActivePatterns(this.memory);
+  ): LearnedPattern[] {
     return patterns.filter(
       (pattern) =>
         pattern.domain === domain &&
@@ -416,12 +484,27 @@ export class LearningConsolidationProtocol {
       const mergedPatterns: MergedPatternInfo[] = [];
       const removedPatterns: RemovedPatternInfo[] = [];
       const retainedPatterns: LearnedPattern[] = [];
+      const toArchive: LearnedPattern[] = [];
+
+      // Patterns in their grace period are never merged either: a merge
+      // archives every source pattern (#1071).
+      retainedPatterns.push(...patterns.filter((p) => this.isInGracePeriod(p)));
 
       // Group similar patterns for merging
-      const similarGroups = this.groupSimilarPatterns(patterns);
+      const similarGroups = this.groupSimilarPatterns(
+        patterns.filter((p) => !this.isInGracePeriod(p))
+      );
 
       for (const group of similarGroups) {
-        if (group.length >= 2) {
+        if (group.length >= 2 && this.config.dryRun) {
+          // Dry run: report the merge, keep every source pattern
+          mergedPatterns.push({
+            resultPatternId: '',
+            sourcePatternIds: group.map((p) => p.id),
+            mergeReason: 'Similar pattern context and template',
+          });
+          retainedPatterns.push(...group);
+        } else if (group.length >= 2) {
           // Merge similar patterns
           const mergeResult = await this.mergePatternGroup(group);
           if (mergeResult.success) {
@@ -443,25 +526,26 @@ export class LearningConsolidationProtocol {
               name: pattern.name,
               removalReason: this.getRemovalReason(pattern),
             });
-            await this.archivePattern(pattern);
+            toArchive.push(pattern);
           }
         }
       }
 
-      // Trim to max patterns if needed
+      // Trim to max patterns if needed. Patterns in their grace period are
+      // never trimmed; they stay on top of the kept set.
       const finalPatterns = this.trimToMaxPatterns(retainedPatterns, domain);
-      const trimmedCount = retainedPatterns.length - finalPatterns.length;
-      if (trimmedCount > 0) {
-        const trimmed = retainedPatterns.slice(finalPatterns.length);
-        for (const p of trimmed) {
-          removedPatterns.push({
-            patternId: p.id,
-            name: p.name,
-            removalReason: 'Exceeded max patterns per domain limit',
-          });
-          await this.archivePattern(p);
-        }
+      const kept = new Set(finalPatterns.map((p) => p.id));
+      for (const p of retainedPatterns) {
+        if (kept.has(p.id)) continue;
+        removedPatterns.push({
+          patternId: p.id,
+          name: p.name,
+          removalReason: 'Exceeded max patterns per domain limit',
+        });
+        toArchive.push(p);
       }
+
+      const archiveCounts = await this.archivePatterns(domain, toArchive);
 
       // Publish domain consolidation event
       await this.publishPatternConsolidatedEvent(
@@ -470,7 +554,8 @@ export class LearningConsolidationProtocol {
         patterns.length,
         finalPatterns.length,
         mergedPatterns.map((m) => m.resultPatternId),
-        removedPatterns.map((r) => r.patternId)
+        removedPatterns.map((r) => r.patternId),
+        this.config.dryRun
       );
 
       const report: DomainConsolidationReport = {
@@ -479,6 +564,7 @@ export class LearningConsolidationProtocol {
         patternsAfterCount: finalPatterns.length,
         mergedPatterns,
         removedPatterns,
+        archiveCounts,
         topPerformingPatterns: this.getTopPerformingPatterns(finalPatterns, 5),
         improvementAreas: this.identifyImprovementAreas(domainGroup),
       };
@@ -625,18 +711,34 @@ export class LearningConsolidationProtocol {
     return 'Below retention threshold';
   }
 
-  /**
-   * Archive a pattern (soft delete)
-   */
-  private async archivePattern(pattern: LearnedPattern): Promise<void> {
-    // Move to archived namespace
-    await this.memory.set(`learning:pattern:archived:${pattern.id}`, {
-      ...pattern,
-      archivedAt: new Date(),
-    }, { namespace: 'learning-optimization', persist: true });
+  /** True while a pattern is too new for the retention and trim rules. */
+  private isInGracePeriod(pattern: LearnedPattern): boolean {
+    return isWithinRetentionGrace(pattern, this.config.retentionGraceDays);
+  }
 
-    // Delete from active patterns
-    await this.memory.delete(`learning:pattern:${pattern.id}`);
+  /**
+   * Archive the selected patterns (soft delete in `learning-optimization`,
+   * #1071). Only the selected patterns are touched, and a dry run touches
+   * none. Counts are logged per domain.
+   */
+  private async archivePatterns(
+    domain: DomainName,
+    selected: LearnedPattern[]
+  ): Promise<ArchiveCounts> {
+    const counts = emptyArchiveCounts();
+    counts.selected = selected.length;
+    if (!this.config.dryRun) {
+      for (const pattern of selected) {
+        counts[await archiveSelectedPattern(this.memory, pattern)]++;
+      }
+    }
+    if (counts.selected > 0) {
+      logger.info('Learning consolidation archive step', { domain, dryRun: this.config.dryRun, ...counts });
+    }
+    if (counts.failed > 0) {
+      logger.warn('Some selected patterns could not be archived and were left active', { domain, failed: counts.failed });
+    }
+    return counts;
   }
 
   /**
@@ -650,14 +752,18 @@ export class LearningConsolidationProtocol {
       return patterns;
     }
 
-    // Sort by effectiveness score and keep top N
-    return patterns
+    // Patterns in their grace period are always kept; the rest compete for
+    // the remaining places by effectiveness score.
+    const young = patterns.filter((p) => this.isInGracePeriod(p));
+    const eligible = patterns.filter((p) => !this.isInGracePeriod(p));
+    const places = Math.max(0, this.config.maxPatternsPerDomain - young.length);
+    return [...young, ...eligible
       .sort((a, b) => {
         const scoreA = a.confidence * 0.4 + a.successRate * 0.4 + Math.min(a.usageCount / 100, 0.2);
         const scoreB = b.confidence * 0.4 + b.successRate * 0.4 + Math.min(b.usageCount / 100, 0.2);
         return scoreB - scoreA;
       })
-      .slice(0, this.config.maxPatternsPerDomain);
+      .slice(0, places)];
   }
 
   /**
@@ -724,8 +830,10 @@ export class LearningConsolidationProtocol {
 
             // Share high-performing pattern knowledge with related domains
             if (pattern.successRate >= 0.8) {
+              // #1071: read where createKnowledgeFromPattern() writes it.
               const knowledge = await this.memory.get<Knowledge>(
-                `learning:knowledge:pattern:${pattern.id}`
+                `learning:knowledge:pattern:${pattern.id}`,
+                LEARNING_NS
               );
               if (knowledge) {
                 // Use knowledgeService to share across domains
@@ -1009,7 +1117,8 @@ export class LearningConsolidationProtocol {
     patternsBeforeCount: number,
     patternsAfterCount: number,
     mergedPatternIds: string[],
-    removedPatternIds: string[]
+    removedPatternIds: string[],
+    dryRun: boolean
   ): Promise<void> {
     const event: PatternConsolidatedEvent = {
       id: uuidv4(),
@@ -1023,6 +1132,7 @@ export class LearningConsolidationProtocol {
         patternsAfterCount,
         mergedPatternIds,
         removedPatternIds,
+        dryRun,
       },
     };
     await this.eventBus.publish(event);
@@ -1044,6 +1154,7 @@ export class LearningConsolidationProtocol {
         stats,
         insights,
         duration,
+        dryRun: this.config.dryRun,
       },
     };
     await this.eventBus.publish(event);
@@ -1103,19 +1214,26 @@ export class LearningConsolidationProtocol {
    * Get previous consolidation results for trend analysis
    */
   async getPreviousConsolidations(count: number): Promise<ConsolidationResult[]> {
-    const keys = await this.memory.search('learning:consolidation:result:*', count);
+    // #1071: results are stored in `learning-optimization`. Read every one
+    // so the newest `count` are returned, not an arbitrary first page.
+    const keys = await searchAllKeys(this.memory, 'learning:consolidation:result:*', {
+      retrieve: LEARNING_NS,
+    });
     const results: ConsolidationResult[] = [];
 
     for (const key of keys) {
-      const result = await this.memory.get<ConsolidationResult>(key);
+      const result = rehydrateDates(
+        await this.memory.get<ConsolidationResult>(key, LEARNING_NS),
+        ['startedAt', 'completedAt'],
+      );
       if (result) {
         results.push(result);
       }
     }
 
-    return results.sort(
-      (a, b) => b.completedAt.getTime() - a.completedAt.getTime()
-    );
+    return results
+      .sort((a, b) => b.completedAt.getTime() - a.completedAt.getTime())
+      .slice(0, count);
   }
 
   /**

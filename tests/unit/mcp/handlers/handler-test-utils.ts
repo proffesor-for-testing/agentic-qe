@@ -507,7 +507,7 @@ export interface MockMetricsCollector {
   getWorkersUsed: ReturnType<typeof vi.fn>;
   getWorkerEfficiency: ReturnType<typeof vi.fn>;
   getLoadBalanceScore: ReturnType<typeof vi.fn>;
-  getTestDurations: ReturnType<typeof vi.fn>;
+  getRecordedTaskCount: ReturnType<typeof vi.fn>;
 }
 
 export function createMockMetricsCollector(): MockMetricsCollector {
@@ -532,7 +532,7 @@ export function createMockMetricsCollector(): MockMetricsCollector {
     getWorkersUsed: vi.fn(() => 4),
     getWorkerEfficiency: vi.fn(() => 0.85),
     getLoadBalanceScore: vi.fn(() => 0.90),
-    getTestDurations: vi.fn((count: number) => Array(count).fill(200)),
+    getRecordedTaskCount: vi.fn(() => 10),
   };
 }
 

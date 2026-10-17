@@ -253,11 +253,20 @@ class MetricsCollectorImpl {
   }
 
   /**
-   * Get worker efficiency based on actual throughput
+   * Number of completed tasks in the sliding window. Zero means the retry and
+   * worker figures below describe nothing that was measured (#1110).
    */
-  getWorkerEfficiency(): number {
+  getRecordedTaskCount(): number {
+    return this.taskMetrics.length;
+  }
+
+  /**
+   * Get worker efficiency based on actual throughput.
+   * Returns null when no task has been recorded: there is nothing to measure (#1110).
+   */
+  getWorkerEfficiency(): number | null {
     if (this.taskMetrics.length === 0) {
-      return 0.85; // Default baseline
+      return null;
     }
 
     // Calculate efficiency based on:
@@ -279,11 +288,12 @@ class MetricsCollectorImpl {
   }
 
   /**
-   * Get load balance score based on actual distribution
+   * Get load balance score based on actual distribution.
+   * Returns null when no worker has been recorded (#1110).
    */
-  getLoadBalanceScore(): number {
+  getLoadBalanceScore(): number | null {
     if (this.workerLoads.size === 0) {
-      return 0.9; // Default baseline
+      return null;
     }
 
     const loads = Array.from(this.workerLoads.values()).map((w) => w.completedTaskCount);
@@ -352,33 +362,6 @@ class MetricsCollectorImpl {
    */
   getWorkersUsed(): number {
     return this.workerLoads.size;
-  }
-
-  /**
-   * Generate individual test result durations based on actual execution
-   * Uses the sliding window of real task durations
-   */
-  getTestDurations(count: number): number[] {
-    const durations: number[] = [];
-
-    if (this.taskMetrics.length === 0) {
-      // No real data - return reasonable estimates based on typical test times
-      for (let i = 0; i < count; i++) {
-        durations.push(100 + i * 10); // Start at 100ms, increment by 10ms
-      }
-      return durations;
-    }
-
-    // Use real durations from the sliding window
-    const realDurations = this.taskMetrics.map((t) => t.durationMs || 200).sort((a, b) => a - b);
-
-    for (let i = 0; i < count; i++) {
-      // Sample from real durations with wrapping
-      const index = i % realDurations.length;
-      durations.push(Math.round(realDurations[index]));
-    }
-
-    return durations;
   }
 
   /**

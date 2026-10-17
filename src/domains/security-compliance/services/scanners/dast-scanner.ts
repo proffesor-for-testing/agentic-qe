@@ -40,7 +40,7 @@ import {
 
 /** Transport failures are execution errors, not absence of vulnerabilities. */
 function dastRequestFailure(error: unknown): Error {
-  if (error instanceof Error && 'code' in error && error.code === 'DAST_AUTHENTICATION_FAILED') return error;
+  if (error instanceof Error && 'code' in error && ['DAST_AUTHENTICATION_FAILED', 'DAST_TARGET_UNAVAILABLE'].includes(String(error.code))) return error;
   const timeout = error instanceof Error && /timeout|abort/i.test(error.message);
   return Object.assign(new Error(timeout
     ? 'DAST target request timeout; dynamic analysis is incomplete'
@@ -254,6 +254,13 @@ export class DASTScanner {
           () => new Error(`DAST request timeout after ${deadlineMs}ms: ${targetUrl}`),
         );
 
+        if (response.status === 401 || response.status === 403 || response.status >= 500) {
+          await response.body?.cancel().catch(() => undefined);
+          throw Object.assign(new Error(`DAST ${response.status < 500 ? 'authentication rejected' : 'target unavailable'} (HTTP ${response.status}); dynamic analysis is incomplete`), {
+            code: response.status < 500 ? 'DAST_AUTHENTICATION_FAILED' : 'DAST_TARGET_UNAVAILABLE',
+          });
+        }
+
         crawledUrls++;
 
         // Security header analysis
@@ -358,14 +365,14 @@ export class DASTScanner {
         );
         await response.body?.cancel().catch(() => undefined);
 
-        crawledUrls++;
-
-        // Check if authentication was successful
-        if (response.status === 401 || response.status === 403) {
-          throw Object.assign(new Error(`DAST authentication rejected (HTTP ${response.status}); dynamic analysis is incomplete`), {
-            code: 'DAST_AUTHENTICATION_FAILED',
+        if (response.status === 401 || response.status === 403 || response.status >= 500) {
+          await response.body?.cancel().catch(() => undefined);
+          throw Object.assign(new Error(`DAST ${response.status < 500 ? 'authentication rejected' : 'target unavailable'} (HTTP ${response.status}); dynamic analysis is incomplete`), {
+            code: response.status < 500 ? 'DAST_AUTHENTICATION_FAILED' : 'DAST_TARGET_UNAVAILABLE',
           });
         }
+
+        crawledUrls++;
 
         // Standard security header checks
         analyzeSecurityHeaders(response.headers, targetUrl, vulnerabilities, true);

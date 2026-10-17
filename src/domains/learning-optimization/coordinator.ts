@@ -4,7 +4,9 @@
  */
 
 import { LoggerFactory } from '../../logging/index.js';
-import { readActivePatterns } from './active-patterns.js';
+import { readActivePatterns, LEARNING_NS } from './active-patterns.js';
+import { partitionByRewardSource } from './reward-source.js';
+import { searchAllKeys } from '../../shared/utils/namespaced-search.js';
 import { v4 as uuidv4 } from 'uuid';
 import { toError } from '../../shared/error-utils.js';
 import { rehydrateDates } from '../../shared/utils/kv-date-rehydrate.js';
@@ -88,7 +90,6 @@ import {
 // CQ-004: Extracted modules
 import * as LearningHelpers from './coordinator-helpers.js';
 import * as ConsensusHelpers from './coordinator-consensus.js';
-import { isMeasuredGapPayload } from '../../shared/events/domain-events.js';
 
 /**
  * Workflow status tracking
@@ -349,7 +350,10 @@ export class LearningOptimizationCoordinator
       // Get experiences from the last cycle
       const timeRange = TimeRange.lastNDays(1);
       const experiencesResult = await this.getExperiencesForDomain(domain, timeRange);
-      const experiences = experiencesResult.success ? experiencesResult.value : [];
+      // #1109: the reported `before` value and the optimizer use measured outcomes only.
+      const experiences = experiencesResult.success
+        ? partitionByRewardSource(experiencesResult.value).measured
+        : [];
 
       this.updateWorkflowProgress(workflowId, 20);
 
@@ -384,12 +388,19 @@ export class LearningOptimizationCoordinator
 
         if (optimizationResult.success) {
           strategiesOptimized = 1;
-          improvements.push({
-            metric: objective.metric,
-            before: this.calculateMetricValue(experiences, objective.metric),
-            after: optimizationResult.value.optimizedStrategy.expectedOutcome[objective.metric] || 0,
-            percentChange: optimizationResult.value.improvement * 100,
-          });
+          // #1099: `after` is the fitted expectation and `percentChange` the
+          // optimizer's estimate; neither was observed. Report no improvement
+          // rather than a 0 stand-in when the metric was never predicted.
+          const after = optimizationResult.value.optimizedStrategy.expectedOutcome[objective.metric];
+          if (typeof after === 'number') {
+            improvements.push({
+              metric: objective.metric,
+              before: this.calculateMetricValue(experiences, objective.metric),
+              after,
+              percentChange: optimizationResult.value.improvement * 100,
+              estimated: true,
+            });
+          }
         }
       }
 
@@ -526,6 +537,7 @@ export class LearningOptimizationCoordinator
         domainsOptimized,
         totalStrategies,
         avgImprovement: totalStrategies > 0 ? totalImprovement / totalStrategies : 0,
+        improvementEstimated: true,
         byDomain,
       };
 
@@ -1046,11 +1058,8 @@ export class LearningOptimizationCoordinator
       // Export patterns (#1055: active patterns only — creation provenance
       // and archives share the `learning:pattern:` prefix). One read covers
       // every target domain; the previous per-domain loop exported each
-      // pattern once per target domain.
-      const activePatterns = await readActivePatterns(this.memory, {
-        onTruncated: (scanned) =>
-          logger.warn('Pattern export key scan hit its cap; export may be incomplete', { scanned }),
-      });
+      // pattern once per target domain. #1071: every key is read, no cap.
+      const activePatterns = await readActivePatterns(this.memory, { retrieve: LEARNING_NS });
       for (const pattern of activePatterns) {
         if (targetDomains.includes(pattern.domain)) {
           patterns.push(pattern);
@@ -1058,9 +1067,10 @@ export class LearningOptimizationCoordinator
       }
       this.updateWorkflowProgress(workflowId, 30);
 
-      // Export knowledge
+      // Export knowledge. #1071: no result cap; queryKnowledge reads every
+      // shared item before filtering, so other domains cannot crowd these out.
       const knowledgeResult = await this.transferService.queryKnowledge({
-        limit: 1000,
+        limit: Number.POSITIVE_INFINITY,
       });
       if (knowledgeResult.success) {
         for (const item of knowledgeResult.value) {
@@ -1072,13 +1082,13 @@ export class LearningOptimizationCoordinator
 
       this.updateWorkflowProgress(workflowId, 60);
 
-      // Export strategies
-      const strategyKeys = await this.memory.search(
-        `learning:strategy:optimized:*`,
-        200
-      );
+      // Export strategies from the namespace their writers use (#1071), every
+      // key, in key order.
+      const strategyKeys = await searchAllKeys(this.memory, 'learning:strategy:optimized:*', {
+        retrieve: LEARNING_NS,
+      });
       for (const key of strategyKeys) {
-        const strategy = await this.memory.get<OptimizedStrategy>(key);
+        const strategy = await this.memory.get<OptimizedStrategy>(key, LEARNING_NS);
         if (strategy && targetDomains.includes(strategy.domain)) {
           strategies.push(strategy);
         }
@@ -1136,7 +1146,8 @@ export class LearningOptimizationCoordinator
       // Import patterns
       for (const pattern of modelExport.patterns) {
         const existing = await this.memory.get<LearnedPattern>(
-          `learning:pattern:${pattern.id}`
+          `learning:pattern:${pattern.id}`,
+          { namespace: 'learning-optimization' }
         );
 
         if (existing) {
@@ -1177,8 +1188,10 @@ export class LearningOptimizationCoordinator
 
       // Import knowledge
       for (const item of modelExport.knowledge) {
+        // #1071: compare against the record in the namespace written below.
         const existing = await this.memory.get<Knowledge>(
-          `learning:knowledge:shared:${item.id}`
+          `learning:knowledge:shared:${item.id}`,
+          LEARNING_NS
         );
 
         if (existing) {
@@ -1218,8 +1231,10 @@ export class LearningOptimizationCoordinator
 
       // Import strategies
       for (const strategy of modelExport.strategies) {
+        // #1071: compare against the record in the namespace written below.
         const existing = await this.memory.get<OptimizedStrategy>(
-          `learning:strategy:optimized:${strategy.id}`
+          `learning:strategy:optimized:${strategy.id}`,
+          LEARNING_NS
         );
 
         if (existing) {
@@ -1281,112 +1296,16 @@ export class LearningOptimizationCoordinator
   // ============================================================================
 
   protected subscribeToEvents(): void {
-    // Subscribe to test execution events for learning
-    this.eventBus.subscribe(
-      'test-execution.TestRunCompleted',
-      this.handleTestRunCompleted.bind(this)
-    );
-
-    // Subscribe to coverage gap events
-    this.eventBus.subscribe(
-      'coverage-analysis.CoverageGapDetected',
-      this.handleCoverageGap.bind(this)
-    );
-
-    // Subscribe to quality assessment events
-    this.eventBus.subscribe(
-      'quality-assessment.QualityGateEvaluated',
-      this.handleQualityGate.bind(this)
-    );
+    // #1110: TestRunCompleted, CoverageGapDetected and QualityGateEvaluated are
+    // recorded by LearningOptimizationPlugin, which owns this coordinator and
+    // also records the test-run production metric. Subscribing here as well
+    // stored every such event twice.
 
     // Subscribe to experience capture events (Phase 4 integration)
     this.eventBus.subscribe(
       'learning.ExperienceCaptured',
       this.handleExperienceCaptured.bind(this)
     );
-  }
-
-  private async handleTestRunCompleted(event: {
-    payload: { runId: string; passed: number; failed: number; duration: number };
-  }): Promise<void> {
-    // Record experience from test run
-    const { runId, passed, failed, duration } = event.payload;
-    const successRate = (passed + failed) > 0 ? passed / (passed + failed) : 0;
-
-    await this.learningService.recordExperience({
-      agentId: {
-        value: 'test-execution',
-        domain: 'test-execution',
-        type: 'tester',
-      },
-      domain: 'test-execution',
-      action: 'test-run',
-      state: {
-        context: { runId },
-        metrics: { passed, failed, duration },
-      },
-      result: {
-        success: successRate > 0.8,
-        outcome: { success_rate: successRate, passed, failed },
-        duration,
-      },
-      reward: successRate,
-    });
-  }
-
-  private async handleCoverageGap(event: {
-    payload: { gapId: string; file: string; riskScore: number; measured?: boolean };
-  }): Promise<void> {
-    // #1014: only a gap found in MEASURED coverage is acted on / learned from.
-    if (!isMeasuredGapPayload(event.payload)) return;
-    // Record as experience for learning
-    const { gapId, file, riskScore } = event.payload;
-
-    await this.learningService.recordExperience({
-      agentId: {
-        value: 'coverage-analysis',
-        domain: 'coverage-analysis',
-        type: 'analyzer',
-      },
-      domain: 'coverage-analysis',
-      action: 'gap-detection',
-      state: {
-        context: { gapId, file },
-        metrics: { riskScore },
-      },
-      result: {
-        success: true,
-        outcome: { risk_score: riskScore },
-        duration: 0,
-      },
-      reward: 1 - riskScore, // Lower risk = higher reward
-    });
-  }
-
-  private async handleQualityGate(event: {
-    payload: { gateId: string; passed: boolean };
-  }): Promise<void> {
-    const { gateId, passed } = event.payload;
-
-    await this.learningService.recordExperience({
-      agentId: {
-        value: 'quality-assessment',
-        domain: 'quality-assessment',
-        type: 'validator',
-      },
-      domain: 'quality-assessment',
-      action: 'gate-evaluation',
-      state: {
-        context: { gateId },
-        metrics: { passed: passed ? 1 : 0 },
-      },
-      result: {
-        success: passed,
-        outcome: { gate_passed: passed ? 1 : 0 },
-        duration: 0,
-      },
-      reward: passed ? 1 : 0,
-    });
   }
 
   /**
@@ -1723,9 +1642,8 @@ export class LearningOptimizationCoordinator
         retryCount: 3,
         concurrency: 4,
       },
-      expectedOutcome: {
-        success_rate: 0.8,
-      },
+      // #1099: the default strategy has never run, so no outcome is expected.
+      expectedOutcome: {},
     };
   }
 

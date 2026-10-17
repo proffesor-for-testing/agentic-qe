@@ -111,3 +111,19 @@ describe('cancelled task event conservation', () => {
     expect(publishEvent).not.toHaveBeenCalled();
   });
 });
+
+describe('caller-owned cancellation result conservation (#1059)', () => {
+  for (const [type, handle] of [['TaskCompleted', handleTaskCompleted], ['TaskFailed', handleTaskFailed]] as const) {
+    it(`settles a late caller-owned ${type} without requeueing it`, async () => {
+      const { taskId, context } = cancelledContext(true);
+      const execution = context.tasks.get(taskId)!;
+      context.tasks.set(taskId, { ...execution, task: { ...execution.task, executionOwner: 'caller' } });
+      await handle(context as unknown as QueenEventHandlerContext, event(type, taskId));
+      expect(context.tasks.get(taskId)?.status).toBe('cancelled');
+      expect(context.tasks.get(taskId)?.cancellationResultPending).toBe(false);
+      expect(context.runningTaskCounter).toBe(0);
+      expect(context.enqueueTask).not.toHaveBeenCalled();
+      expect(context.processQueue).toHaveBeenCalledTimes(1);
+    });
+  }
+});

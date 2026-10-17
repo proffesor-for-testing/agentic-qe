@@ -12,6 +12,7 @@ import { toError, toErrorMessage } from '../../shared/error-utils.js';
 import { FilePath, Version } from '../../shared/value-objects/index.js';
 import { HttpClient, createHttpClient } from '../../shared/http/index.js';
 import { FileReader } from '../../shared/io/index.js';
+import { findProjectRoot } from '../../kernel/project-root.js';
 import type {
   EventBus,
   MemoryBackend,
@@ -154,7 +155,8 @@ export class ContractTestingCoordinator
     this.contractValidator = new ContractValidatorService({ memory, llmRouter });
     this.apiCompatibility = new ApiCompatibilityService(memory);
     this.httpClient = createHttpClient();
-    this.fileReader = new FileReader();
+    // #1096: a symlink inside the project must not expose an outside file.
+    this.fileReader = new FileReader({ projectRoot: findProjectRoot() });
     // Note: schemaValidator initialized when needed for schema operations
   }
 

@@ -203,10 +203,25 @@ describe('LearningConsolidationProtocol', () => {
       }
     });
 
-    it('should store consolidation result', async () => {
-      await protocol.execute();
+    it('should store consolidation result when not a dry run', async () => {
+      const writing = new LearningConsolidationProtocol(
+        mockEventBus, mockMemory, mockPatternService, mockKnowledgeService, { dryRun: false }
+      );
+      await writing.execute();
 
-      expect(mockMemory.set).toHaveBeenCalled();
+      expect(mockMemory.set).toHaveBeenCalledWith(
+        expect.stringMatching(/^learning:consolidation:result:/),
+        expect.anything(),
+        expect.objectContaining({ namespace: 'learning-optimization' })
+      );
+    });
+
+    it('should write nothing in a dry run (the default)', async () => {
+      const result = await protocol.execute();
+
+      expect(result.success && result.value.dryRun).toBe(true);
+      expect(mockMemory.set).not.toHaveBeenCalled();
+      expect(mockMemory.delete).not.toHaveBeenCalled();
     });
   });
 
@@ -308,6 +323,8 @@ describe('LearningConsolidationProtocol', () => {
         confidence: 0.2,
         successRate: 0.2,
         usageCount: 1,
+        // Older than the default retention grace period
+        createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
       });
 
       const domainGroup: DomainPatternGroup = {
