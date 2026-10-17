@@ -279,7 +279,10 @@ export class TaskDAG {
   waivePrerequisite(input: WaivePrerequisiteInput): PrerequisiteReceiptV1 {
     const req = validateWaiverInput(input);
     const task = this.nodes.get(req.taskId);
+    const baseRevision = this.ledger.graphRevision;
     authorizeWaiver(this.ledger, this.waiverPolicy, req, task, this.forwardEdges.get(req.taskId));
+    // A policy that mutated the graph invalidates the decision it just made
+    this.ledger.checkRevision(baseRevision);
     const revision = this.ledger.bump();
     const receipt = this.ledger.record(req.taskId, req.prerequisiteId, 'WAIVED', {
       waiver: {
@@ -292,7 +295,9 @@ export class TaskDAG {
     const { taskId, prerequisiteId } = req;
     this.emit({ type: 'prerequisite-waived', taskId, prerequisiteId, graphRevision: revision, timestamp: Date.now() });
 
-    if ((task.status === 'blocked' || task.status === 'pending') && this.computeStatus(taskId) === 'ready') {
+    // Re-read: an event handler may have changed the task (e.g. cancelled it)
+    const latest = this.nodes.get(taskId);
+    if ((latest?.status === 'blocked' || latest?.status === 'pending') && this.computeStatus(taskId) === 'ready') {
       this.setStatus(taskId, 'ready');
       this.emit({ type: 'tasks-unblocked', unblockedTaskIds: [taskId], timestamp: Date.now() });
     }

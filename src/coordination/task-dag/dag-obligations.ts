@@ -58,7 +58,8 @@ export function authorizeWaiver(
       `Prerequisite '${req.prerequisiteId}' of '${req.taskId}' is already ${current}`
     );
   }
-  if (policy && !policy({
+  // Only a literal `true` approves; a truthy non-boolean (e.g. a Promise) fails closed
+  if (policy && policy({
     graphId: ledger.graphId,
     graphRevision: ledger.graphRevision,
     taskId: req.taskId,
@@ -67,7 +68,7 @@ export function authorizeWaiver(
     reason: req.reason,
     authorityRef: req.authorityRef,
     currentDisposition: current,
-  })) {
+  }) !== true) {
     throw new PrerequisiteWaiverError(
       `Waiver of '${req.prerequisiteId}' for '${req.taskId}' by '${req.actor}' rejected by policy`
     );

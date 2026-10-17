@@ -330,6 +330,39 @@ describe('TaskDAG prerequisites - waiver policy (London school)', () => {
     expect(() => dag.waivePrerequisite(waiver({ actor: '' }))).toThrow(PrerequisiteWaiverError);
     expect(policy).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ['a Promise', Promise.resolve(false)],
+    ['a truthy string', 'no'],
+    ['the number 1', 1],
+  ])('fails closed when the policy returns %s instead of true', (_label, verdict) => {
+    const dag = new TaskDAG({ waiverPolicy: vi.fn().mockReturnValue(verdict) });
+    dag.addTask(task('a'));
+    dag.addTask(task('b', ['a']));
+    expect(() => dag.waivePrerequisite(waiver())).toThrow(/rejected by policy/);
+    expect(dag.getTask('b')?.status).toBe('blocked');
+  });
+
+  it('rejects the waiver when the policy mutates the graph', () => {
+    let dag!: TaskDAG;
+    const policy = vi.fn(() => { dag.cancel('b', 'policy side effect'); return true; });
+    dag = new TaskDAG({ waiverPolicy: policy });
+    dag.addTask(task('a'));
+    dag.addTask(task('b', ['a']));
+    expect(() => dag.waivePrerequisite(waiver())).toThrow(GraphRevisionConflictError);
+    expect(dag.getTask('b')?.status).toBe('cancelled');
+    expect(dag.getReceipts({ taskId: 'b' }).some((r) => r.disposition === 'WAIVED')).toBe(false);
+  });
+
+  it('does not resurrect a task that a waiver event handler cancelled', () => {
+    const dag = new TaskDAG();
+    dag.addTask(task('a'));
+    dag.addTask(task('b', ['a']));
+    dag.onEvent((e) => { if (e.type === 'prerequisite-waived') dag.cancel('b', 'handler'); });
+    dag.waivePrerequisite(waiver());
+    expect(dag.getTask('b')?.status).toBe('cancelled');
+    expect(dag.getReady().map((t) => t.id)).toEqual(['a']);
+  });
 });
 
 describe('TaskDAG prerequisites - graph revision', () => {
