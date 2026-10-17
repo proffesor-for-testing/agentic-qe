@@ -413,7 +413,10 @@ export class LLMResponseCache {
     options?: CacheKeyOptions,
     ttlMs?: number
   ): void {
-    if (!this.config.cacheCompletions) {
+    // CompletionResponse does not carry finishReason. In particular, Gemini
+    // returns an empty completion for a safety refusal (#912). Return that
+    // result to its caller, but never pin it as a reusable completion.
+    if (!this.config.cacheCompletions || response.completion.length === 0) {
       return;
     }
     const key = LLMCache.generateKey('completion', prompt, options);
