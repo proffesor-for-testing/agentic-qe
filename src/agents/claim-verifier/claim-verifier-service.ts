@@ -39,6 +39,7 @@ import {
 import { FileBasedVerifier, type FileVerifierConfig } from './verifiers/file-verifier';
 import { TestBasedVerifier, type TestVerifierConfig } from './verifiers/test-verifier';
 import { OutputBasedVerifier, type OutputVerifierConfig } from './verifiers/output-verifier';
+import { createSafeRecord, getOwn, setOwn } from '../../shared/utils/safe-record.js';
 
 /**
  * Factory configuration for ClaimVerifierService.
@@ -616,34 +617,38 @@ export class ClaimVerifierService implements ClaimVerifierAgent {
    */
   private calculateAgentStats(): Record<string, AgentStats> {
     // Use mutable objects for calculation
-    const stats: Record<string, any> = {};
+    // Agent ids come from claim ids: no prototype, so `constructor` is just a name (#978).
+    const stats = createSafeRecord<any>();
 
     for (const entry of this.history) {
       const agentId = entry.claimId.split('-')[0]; // Extract agent ID from claim ID
 
-      if (!stats[agentId]) {
-        stats[agentId] = {
+      let agentStats = getOwn(stats, agentId);
+      if (!agentStats) {
+        agentStats = {
           claimsSubmitted: 0,
           claimsVerified: 0,
           claimsRejected: 0,
           verificationRate: 0,
           avgConfidence: 0,
         };
+        setOwn(stats, agentId, agentStats);
       }
 
-      stats[agentId].claimsSubmitted++;
+      agentStats.claimsSubmitted++;
       if (entry.result.verified) {
-        stats[agentId].claimsVerified++;
+        agentStats.claimsVerified++;
       } else {
-        stats[agentId].claimsRejected++;
+        agentStats.claimsRejected++;
       }
     }
 
     // Calculate rates and averages
     for (const agentId of Object.keys(stats)) {
+      const agentStats = getOwn(stats, agentId)!;
       const agentHistory = this.history.filter(h => h.claimId.startsWith(agentId));
-      stats[agentId].verificationRate = stats[agentId].claimsVerified / stats[agentId].claimsSubmitted;
-      stats[agentId].avgConfidence = this.calculateAverageConfidence(agentHistory);
+      agentStats.verificationRate = agentStats.claimsVerified / agentStats.claimsSubmitted;
+      agentStats.avgConfidence = this.calculateAverageConfidence(agentHistory);
     }
 
     return stats as Record<string, AgentStats>;

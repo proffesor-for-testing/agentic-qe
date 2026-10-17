@@ -56,7 +56,22 @@ describe('anti-drift middleware with non-semantic payloads (#1070)', () => {
     expect(await mw.onReceive(emitted)).not.toBeNull();
   });
 
-  it('still drops a non-semantic payload that was mutated in transit', async () => {
+  it('still drops a non-semantic data payload that was mutated in transit', async () => {
+    const mw = new SemanticAntiDriftMiddleware({ agentId: 'qe-kernel' });
+    const emitted = await mw.onEmit(event('quality-assessment.QualityReportReady', {
+      reportId: 'report-3',
+      result: { metrics: { coverage: 80 } },
+    }));
+    const tampered = {
+      ...emitted,
+      payload: { metrics: { unrelated: 'zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz' }, other: [9, 9, 9, 9, 9, 9, 9] },
+    } as DomainEvent;
+
+    expect(await mw.onReceive(tampered)).toBeNull();
+  });
+
+  it('detects a mutated TaskCompleted but delivers it, since dropping it leaks a Queen slot (#1077)', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
     const mw = new SemanticAntiDriftMiddleware({ agentId: 'qe-kernel' });
     const emitted = await mw.onEmit(event('TaskCompleted', {
       taskId: 'task-3',
@@ -67,6 +82,8 @@ describe('anti-drift middleware with non-semantic payloads (#1070)', () => {
       payload: { metrics: { unrelated: 'zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz' }, other: [9, 9, 9, 9, 9, 9, 9] },
     } as DomainEvent;
 
-    expect(await mw.onReceive(tampered)).toBeNull();
+    expect(await mw.onReceive(tampered)).not.toBeNull();
+    expect(mw.getStats().driftCount).toBe(1);
+    vi.restoreAllMocks();
   });
 });

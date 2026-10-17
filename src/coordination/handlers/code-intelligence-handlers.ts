@@ -7,12 +7,14 @@
 
 import * as fs from 'fs/promises';
 import { randomUUID } from 'node:crypto';
+import { prunePredictionHistory } from '../../domains/defect-intelligence/prediction-history.js';
 import * as path from 'path';
 import { ok, err } from '../../shared/types';
 import { toError } from '../../shared/error-utils.js';
 import type { TaskHandlerContext } from './handler-types';
 import { discoverSourceFiles } from './handler-utils';
 import { resolveProjectRootFromPaths } from '../../domains/code-intelligence/project-root-resolver.js';
+import { nothingIndexedError } from '../../domains/code-intelligence/index-path-guard.js';
 import { createLogger } from '../../logging/logger-factory.js';
 
 const logger = createLogger('CodeIntelligenceHandlers');
@@ -106,11 +108,22 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
 
       const indexResult = result.value;
 
+      // #1096: files were found but none was indexed (e.g. the target is a
+      // symlink out of the project) - fail like the coordinator does.
+      if (indexResult.filesIndexed === 0) {
+        return err(nothingIndexedError(filesToIndex.length, indexResult.skipped ?? [], indexResult.errors));
+      }
+      const notIndexed = new Set([
+        ...(indexResult.skipped ?? []).map((s) => s.path),
+        ...indexResult.errors.map((e) => e.file),
+      ]);
+      const indexedFiles = filesToIndex.filter((file) => !notIndexed.has(file));
+
       // #999 MCP-CLI parity: `aqe code index` runs the coordinator's project
       // metric step (LOC, tests, tools); run the same step here, rooted at the
       // caller's target the way #997 resolves it. Best-effort: indexing has
       // already succeeded, so a metric failure only omits projectMetrics.
-      const projectMetrics = await collectProjectMetricsForTarget(ctx, targetPath, filesToIndex);
+      const projectMetrics = await collectProjectMetricsForTarget(ctx, targetPath, indexedFiles);
 
       // Detect languages from files
       const detectedLanguages = new Set<string>();
@@ -124,7 +137,7 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
         c: 'c', h: 'c', cpp: 'cpp', hpp: 'cpp', cc: 'cpp',
         scala: 'scala',
       };
-      for (const file of filesToIndex) {
+      for (const file of indexedFiles) {
         const ext = path.extname(file).slice(1);
         const lang = extToLang[ext];
         if (lang) detectedLanguages.add(lang);
@@ -145,6 +158,7 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
         duration: indexResult.duration,
         errors: indexResult.errors,
         warnings: indexResult.warnings,
+        skipped: indexResult.skipped ?? [],
         ...(projectMetrics ? { projectMetrics } : {}),
       });
     } catch (error) {
@@ -289,6 +303,7 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
         filesSkipped,
         scanStatus: filesSkipped > 0 ? 'partial' : 'complete',
       }, { namespace: 'defect-intelligence', ttl: 86400 * 7 });
+      await prunePredictionHistory(ctx.memory);
 
       // Sort by probability descending
       predictedDefects.sort((a, b) => b.probability - a.probability);

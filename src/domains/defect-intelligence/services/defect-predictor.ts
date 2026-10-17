@@ -7,6 +7,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { prunePredictionHistory } from '../prediction-history.js';
 import { LoggerFactory } from '../../../logging/index.js';
 import { Result, ok, err, Severity } from '../../../shared/types';
 import { MemoryBackend } from '../../../kernel/interfaces';
@@ -22,6 +23,7 @@ import {
 } from '../interfaces';
 import { GitAnalyzer } from '../../../shared/git';
 import { FileReader } from '../../../shared/io';
+import { findProjectRoot } from '../../../kernel/project-root.js';
 import { TypeScriptParser } from '../../../shared/parsers';
 
 // ADR-051: LLM Router for AI-enhanced defect prediction
@@ -171,14 +173,15 @@ export class DefectPredictorService implements IDefectPredictorService {
       // New signature: DefectPredictorDependencies
       this.memory = memoryOrDeps.memory;
       this.gitAnalyzer = memoryOrDeps.gitAnalyzer ?? new GitAnalyzer({ enableCache: true });
-      this.fileReader = memoryOrDeps.fileReader ?? new FileReader();
+      // #1096: a symlink inside the project must not expose an outside file.
+      this.fileReader = memoryOrDeps.fileReader ?? new FileReader({ projectRoot: findProjectRoot() });
       this.tsParser = memoryOrDeps.tsParser ?? new TypeScriptParser();
       this.llmRouter = memoryOrDeps.llmRouter;
     } else {
       // Old signature: memory, config, gitAnalyzer, fileReader, tsParser
       this.memory = memoryOrDeps;
       this.gitAnalyzer = gitAnalyzer ?? new GitAnalyzer({ enableCache: true });
-      this.fileReader = fileReader ?? new FileReader();
+      this.fileReader = fileReader ?? new FileReader({ projectRoot: findProjectRoot() });
       this.tsParser = tsParser ?? new TypeScriptParser();
       this.llmRouter = undefined;
     }
@@ -1157,6 +1160,7 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
       },
       { namespace: 'defect-intelligence', ttl: 86400 * 7 } // 7 days
     );
+    await prunePredictionHistory(this.memory, this.config.modelNamespace);
   }
 
   private async recalculateMetrics(feedback: PredictionFeedback): Promise<void> {

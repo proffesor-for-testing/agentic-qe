@@ -91,6 +91,7 @@ import { DynamicScaler, createDynamicScaler } from './dynamic-scaling/index.js';
 // Types, interfaces, constants, and config
 import {
   DEFAULT_QUEEN_CONFIG,
+  getTaskDomains,
   initializeTaskDomainMap,
 } from './queen-types.js';
 
@@ -112,6 +113,7 @@ export { DOMAIN_GROUPS, TASK_DOMAIN_MAP } from './queen-types.js';
 
 import type {
   QueenTask,
+  TaskType,
   TaskExecution,
   QueenMetrics,
   QueenConfig,
@@ -123,6 +125,7 @@ import type {
 
 // Extracted modules
 import { subscribeToEvents, computeDomainHealthFromAgents } from './queen-event-handlers.js';
+import { findDomainsWithoutHandler, describeMissingHandler } from './task-executability.js';
 import {
   enqueueTask, removeFromQueues, getQueuePosition, processQueue,
   listTasks as listTasksImpl, assignTask, assignTaskToDomain,
@@ -375,6 +378,28 @@ export class QueenCoordinator implements IQueenCoordinator {
   // ============================================================================
   // Task Management
   // ============================================================================
+
+  /**
+   * #1075: check that a domain plugin will actually execute this task type
+   * before an external caller submits it, so the caller gets the reason as a
+   * rejection. A type that no candidate domain handles would otherwise only
+   * be failed at dispatch by `assignTaskToDomain` (#1081).
+   *
+   * Every candidate domain must handle the type, because `assignTask` may pick
+   * any of them. Queens built without domain plugins cannot be checked and
+   * accept the type unchanged.
+   */
+  validateTaskExecutable(type: TaskType, targetDomains: readonly DomainName[] = []): Result<void, Error> {
+    const candidates = targetDomains.length > 0 ? targetDomains : getTaskDomains(type);
+    if (candidates.length === 0) {
+      return err(new Error(`Unknown task type '${type}': no domain is configured for it. Pass a target domain.`));
+    }
+    if (!this.domainPlugins) return ok(undefined);
+
+    const gaps = findDomainsWithoutHandler(this.domainPlugins, type, candidates);
+    if (gaps.length === 0) return ok(undefined);
+    return err(new Error(describeMissingHandler(type, gaps)));
+  }
 
   async submitTask(taskInput: Omit<QueenTask, 'id' | 'createdAt'>): Promise<Result<string, Error>> {
     if (!this.initialized) {

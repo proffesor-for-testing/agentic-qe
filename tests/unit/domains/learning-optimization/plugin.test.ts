@@ -454,6 +454,41 @@ describe('LearningOptimizationPlugin', () => {
   // Health Tracking Tests
   // ============================================================================
 
+  describe('learning records per published event (#1110)', () => {
+    const experiencesFor = async (field: string, value: string): Promise<number> => {
+      const keys = await memory.search('learning:experience:*');
+      const values = await Promise.all(keys.map(key => memory.get<{ state: { context: Record<string, unknown> } }>(key)));
+      return values.filter(experience => experience?.state?.context?.[field] === value).length;
+    };
+
+    it('records one experience for each TestRunCompleted', async () => {
+      await plugin.initialize();
+      await eventBus.publish(createMockEvent('test-execution.TestRunCompleted', 'test-execution', {
+        runId: 'run-1110', passed: 3, failed: 1, duration: 120,
+      }));
+
+      expect(await experiencesFor('runId', 'run-1110')).toBe(1);
+    });
+
+    it('records one experience for each measured CoverageGapDetected', async () => {
+      await plugin.initialize();
+      await eventBus.publish(createMockEvent('coverage-analysis.CoverageGapDetected', 'coverage-analysis', {
+        gapId: 'gap-1110', file: 'src/a.ts', riskScore: 0.4, measured: true,
+      }));
+
+      expect(await experiencesFor('gapId', 'gap-1110')).toBe(1);
+    });
+
+    it('records one experience for each QualityGateEvaluated', async () => {
+      await plugin.initialize();
+      await eventBus.publish(createMockEvent('quality-assessment.QualityGateEvaluated', 'quality-assessment', {
+        gateId: 'gate-1110', passed: true,
+      }));
+
+      expect(await experiencesFor('gateId', 'gate-1110')).toBe(1);
+    });
+  });
+
   describe('health tracking', () => {
     beforeEach(async () => {
       await plugin.initialize();

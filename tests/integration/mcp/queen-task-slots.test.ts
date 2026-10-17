@@ -20,6 +20,9 @@ const SOURCE = 'export function add(a, b) { return a + b; }';
 const N = 3;
 const cases = [
   ['quality_assess', { runGate: false }, 5],
+  // #1080: a failing gate (no coverage evidence) must not leave its caller-owned
+  // task retried and running. Two calls: the domain circuit breaker opens after that.
+  ['quality_assess', { runGate: true }, 2],
   ['test_generate_enhanced', { sourceCode: SOURCE, filePath: 'src/math.js', language: 'javascript' }, N],
   ['test_execute_parallel', { testFiles: ['tests/math.test.mjs'] }, 1],
   ['coverage_analyze_sublinear', { target: 'src/' }, N],

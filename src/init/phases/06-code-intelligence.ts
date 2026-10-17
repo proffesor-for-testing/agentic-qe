@@ -253,6 +253,8 @@ export class CodeIntelligencePhase extends BasePhase<CodeIntelligenceResult> {
     const kgService = new KnowledgeGraphService(memory, {
       namespace: 'code-intelligence:kg',
       enableVectorEmbeddings: true,
+      // #1096: indexing is confined to the project being initialized.
+      projectRoot,
     });
 
     try {

@@ -73,6 +73,15 @@ export async function loadState(
     if (state) {
       for (const [id, execution] of state.tasks) {
         if (execution.status === 'queued') {
+          if (execution.task.executionOwner === 'caller') {
+            tasks.set(id, {
+              ...execution,
+              status: 'failed',
+              error: 'Caller-owned task was interrupted before completion; submit a new request.',
+              completedAt: new Date(),
+            });
+            continue;
+          }
           tasks.set(id, execution);
           enqueueTask(execution.task);
         }

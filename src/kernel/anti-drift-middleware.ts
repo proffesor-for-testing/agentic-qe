@@ -246,6 +246,8 @@ export interface AntiDriftStats {
   readonly totalChecked: number;
   readonly driftCount: number;
   readonly averageSimilarity: number;
+  /** Events delivered without verification because the embedder failed. */
+  readonly unverifiedCount: number;
 }
 
 /** Default cosine-distance thresholds per event category. */
@@ -263,6 +265,29 @@ const DEFAULT_CONFIG: AntiDriftConfig = {
   maxHistorySize: 200,
   fallbackDimension: 64,
 };
+
+/**
+ * Control-plane (task/agent/workflow lifecycle) events, matched on the last
+ * dot-separated segment of the event type:
+ * - every `Queen*` event (QueenCoordinator prefixes all of its events),
+ * - `Task*`, `Agent*`, `Workflow*`, `Step*`, `Protocol*` and `Action*` events
+ *   (TaskCompleted, TaskFailed, workflow.StepCompleted, coordination.ProtocolFailed, ...).
+ * The Queen, the workflow orchestrator and the protocol executor count slots
+ * and advance state machines on these events, so losing one leaks a slot or
+ * hangs a run (#1070, #1077).
+ */
+const CONTROL_PLANE_EVENT_RE = /^(?:Queen[A-Z]|(?:Task|Agent|Workflow|Step|Protocol|Action)[A-Z])/;
+
+/** True when the event type is a lifecycle / control-plane event that must never be dropped. */
+export function isControlPlaneEvent(eventType: string): boolean {
+  const name = eventType.slice(eventType.lastIndexOf('.') + 1);
+  return CONTROL_PLANE_EVENT_RE.test(name);
+}
+
+/** One warning per event type and source per window; later drops in the window are counted. */
+const DRIFT_WARN_WINDOW_MS = 60_000;
+/** Bound on distinct (type, source) keys tracked for warning rate limiting. */
+const DRIFT_WARN_MAX_KEYS = 256;
 
 /**
  * Deterministic pseudo-embedding via FNV-1a-inspired hash spread.
@@ -336,6 +361,15 @@ export class SemanticAntiDriftMiddleware implements EventMiddleware {
   private totalChecked = 0;
   private driftCount = 0;
   private similaritySum = 0;
+  private unverifiedCount = 0;
+  /** Suppressed drift warnings of keys evicted from the rate limiter, reported on the next warning. */
+  private evictedSuppressedWarnings = 0;
+  /** Rate limit for drift warnings, keyed by event type and source. */
+  private readonly driftWarnings = new Map<string, { lastAt: number; suppressed: number }>();
+  /** Payload text each fingerprint was computed from (same-process events only). */
+  private readonly emittedPayloadText = new WeakMap<SemanticFingerprint, string>();
+  private embeddingWarningAt = -Infinity;
+  private suppressedEmbeddingWarnings = 0;
 
   constructor(config?: Partial<AntiDriftConfig>) {
     this.config = {
@@ -353,7 +387,8 @@ export class SemanticAntiDriftMiddleware implements EventMiddleware {
    */
   async onEmit(event: DomainEvent): Promise<DomainEvent> {
     const payloadText = JSON.stringify(event.payload);
-    const embedding = await this.embed(payloadText);
+    const embedding = await this.embedForEvent(payloadText, event, 'emit');
+    if (embedding === null) return event;
     const category = this.resolveCategory(event.type);
     const threshold = this.config.thresholds[category] ?? this.config.thresholds['default'];
     const fingerprint: SemanticFingerprint = {
@@ -363,24 +398,38 @@ export class SemanticAntiDriftMiddleware implements EventMiddleware {
       hopCount: 0,
       emittedAt: Date.now(),
     };
+    this.emittedPayloadText.set(fingerprint, payloadText);
     return { ...event, semanticFingerprint: fingerprint } as DomainEvent;
   }
 
   /**
    * Re-embed the payload and compare with the original fingerprint.
-   * If drift exceeds threshold the event is dropped (returns null) and a
-   * SemanticDriftDetectedEvent is emitted. Events without a fingerprint
-   * pass through unchanged.
+   * If drift exceeds threshold a warning is logged, a SemanticDriftDetectedEvent
+   * is emitted, and a data event is dropped (returns null). Control-plane
+   * events (see {@link isControlPlaneEvent}) are delivered anyway: dropping a
+   * lifecycle event leaks Queen slots (#1070, #1077). Events without a
+   * fingerprint pass through unchanged.
    * @param event - The incoming domain event.
-   * @returns The event with incremented hopCount, or null if drifted.
+   * @returns The event with incremented hopCount, or null if a drifted data event.
    */
   async onReceive(event: DomainEvent): Promise<DomainEvent | null> {
     const fp = event.semanticFingerprint;
     if (!fp) return event;
 
     const payloadText = JSON.stringify(event.payload);
-    const currentEmbedding = await this.embed(payloadText);
-    const similarity = cosineSimilarity(currentEmbedding, fp.embedding as number[]);
+    // A payload whose text is byte-identical to the text this instance
+    // fingerprinted at emit time has similarity 1 by construction; skip the
+    // second model inference (#1077).
+    let similarity = 1;
+    const emittedText = this.emittedPayloadText.get(fp);
+    // Release the cached text now: bus history keeps the emitted fingerprint
+    // alive for up to 10k events.
+    this.emittedPayloadText.delete(fp);
+    if (emittedText !== payloadText) {
+      const currentEmbedding = await this.embedForEvent(payloadText, event, 'receive');
+      if (currentEmbedding === null) return event;
+      similarity = cosineSimilarity(currentEmbedding, fp.embedding as number[]);
+    }
     const distance = 1 - similarity;
     const drifted = distance > fp.driftThreshold;
 
@@ -400,8 +449,10 @@ export class SemanticAntiDriftMiddleware implements EventMiddleware {
 
     if (drifted) {
       this.driftCount++;
+      const deliver = isControlPlaneEvent(event.type);
+      this.warnDrift(event, checkResult, deliver);
       await this.emitDriftEvent(event, checkResult);
-      return null;
+      if (!deliver) return null;
     }
 
     const updatedFingerprint: SemanticFingerprint = { ...fp, hopCount: fp.hopCount + 1 };
@@ -419,6 +470,7 @@ export class SemanticAntiDriftMiddleware implements EventMiddleware {
       totalChecked: this.totalChecked,
       driftCount: this.driftCount,
       averageSimilarity: this.totalChecked > 0 ? this.similaritySum / this.totalChecked : 0,
+      unverifiedCount: this.unverifiedCount,
     };
   }
 
@@ -456,6 +508,39 @@ export class SemanticAntiDriftMiddleware implements EventMiddleware {
     return hashBasedEmbedding(text, this.config.fallbackDimension);
   }
 
+  /**
+   * Fingerprinting is advisory infrastructure, not an event-delivery dependency.
+   * A transformer can fail after its cached availability probe succeeded. Do not
+   * switch vector spaces mid-event: an old semantic vector and a new hash vector
+   * cannot be compared. Deliver this event without claiming a completed check;
+   * later events still try the transformer normally.
+   */
+  private async embedForEvent(
+    text: string, event: DomainEvent, stage: 'emit' | 'receive',
+  ): Promise<number[] | null> {
+    try {
+      return await this.embed(text);
+    } catch {
+      // Counted even when the warning below is rate limited, so an outage
+      // stays visible in getStats().
+      this.unverifiedCount++;
+      const now = Date.now();
+      if (now - this.embeddingWarningAt < DRIFT_WARN_WINDOW_MS) {
+        this.suppressedEmbeddingWarnings++;
+      } else {
+        logger.warn('Anti-drift embedding unavailable; event delivered without verification', {
+          eventType: event.type, source: event.source, stage,
+          suppressedSinceLastWarning: this.suppressedEmbeddingWarnings,
+        });
+        this.embeddingWarningAt = now;
+        this.suppressedEmbeddingWarnings = 0;
+      }
+      // Never log the payload or provider's error text (it may contain input or
+      // credentials), and never count an unavailable check as successful/drifted.
+      return null;
+    }
+  }
+
   /** Map event type to threshold category via substring matching. */
   private resolveCategory(eventType: string): string {
     const lower = eventType.toLowerCase();
@@ -463,6 +548,51 @@ export class SemanticAntiDriftMiddleware implements EventMiddleware {
       if (category !== 'default' && lower.includes(category)) return category;
     }
     return 'default';
+  }
+
+  /**
+   * Log a drift detection to stderr (via the structured logger). Never logs
+   * payload contents. Rate limited per event type and source so a flood of
+   * drifted events produces one line per window plus a suppressed count.
+   */
+  private warnDrift(event: DomainEvent, check: DriftCheckResult, delivered: boolean): void {
+    const key = `${event.type}|${String(event.source)}`;
+    const now = Date.now();
+    const entry = this.driftWarnings.get(key);
+    if (entry && now - entry.lastAt < DRIFT_WARN_WINDOW_MS) {
+      entry.suppressed++;
+      return;
+    }
+    if (!entry && this.driftWarnings.size >= DRIFT_WARN_MAX_KEYS) this.evictOldestDriftWarning();
+    const suppressed = entry?.suppressed ?? 0;
+    const evictedSuppressed = this.evictedSuppressedWarnings;
+    this.evictedSuppressedWarnings = 0;
+    // Re-insert so Map order tracks lastAt and the first key is the oldest.
+    this.driftWarnings.delete(key);
+    this.driftWarnings.set(key, { lastAt: now, suppressed: 0 });
+    logger.warn(
+      delivered
+        ? 'Semantic drift detected on a control-plane event; delivered anyway'
+        : 'Semantic drift detected; event dropped',
+      {
+        eventType: event.type,
+        source: event.source,
+        cosineSimilarity: Number(check.cosineSimilarity.toFixed(4)),
+        cosineDistance: Number((1 - check.cosineSimilarity).toFixed(4)),
+        threshold: check.threshold,
+        hopCount: check.hopCount,
+        ...(suppressed > 0 ? { suppressedSinceLastWarning: suppressed } : {}),
+        ...(evictedSuppressed > 0 ? { suppressedForEvictedKeys: evictedSuppressed } : {}),
+      },
+    );
+  }
+
+  /** Drop the least recently warned key, carrying its suppressed count forward. */
+  private evictOldestDriftWarning(): void {
+    const oldest = this.driftWarnings.keys().next();
+    if (oldest.done) return;
+    this.evictedSuppressedWarnings += this.driftWarnings.get(oldest.value)?.suppressed ?? 0;
+    this.driftWarnings.delete(oldest.value);
   }
 
   /** Fire a SemanticDriftDetectedEvent via the configured callback. */

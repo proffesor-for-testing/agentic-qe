@@ -4,6 +4,7 @@
  */
 
 import { FileReader } from '../io';
+import { findProjectRoot } from '../../kernel/project-root.js';
 
 // ============================================================================
 // Types and Interfaces
@@ -221,7 +222,8 @@ export class CompliancePatternAnalyzer {
   private readonly fileReader: FileReader;
 
   constructor() {
-    this.fileReader = new FileReader();
+    // #1096: a symlink inside the project must not expose an outside file.
+    this.fileReader = new FileReader({ projectRoot: findProjectRoot() });
   }
 
   /**

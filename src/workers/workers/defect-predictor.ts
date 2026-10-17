@@ -23,6 +23,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { bareSearchKey } from '../namespaced-keys';
+import { parsePredictionRecord, type DomainFilePrediction } from '../../domains/defect-intelligence/prediction-history.js';
 import { BaseWorker } from '../base-worker';
 import {
   WorkerConfig,
@@ -50,21 +51,6 @@ const DEFECT_NAMESPACE = 'defect-intelligence';
 const PREDICTION_KEY_PATTERN = 'defect-intelligence:predictor:prediction:*';
 const PREDICTIONS_KEY = 'defect:predictions';
 const SCHEMA_VERSION = 1;
-/** The predictor keeps its records for 7 days; nothing older is current. */
-const MAX_PREDICTION_AGE_MS = 7 * 24 * 60 * 60 * 1000;
-const MAX_PREDICTION_RECORDS = 1000;
-
-type RiskLevel = 'critical' | 'high' | 'medium' | 'low' | 'info';
-const RISK_LEVELS: readonly RiskLevel[] = ['critical', 'high', 'medium', 'low', 'info'];
-
-/** One file prediction as the defect-intelligence predictor recorded it. */
-interface DomainFilePrediction {
-  file: string;
-  probability: number;
-  riskLevel: RiskLevel;
-  factors: { name: string; contribution: number }[];
-  recommendations: string[];
-}
 
 /** The `defect:predictions` record: one real prediction run (#1043). */
 interface MeasuredDefectPredictions {
@@ -121,46 +107,6 @@ function realProjectRoot(): string {
   } catch {
     return path.resolve(root);
   }
-}
-
-const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
-
-function parseFilePrediction(raw: unknown): DomainFilePrediction | null {
-  if (!isRecord(raw)) return null;
-  const { file, probability, riskLevel } = raw;
-  if (typeof file !== 'string' || file.length === 0) return null;
-  if (typeof probability !== 'number' || !Number.isFinite(probability) || probability < 0 || probability > 1) return null;
-  if (!RISK_LEVELS.includes(riskLevel as RiskLevel)) return null;
-  const factors = Array.isArray(raw.factors)
-    ? raw.factors.filter((f): f is { name: string; contribution: number } =>
-      isRecord(f) && typeof f.name === 'string' && typeof f.contribution === 'number' && Number.isFinite(f.contribution))
-    : [];
-  const recommendations = Array.isArray(raw.recommendations)
-    ? raw.recommendations.filter((r): r is string => typeof r === 'string')
-    : [];
-  return { file, probability, riskLevel: riskLevel as RiskLevel, factors, recommendations };
-}
-
-/** A recorded prediction run, or `null` when the record is not a usable one. */
-function parsePredictionRecord(raw: unknown, now: number):
-  {
-    id: string; timestamp: string; predictions: DomainFilePrediction[];
-    predictionMethod?: 'static-code-indicators'; estimated?: true; filesSkipped?: number;
-  } | null {
-  if (!isRecord(raw) || typeof raw.id !== 'string' || typeof raw.timestamp !== 'string') return null;
-  const t = Date.parse(raw.timestamp);
-  if (!Number.isFinite(t) || t > now + 60_000 || now - t > MAX_PREDICTION_AGE_MS) return null;
-  if (!Array.isArray(raw.predictions) || raw.predictions.length === 0) return null;
-  const predictions = raw.predictions.map(parseFilePrediction);
-  if (predictions.some((p) => p === null)) return null;
-  return {
-    id: raw.id, timestamp: raw.timestamp, predictions: predictions as DomainFilePrediction[],
-    ...(raw.predictionMethod === 'static-code-indicators' ? {
-      predictionMethod: 'static-code-indicators', estimated: true,
-      filesSkipped: typeof raw.filesSkipped === 'number' && Number.isSafeInteger(raw.filesSkipped) && raw.filesSkipped >= 0
-        ? raw.filesSkipped : 0,
-    } : {}),
-  };
 }
 
 export class DefectPredictorWorker extends BaseWorker {
@@ -282,7 +228,7 @@ export class DefectPredictorWorker extends BaseWorker {
     measured: MeasuredDefectPredictions | null;
     unusable: { id: string; outside: number; missing: number; ambiguous?: true } | null;
   }> {
-    const keys = await context.memory.search(PREDICTION_KEY_PATTERN, MAX_PREDICTION_RECORDS, { namespace: DEFECT_NAMESPACE });
+    const keys = await context.memory.search(PREDICTION_KEY_PATTERN, Number.MAX_SAFE_INTEGER, { namespace: DEFECT_NAMESPACE });
     const now = Date.now();
     let latest: ReturnType<typeof parsePredictionRecord> = null;
     let ambiguous = false;

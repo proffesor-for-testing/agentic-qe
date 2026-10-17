@@ -8,6 +8,8 @@ import { Result, ok, err, DomainName, AgentId, ALL_DOMAINS } from '../../../shar
 import { MemoryBackend } from '../../../kernel/interfaces.js';
 import { toError } from '../../../shared/error-utils.js';
 import { rehydrateDates } from '../../../shared/utils/kv-date-rehydrate.js';
+import { searchAllKeys } from '../../../shared/utils/namespaced-search.js';
+import { LEARNING_NS } from '../active-patterns.js';
 import {
   Knowledge,
   KnowledgeType,
@@ -109,16 +111,16 @@ export class TransferSpecialistService implements IKnowledgeSynthesisService {
     try {
       const results: Knowledge[] = [];
 
-      // Search by domain if specified
-      let keys: string[];
-      if (query.domain) {
-        keys = await this.memory.search(
-          `learning:knowledge:*:${query.domain}:*`,
-          query.limit || 100
-        );
-      } else {
-        keys = await this.memory.search('learning:knowledge:shared:*', query.limit || 100);
-      }
+      // Secondary domain/type indexes store IDs, not Knowledge objects, and
+      // shareKnowledge() need not create them. Read canonical shared records
+      // from the same namespace as both writers, then filter and rank before
+      // applying the caller's result limit. #1071: every key is read (the
+      // config value only sizes the first scan request), so the domain filter
+      // sees every item instead of an arbitrary first page.
+      const keys = await searchAllKeys(this.memory, 'learning:knowledge:shared:*', {
+        retrieve: LEARNING_NS,
+        pageSize: this.config.maxKnowledgeItems,
+      });
 
       for (const key of keys) {
         // #493: rehydrate Date fields at the kv-read seam. `createdAt` is
@@ -126,7 +128,7 @@ export class TransferSpecialistService implements IKnowledgeSynthesisService {
         // compared via `new Date() > knowledge.expiresAt` — both broken
         // when the field is a string after JSON round-trip.
         const knowledge = rehydrateDates(
-          await this.memory.get<Knowledge>(key),
+          await this.memory.get<Knowledge>(key, { namespace: 'learning-optimization' }),
           ['createdAt', 'expiresAt'],
         );
         if (knowledge && this.matchesQuery(knowledge, query)) {
@@ -134,8 +136,9 @@ export class TransferSpecialistService implements IKnowledgeSynthesisService {
         }
       }
 
-      // Sort by relevance score
-      results.sort((a, b) => b.relevanceScore - a.relevanceScore);
+      // Sort by relevance score; equal scores fall back to id order so the
+      // caller's limit always keeps the same items (#1071).
+      results.sort((a, b) => b.relevanceScore - a.relevanceScore || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 
       // Apply semantic search if embedding provided
       if (query.embedding && query.embedding.length > 0) {
@@ -147,7 +150,7 @@ export class TransferSpecialistService implements IKnowledgeSynthesisService {
         for (const vr of vectorResults) {
           // #493: rehydrate Date fields at the kv-read seam.
           const knowledge = rehydrateDates(
-            await this.memory.get<Knowledge>(vr.key),
+            await this.memory.get<Knowledge>(vr.key, { namespace: 'learning-optimization' }),
             ['createdAt', 'expiresAt'],
           );
           if (
@@ -384,7 +387,7 @@ export class TransferSpecialistService implements IKnowledgeSynthesisService {
   async getKnowledgeById(id: string): Promise<Knowledge | null> {
     // #493: rehydrate Date fields at the kv-read seam.
     const knowledge = rehydrateDates(
-      await this.memory.get<Knowledge>(`learning:knowledge:shared:${id}`),
+      await this.memory.get<Knowledge>(`learning:knowledge:shared:${id}`, { namespace: 'learning-optimization' }),
       ['createdAt', 'expiresAt'],
     );
     return knowledge || null;
@@ -399,16 +402,20 @@ export class TransferSpecialistService implements IKnowledgeSynthesisService {
     filter?: { types?: KnowledgeType[]; minRelevance?: number }
   ): Promise<Result<TransferResult[]>> {
     try {
-      const keys = await this.memory.search(
-        `learning:knowledge:project:${sourceProject}:*`,
-        500
+      // #1071: read project knowledge from the namespace it is written to
+      // below, every key, in key order. The scan is a glob (and
+      // case-insensitive on SQLite), so keep only this project's own
+      // `<prefix><id>` keys: `ALPHA` or `alpha:sub` must not leak into `alpha`.
+      const prefix = `learning:knowledge:project:${sourceProject}:`;
+      const keys = (await searchAllKeys(this.memory, `${prefix}*`, { retrieve: LEARNING_NS })).filter(
+        (key) => key.startsWith(prefix) && !key.slice(prefix.length).includes(':'),
       );
       const results: TransferResult[] = [];
 
       for (const key of keys) {
         // #493: rehydrate Date fields at the kv-read seam.
         const knowledge = rehydrateDates(
-          await this.memory.get<Knowledge>(key),
+          await this.memory.get<Knowledge>(key, LEARNING_NS),
           ['createdAt', 'expiresAt'],
         );
         if (!knowledge) continue;

@@ -13,6 +13,8 @@ import type { TaskHandlerContext } from './handler-types';
 import { getTestRunnerExecutionError, TestRunnerExecutionError } from '../../shared/test-runner-verdict.js';
 import { createVitestJsonReport } from '../../shared/vitest-json-report.js';
 import { jestExactPathPattern, runnerFilePath } from '../../shared/test-runner-args.js';
+import { testCasesFromRunnerReport } from '../../domains/test-execution/services/runner-test-cases.js';
+import { runTestRunnerProcess } from '../../shared/test-runner-process.js';
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -205,6 +207,8 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
       testFiles: string[];
       parallel: boolean;
       retryCount: number;
+      timeout?: number;
+      parallelism?: number;
     };
 
     try {
@@ -220,8 +224,27 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
         return err(new TestRunnerExecutionError('Some test file paths contain invalid characters and were rejected. Provide concrete paths; expand glob patterns before calling.'));
       }
 
-      const { spawnSync } = await import('child_process');
-      const options = { cwd: process.cwd(), timeout: 120000, encoding: 'utf-8' as const };
+      // A caller-owned MCP task skips the Queen's plugin dispatch. Run through
+      // that same domain API here: it owns persistence, measured quality evidence
+      // and TestRunStarted/Completed events as well as the runner itself.
+      if (task.executionOwner === 'caller') {
+        const api = await ctx.getTestExecutionAPI?.();
+        if (!api) return err(new TestRunnerExecutionError('Test-execution domain is unavailable.'));
+        const result = await api.runTests({
+          testFiles,
+          parallel: payload.parallel,
+          timeout: payload.timeout,
+          workers: payload.parallelism,
+          // The domain owns requested retries; Queen dispatch must not replay it.
+          retryCount: payload.retryCount ?? 0,
+        });
+        if (!result.success) return result;
+        return ok({ ...result.value, coverage: result.value.coverage?.line ?? null });
+      }
+
+      // #1074: run the runner asynchronously so the MCP server keeps serving
+      // other requests (task_status, task_cancel, ...) during the test run.
+      const options = { cwd: process.cwd(), timeout: 120000 };
       let runner = 'vitest';
       // Vitest 5 writes the JSON report to a file rather than stdout; an explicit
       // --outputFile gives Vitest 4 and 5 the same contract.
@@ -230,7 +253,7 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
       let output: string;
       try {
         // #909: absolute paths cannot be read as flags (e.g. a "--watch" entry).
-        execution = spawnSync('npx', ['vitest', 'run', ...testFiles.map(file => runnerFilePath(file, options.cwd)), '--reporter=json', ...report.args], options);
+        execution = await runTestRunnerProcess('npx', ['vitest', 'run', ...testFiles.map(file => runnerFilePath(file, options.cwd)), '--reporter=json', ...report.args], options);
         output = execution.error || execution.signal
           ? ''
           : report.read(execution.stdout || '') ?? '';
@@ -240,7 +263,7 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
       // Preserve the existing Jest fallback when Vitest cannot produce a report.
       if (!output.includes('{') && execution.status !== 0 && !execution.error && !execution.signal) {
         runner = 'jest';
-        execution = spawnSync('npx', ['jest', ...testFiles.map(file => jestExactPathPattern(file, options.cwd)), '--json'], options);
+        execution = await runTestRunnerProcess('npx', ['jest', ...testFiles.map(file => jestExactPathPattern(file, options.cwd)), '--json'], options);
         output = execution.stdout || '';
       }
       const diagnostics = [execution.error?.message, execution.signal && `Terminated by ${execution.signal}`, execution.stderr, output].filter(Boolean).join('\n');
@@ -263,7 +286,12 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
             // #1027 N5/NB5: this handler runs the tests without --coverage, so it has no
             // coverage figure to return (null, never 0%). For test_execute_parallel the
             // measured coverage + testsPassing are recorded by TestExecutorService.
-            return ok({ total, passed, failed, skipped, duration: 0, coverage: null, failedTests: [] });
+            // #1110: per-test entries come from the runner report itself, or are left out.
+            const testCases = testCasesFromRunnerReport(json, testFiles.join(', '));
+            return ok({
+              total, passed, failed, skipped, duration: 0, coverage: null, failedTests: [],
+              ...(testCases && testCases.length === total ? { testCases } : {}),
+            });
           }
         }
       } catch {

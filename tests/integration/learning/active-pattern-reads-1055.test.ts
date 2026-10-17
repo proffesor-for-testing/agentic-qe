@@ -19,9 +19,9 @@ import type { MemoryBackend } from '../../../src/kernel/interfaces';
 import { resetUnifiedMemory } from '../../../src/kernel/unified-memory';
 import { LearningCoordinatorService } from '../../../src/domains/learning-optimization/services/learning-coordinator';
 import { LearningOptimizationCoordinator } from '../../../src/domains/learning-optimization/coordinator';
+import { calculateChecksum } from '../../../src/domains/learning-optimization/coordinator-helpers';
 import { LearningConsolidationProtocol } from '../../../src/coordination/protocols/learning-consolidation';
 import { LearningOptimizeTool } from '../../../src/mcp/tools/learning-optimization/optimize';
-import { TimeRange } from '../../../src/shared/value-objects/index.js';
 import type { Experience, LearnedPattern } from '../../../src/domains/learning-optimization/interfaces';
 
 const NS = { namespace: 'learning-optimization' } as const;
@@ -194,29 +194,17 @@ describe('#1055 active pattern reads (real SQLite)', () => {
       expect(result.success && result.value.map((p) => p.id).sort()).toEqual([...ids].sort());
     });
 
-    it('reports when the key scan hits its cap', async () => {
+    it('reads every active pattern even when the first scan request is smaller than the store (#1071)', async () => {
       const { readActivePatterns } = await import('../../../src/domains/learning-optimization/active-patterns');
-      await learnTwo();
-      const onTruncated = vi.fn();
-      await readActivePatterns(memory, { retrieve: NS, scanLimit: 3, onTruncated });
-      expect(onTruncated).toHaveBeenCalledWith(3);
+      const ids = await learnTwo();
+      const patterns = await readActivePatterns(memory, { retrieve: NS, scanPageSize: 1 });
+      expect(patterns.map((p) => p.id).sort()).toEqual([...ids].sort());
     });
   });
 
   describe('other readers of the same prefix', () => {
-    // LearningOptimizationCoordinator export and the consolidation protocol
-    // read the backend's default namespace. Copy the service-produced records
-    // there so these readers see the same key families.
-    async function mirrorToDefaultNamespace(): Promise<void> {
-      const keys = await memory.search('learning:pattern:*', 1000, NS);
-      for (const key of keys) {
-        await memory.set(key, await memory.get(key, NS), { persist: true });
-      }
-    }
-
     it('coordinator export includes only the active pattern, once', async () => {
       const { active } = await learnTwoAndConsolidate();
-      await mirrorToDefaultNamespace();
       const coordinator = new LearningOptimizationCoordinator(
         { publish: vi.fn(), subscribe: vi.fn(), unsubscribe: vi.fn() } as never,
         memory,
@@ -226,20 +214,46 @@ describe('#1055 active pattern reads (real SQLite)', () => {
       expect(exported.success && exported.value.patterns.map((p: LearnedPattern) => p.id)).toEqual([active]);
     });
 
+    it.each([0.2, 0.9])('import compares confidence in the write namespace (existing=%s)', async (confidence) => {
+      const [id] = await learnTwo();
+      const learned = await memory.get<LearnedPattern>(`learning:pattern:${id}`, NS);
+      const existing = { ...learned!, confidence };
+      await memory.set(`learning:pattern:${id}`, existing, { ...NS, persist: true });
+      // A different namespace may contain the same key. It must not decide
+      // whether a learned pattern in the domain's namespace is overwritten.
+      const decoy = { ...existing, confidence: confidence < 0.5 ? 1 : 0 };
+      await memory.set(`learning:pattern:${id}`, decoy, { persist: true });
+      const incoming = { ...existing, confidence: 0.5 };
+      const coordinator = new LearningOptimizationCoordinator(
+        { publish: vi.fn(), subscribe: vi.fn(), unsubscribe: vi.fn() } as never,
+        memory,
+        { spawn: vi.fn(), canSpawn: () => false } as never,
+      );
+      const imported = await coordinator.importModels({
+        version: '1.0.0', exportedAt: new Date(), patterns: [incoming], knowledge: [], strategies: [],
+        checksum: calculateChecksum([incoming], [], []),
+      });
+      expect(imported.success).toBe(true);
+      if (!imported.success) throw imported.error;
+      expect(imported.value.patternsImported).toBe(confidence < 0.5 ? 1 : 0);
+      expect(imported.value.conflicts[0].resolution).toBe(confidence < 0.5 ? 'overwrite' : 'skip');
+      const stored = await memory.get<LearnedPattern>(`learning:pattern:${id}`, NS);
+      expect(stored!.confidence).toBe(Math.max(confidence, 0.5));
+      expect(await memory.get(`learning:pattern:${id}`)).toEqual(JSON.parse(JSON.stringify(decoy)));
+    });
+
     it('consolidation protocol excludes provenance as well as archives', async () => {
       const { active } = await learnTwoAndConsolidate();
-      await mirrorToDefaultNamespace();
+      // #1071: the protocol reads the service's namespace directly.
       const protocol = new LearningConsolidationProtocol(
         { publish: vi.fn(), subscribe: vi.fn() } as never,
         memory,
         {} as never,
         {} as never,
       );
-      const range = TimeRange.lastNDays(1);
-      const patterns = await (protocol as unknown as {
-        getPatternsForDomain: (d: string, t: TimeRange) => Promise<LearnedPattern[]>;
-      }).getPatternsForDomain('code-intelligence', range);
-      expect(patterns.map((p) => p.id)).toEqual([active]);
+      const gathered = await protocol.gatherPatterns();
+      if (!gathered.success) throw gathered.error;
+      expect(gathered.value.flatMap((g) => g.patterns.map((p) => p.id))).toEqual([active]);
     });
   });
 

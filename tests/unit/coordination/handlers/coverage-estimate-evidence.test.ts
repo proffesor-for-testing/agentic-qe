@@ -270,3 +270,68 @@ describe('#1008 — every non-measured outcome leaves coverage evidence untouche
     expect(kernel.store.get(coverageEvidenceKey)).toMatchObject({ metric: 'coverage', value: 75 });
   }, 60000);
 });
+
+
+describe('#1036 — an adopted root that excludes package tests falls back to the package', () => {
+  let root: string;
+  let pkg: string;
+  const run = (over: Partial<JsCoverageRun>): JsCoverageRun => ({
+    runner: 'vitest', missing: false, exitCode: 0, exitedCleanly: true, timedOut: false,
+    timeoutMs: 120000, data: null, numTotalTests: 0, stderrTail: '', ...over,
+  });
+
+  beforeEach(() => {
+    root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-1036-fallback-')));
+    pkg = path.join(root, 'packages', 'a');
+    fs.mkdirSync(path.join(root, '.git'));
+    fs.mkdirSync(path.join(pkg, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ workspaces: ['packages/*'] }));
+    fs.writeFileSync(path.join(root, 'vitest.config.mjs'), "export default { test: { include: ['tests/**/*.test.js'] } };\n");
+    fs.writeFileSync(path.join(pkg, 'package.json'), '{}');
+    fs.writeFileSync(path.join(pkg, 'src', 'math.ts'), 'export const add = (a, b) => a + b;\n');
+    vi.stubEnv('AQE_PROJECT_ROOT', root);
+    vi.stubEnv('AQE_COVERAGE_NO_EXEC', '0');
+    vi.mocked(runJsCoverage).mockReset();
+  });
+
+  afterEach(() => {
+    vi.mocked(runJsCoverage).mockReset();
+    vi.unstubAllEnvs();
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it.each(['zero tests', 'missing runner'])('%s at root: retries once from the package and persists only its measurement', async (reason) => {
+    vi.mocked(runJsCoverage).mockResolvedValueOnce(run(reason === 'missing runner'
+      ? { missing: true, numTotalTests: null } : {}));
+    vi.mocked(runJsCoverage).mockResolvedValueOnce(run({ numTotalTests: 1, data: {
+      files: [{ path: 'src/math.ts', lines: { covered: 3, total: 4 },
+        branches: { covered: 0, total: 0 }, functions: { covered: 1, total: 1 },
+        statements: { covered: 3, total: 4 }, uncoveredLines: [4], uncoveredBranches: [] }],
+      summary: { line: 75, branch: 0, function: 100, statement: 75, files: 1 },
+    } }));
+    const kernel = createKernel();
+    expect(await analyze(kernel, path.join(pkg, 'src'))).toMatchObject({ measured: true, lineCoverage: 75 });
+    expect(runJsCoverage).toHaveBeenNthCalledWith(1, root, { timeoutMs: 120000, pathFilter: 'packages/a/' });
+    expect(runJsCoverage).toHaveBeenNthCalledWith(2, pkg, { timeoutMs: 120000 });
+    expect(kernel.store.get(coverageEvidenceKey)).toMatchObject({ value: 75 });
+  });
+
+  it('zero tests in both locations stays unmeasured and writes no coverage evidence', async () => {
+    vi.mocked(runJsCoverage).mockResolvedValue(run({}));
+    const kernel = createKernel();
+    expect(await analyze(kernel, path.join(pkg, 'src'))).toMatchObject({ measured: false, unmeasured: true, lineCoverage: null });
+    expect(runJsCoverage).toHaveBeenCalledTimes(2);
+    expect(kernel.store.has('coverage:latest')).toBe(false);
+    expect(kernel.store.has(coverageEvidenceKey)).toBe(false);
+  });
+
+  it.each([
+    ['timeout', run({ timedOut: true, exitedCleanly: false, numTotalTests: null })],
+    ['failed tests', run({ exitCode: 1, exitedCleanly: false, numTotalTests: 2, numFailedTests: 2 })],
+    ['unreported counts', run({ numTotalTests: null })],
+  ])('%s does not retry or hide the original failure', async (_label, outcome) => {
+    vi.mocked(runJsCoverage).mockResolvedValue(outcome);
+    await analyze(createKernel(), path.join(pkg, 'src'));
+    expect(runJsCoverage).toHaveBeenCalledTimes(1);
+  });
+});

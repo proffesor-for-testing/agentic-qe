@@ -873,6 +873,7 @@ export function createDomainHandler<TParams, TResult extends BaseHandlerResult>(
 
       const submitResult = await queen!.submitTask({
         type: taskType,
+        executionOwner: 'caller',
         priority,
         targetDomains: [domain],
         payload,

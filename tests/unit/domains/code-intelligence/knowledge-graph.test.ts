@@ -3,6 +3,9 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import {
   KnowledgeGraphService,
   KnowledgeGraphConfig,
@@ -76,8 +79,26 @@ describe('KnowledgeGraphService', () => {
   });
 
   describe('index', () => {
+    // #1096: only files that exist inside the project count as indexed, so
+    // these tests index real files in a temporary project.
+    let projectDir: string;
+    let projectService: KnowledgeGraphService;
+
+    beforeEach(() => {
+      projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-kg-unit-'));
+      for (const file of ['src/services/user.ts', 'src/services/auth.ts', 'src/file1.ts', 'src/file2.ts']) {
+        fs.mkdirSync(path.join(projectDir, path.dirname(file)), { recursive: true });
+        fs.writeFileSync(path.join(projectDir, file), 'export function run(): number { return 1; }\n');
+      }
+      projectService = new KnowledgeGraphService(mockMemory, { basePath: projectDir });
+    });
+
+    afterEach(() => {
+      fs.rmSync(projectDir, { recursive: true, force: true });
+    });
+
     it('should index files and create nodes', async () => {
-      const result = await service.index({
+      const result = await projectService.index({
         paths: ['src/services/user.ts', 'src/services/auth.ts'],
         incremental: false,
         includeTests: true,
@@ -93,13 +114,13 @@ describe('KnowledgeGraphService', () => {
 
     it('should handle incremental indexing without clearing existing data', async () => {
       // First indexing
-      await service.index({
+      await projectService.index({
         paths: ['src/file1.ts'],
         incremental: false,
       });
 
       // Incremental indexing
-      const result = await service.index({
+      const result = await projectService.index({
         paths: ['src/file2.ts'],
         incremental: true,
       });

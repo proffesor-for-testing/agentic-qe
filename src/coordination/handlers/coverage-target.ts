@@ -31,6 +31,7 @@ import {
   parseLcovInfo,
 } from './handler-utils';
 import { isTestPath } from './coverage-collection';
+import { findProjectRoot } from '../../kernel/project-root.js';
 
 // ============================================================================
 // Project root
@@ -49,12 +50,176 @@ const PROJECT_ROOT_MARKERS = [
   '.git',
 ];
 
+const JS_RUNNER_CONFIGS = [
+  'vitest.config.ts', 'vitest.config.js', 'vitest.config.mts', 'vitest.config.mjs',
+  'vitest.config.cts', 'vitest.config.cjs',
+  'vitest.workspace.ts', 'vitest.workspace.js', 'vitest.workspace.mts',
+  'vitest.workspace.mjs', 'vitest.workspace.json',
+  'vite.config.ts', 'vite.config.js', 'vite.config.mts', 'vite.config.mjs',
+  'jest.config.ts', 'jest.config.js', 'jest.config.mts', 'jest.config.mjs',
+  'jest.config.cts', 'jest.config.cjs', 'jest.config.json',
+];
+
+function hasJsRunnerConfig(dir: string): boolean {
+  if (JS_RUNNER_CONFIGS.some(name => fs.existsSync(path.join(dir, name)))) return true;
+  // Jest also accepts inline configuration: `"jest": { ... }` in package.json.
+  return readPackageJson(dir)?.jest !== undefined;
+}
+
+type RunnerFamily = 'jest' | 'nyc' | 'vitest';
+
+/**
+ * The runner a package.json declares through its dependencies, mirroring the
+ * precedence of the coverage runner (jest, then mocha/nyc, then vitest).
+ * `null` when it declares none. Jest and vitest run with no config file at all,
+ * so a dependency is as good a declaration as a config.
+ */
+function declaredRunner(dir: string): RunnerFamily | null {
+  const pkg = readPackageJson(dir);
+  if (!pkg) return null;
+  const deps: Record<string, unknown> = {
+    ...(pkg.devDependencies as Record<string, unknown> | undefined),
+    ...(pkg.dependencies as Record<string, unknown> | undefined),
+  };
+  if (deps['jest'] || deps['@jest/core']) return 'jest';
+  if (deps['mocha'] || deps['nyc']) return 'nyc';
+  if (deps['vitest']) return 'vitest';
+  return null;
+}
+
+/** mocha/nyc are configured by dotfiles rather than a runner config module. */
+function hasMochaOrNycConfig(dir: string): boolean {
+  try {
+    return fs.readdirSync(dir).some(name => /^\.(mocharc|nycrc)(\.|$)/.test(name));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * May a package inherit the runner config of workspace `rootDir`? Only when it
+ * does not bring its own runner: a package that declares a different runner
+ * (e.g. jest under a vitest root) must keep running that one, from its own
+ * directory. With no runner declared at the root the runner defaults to vitest.
+ */
+function packageCanUseRootRunner(pkgDir: string, rootDir: string): boolean {
+  if (hasMochaOrNycConfig(pkgDir)) return (declaredRunner(rootDir) ?? 'vitest') === 'nyc';
+  const own = declaredRunner(pkgDir);
+  return own === null || own === (declaredRunner(rootDir) ?? 'vitest');
+}
+
+function readPackageJson(dir: string): Record<string, unknown> | null {
+  try {
+    const parsed: unknown = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf-8'));
+    return typeof parsed === 'object' && parsed !== null ? parsed as Record<string, unknown> : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The workspace patterns a root declares: npm/yarn `workspaces` (array or
+ * `{ packages: [...] }`) or pnpm's `packages:` list. `null` = not a workspace
+ * root. Patterns are returned as written (negations keep their `!`).
+ */
+function readWorkspacePatterns(dir: string): string[] | null {
+  const patterns: string[] = [];
+  let isRoot = false;
+
+  const pkg = readPackageJson(dir);
+  const ws = pkg?.workspaces;
+  const fromPkg = Array.isArray(ws)
+    ? ws
+    : (typeof ws === 'object' && ws !== null && Array.isArray((ws as { packages?: unknown }).packages)
+      ? (ws as { packages: unknown[] }).packages
+      : null);
+  if (ws !== undefined && ws !== null && typeof ws === 'object') isRoot = true;
+  if (fromPkg) patterns.push(...fromPkg.filter((p): p is string => typeof p === 'string'));
+
+  // Only the block-list `packages:` form is read; the flow form gives no
+  // patterns, so the root is not adopted (fails safe).
+  try {
+    const yaml = fs.readFileSync(path.join(dir, 'pnpm-workspace.yaml'), 'utf-8');
+    isRoot = true;
+    let inPackages = false;
+    for (const raw of yaml.split(/\r?\n/)) {
+      const line = raw.replace(/\s+#.*$/, '').trimEnd();
+      if (/^packages\s*:/.test(line)) { inPackages = true; continue; }
+      if (inPackages) {
+        const m = /^\s+-\s+(.+)$/.exec(line);
+        if (m) patterns.push(m[1].trim().replace(/^['"]|['"]$/g, ''));
+        else if (/^\S/.test(line)) inPackages = false;
+      }
+    }
+  } catch { /* no pnpm-workspace.yaml */ }
+
+  return isRoot ? patterns : null;
+}
+
+function workspaceGlobToRegExp(pattern: string): RegExp {
+  const DEEP_DIR = '\u0000';
+  const DEEP_ANY = '\u0001';
+  const body = pattern.replace(/^\.\//, '').replace(/\/+$/, '')
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*\*\//g, DEEP_DIR)
+    .replace(/\*\*/g, DEEP_ANY)
+    .replace(/\*/g, '[^/]*')
+    .replace(/\?/g, '[^/]')
+    .split(DEEP_DIR).join('(?:.*/)?')
+    .split(DEEP_ANY).join('.*');
+  return new RegExp(`^${body}$`);
+}
+
+/**
+ * Is `pkgDir` a member of the workspace declared at `rootDir`? Patterns are
+ * resolved relative to the root; a pattern containing a `..` segment or an
+ * absolute path is ignored (it could point outside the root), and `!`
+ * patterns exclude.
+ */
+function isWorkspaceMember(rootDir: string, pkgDir: string): boolean {
+  const patterns = readWorkspacePatterns(rootDir);
+  if (!patterns) return false;
+  const rel = path.relative(rootDir, pkgDir).split(path.sep).join('/');
+  if (rel === '' || rel.startsWith('..') || path.isAbsolute(rel)) return false;
+
+  let member = false;
+  for (const raw of patterns) {
+    const negated = raw.startsWith('!');
+    const pattern = negated ? raw.slice(1) : raw;
+    if (path.isAbsolute(pattern) || /^[A-Za-z]:/.test(pattern) || pattern.split(/[\\/]/).includes('..')) continue;
+    if (workspaceGlobToRegExp(pattern).test(rel)) member = !negated;
+  }
+  return member;
+}
+
+/** True when `child` is `parent` or inside it (path-segment aware). */
+function within(child: string, parent: string): boolean {
+  const rel = path.relative(parent, child);
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+}
+
+/**
+ * The AQE project root, as the ceiling for workspace-root adoption. Runner
+ * configuration is code that gets executed, so it must never be picked up from
+ * above the project (`AQE_PROJECT_ROOT` or the discovered root). `null` when it
+ * cannot be resolved, which disables adoption.
+ */
+function aqeProjectCeiling(start: string): string | null {
+  try {
+    return fs.realpathSync(path.resolve(findProjectRoot(start)));
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Walk up from a target to the nearest directory that holds a project marker.
  *
- * NEAREST rather than topmost: in a monorepo, `packages/core/src` belongs to
- * `packages/core` (its own package.json and test config), not the workspace
- * root. This intentionally differs from `kernel/findProjectRoot`, which locates
+ * Normally NEAREST rather than topmost: in a monorepo, `packages/core/src`
+ * belongs to `packages/core` when it has its own runner config. When only the
+ * enclosing workspace has a runner config, use that workspace so test execution
+ * and existing coverage reports use the same configured root (#1005). This
+ * intentionally differs from `kernel/findProjectRoot`, which locates
  * the AQE data root (honouring AQE_PROJECT_ROOT and `.agentic-qe`).
  *
  * Returns `null` when the target does not exist (a typo must not silently
@@ -76,15 +241,59 @@ export function findCoverageProjectRoot(target: string, maxDepth = 12): string |
   try { home = fs.realpathSync(os.homedir()); } catch { home = null; }
 
   const start = dir;
+  let nearestRoot: string | null = null;
+  let ceiling: string | null = null;
   for (let depth = 0; depth <= maxDepth; depth++) {
     // A stray manifest in $HOME must not claim every directory beneath it.
     // $HOME is still a valid root when it is the target itself.
-    if (home !== null && dir === home && dir !== start) return null;
-    if (PROJECT_ROOT_MARKERS.some(m => fs.existsSync(path.join(dir, m)))) return dir;
+    if (home !== null && dir === home && dir !== start) return nearestRoot;
+    if (!nearestRoot && PROJECT_ROOT_MARKERS.some(m => fs.existsSync(path.join(dir, m)))) {
+      nearestRoot = dir;
+      if (hasJsRunnerConfig(dir)) return dir;
+      // Only a nested JS package can inherit the workspace's runner config.
+      // Other project types keep the nearest-marker semantics.
+      if (!fs.existsSync(path.join(dir, 'package.json'))) return dir;
+    } else if (nearestRoot && readWorkspacePatterns(dir) !== null) {
+      // Adopt this workspace root (and run its config) only when it is inside
+      // the AQE project and actually lists the nearest package as a member.
+      ceiling ??= aqeProjectCeiling(start) ?? '';
+      if (ceiling && within(dir, ceiling) && within(nearestRoot, ceiling)
+        && isWorkspaceMember(dir, nearestRoot) && hasJsRunnerConfig(dir)
+        && packageCanUseRootRunner(nearestRoot, dir)) {
+        return dir;
+      }
+      return nearestRoot;
+    }
+    // Do not adopt configuration from a different repository.
+    if (nearestRoot && fs.existsSync(path.join(dir, '.git'))) return nearestRoot;
     const parent = path.dirname(dir);
-    if (parent === dir) return null;
+    if (parent === dir) return nearestRoot;
     dir = parent;
   }
+  return nearestRoot;
+}
+
+/**
+ * When `projectRoot` was adopted as a workspace root for a target inside a
+ * nested package, the directory (relative to the root, with a trailing `/`) of
+ * that package, for use as a test-runner path filter so sibling packages' tests
+ * are not run too. `null` when the target is the root itself or no nested
+ * package manifest sits between the target and the root.
+ */
+export function packageFilterForTarget(target: string, projectRoot: string): string | null {
+  try {
+    const root = fs.realpathSync(projectRoot);
+    const real = fs.realpathSync(path.resolve(target));
+    let dir = fs.statSync(real).isDirectory() ? real : path.dirname(real);
+    while (dir !== root && within(dir, root)) {
+      if (fs.existsSync(path.join(dir, 'package.json'))) {
+        return `${path.relative(root, dir).split(path.sep).join('/')}/`;
+      }
+      const parent = path.dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
+  } catch { /* fall through */ }
   return null;
 }
 

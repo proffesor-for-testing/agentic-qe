@@ -40,6 +40,14 @@ describe.skipIf(!existsSync(cli) && !process.env.CI)('built CLI task submit hone
     expect(result.stderr).toContain('Unknown domain: no-such-domain');
   }, 35000);
 
+  it('#1108: rejects an invalid --priority with a nonzero exit and no task ID', () => {
+    const result = runCli(['task', 'submit', 'analyze-coverage', '--domain', 'coverage-analysis', '--priority', 'bogus', '--wait', '--no-progress']);
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('Invalid priority: bogus. Valid priorities: p0, p1, p2, p3');
+    expect(result.stdout).not.toMatch(/ID: task_/);
+  }, 35000);
+
   it('C: refuses a detached submit instead of printing an ID for abandoned work', () => {
     const result = runCli(['task', 'submit', 'analyze-coverage', '--domain', 'coverage-analysis', '--no-progress']);
     expect(result.error).toBeUndefined();

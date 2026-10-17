@@ -18,6 +18,7 @@ export function namespacedStore() {
     set: vi.fn(async (key: string, value: unknown, options?: { namespace?: string }) => {
       rows.set(k(key, options?.namespace), JSON.parse(JSON.stringify(value)));
     }),
+    delete: vi.fn(async (key: string, options?: { namespace?: string }) => rows.delete(k(key, options?.namespace))),
     search: vi.fn(async (pattern: string, limit?: number, options?: { namespace?: string }) => {
       const prefix = `${options?.namespace ?? DEFAULT_NS}\u0000`;
       const re = globToRegExp(pattern);
