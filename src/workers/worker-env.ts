@@ -69,7 +69,8 @@ export interface DreamInsightsRetention {
 /**
  * Resolve `AQE_DREAM_INSIGHTS_RETENTION_DAYS`.
  *
- * - unset / empty: default (30 days)
+ * - unset, empty or whitespace only: default (30 days). Blanking the
+ *   variable means "unset", not "off" (documented in configuration.md).
  * - `0`, `off`, `false`, `no`, `disabled`, `none`, `never`: sweep disabled
  *   (`retentionDays: null`)
  * - a whole number from 1 to 36500: that many days

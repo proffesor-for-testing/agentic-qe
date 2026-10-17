@@ -57,6 +57,12 @@ describe('#1066 AQE_DREAM_INSIGHTS_RETENTION_DAYS opt-out values', () => {
     },
   );
 
+  it.each(['', '   '])('treats the empty value %j as unset (30-day default, documented)', (value) => {
+    expect(resolveDreamInsightsRetention({ AQE_DREAM_INSIGHTS_RETENTION_DAYS: value })).toEqual({
+      retentionDays: 30,
+    });
+  });
+
   it.each(['-5', '1.5', 'abc', '30d', '99999999', 'true'])(
     'fails safe for the unreadable value %j: warns and deletes nothing',
     (value) => {
@@ -205,18 +211,64 @@ describe('#1066 dream_insights sweep archives before deleting (real SQLite)', ()
     // Simulate a lost archive write: a trigger drops every copied row.
     db.exec(`
       CREATE TABLE ${DREAM_INSIGHTS_ARCHIVE_TABLE} (
-        id TEXT PRIMARY KEY, cycle_id TEXT, insight_type TEXT, source_concepts TEXT,
+        archive_id INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL, cycle_id TEXT, insight_type TEXT, source_concepts TEXT,
         description TEXT, novelty_score REAL, confidence_score REAL, actionable INTEGER,
         applied INTEGER, suggested_action TEXT, pattern_id TEXT, created_at TEXT,
         archived_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
       CREATE TRIGGER lose_archive AFTER INSERT ON ${DREAM_INSIGHTS_ARCHIVE_TABLE}
-      BEGIN DELETE FROM ${DREAM_INSIGHTS_ARCHIVE_TABLE} WHERE id = NEW.id; END;
+      BEGIN DELETE FROM ${DREAM_INSIGHTS_ARCHIVE_TABLE} WHERE archive_id = NEW.archive_id; END;
     `);
 
     expect(() => pruneStaleDreamInsights(db, { retentionDays: 30 })).toThrow(/archive check failed/);
     expect(ids('dream_insights')).toEqual(['old-applied', 'old-unapplied-1', 'old-unapplied-2', 'recent-unapplied']);
   });
+
+  it('keeps both archived copies when the same insight is swept twice', () => {
+    expect(pruneStaleDreamInsights(db, { retentionDays: 30 })).toEqual({ pruned: 2, archived: 2 });
+    // The insight comes back (for example from a brain import) with new content.
+    db.prepare(
+      `INSERT INTO dream_insights (id, cycle_id, insight_type, source_concepts, description, applied, created_at)
+       VALUES ('old-unapplied-1', 'c1', 'analogy', '[]', 'second version', 0, datetime('now', '-60 days'))`,
+    ).run();
+
+    expect(pruneStaleDreamInsights(db, { retentionDays: 30 })).toEqual({ pruned: 1, archived: 1 });
+    const copies = db
+      .prepare(`SELECT description FROM ${DREAM_INSIGHTS_ARCHIVE_TABLE} WHERE id = 'old-unapplied-1' ORDER BY archive_id`)
+      .all() as Array<{ description: string }>;
+    expect(copies.map((c) => c.description)).toEqual(['first stale insight', 'second version']);
+  });
+
+  it('waits for another process holding the write lock instead of failing with SQLITE_BUSY', async () => {
+    db.pragma('journal_mode = WAL');
+    db.pragma('busy_timeout = 10000');
+    // A second process takes the write lock, writes a stale row, holds the
+    // lock for 1.5 s, then commits.
+    const script = `
+      const Database = require(${JSON.stringify(require.resolve('better-sqlite3'))});
+      const db = new Database(process.argv[1]);
+      db.exec('BEGIN IMMEDIATE');
+      db.prepare("INSERT INTO dream_insights (id, cycle_id, insight_type, source_concepts, description, applied, created_at) VALUES ('from-writer', 'c1', 'analogy', '[]', 'w', 0, datetime('now', '-40 days'))").run();
+      process.stdout.write('locked\\n');
+      setTimeout(() => { db.exec('COMMIT'); db.close(); }, 1500);
+    `;
+    const { spawn } = await import('node:child_process');
+    const writer = spawn(process.execPath, ['-e', script, join(dir, 'memory.db')], { stdio: ['ignore', 'pipe', 'inherit'] });
+    const exited = new Promise((r) => writer.once('exit', r));
+    await new Promise<void>((resolve, reject) => {
+      writer.stdout.on('data', (b: Buffer) => { if (b.toString().includes('locked')) resolve(); });
+      writer.once('exit', (code) => reject(new Error(`writer exited early: ${code}`)));
+    });
+    // Read first so a deferred transaction would hold a stale read snapshot.
+    expect(db.prepare('SELECT COUNT(*) AS n FROM dream_insights').get()).toEqual({ n: 4 });
+
+    const result = pruneStaleDreamInsights(db, { retentionDays: 30 });
+    await exited;
+
+    expect(result).toEqual({ pruned: 3, archived: 3 });
+    expect(ids('dream_insights')).toEqual(['old-applied', 'recent-unapplied']);
+    expect(ids(DREAM_INSIGHTS_ARCHIVE_TABLE)).toEqual(['from-writer', 'old-unapplied-1', 'old-unapplied-2']);
+  }, 20_000);
 
   it('copies only the columns an older dream_insights table has', () => {
     db.exec(`

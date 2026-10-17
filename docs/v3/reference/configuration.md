@@ -191,13 +191,16 @@ The MCP server (`aqe-mcp`) starts a background worker daemon and the
 QualityDaemon after it is ready. These variables control them. They are read
 from the MCP server's environment, for example the `env` block that
 `aqe init` writes into `.mcp.json`. `aqe daemon start` reads
-`AQE_WORKERS_ENABLED` too, and does not start when it is off.
+`AQE_WORKERS_ENABLED` too: when it is off, the command prints
+`Background workers are disabled (...); QE Quality Daemon not started` and
+exits with code 0, the same as a successful start, so a script cannot tell the
+two apart from the exit code alone.
 
 | Variable | Default | Effect |
 |----------|---------|--------|
-| `AQE_WORKERS_ENABLED` | `true` (unset) | `false`, `0`, `off` or `no` starts neither the worker daemon nor the QualityDaemon, and `aqe daemon start` exits without starting. Any other value, or unset, starts both. `aqe init --no-database` writes `false`. |
+| `AQE_WORKERS_ENABLED` | `true` (unset) | `false`, `0`, `off` or `no` starts neither the worker daemon nor the QualityDaemon, and `aqe daemon start` exits (code 0) without starting. Any other value, or unset, starts both. `aqe init --no-database` writes `false`. |
 | `AQE_DISABLED_WORKERS` | empty | Comma-separated worker ids to skip, for example `learning-consolidation,security-scan`. Case does not matter. Unknown ids are reported on stderr when the workers start, and ignored. |
-| `AQE_DREAM_INSIGHTS_RETENTION_DAYS` | `30` | The `learning-consolidation` worker moves unapplied `dream_insights` rows older than this many days to `dream_insights_archive`. `0`, `off`, `false`, `no`, `disabled`, `none` or `never` disables the sweep. Any other value that is not a whole number from 1 to 36500 is rejected with a warning on stderr, and the sweep stays off. |
+| `AQE_DREAM_INSIGHTS_RETENTION_DAYS` | `30` | The `learning-consolidation` worker moves unapplied `dream_insights` rows older than this many days to `dream_insights_archive`. `0`, `off`, `false`, `no`, `disable`, `disabled`, `none` or `never` disables the sweep. An empty or whitespace-only value counts as unset, so the 30-day default applies. Any other value that is not a whole number from 1 to 36500 is rejected with a warning on stderr, and the sweep stays off. |
 
 Worker ids: `test-health`, `coverage-tracker`, `flaky-detector`,
 `security-scan`, `quality-gate`, `learning-consolidation`,
@@ -214,6 +217,16 @@ for example
 `[AQE] dream_insights retention: moved 3 unapplied insight(s) older than 30 days to dream_insights_archive`.
 Set `AQE_DREAM_INSIGHTS_RETENTION_DAYS=off` to keep every insight in
 `dream_insights`.
+
+`dream_insights_archive` has no retention of its own and grows by the rows
+each sweep moves. Each copy has its own `archive_id`, so an insight that is
+swept again later keeps both copies. To trim the archive by hand, stop the
+MCP server, back up `.agentic-qe/memory.db`, then run for example:
+
+```bash
+sqlite3 .agentic-qe/memory.db \
+  "DELETE FROM dream_insights_archive WHERE archived_at < datetime('now', '-365 days');"
+```
 
 ```bash
 # Keep workers but never move dream insights
