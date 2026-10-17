@@ -13,6 +13,7 @@ import type { TaskHandlerContext } from './handler-types';
 import { getTestRunnerExecutionError, TestRunnerExecutionError } from '../../shared/test-runner-verdict.js';
 import { createVitestJsonReport } from '../../shared/vitest-json-report.js';
 import { jestExactPathPattern, runnerFilePath } from '../../shared/test-runner-args.js';
+import { testCasesFromRunnerReport } from '../../domains/test-execution/services/runner-test-cases.js';
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -283,7 +284,12 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
             // #1027 N5/NB5: this handler runs the tests without --coverage, so it has no
             // coverage figure to return (null, never 0%). For test_execute_parallel the
             // measured coverage + testsPassing are recorded by TestExecutorService.
-            return ok({ total, passed, failed, skipped, duration: 0, coverage: null, failedTests: [] });
+            // #1110: per-test entries come from the runner report itself, or are left out.
+            const testCases = testCasesFromRunnerReport(json, testFiles.join(', '));
+            return ok({
+              total, passed, failed, skipped, duration: 0, coverage: null, failedTests: [],
+              ...(testCases && testCases.length === total ? { testCases } : {}),
+            });
           }
         }
       } catch {
