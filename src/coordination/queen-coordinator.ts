@@ -125,6 +125,7 @@ import type {
 
 // Extracted modules
 import { subscribeToEvents, computeDomainHealthFromAgents } from './queen-event-handlers.js';
+import { findDomainsWithoutHandler, describeMissingHandler } from './task-executability.js';
 import {
   enqueueTask, removeFromQueues, getQueuePosition, processQueue,
   listTasks as listTasksImpl, assignTask, assignTaskToDomain,
@@ -380,10 +381,9 @@ export class QueenCoordinator implements IQueenCoordinator {
 
   /**
    * #1075: check that a domain plugin will actually execute this task type
-   * before an external caller submits it. A type that no candidate domain
-   * handles falls through to the `TaskAssigned` event fallback in
-   * `assignTaskToDomain`, which never reports a terminal result, so the task
-   * would stay `running` and hold a concurrency slot for good.
+   * before an external caller submits it, so the caller gets the reason as a
+   * rejection. A type that no candidate domain handles would otherwise only
+   * be failed at dispatch by `assignTaskToDomain` (#1081).
    *
    * Every candidate domain must handle the type, because `assignTask` may pick
    * any of them. Queens built without domain plugins cannot be checked and
@@ -396,18 +396,9 @@ export class QueenCoordinator implements IQueenCoordinator {
     }
     if (!this.domainPlugins) return ok(undefined);
 
-    const gaps: string[] = [];
-    for (const domain of candidates) {
-      const plugin = this.domainPlugins.get(domain);
-      if (!plugin) {
-        gaps.push(`${domain} (domain not loaded)`);
-      } else if (!plugin.executeTask || !plugin.canHandleTask?.(type)) {
-        const supported = plugin.getSupportedTaskTypes?.() ?? [];
-        gaps.push(supported.length > 0 ? `${domain} (supported: ${supported.join(', ')})` : domain);
-      }
-    }
+    const gaps = findDomainsWithoutHandler(this.domainPlugins, type, candidates);
     if (gaps.length === 0) return ok(undefined);
-    return err(new Error(`No handler for task type '${type}' in domain ${gaps.join('; ')}`));
+    return err(new Error(describeMissingHandler(type, gaps)));
   }
 
   async submitTask(taskInput: Omit<QueenTask, 'id' | 'createdAt'>): Promise<Result<string, Error>> {

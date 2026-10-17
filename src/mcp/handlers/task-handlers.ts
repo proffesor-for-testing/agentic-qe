@@ -462,6 +462,17 @@ export async function handleTaskOrchestrate(
     }
 
     // No workflow - submit as a regular task
+    // #1081: the inferred type must have a domain handler. Otherwise the Queen
+    // can only fail the task at dispatch, so reject it here with the reason.
+    const executable = queen!.validateTaskExecutable(taskType);
+    if (!executable.success) {
+      return {
+        success: false,
+        error: `${executable.error.message}. task_orchestrate inferred '${taskType}' from the description; ` +
+          'use task_submit with a supported type and its payload, or the domain\'s MCP tool.',
+      };
+    }
+
     // Issue N2: Build domain-appropriate payload.
     // Forward caller-provided filePaths/codeContext into the payload fields
     // that domain plugins expect, so generate-tests doesn't reject with
