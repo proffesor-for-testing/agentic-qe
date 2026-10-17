@@ -641,7 +641,7 @@ Provide:
           return;
         }
         if (reportText === undefined) {
-          finish(err(new Error(`The current Vitest JSON report is missing for ${fileLabel}.`)));
+          finish(err(new TestRunnerExecutionError(`The current Vitest JSON report is missing for ${fileLabel}.`)));
           return;
         }
         const parseResult = this.parseTestOutput(reportText, stderr, fileLabel, framework, code);

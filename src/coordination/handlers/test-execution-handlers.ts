@@ -205,6 +205,8 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
       testFiles: string[];
       parallel: boolean;
       retryCount: number;
+      timeout?: number;
+      parallelism?: number;
     };
 
     try {
@@ -218,6 +220,24 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
       const safePathPattern = /^[a-zA-Z0-9_./@-]+$/;
       if (testFiles.some(file => !safePathPattern.test(file))) {
         return err(new TestRunnerExecutionError('Some test file paths contain invalid characters and were rejected. Provide concrete paths; expand glob patterns before calling.'));
+      }
+
+      // A caller-owned MCP task skips the Queen's plugin dispatch. Run through
+      // that same domain API here: it owns persistence, measured quality evidence
+      // and TestRunStarted/Completed events as well as the runner itself.
+      if (task.executionOwner === 'caller') {
+        const api = await ctx.getTestExecutionAPI?.();
+        if (!api) return err(new TestRunnerExecutionError('Test-execution domain is unavailable.'));
+        const result = await api.runTests({
+          testFiles,
+          parallel: payload.parallel,
+          timeout: payload.timeout,
+          workers: payload.parallelism,
+          // The domain owns requested retries; Queen dispatch must not replay it.
+          retryCount: payload.retryCount ?? 0,
+        });
+        if (!result.success) return result;
+        return ok({ ...result.value, coverage: result.value.coverage?.line ?? null });
       }
 
       const { spawnSync } = await import('child_process');

@@ -42,6 +42,8 @@ export interface QueenTask {
   readonly createdAt: Date;
   readonly requester?: string;
   readonly correlationId?: string;
+  /** Trusted caller executes and reports results; Queen still tracks assignment. */
+  readonly executionOwner?: 'queen' | 'caller';
 }
 
 export type TaskType =
