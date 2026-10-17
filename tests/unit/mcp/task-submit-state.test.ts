@@ -8,6 +8,7 @@ vi.mock('../../../src/mcp/handlers/core-handlers', () => ({
   getFleetState: () => ({ queen: {
     submitTask: async (task: unknown) => { state.submitted.push(task); return { success: true, value: 'task-1' }; },
     getTaskStatus: () => state.execution,
+    validateTaskExecutable: () => ({ success: true, value: undefined }),
   } }),
 }));
 import { MCPProtocolServer } from '../../../src/mcp/protocol-server.js';

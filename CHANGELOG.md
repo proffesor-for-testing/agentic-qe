@@ -5,6 +5,189 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.15.9] - 2026-10-17
+
+Tasks no longer get stuck in `running` and quietly use up Queen slots.
+`test_execute_parallel` and the learning tools now report only what was
+actually measured, without made-up efficiency numbers, sample data or
+success rates. Test runs no longer freeze the MCP server, and code indexing
+stays inside your project. Every change was reviewed adversarially before
+merge.
+
+### Fixed
+
+- **Tasks no longer get stuck and use up Queen slots** ([#1070], [#1075],
+  [#1077], [#1081], [#1076], [#1079], [#1082], [#1085], [#1107]): several
+  paths left a task `running` forever, each one holding a concurrency slot.
+  After 50 such tasks, every new submission was queued and never ran.
+  - `quality_assess` gives its slot back. The anti-drift middleware was
+    silently dropping its `TaskCompleted` event.
+  - `task_submit`, `aqe task submit`, `task_orchestrate` and `aqe fleet run`
+    reject a task type that no domain plugin runs. The error names the
+    domain and the types it supports.
+  - As a backstop, the Queen fails any task it owns that has no handler,
+    with the reason, and frees the slot.
+  - The anti-drift middleware never drops task lifecycle events. When it
+    drops any other event, it logs a rate-limited warning on stderr with the
+    event type and source, never the payload. If the embedding service fails
+    part-way, events are still delivered (marked unverified) instead of
+    `publish()` failing.
+- **Test runs no longer freeze the MCP server** ([#1074], [#1114]): the
+  `execute-tests` runner, `coverage_analyze_sublinear` on a Rust crate
+  (`cargo llvm-cov`, up to 300 s) and `advisor_consult` (up to 60 s) used
+  blocking child-process calls that froze every other MCP request until they
+  finished. They now run asynchronously, with the same exit codes, output,
+  timeouts and output limits as before.
+- **`test_execute_parallel` runs your suite once and reports real numbers**
+  ([#1059], [#1065], [#1110], [#1113]): one request no longer starts two
+  test runs. The 0.85 efficiency, 0.9 load balance and made-up `test_case_N`
+  durations are gone. Per-test results come from the Vitest or Jest JSON
+  report. Anything that was not measured is left out and listed in
+  `unmeasured`, with a reason in `unmeasuredReasons`. Each run is stored in
+  learning once instead of twice.
+- **Learning reports only what it measured** ([#1093], [#1099], [#1105],
+  [#1109], [#1120]):
+  - `qe/learning/optimize` optimizes the experiences that were actually
+    recorded. Before, it generated random samples.
+  - A/B tests no longer pad with random samples, the default strategy no
+    longer claims a 0.7 outcome, and optimizer confidence is scored on
+    held-out records.
+  - Experiences with a fixed reward (generated tests, defect predictions,
+    impact analyses and coverage gaps) are still recorded, now tagged
+    `rewardSource: 'assigned'`. They no longer count toward success rates,
+    pattern confidence, domain rankings, milestones or anomaly baselines.
+  - With too little measured data, the tools say `insufficient-evidence`
+    instead of reporting 100%.
+- **Learning data is read from where it is written** ([#1071], [#1084],
+  [#1089], [#1103]): export, import, consolidation, transfer and shared
+  knowledge lookups use the `learning-optimization` namespace that learning
+  writes to. Export now returns every active pattern. Before, it stopped at
+  about 5,000. An import no longer overwrites newer knowledge or a better
+  strategy with stale data. Thanks to @rudycelekli.
+- **Code indexing stays inside your project** ([#1096], [#1123]): a symlink
+  inside the project that points outside it is skipped and reported instead
+  of read. Missing files and directories are no longer counted as indexed.
+  A request that indexes nothing now fails: the MCP task is marked failed
+  and the CLI exits with code 1.
+- **Dream insights are archived, not deleted** ([#1066], [#1112]): the
+  retention sweep moves stale unapplied insights into a new
+  `dream_insights_archive` table, in one transaction that deletes only rows
+  whose copy is verified. `AQE_DREAM_INSIGHTS_RETENTION_DAYS=false`, `no`,
+  `disabled`, `none` and `never` now turn the sweep off. An unreadable value
+  also leaves it off, with a warning. Before, it fell back to deleting at
+  30 days.
+- **Worker settings** ([#1066], [#1112]): worker ids in
+  `AQE_DISABLED_WORKERS` are no longer case-sensitive. `aqe daemon start`
+  and the generated `start-daemon.cjs` respect `AQE_WORKERS_ENABLED`. The
+  QualityDaemon no longer waits about 150 s for every worker's first run
+  before it starts.
+- **Invalid task priorities are rejected** ([#1108], [#1111]):
+  `task_submit` and `aqe task submit` accept only `p0` to `p3`, with the
+  same error on both paths. Before, any string was accepted.
+- **Test-execution experiences no longer show up as fake test runs**
+  ([#1095], [#1100]).
+- **Deleting an unfinished task no longer unblocks the tasks that depend on
+  it** ([#1069], [#1098]): this affects library users of the `TaskDAG` and
+  `DAGScheduler` API. Every dependency now has a typed status. Each change
+  of status writes an audit receipt, and an unfinished prerequisite can only
+  be bypassed by an explicit, attributed waiver.
+- **Coverage for monorepo packages** ([#1036]): a package with no test
+  runner config of its own uses the workspace root's config, so coverage is
+  measured instead of estimated. Thanks to @rudycelekli.
+- **CRDT registers** ([#1062], [#1063]): a register created by a read can no
+  longer erase a negative-timestamp write on merge. A second local write in
+  the same millisecond is no longer dropped. Thanks to @rudycelekli.
+- **Names like `constructor` or `__proto__`** ([#1064], [#1083], [#1104]):
+  CI workflows, claim agents, infra services, model ids and task domains
+  with these names no longer crash or read inherited values. Thanks to
+  @rudycelekli.
+- **Empty LLM completions are no longer cached** ([#1090]), so a provider
+  refusal does not block retries of the same prompt until the cache entry
+  expires. Thanks to @rudycelekli.
+
+### Changed
+
+- **`task_orchestrate` and `aqe fleet run scan`** now return an error for
+  `scan-security`, `run-chaos` and `assess-quality`, which no domain plugin
+  runs. Before, these tasks were accepted and never finished. Routing them
+  to real handlers is tracked in [#1124].
+- **`test_execute_parallel` output**: fields with no measurement behind them,
+  such as `workerStats.efficiency`, `workerStats.loadBalance`, `retryStats`
+  and per-test `results`, are left out of the response and named in
+  `unmeasured`. Code that read those fields unconditionally needs to handle
+  their absence.
+- **Learning totals can drop.** Success rates, confidence, rankings and
+  milestones now count measured outcomes only.
+- **For library users:** `TaskDAG.removeTask` no longer marks dependents
+  ready. Use a waiver to let them run.
+
+### Known issues
+
+- Dreams still need the full rework ([#1060]).
+- The anti-drift middleware still runs model inference for every event on
+  the in-process bus ([#1078]).
+- `task_orchestrate` and fleet scans do not route security, chaos or
+  quality tasks to their domains yet ([#1124], [#1125]).
+- Some MCP-reachable paths still use blocking child-process calls
+  ([#1115]).
+- Test failure messages and runner output are not yet redacted for secrets
+  ([#1122]).
+- In a narrow case, a task that fails at dispatch while the Queen is
+  draining its queue can leave a free slot unused until the next submission
+  ([#1127]).
+- Workspace member dependencies are not scanned from a monorepo root yet
+  ([#1057]).
+
+[#1036]: https://github.com/proffesor-for-testing/agentic-qe/pull/1036
+[#1057]: https://github.com/proffesor-for-testing/agentic-qe/issues/1057
+[#1059]: https://github.com/proffesor-for-testing/agentic-qe/issues/1059
+[#1060]: https://github.com/proffesor-for-testing/agentic-qe/issues/1060
+[#1062]: https://github.com/proffesor-for-testing/agentic-qe/pull/1062
+[#1063]: https://github.com/proffesor-for-testing/agentic-qe/pull/1063
+[#1064]: https://github.com/proffesor-for-testing/agentic-qe/pull/1064
+[#1065]: https://github.com/proffesor-for-testing/agentic-qe/pull/1065
+[#1066]: https://github.com/proffesor-for-testing/agentic-qe/issues/1066
+[#1069]: https://github.com/proffesor-for-testing/agentic-qe/issues/1069
+[#1070]: https://github.com/proffesor-for-testing/agentic-qe/issues/1070
+[#1071]: https://github.com/proffesor-for-testing/agentic-qe/issues/1071
+[#1074]: https://github.com/proffesor-for-testing/agentic-qe/issues/1074
+[#1075]: https://github.com/proffesor-for-testing/agentic-qe/issues/1075
+[#1076]: https://github.com/proffesor-for-testing/agentic-qe/pull/1076
+[#1077]: https://github.com/proffesor-for-testing/agentic-qe/issues/1077
+[#1078]: https://github.com/proffesor-for-testing/agentic-qe/issues/1078
+[#1079]: https://github.com/proffesor-for-testing/agentic-qe/pull/1079
+[#1081]: https://github.com/proffesor-for-testing/agentic-qe/issues/1081
+[#1082]: https://github.com/proffesor-for-testing/agentic-qe/pull/1082
+[#1083]: https://github.com/proffesor-for-testing/agentic-qe/pull/1083
+[#1084]: https://github.com/proffesor-for-testing/agentic-qe/pull/1084
+[#1085]: https://github.com/proffesor-for-testing/agentic-qe/pull/1085
+[#1089]: https://github.com/proffesor-for-testing/agentic-qe/pull/1089
+[#1090]: https://github.com/proffesor-for-testing/agentic-qe/pull/1090
+[#1093]: https://github.com/proffesor-for-testing/agentic-qe/pull/1093
+[#1095]: https://github.com/proffesor-for-testing/agentic-qe/issues/1095
+[#1096]: https://github.com/proffesor-for-testing/agentic-qe/issues/1096
+[#1098]: https://github.com/proffesor-for-testing/agentic-qe/pull/1098
+[#1099]: https://github.com/proffesor-for-testing/agentic-qe/issues/1099
+[#1100]: https://github.com/proffesor-for-testing/agentic-qe/pull/1100
+[#1103]: https://github.com/proffesor-for-testing/agentic-qe/pull/1103
+[#1104]: https://github.com/proffesor-for-testing/agentic-qe/pull/1104
+[#1105]: https://github.com/proffesor-for-testing/agentic-qe/pull/1105
+[#1107]: https://github.com/proffesor-for-testing/agentic-qe/pull/1107
+[#1108]: https://github.com/proffesor-for-testing/agentic-qe/issues/1108
+[#1109]: https://github.com/proffesor-for-testing/agentic-qe/issues/1109
+[#1110]: https://github.com/proffesor-for-testing/agentic-qe/issues/1110
+[#1111]: https://github.com/proffesor-for-testing/agentic-qe/pull/1111
+[#1112]: https://github.com/proffesor-for-testing/agentic-qe/pull/1112
+[#1113]: https://github.com/proffesor-for-testing/agentic-qe/pull/1113
+[#1114]: https://github.com/proffesor-for-testing/agentic-qe/pull/1114
+[#1115]: https://github.com/proffesor-for-testing/agentic-qe/issues/1115
+[#1120]: https://github.com/proffesor-for-testing/agentic-qe/pull/1120
+[#1122]: https://github.com/proffesor-for-testing/agentic-qe/issues/1122
+[#1123]: https://github.com/proffesor-for-testing/agentic-qe/pull/1123
+[#1124]: https://github.com/proffesor-for-testing/agentic-qe/issues/1124
+[#1125]: https://github.com/proffesor-for-testing/agentic-qe/issues/1125
+[#1127]: https://github.com/proffesor-for-testing/agentic-qe/issues/1127
+
 ## [3.15.8] - 2026-10-16
 
 Your acknowledged memory writes are no longer lost when a dream is running,

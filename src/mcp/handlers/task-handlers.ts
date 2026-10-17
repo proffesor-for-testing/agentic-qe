@@ -33,7 +33,8 @@ import type { QEDomain } from '../../learning/qe-patterns.js';
 import type { RealQEPatternSearchResult } from '../../learning/real-qe-reasoning-bank.js';
 import { scoreUnjudgedTrajectories } from './trajectory-judge.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
-import { ALL_DOMAINS, isDomainName } from '../../shared/types/index.js';
+import { ALL_DOMAINS, invalidPriorityMessage, isDomainName, isPriority } from '../../shared/types/index.js';
+import { validateIndexPaths, validateIndexTaskPayload } from '../../domains/code-intelligence/index-path-guard.js';
 
 // ============================================================================
 // Task Type to Workflow Mapping (Issue #206)
@@ -74,7 +75,27 @@ export async function handleTaskSubmit(
     };
   }
 
+  // #1108: reject a priority outside the allowed set. Parity with
+  // `aqe task submit --priority`.
+  if (params.priority !== undefined && !isPriority(params.priority)) {
+    return { success: false, error: invalidPriorityMessage(params.priority) };
+  }
+
   const { queen } = getFleetState();
+
+  // #1075: reject a type that no domain plugin executes. Accepting it would
+  // leave the task running forever and hold one of the Queen's slots.
+  const executable = queen!.validateTaskExecutable(params.type as TaskType, targetDomains);
+  if (!executable.success) {
+    return { success: false, error: executable.error.message };
+  }
+
+  // #1096: reject a malformed index path list here rather than deep inside
+  // indexing. Same order of checks as `aqe task submit`.
+  const payloadError = validateIndexTaskPayload(params.type, params.payload);
+  if (payloadError) {
+    return { success: false, error: payloadError.message };
+  }
 
   try {
     const result = await queen!.submitTask({
@@ -326,6 +347,15 @@ export async function handleTaskOrchestrate(
     };
   }
 
+  // #1096: filePaths feeds task payloads (sourceFiles, index paths), so a
+  // non-array value is rejected up front with a clear message.
+  if (params.filePaths !== undefined) {
+    const filePaths = validateIndexPaths(params.filePaths, 'filePaths', 'Invalid task_orchestrate params');
+    if (!filePaths.success) {
+      return { success: false, error: filePaths.error.message };
+    }
+  }
+
   const { queen, workflowOrchestrator } = getFleetState();
 
   try {
@@ -455,6 +485,17 @@ export async function handleTaskOrchestrate(
     }
 
     // No workflow - submit as a regular task
+    // #1081: the inferred type must have a domain handler. Otherwise the Queen
+    // can only fail the task at dispatch, so reject it here with the reason.
+    const executable = queen!.validateTaskExecutable(taskType);
+    if (!executable.success) {
+      return {
+        success: false,
+        error: `${executable.error.message}. task_orchestrate inferred '${taskType}' from the description; ` +
+          'use task_submit with a supported type and its payload, or the domain\'s MCP tool.',
+      };
+    }
+
     // Issue N2: Build domain-appropriate payload.
     // Forward caller-provided filePaths/codeContext into the payload fields
     // that domain plugins expect, so generate-tests doesn't reject with

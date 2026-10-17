@@ -50,6 +50,8 @@ export interface TaskHandlerContext {
    */
   getCodeIntelligenceCoordinator?(): Promise<ProjectMetricsCollector | undefined>;
   getQualityAnalyzer(): QualityAnalyzerService;
+  /** The domain execution owner also records run evidence and lifecycle events. */
+  getTestExecutionAPI?(): Promise<import('../../domains/test-execution/interfaces').ITestExecutionAPI | undefined>;
 
   /** Executor configuration */
   readonly config: {

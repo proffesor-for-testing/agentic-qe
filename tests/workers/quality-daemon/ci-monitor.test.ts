@@ -103,4 +103,15 @@ describe('CIMonitor', () => {
     expect(report.healthScore).toBe(100);
     expect(report.workflows).toHaveLength(0);
   });
+
+  it.each(['constructor', 'toString', '__proto__'])('groups runs of a workflow named %s', async (name) => {
+    setupExecMock([
+      { name, status: 'completed', conclusion: 'failure', headBranch: 'main', number: 2, databaseId: 101, createdAt: '2026-04-02' },
+      { name, status: 'completed', conclusion: 'success', headBranch: 'main', number: 1, databaseId: 100, createdAt: '2026-04-01' },
+    ]);
+
+    const report = await monitor.check();
+    expect(report.workflows).toHaveLength(1);
+    expect(report.workflows[0]).toMatchObject({ name, recentRuns: 2, failedRuns: 1, lastConclusion: 'failure' });
+  });
 });

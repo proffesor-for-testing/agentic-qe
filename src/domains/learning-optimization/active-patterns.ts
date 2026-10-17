@@ -19,18 +19,21 @@
 import type { MemoryBackend, RetrieveOptions } from '../../kernel/interfaces.js';
 import type { LearnedPattern } from './interfaces.js';
 import { rehydrateDates } from '../../shared/utils/kv-date-rehydrate.js';
+import { searchAllKeys } from '../../shared/utils/namespaced-search.js';
+
+/**
+ * The kv namespace every learning-optimization writer uses (#491 Bug 2).
+ * A database identifier: never rename it.
+ */
+export const LEARNING_NAMESPACE = 'learning-optimization';
+
+/** Retrieve options for reads and deletes in `LEARNING_NAMESPACE` (#1071). */
+export const LEARNING_NS: Readonly<RetrieveOptions> = Object.freeze({ namespace: LEARNING_NAMESPACE });
 
 export const LEARNING_PATTERN_KEY_PREFIX = 'learning:pattern:';
 
 /** Sub-key families under the pattern prefix that are not active patterns. */
 export const NON_ACTIVE_PATTERN_SEGMENTS: readonly string[] = ['creation', 'archived'];
-
-/**
- * Key-scan cap for active pattern reads. Keys are cheap to list, and only
- * active keys are fetched, so the cap is set well above realistic store
- * sizes. When it is reached, `onTruncated` is called.
- */
-export const ACTIVE_PATTERN_KEY_SCAN_LIMIT = 10_000;
 
 /**
  * True when the key is in the active pattern key family
@@ -61,15 +64,14 @@ export function isActivePatternRecord(key: string, value: unknown): value is Lea
 export interface ReadActivePatternsOptions {
   /** Namespace passed to `search()` and `get()`. Omit for the backend default. */
   retrieve?: RetrieveOptions;
-  /** Override the key-scan cap (tests). */
-  scanLimit?: number;
-  /** Called when the key scan hit the cap, so results may be incomplete. */
-  onTruncated?: (scanned: number) => void;
+  /** First key-scan request size (tests). The scan always reads every key. */
+  scanPageSize?: number;
 }
 
 /**
- * Read every active learned pattern: list keys, drop non-active key families
- * before `get()`, then drop records that fail the shape guard. Date fields
+ * Read every active learned pattern: list every key (no cap, #1071), drop
+ * non-active key families before `get()`, then drop records that fail the
+ * shape guard. Patterns come back in key order. Date fields
  * come back from kv as ISO strings and are rehydrated (#491 Bug 3), so
  * `TimeRange.contains(pattern.createdAt)` works for every reader.
  */
@@ -77,9 +79,10 @@ export async function readActivePatterns(
   memory: MemoryBackend,
   options: ReadActivePatternsOptions = {},
 ): Promise<LearnedPattern[]> {
-  const limit = options.scanLimit ?? ACTIVE_PATTERN_KEY_SCAN_LIMIT;
-  const keys = await memory.search(`${LEARNING_PATTERN_KEY_PREFIX}*`, limit, options.retrieve);
-  if (keys.length >= limit) options.onTruncated?.(keys.length);
+  const keys = await searchAllKeys(memory, `${LEARNING_PATTERN_KEY_PREFIX}*`, {
+    retrieve: options.retrieve,
+    pageSize: options.scanPageSize,
+  });
 
   const patterns: LearnedPattern[] = [];
   for (const key of keys) {

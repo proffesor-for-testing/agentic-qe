@@ -39,7 +39,8 @@ describe('orchestrated index-code task execution', () => {
     process.chdir(root);
     resetUnifiedMemory();
     server = createMCPProtocolServer();
-    expect((await call('fleet_init', { memoryBackend: 'memory', maxAgents: 4 })).success).toBe(true);
+    const initialized = await call('fleet_init', { memoryBackend: 'memory', maxAgents: 4 });
+    expect(initialized.success, JSON.stringify(initialized)).toBe(true);
     getFleetState().kernel!.eventBus.subscribe('*', async event => { events.push(event); });
   }, 60000);
 
@@ -63,6 +64,22 @@ describe('orchestrated index-code task execution', () => {
     expect(after.data.tasks.running).toBe(0);
     expect(after.data.tasks.pending).toBe(0);
     expect(after.data.tasks.completed - before.data.tasks.completed).toBe(1);
+  }, 30000);
+
+  it('keeps code_index caller-owned without recording a second failed execution', async () => {
+    const before = await call('fleet_status', {});
+    const indexed = await call('code_index', { target: 'src' });
+    expect(indexed.success, JSON.stringify(indexed)).toBe(true);
+    expect(indexed.data).toMatchObject({ status: 'completed', filesIndexed: 1 });
+    expect(indexed.data.taskId).toEqual(expect.any(String));
+    const status = await terminal(indexed.data.taskId);
+    expect(status.data, JSON.stringify(status)).toMatchObject({ type: 'index-code', status: 'completed' });
+    expect(status.data.error).toBeUndefined();
+    const after = await call('fleet_status', {});
+    expect(after.data.tasks.failed).toBe(before.data.tasks.failed);
+    expect(after.data.tasks.completed - before.data.tasks.completed).toBe(1);
+    expect(after.data.tasks.running).toBe(0);
+    expect(after.data.tasks.pending).toBe(0);
   }, 30000);
 
   it('settles a missing-path request as failed instead of leaking a slot', async () => {

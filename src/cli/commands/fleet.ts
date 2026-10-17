@@ -14,6 +14,7 @@ import { CrossDomainEventRouter } from '../../coordination/cross-domain-router.j
 import { DefaultProtocolExecutor } from '../../coordination/protocol-executor.js';
 import { WorkflowOrchestrator } from '../../coordination/workflow-orchestrator.js';
 import { createQueenCoordinator } from '../../coordination/queen-coordinator.js';
+import type { TaskType } from '../../coordination/queen-coordinator.js';
 import { createPersistentScheduler } from '../scheduler/index.js';
 import { integrateCodeIntelligence, type FleetIntegrationResult } from '../../init/fleet-integration.js';
 import { runFleetInitWizard, type FleetWizardResult } from '../wizards/fleet-wizard.js';
@@ -296,6 +297,21 @@ export function createFleetCommand(
           throw new Error(`Unsupported operation: ${operation}`);
         }
 
+        const operationTasks: Record<string, [DomainName, TaskType]> = {
+          test: ['test-generation', 'generate-tests'],
+          analyze: ['coverage-analysis', 'analyze-coverage'],
+          scan: ['security-compliance', 'scan-security'],
+        };
+        const [domain, taskType] = operationTasks[operation];
+
+        // #1081: refuse an operation whose task no domain plugin executes,
+        // instead of submitting work that can only fail at dispatch.
+        const executable = context.queen!.validateTaskExecutable(taskType, [domain]);
+        if (!executable.success) {
+          console.error(chalk.red(`\n Operation '${operation}' cannot run: ${executable.error.message}`));
+          return cleanupAndExit(1);
+        }
+
         console.log(chalk.blue(`\n Fleet Operation: ${operation}\n`));
 
         const progress = new FleetProgressManager({
@@ -304,14 +320,6 @@ export function createFleetCommand(
         });
 
         progress.start(parallelCount);
-
-        const domainMap: Record<string, DomainName> = {
-          test: 'test-generation',
-          analyze: 'coverage-analysis',
-          scan: 'security-compliance',
-        };
-
-        const domain = domainMap[operation];
 
         const agentOperations = Array.from({ length: parallelCount }, (_, i) => {
           const agentId = `${operation}-agent-${i + 1}`;
@@ -338,9 +346,7 @@ export function createFleetCommand(
 
             try {
               const taskResult = await context.queen!.submitTask({
-                type: operation === 'test' ? 'generate-tests' :
-                      operation === 'analyze' ? 'analyze-coverage' :
-                      'scan-security',
+                type: taskType,
                 priority: 'p1',
                 targetDomains: [domain],
                 payload: { target: options.target, workerId: op.id },

@@ -107,10 +107,10 @@ describe('Issue #479 — CapturedExperienceBridge', () => {
     bridge = new CapturedExperienceBridge(eventBus, memory);
     const published = await bridge.drainOnce();
 
-    // 3 rows × 1 universal + 1 domain-specific for test-execution and
-    // test-generation = 5 events. A coverage-analysis row has no
-    // domain-specific event (#1008): it is not a coverage report or a gap.
-    expect(published).toBe(5);
+    // 3 rows × 1 universal + 1 domain-specific for test-generation = 4
+    // events. A coverage-analysis row (#1008) and a test-execution row
+    // (#1095) have no domain-specific event: neither is a report or a run.
+    expect(published).toBe(4);
     expect(learningEvents).toHaveLength(3);
     expect(learningEvents[0].source).toBe('learning-optimization');
   });
@@ -171,7 +171,8 @@ describe('Issue #479 — CapturedExperienceBridge', () => {
     await bridge.drainOnce();
 
     expect(seen).toContain('test-generation.TestGenerated');
-    expect(seen).toContain('test-execution.TestRunCompleted');
+    // #1095: a test-execution experience row is not a test run.
+    expect(seen).not.toContain('test-execution.TestRunCompleted');
     // #1008: a coverage experience row is neither a coverage report nor a gap.
     expect(seen).not.toContain('coverage-analysis.CoverageReportCreated');
     expect(seen).not.toContain('coverage-analysis.CoverageGapDetected');
@@ -202,12 +203,37 @@ describe('Issue #479 — CapturedExperienceBridge', () => {
     await plugin.dispose();
   });
 
+  it('#1095: a bridged test-execution experience never masquerades as a test run', async () => {
+    // Real plugins that key TestRunCompleted records by runId listen on the bus.
+    const plugin = new QualityAssessmentPlugin(eventBus, memory, new MockAgentCoordinator() as never);
+    await plugin.initialize();
+    const runs: DomainEvent[] = [];
+    eventBus.subscribe('test-execution.TestRunCompleted', async (e) => { runs.push(e); });
+    const learning: string[] = [];
+    eventBus.subscribe('learning.ExperienceCaptured', async (e) => { learning.push(e.type); });
+
+    // The MCP handler records a captured experience for every test run; the
+    // row has no run id and no pass/fail counts.
+    insertRow({ id: 'te-run-ok', domain: 'test-execution', success: true });
+    insertRow({ id: 'te-run-bad', domain: 'test-execution', success: false });
+
+    bridge = new CapturedExperienceBridge(eventBus, memory);
+    expect(await bridge.drainOnce()).toBe(2);
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(runs).toHaveLength(0);
+    expect(await memory.search('*:undefined', 1000)).toEqual([]);
+    // Learning still sees both rows.
+    expect(learning).toHaveLength(2);
+    await plugin.dispose();
+  });
+
   // Parametrized regression — Jordi's #484 suggestion. Catches the
   // class of bug where a domain WITHOUT a domain-specific fan-out would
   // expose the universal-event path being broken (test-execution masked
   // it via the fan-out handler in v3.9.28).
   describe.each([
-    'test-execution',           // has fan-out — passes via two paths
+    'test-execution',           // no fan-out since #1095 — universal-only path
     'requirements-validation',  // no fan-out — universal-only path
     'security-compliance',      // no fan-out — universal-only path
     'visual-accessibility',     // no fan-out — universal-only path

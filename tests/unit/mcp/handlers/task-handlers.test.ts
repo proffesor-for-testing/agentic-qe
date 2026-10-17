@@ -69,6 +69,7 @@ function injectMockQueen() {
       return { success: true as const, value: taskId };
     }),
     getTaskStatus: vi.fn((taskId: string) => makeExecution(taskId)),
+    validateTaskExecutable: vi.fn(() => ({ success: true as const, value: undefined as void })),
     cancelTask: vi.fn(async (taskId: string) => {
       if (!knownTasks.has(taskId)) {
         return { success: false as const, error: new Error(`Task not found: ${taskId}`) };
@@ -204,12 +205,13 @@ describe('Task Handlers', () => {
     });
 
     it('should submit various task types', async () => {
+      // Types a domain plugin executes. #1075: types without a handler
+      // (e.g. assess-quality, scan-security) are rejected, see below.
       const taskTypes = [
         'generate-tests',
         'execute-tests',
         'analyze-coverage',
-        'assess-quality',
-        'scan-security',
+        'predict-defects',
       ] as const;
 
       const results = await Promise.all(
@@ -220,6 +222,37 @@ describe('Task Handlers', () => {
         expect(result.success).toBe(true);
         expect(result.data!.type).toBe(taskTypes[i]);
       });
+    });
+
+    // #1075: a type no domain plugin executes must be rejected before it takes
+    // a Queen slot, with the reason visible to the caller.
+    it('rejects a task type no domain executes without submitting it', async () => {
+      const queen = getFleetState().queen!;
+      const submit = vi.spyOn(queen, 'submitTask');
+      vi.spyOn(queen, 'validateTaskExecutable').mockReturnValue({
+        success: false,
+        error: new Error("No handler for task type 'scan-security' in domain security-compliance"),
+      });
+
+      const result = await handleTaskSubmit({ type: 'scan-security', targetDomains: ['security-compliance'] });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe("No handler for task type 'scan-security' in domain security-compliance");
+      expect(queen.validateTaskExecutable).toHaveBeenCalledWith('scan-security', ['security-compliance']);
+      expect(submit).not.toHaveBeenCalled();
+    });
+
+    // #1108: a priority outside p0-p3 must be rejected at the boundary, not
+    // silently accepted.
+    it.each(['bogus', '__proto__', 'P1', 'critical', ''])('rejects invalid priority %j without submitting it', async (priority) => {
+      const queen = getFleetState().queen!;
+      const submit = vi.spyOn(queen, 'submitTask');
+
+      const result = await handleTaskSubmit({ type: 'generate-tests', priority: priority as never });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe(`Invalid priority: ${priority}. Valid priorities: p0, p1, p2, p3`);
+      expect(submit).not.toHaveBeenCalled();
     });
   });
 
@@ -480,13 +513,16 @@ describe('Task Handlers', () => {
       expect(result.data!.type).toBe('analyze-coverage');
     }, 30000);
 
-    it('should infer security scan type', async () => {
+    // #1081: no security-compliance handler executes scan-security, so the
+    // inferred task is rejected with the reason instead of left running.
+    it('should reject an inferred security scan type that no domain executes', async () => {
       const result = await handleTaskOrchestrate({
         task: 'Scan for security vulnerabilities',
       });
 
-      expect(result.success).toBe(true);
-      expect(result.data!.type).toBe('scan-security');
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("No handler for task type 'scan-security' in domain security-compliance");
+      expect(result.error).toContain("task_orchestrate inferred 'scan-security'");
     }, 30000);
 
     it('should respect strategy parameter', async () => {
@@ -501,7 +537,7 @@ describe('Task Handlers', () => {
 
     it('should map priority to internal format', async () => {
       const result = await handleTaskOrchestrate({
-        task: 'Critical security scan',
+        task: 'Critical coverage analysis',
         priority: 'critical',
       });
 
@@ -536,12 +572,12 @@ describe('Task Handlers', () => {
     }, 30000);
 
     it('should infer domain from task description when context.project is missing (Fix #282)', async () => {
-      // Security task should infer security-compliance domain
-      const secResult = await handleTaskOrchestrate({
-        task: 'Scan for security vulnerabilities and XSS issues',
+      // Defect task should infer defect-intelligence domain
+      const defectResult = await handleTaskOrchestrate({
+        task: 'Predict defects in the payment module',
       });
-      expect(secResult.success).toBe(true);
-      expect(secResult.data!.routing).toBeDefined();
+      expect(defectResult.success).toBe(true);
+      expect(defectResult.data!.routing).toBeDefined();
 
       // Coverage task should infer coverage-analysis domain
       const covResult = await handleTaskOrchestrate({

@@ -14,6 +14,7 @@ describe('fleet run execution verdicts', () => {
   const ensure = vi.fn(async () => true);
   const submitTask = vi.fn();
   const getTaskStatus = vi.fn();
+  const validateTaskExecutable = vi.fn();
   let program: Command;
   beforeEach(() => {
     vi.clearAllMocks();
@@ -23,8 +24,9 @@ describe('fleet run execution verdicts', () => {
     ensure.mockResolvedValue(true);
     submitTask.mockResolvedValue({ success: true, value: 'task-1' });
     getTaskStatus.mockReturnValue({ status: 'completed' });
+    validateTaskExecutable.mockReturnValue({ success: true, value: undefined });
     program = new Command().addCommand(createFleetCommand(
-      { queen: { submitTask, getTaskStatus } } as unknown as CLIContext,
+      { queen: { submitTask, getTaskStatus, validateTaskExecutable } } as unknown as CLIContext,
       cleanup, ensure, () => {},
     ));
   });
@@ -83,6 +85,22 @@ describe('fleet run execution verdicts', () => {
     await run();
     expect(cleanup).toHaveBeenCalledWith(1);
     expect(submitTask).not.toHaveBeenCalled();
+  });
+
+  // #1081: `fleet run scan` submitted scan-security, which no security-compliance
+  // handler executes, so each worker's task stayed running on a held Queen slot.
+  it('refuses an operation whose task type no domain executes, before submitting anything', async () => {
+    validateTaskExecutable.mockReturnValue({
+      success: false,
+      error: new Error("No handler for task type 'scan-security' in domain security-compliance (supported: security-audit)"),
+    });
+    const execution = program.parseAsync(['node', 'aqe', 'fleet', 'run', 'scan', '--parallel', '3']);
+    await vi.advanceTimersByTimeAsync(65000);
+    await execution;
+    expect(validateTaskExecutable).toHaveBeenCalledWith('scan-security', ['security-compliance']);
+    expect(submitTask).not.toHaveBeenCalled();
+    expect(cleanup).toHaveBeenCalledWith(1);
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining("No handler for task type 'scan-security'"));
   });
 
   it('retains rejection and completion verdicts', async () => {

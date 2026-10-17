@@ -9,6 +9,8 @@ import { TrajectoryAdapter, type BrowserTrajectory } from '../../../src/adapters
 import { WasmVectorStore } from '../../../src/integrations/browser/qe-dashboard/wasm-vector-store';
 import { GapDetectorService } from '../../../src/domains/coverage-analysis/services/gap-detector';
 import { LearningCoordinatorService } from '../../../src/domains/learning-optimization/services/learning-coordinator';
+import { ClaimVerifierService } from '../../../src/agents/claim-verifier/claim-verifier-service';
+import { InfraActionExecutor, NoOpCommandRunner } from '../../../src/strange-loop/infra-healing/infra-action-executor';
 import type { MemoryBackend } from '../../../src/kernel/interfaces';
 
 const NAMES = ['constructor', 'toString', 'valueOf', '__proto__'];
@@ -97,5 +99,47 @@ describe('LearningCoordinator centroid metrics (#914)', () => {
     expect(centroid.metrics.toString).toBe(3);
     expect(Object.hasOwn(centroid.metrics, '__proto__')).toBe(true);
     expect(Object.values(centroid.metrics)).toEqual([3, 3, 3]);
+  });
+});
+
+describe('ClaimVerifier per-agent stats (#978)', () => {
+  it.each(NAMES)('counts claims from an agent whose id is %s', (agentId) => {
+    const service = new ClaimVerifierService({ rootDir: '/tmp' });
+    const result = { verified: true, confidence: 0.9 };
+    const history = (service as unknown as { history: unknown[] }).history;
+    history.push(
+      { claimId: `${agentId}-1`, claimType: 'coverage-claim', method: 'code-trace', result, timestamp: new Date() },
+      { claimId: `${agentId}-2`, claimType: 'coverage-claim', method: 'code-trace', result, timestamp: new Date() },
+    );
+    const stats = service.getStats().bySourceAgent;
+    expect(Object.hasOwn(stats, agentId)).toBe(true);
+    expect(stats[agentId].claimsSubmitted).toBe(2);
+    expect(stats[agentId].claimsVerified).toBe(2);
+  });
+
+  it('returns a null-prototype record that still serialises and enumerates', () => {
+    const service = new ClaimVerifierService({ rootDir: '/tmp' });
+    const result = { verified: true, confidence: 0.9 };
+    const history = (service as unknown as { history: unknown[] }).history;
+    history.push({ claimId: 'constructor-1', claimType: 'coverage-claim', method: 'code-trace', result, timestamp: new Date() });
+    const stats = service.getStats().bySourceAgent;
+    expect(Object.getPrototypeOf(stats)).toBeNull();
+    expect((stats as Record<string, unknown>).hasOwnProperty).toBeUndefined();
+    expect(Object.keys(stats)).toEqual(['constructor']);
+    expect(Object.entries(stats)).toHaveLength(1);
+    expect(JSON.parse(JSON.stringify(stats)).constructor.claimsSubmitted).toBe(1);
+  });
+});
+
+describe('InfraActionExecutor per-service stats (#978)', () => {
+  it.each(NAMES)('counts outcomes for a service named %s', (service) => {
+    const executor = new InfraActionExecutor(new NoOpCommandRunner(), {} as never, {} as never);
+    const update = (executor as unknown as { updateServiceStats(name: string, field: string): void });
+    update.updateServiceStats(service, 'failures');
+    update.updateServiceStats(service, 'failures');
+    update.updateServiceStats(service, 'recoveries');
+    const byService = executor.getStats().byService;
+    expect(Object.hasOwn(byService, service)).toBe(true);
+    expect(byService[service]).toEqual({ failures: 2, recoveries: 1, successes: 0 });
   });
 });

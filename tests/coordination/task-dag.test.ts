@@ -113,7 +113,7 @@ describe('TaskDAG - Core Operations', () => {
     expect(t?.startedAt).toBeDefined();
   });
 
-  it('removeTask cleans up edges and unblocks dependents', () => {
+  it('removeTask of an unfinished prerequisite keeps dependents blocked (#1069)', () => {
     dag.addTask(task('a'));
     dag.addTask(task('b', { blockedBy: ['a'] }));
 
@@ -121,9 +121,14 @@ describe('TaskDAG - Core Operations', () => {
     expect(removed).toBe(true);
     expect(dag.getTask('a')).toBeUndefined();
 
-    // b should be unblocked after a is removed
+    // Deletion is not resolution: b stays blocked and keeps the edge
     const bTask = dag.getTask('b');
-    expect(bTask?.status).toBe('ready');
+    expect(bTask?.status).toBe('blocked');
+    expect(bTask?.blockedBy).toEqual(['a']);
+    expect(dag.getReady().map((t) => t.id)).not.toContain('b');
+    expect(dag.getBlockers('b')).toEqual([
+      expect.objectContaining({ prerequisiteId: 'a', disposition: 'REMOVED' }),
+    ]);
   });
 
   it('clear removes all tasks', () => {

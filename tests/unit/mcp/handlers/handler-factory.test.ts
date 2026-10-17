@@ -217,6 +217,7 @@ describe('Handler Factory', () => {
       await handler({ value: 'test-value', optional: 42 });
 
       expect(mockQueen.submitTask).toHaveBeenCalledWith({
+        executionOwner: 'caller',
         type: 'generate-tests',
         priority: 'p1',
         targetDomains: ['test-generation'],

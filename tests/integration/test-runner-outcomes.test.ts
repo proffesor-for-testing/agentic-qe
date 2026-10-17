@@ -33,6 +33,7 @@ describe('Real test runner outcome integrity', () => {
       'empty.test.js': 'export const noTests = true;',
       'must-not-run.test.js': "import {writeFileSync} from 'node:fs'; import {it} from 'vitest'; writeFileSync('unexpected-execution.txt', 'ran'); it('must not run for a rejected request',()=>{});",
       'skipped.test.js': "import {it} from 'vitest'; it.skip('intentionally skipped',()=>{});",
+      'slow.test.js': "import {it,expect} from 'vitest'; it('slow',async()=>{await new Promise(r=>setTimeout(r,2000)); expect(1).toBe(1);},10000);",
     };
     for (const [name, content] of Object.entries(sources)) writeFileSync(join(fixture, name), content);
     vi.stubEnv('AQE_PROJECT_ROOT', fixture);
@@ -86,6 +87,30 @@ describe('Real test runner outcome integrity', () => {
     if (!handlerResult.success) throw handlerResult.error;
     expect(handlerResult.value).toMatchObject({ failed, passed, skipped });
   }, 20000);
+
+  // #1074: the handler used spawnSync, so the MCP server answered nothing else
+  // (task_status, task_cancel, fleet_status) until the whole run finished.
+  it('keeps the event loop responsive during a real runner execution', async () => {
+    let maxGap = 0;
+    let last = Date.now();
+    const ticker = setInterval(() => { const now = Date.now(); maxGap = Math.max(maxGap, now - last); last = now; }, 25);
+    const started = Date.now();
+    let result: Awaited<ReturnType<InstanceTaskHandler>>;
+    try {
+      result = await executeTask({ payload: { testFiles: ['slow.test.js'] } } as QueenTask);
+    } finally {
+      // The final gap counts too: a blocked loop resumes with the result
+      // already settled, before the interval could fire again.
+      maxGap = Math.max(maxGap, Date.now() - last);
+      clearInterval(ticker);
+    }
+    expect(result.success, JSON.stringify(result)).toBe(true);
+    if (!result.success) throw result.error;
+    expect(result.value).toMatchObject({ total: 1, passed: 1, failed: 0 });
+    // The run itself takes over 2s; a blocked loop would show a gap that long.
+    expect(Date.now() - started).toBeGreaterThan(2000);
+    expect(maxGap).toBeLessThan(500);
+  }, 30000);
 
   it.each([
     { name: 'suite import error', files: ['import.test.js'], diagnostic: 'missing-application-module' },
