@@ -265,6 +265,29 @@ const DEFAULT_CONFIG: AntiDriftConfig = {
 };
 
 /**
+ * Control-plane (task/agent/workflow lifecycle) events, matched on the last
+ * dot-separated segment of the event type:
+ * - every `Queen*` event (QueenCoordinator prefixes all of its events),
+ * - `Task*`, `Agent*`, `Workflow*`, `Step*`, `Protocol*` and `Action*` events
+ *   (TaskCompleted, TaskFailed, workflow.StepCompleted, coordination.ProtocolFailed, ...).
+ * The Queen, the workflow orchestrator and the protocol executor count slots
+ * and advance state machines on these events, so losing one leaks a slot or
+ * hangs a run (#1070, #1077).
+ */
+const CONTROL_PLANE_EVENT_RE = /^(?:Queen[A-Z]|(?:Task|Agent|Workflow|Step|Protocol|Action)[A-Z])/;
+
+/** True when the event type is a lifecycle / control-plane event that must never be dropped. */
+export function isControlPlaneEvent(eventType: string): boolean {
+  const name = eventType.slice(eventType.lastIndexOf('.') + 1);
+  return CONTROL_PLANE_EVENT_RE.test(name);
+}
+
+/** One warning per event type and source per window; later drops in the window are counted. */
+const DRIFT_WARN_WINDOW_MS = 60_000;
+/** Bound on distinct (type, source) keys tracked for warning rate limiting. */
+const DRIFT_WARN_MAX_KEYS = 256;
+
+/**
  * Deterministic pseudo-embedding via FNV-1a-inspired hash spread.
  * Not semantically meaningful but sufficient for detecting payload mutations.
  * @param text - Input text to embed.
@@ -336,6 +359,10 @@ export class SemanticAntiDriftMiddleware implements EventMiddleware {
   private totalChecked = 0;
   private driftCount = 0;
   private similaritySum = 0;
+  /** Rate limit for drift warnings, keyed by event type and source. */
+  private readonly driftWarnings = new Map<string, { lastAt: number; suppressed: number }>();
+  /** Payload text each fingerprint was computed from (same-process events only). */
+  private readonly emittedPayloadText = new WeakMap<SemanticFingerprint, string>();
 
   constructor(config?: Partial<AntiDriftConfig>) {
     this.config = {
@@ -363,24 +390,32 @@ export class SemanticAntiDriftMiddleware implements EventMiddleware {
       hopCount: 0,
       emittedAt: Date.now(),
     };
+    this.emittedPayloadText.set(fingerprint, payloadText);
     return { ...event, semanticFingerprint: fingerprint } as DomainEvent;
   }
 
   /**
    * Re-embed the payload and compare with the original fingerprint.
-   * If drift exceeds threshold the event is dropped (returns null) and a
-   * SemanticDriftDetectedEvent is emitted. Events without a fingerprint
-   * pass through unchanged.
+   * If drift exceeds threshold a warning is logged, a SemanticDriftDetectedEvent
+   * is emitted, and a data event is dropped (returns null). Control-plane
+   * events (see {@link isControlPlaneEvent}) are delivered anyway: dropping a
+   * lifecycle event leaks Queen slots (#1070, #1077). Events without a
+   * fingerprint pass through unchanged.
    * @param event - The incoming domain event.
-   * @returns The event with incremented hopCount, or null if drifted.
+   * @returns The event with incremented hopCount, or null if a drifted data event.
    */
   async onReceive(event: DomainEvent): Promise<DomainEvent | null> {
     const fp = event.semanticFingerprint;
     if (!fp) return event;
 
     const payloadText = JSON.stringify(event.payload);
-    const currentEmbedding = await this.embed(payloadText);
-    const similarity = cosineSimilarity(currentEmbedding, fp.embedding as number[]);
+    // A payload whose text is byte-identical to the text this instance
+    // fingerprinted at emit time has similarity 1 by construction; skip the
+    // second model inference (#1077).
+    const unchanged = this.emittedPayloadText.get(fp) === payloadText;
+    const similarity = unchanged
+      ? 1
+      : cosineSimilarity(await this.embed(payloadText), fp.embedding as number[]);
     const distance = 1 - similarity;
     const drifted = distance > fp.driftThreshold;
 
@@ -400,8 +435,10 @@ export class SemanticAntiDriftMiddleware implements EventMiddleware {
 
     if (drifted) {
       this.driftCount++;
+      const deliver = isControlPlaneEvent(event.type);
+      this.warnDrift(event, checkResult, deliver);
       await this.emitDriftEvent(event, checkResult);
-      return null;
+      if (!deliver) return null;
     }
 
     const updatedFingerprint: SemanticFingerprint = { ...fp, hopCount: fp.hopCount + 1 };
@@ -463,6 +500,38 @@ export class SemanticAntiDriftMiddleware implements EventMiddleware {
       if (category !== 'default' && lower.includes(category)) return category;
     }
     return 'default';
+  }
+
+  /**
+   * Log a drift detection to stderr (via the structured logger). Never logs
+   * payload contents. Rate limited per event type and source so a flood of
+   * drifted events produces one line per window plus a suppressed count.
+   */
+  private warnDrift(event: DomainEvent, check: DriftCheckResult, delivered: boolean): void {
+    const key = `${event.type}|${String(event.source)}`;
+    const now = Date.now();
+    const entry = this.driftWarnings.get(key);
+    if (entry && now - entry.lastAt < DRIFT_WARN_WINDOW_MS) {
+      entry.suppressed++;
+      return;
+    }
+    if (!entry && this.driftWarnings.size >= DRIFT_WARN_MAX_KEYS) this.driftWarnings.clear();
+    const suppressed = entry?.suppressed ?? 0;
+    this.driftWarnings.set(key, { lastAt: now, suppressed: 0 });
+    logger.warn(
+      delivered
+        ? 'Semantic drift detected on a control-plane event; delivered anyway'
+        : 'Semantic drift detected; event dropped',
+      {
+        eventType: event.type,
+        source: event.source,
+        cosineSimilarity: Number(check.cosineSimilarity.toFixed(4)),
+        cosineDistance: Number((1 - check.cosineSimilarity).toFixed(4)),
+        threshold: check.threshold,
+        hopCount: check.hopCount,
+        ...(suppressed > 0 ? { suppressedSinceLastWarning: suppressed } : {}),
+      },
+    );
   }
 
   /** Fire a SemanticDriftDetectedEvent via the configured callback. */
