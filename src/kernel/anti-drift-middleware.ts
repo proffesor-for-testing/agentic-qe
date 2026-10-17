@@ -363,6 +363,8 @@ export class SemanticAntiDriftMiddleware implements EventMiddleware {
   private readonly driftWarnings = new Map<string, { lastAt: number; suppressed: number }>();
   /** Payload text each fingerprint was computed from (same-process events only). */
   private readonly emittedPayloadText = new WeakMap<SemanticFingerprint, string>();
+  private embeddingWarningAt = -Infinity;
+  private suppressedEmbeddingWarnings = 0;
 
   constructor(config?: Partial<AntiDriftConfig>) {
     this.config = {
@@ -380,7 +382,8 @@ export class SemanticAntiDriftMiddleware implements EventMiddleware {
    */
   async onEmit(event: DomainEvent): Promise<DomainEvent> {
     const payloadText = JSON.stringify(event.payload);
-    const embedding = await this.embed(payloadText);
+    const embedding = await this.embedForEvent(payloadText, event, 'emit');
+    if (embedding === null) return event;
     const category = this.resolveCategory(event.type);
     const threshold = this.config.thresholds[category] ?? this.config.thresholds['default'];
     const fingerprint: SemanticFingerprint = {
@@ -412,10 +415,12 @@ export class SemanticAntiDriftMiddleware implements EventMiddleware {
     // A payload whose text is byte-identical to the text this instance
     // fingerprinted at emit time has similarity 1 by construction; skip the
     // second model inference (#1077).
-    const unchanged = this.emittedPayloadText.get(fp) === payloadText;
-    const similarity = unchanged
-      ? 1
-      : cosineSimilarity(await this.embed(payloadText), fp.embedding as number[]);
+    let similarity = 1;
+    if (this.emittedPayloadText.get(fp) !== payloadText) {
+      const currentEmbedding = await this.embedForEvent(payloadText, event, 'receive');
+      if (currentEmbedding === null) return event;
+      similarity = cosineSimilarity(currentEmbedding, fp.embedding as number[]);
+    }
     const distance = 1 - similarity;
     const drifted = distance > fp.driftThreshold;
 
@@ -491,6 +496,36 @@ export class SemanticAntiDriftMiddleware implements EventMiddleware {
       return hashBasedEmbedding(text, embedding.length || this.config.fallbackDimension);
     }
     return hashBasedEmbedding(text, this.config.fallbackDimension);
+  }
+
+  /**
+   * Fingerprinting is advisory infrastructure, not an event-delivery dependency.
+   * A transformer can fail after its cached availability probe succeeded. Do not
+   * switch vector spaces mid-event: an old semantic vector and a new hash vector
+   * cannot be compared. Deliver this event without claiming a completed check;
+   * later events still try the transformer normally.
+   */
+  private async embedForEvent(
+    text: string, event: DomainEvent, stage: 'emit' | 'receive',
+  ): Promise<number[] | null> {
+    try {
+      return await this.embed(text);
+    } catch {
+      const now = Date.now();
+      if (now - this.embeddingWarningAt < 60_000) {
+        this.suppressedEmbeddingWarnings++;
+      } else {
+        logger.warn('Anti-drift embedding unavailable; event delivered without verification', {
+          eventType: event.type, source: event.source, stage,
+          suppressedSinceLastWarning: this.suppressedEmbeddingWarnings,
+        });
+        this.embeddingWarningAt = now;
+        this.suppressedEmbeddingWarnings = 0;
+      }
+      // Never log the payload or provider's error text (it may contain input or
+      // credentials), and never count an unavailable check as successful/drifted.
+      return null;
+    }
   }
 
   /** Map event type to threshold category via substring matching. */
