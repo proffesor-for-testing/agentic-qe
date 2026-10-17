@@ -94,11 +94,7 @@ const LEARNING_NS = { namespace: 'learning-optimization' } as const;
  * provenance and archived patterns written by this service.
  */
 function readActiveLearnedPatterns(memory: MemoryBackend): Promise<LearnedPattern[]> {
-  return readActivePatterns(memory, {
-    retrieve: LEARNING_NS,
-    onTruncated: (scanned) =>
-      logger.warn('Active pattern key scan hit its cap; results may be incomplete', { scanned }),
-  });
+  return readActivePatterns(memory, { retrieve: LEARNING_NS });
 }
 
 export class LearningCoordinatorService
