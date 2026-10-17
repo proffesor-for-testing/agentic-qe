@@ -11,16 +11,14 @@
 
 import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend, getLLMRouter } from '../base.js';
 import { ToolResult } from '../../types.js';
-import { DomainName, AgentId } from '../../../shared/types/index.js';
+import { DomainName } from '../../../shared/types/index.js';
 import { MemoryBackend } from '../../../kernel/interfaces.js';
 import { TimeRange } from '../../../shared/value-objects/index.js';
 import { LearningCoordinatorService } from '../../../domains/learning-optimization/services/learning-coordinator.js';
 import { MetricsOptimizerService } from '../../../domains/learning-optimization/services/metrics-optimizer.js';
 import { TransferSpecialistService } from '../../../domains/learning-optimization/services/transfer-specialist.js';
 import { toErrorMessage } from '../../../shared/error-utils.js';
-import { secureRandom, secureRandomFloat } from '../../../shared/utils/crypto-random.js';
 import {
-  Experience,
   PatternContext,
   Strategy as DomainStrategy,
   OptimizationObjective as DomainObjective,
@@ -50,6 +48,7 @@ export interface OptimizationObjective {
 
 export interface LearningOptimizeResult {
   action: string;
+  evidenceStatus?: 'insufficient-evidence';
   learnResult?: LearnResult;
   optimizeResult?: OptimizeResult;
   transferResult?: TransferResult;
@@ -75,6 +74,10 @@ export interface LearnedPattern {
 }
 
 export interface OptimizeResult {
+  inputSource: 'recorded-experiences';
+  experiencesUsed: number;
+  evidenceStatus?: 'insufficient-evidence';
+  unmeasured?: string[];
   strategiesEvaluated: number;
   bestStrategy: Strategy;
   improvement: number;
@@ -207,6 +210,9 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
             return { success: false, error: 'Objective is required for optimize action' };
           }
           result.optimizeResult = await this.executeOptimize(domain, objective, context);
+          if (result.optimizeResult.evidenceStatus === 'insufficient-evidence') {
+            result.evidenceStatus = 'insufficient-evidence';
+          }
           break;
         case 'transfer':
           if (!domain || !targetDomain) {
@@ -373,31 +379,14 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
     // Get recent experiences for optimization
     const targetDomain = domain || 'learning-optimization';
     const timeRange = TimeRange.lastNDays(30);
-    const mineResult = await learningCoordinator.mineExperiences(targetDomain, timeRange);
-
-    // Build experiences array from mined data
-    const experiences: Experience[] = [];
-    if (mineResult.success && mineResult.value.experienceCount > 0) {
-      // Mine experiences provides insights, so we construct dummy experiences for optimization
-      // Real implementation would fetch actual experiences from memory
-      const dummyAgentId: AgentId = { value: 'optimizer-agent', domain: targetDomain, type: 'optimizer' };
-      for (let i = 0; i < Math.min(mineResult.value.experienceCount, 20); i++) {
-        experiences.push({
-          id: `exp-${i}`,
-          agentId: dummyAgentId,
-          domain: targetDomain,
-          action: 'optimize',
-          state: { context: {}, metrics: {} },
-          result: {
-            success: secureRandom() > 0.3,
-            outcome: { [objective.metric]: secureRandomFloat(70, 100) },
-            duration: secureRandomFloat(1000, 6000),
-          },
-          reward: mineResult.value.avgReward,
-          timestamp: new Date(),
-        });
-      }
-    }
+    const recorded = await learningCoordinator.getExperiences(targetDomain, timeRange);
+    if (!recorded.success) throw recorded.error;
+    // Missing objective values are absence of evidence, not zero or a random
+    // synthetic observation. Preserve eligible records (including failures).
+    const experiences = recorded.value.filter(experience => {
+      const value = experience.result.outcome[objective.metric];
+      return typeof value === 'number' && Number.isFinite(value);
+    });
 
     // Create current strategy
     const currentStrategy: DomainStrategy = {
@@ -425,7 +414,7 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
     // Run optimization if we have enough experiences
     let bestStrategy: Strategy = currentStrategy;
     let improvement = 0;
-    let confidence = 0.5;
+    let confidence = 0;
     let validationResults: ValidationResult[] = [];
 
     if (experiences.length >= 20) {
@@ -435,33 +424,37 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
         experiences
       );
 
-      if (optimizeResult.success) {
-        bestStrategy = {
-          name: optimizeResult.value.optimizedStrategy.name,
-          parameters: optimizeResult.value.optimizedStrategy.parameters,
-          expectedOutcome: optimizeResult.value.optimizedStrategy.expectedOutcome,
-        };
-        improvement = optimizeResult.value.improvement * 100; // Convert to percentage
-        confidence = optimizeResult.value.confidence;
-        validationResults = optimizeResult.value.validationResults;
-      }
+      if (!optimizeResult.success) throw optimizeResult.error;
+      bestStrategy = {
+        name: optimizeResult.value.optimizedStrategy.name,
+        parameters: optimizeResult.value.optimizedStrategy.parameters,
+        expectedOutcome: optimizeResult.value.optimizedStrategy.expectedOutcome,
+      };
+      improvement = optimizeResult.value.improvement * 100; // Convert to percentage
+      confidence = optimizeResult.value.confidence;
+      validationResults = optimizeResult.value.validationResults;
     } else {
       // Not enough data - recommend default strategy
       const contextForRecommendation: PatternContext = {
         tags: [targetDomain, objective.metric],
       };
       const recommendResult = await metricsOptimizer.recommendStrategy(contextForRecommendation);
-      if (recommendResult.success) {
-        bestStrategy = {
-          name: recommendResult.value.name,
-          parameters: recommendResult.value.parameters,
-          expectedOutcome: recommendResult.value.expectedOutcome,
-        };
-      }
+      if (!recommendResult.success) throw recommendResult.error;
+      bestStrategy = {
+        name: recommendResult.value.name,
+        parameters: recommendResult.value.parameters,
+        expectedOutcome: recommendResult.value.expectedOutcome,
+      };
     }
 
     return {
-      strategiesEvaluated: experiences.length > 0 ? Math.min(experiences.length, 12) : 1,
+      inputSource: 'recorded-experiences',
+      experiencesUsed: experiences.length,
+      strategiesEvaluated: experiences.length >= 20 ? 1 : 0,
+      ...(experiences.length < 20 ? {
+        evidenceStatus: 'insufficient-evidence' as const,
+        unmeasured: ['improvement', 'confidence'],
+      } : {}),
       bestStrategy,
       improvement,
       confidence,
