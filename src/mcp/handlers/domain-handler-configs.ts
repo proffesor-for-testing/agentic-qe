@@ -254,6 +254,11 @@ export interface DefectPredictParams {
 }
 
 export interface DefectPredictResult {
+  filesAnalyzed?: number;
+  filesSkipped?: number;
+  scanStatus?: 'partial' | 'complete';
+  predictionMethod?: 'static-code-indicators';
+  estimated?: boolean;
   taskId: string;
   status: string;
   predictedDefects: Array<{
@@ -1094,6 +1099,11 @@ export const defectPredictConfig: DomainHandlerConfig<DefectPredictParams, Defec
   mapToResult: (taskId, data, duration, savedFiles) => ({
     taskId,
     status: 'completed',
+    ...(data.predictionMethod === 'static-code-indicators' ? {
+      predictionMethod: 'static-code-indicators', estimated: true,
+      filesAnalyzed: data.filesAnalyzed as number, filesSkipped: data.filesSkipped as number,
+      scanStatus: data.scanStatus as 'partial' | 'complete',
+    } : {}),
     predictedDefects: (data.predictedDefects as Array<{ file: string; probability: number; reason: string }>) || [],
     riskScore: (data.riskScore as number) || 0,
     recommendations: (data.recommendations as string[]) || [],

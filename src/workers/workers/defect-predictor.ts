@@ -8,10 +8,14 @@
  *
  * #1043: every prediction comes from a run of the defect-intelligence
  * predictor (`defect-intelligence:predictor:prediction:<id>` in the
- * `defect-intelligence` namespace, written by DefectPredictorService), and
+ * `defect-intelligence` namespace, written by DefectPredictorService or the
+ * public MCP handler), and
  * only files that exist in the project are kept. Code hotspots have no
  * measured source and are reported unmeasured. Nothing predicted → nothing
- * stored, an "unmeasured" info finding. A `defect:predictions` record without
+ * stored, an "unmeasured" info finding. A recorded static scan is labelled
+ * `estimated: true` with its prediction method: `measured` means an actual
+ * analysis ran, not that its risk estimate is a calibrated probability.
+ * A `defect:predictions` record without
  * the measured stamp (the invented one written by <= 3.15.6) is ignored and
  * replaced by the next measured run.
  */
@@ -68,6 +72,9 @@ interface MeasuredDefectPredictions {
   schemaVersion: typeof SCHEMA_VERSION;
   source: 'defect-intelligence';
   predictionId: string;
+  predictionMethod?: 'static-code-indicators';
+  filesSkipped?: number;
+  estimated?: true;
   predictedAt: string;
   evaluatedAt: string;
   predictions: DomainFilePrediction[];
@@ -136,14 +143,24 @@ function parseFilePrediction(raw: unknown): DomainFilePrediction | null {
 
 /** A recorded prediction run, or `null` when the record is not a usable one. */
 function parsePredictionRecord(raw: unknown, now: number):
-  { id: string; timestamp: string; predictions: DomainFilePrediction[] } | null {
+  {
+    id: string; timestamp: string; predictions: DomainFilePrediction[];
+    predictionMethod?: 'static-code-indicators'; estimated?: true; filesSkipped?: number;
+  } | null {
   if (!isRecord(raw) || typeof raw.id !== 'string' || typeof raw.timestamp !== 'string') return null;
   const t = Date.parse(raw.timestamp);
   if (!Number.isFinite(t) || t > now + 60_000 || now - t > MAX_PREDICTION_AGE_MS) return null;
   if (!Array.isArray(raw.predictions) || raw.predictions.length === 0) return null;
   const predictions = raw.predictions.map(parseFilePrediction);
   if (predictions.some((p) => p === null)) return null;
-  return { id: raw.id, timestamp: raw.timestamp, predictions: predictions as DomainFilePrediction[] };
+  return {
+    id: raw.id, timestamp: raw.timestamp, predictions: predictions as DomainFilePrediction[],
+    ...(raw.predictionMethod === 'static-code-indicators' ? {
+      predictionMethod: 'static-code-indicators', estimated: true,
+      filesSkipped: typeof raw.filesSkipped === 'number' && Number.isSafeInteger(raw.filesSkipped) && raw.filesSkipped >= 0
+        ? raw.filesSkipped : 0,
+    } : {}),
+  };
 }
 
 export class DefectPredictorWorker extends BaseWorker {
@@ -166,7 +183,9 @@ export class DefectPredictorWorker extends BaseWorker {
         severity: 'info',
         domain: 'defect-intelligence',
         title: 'Defect Prediction Unmeasured',
-        description: (unusable
+        description: (unusable?.ambiguous
+          ? 'Multiple defect predictions have the same timestamp, so no unique latest analysis can be identified. No risk is reported. '
+          : unusable
           ? `The latest defect prediction (${unusable.id}) names no file inside this project ` +
             `(${unusable.outside} outside the project root, ${unusable.missing} missing), so no risk is reported. `
           : 'No defect prediction for files in this project has been recorded in the last 7 days, so no risk is reported. ') +
@@ -194,7 +213,14 @@ export class DefectPredictorWorker extends BaseWorker {
     }
 
     const { predictions } = latest;
-    this.analyzeHighRiskPredictions(predictions, findings, recommendations);
+    if (latest.filesSkipped) {
+      findings.push({
+        type: 'defect-prediction-partial', severity: 'info', domain: 'defect-intelligence',
+        title: 'Partial Defect Prediction',
+        description: `${latest.filesSkipped} source files could not be read; risk estimates cover only ${predictions.length} successfully analyzed files.`,
+      });
+    }
+    this.analyzeHighRiskPredictions(predictions, findings, recommendations, latest.estimated === true);
 
     await context.memory.set(PREDICTIONS_KEY, latest);
     await context.memory.set('defect:lastAnalysis', latest.evaluatedAt);
@@ -217,6 +243,8 @@ export class DefectPredictorWorker extends BaseWorker {
         trend: 'stable',
         domainMetrics: {
           filesAnalyzed: predictions.length,
+          filesSkipped: latest.filesSkipped ?? 0,
+          scanStatus: latest.filesSkipped ? 'partial' : 'complete',
           highRiskFiles: highRisk,
           missingFilesSkipped: latest.missingFilesSkipped,
           outsideProjectSkipped: latest.outsideProjectSkipped,
@@ -247,22 +275,36 @@ export class DefectPredictorWorker extends BaseWorker {
    * #1043: the most recent prediction run the defect-intelligence predictor
    * recorded, restricted to regular files whose real path is inside the
    * project root. `measured` is `null` when there is no such prediction;
-   * `unusable` describes a newest prediction none of whose files qualify.
+   * `unusable` describes an ambiguous newest timestamp or a newest prediction
+   * none of whose files qualify.
    */
   private async readLatestPrediction(context: WorkerContext): Promise<{
     measured: MeasuredDefectPredictions | null;
-    unusable: { id: string; outside: number; missing: number } | null;
+    unusable: { id: string; outside: number; missing: number; ambiguous?: true } | null;
   }> {
     const keys = await context.memory.search(PREDICTION_KEY_PATTERN, MAX_PREDICTION_RECORDS, { namespace: DEFECT_NAMESPACE });
     const now = Date.now();
     let latest: ReturnType<typeof parsePredictionRecord> = null;
+    let ambiguous = false;
     for (const found of keys) {
       // #1049: the in-memory backend returns `<namespace>:<key>` from a namespaced search.
       const key = bareSearchKey(found, DEFECT_NAMESPACE, PREDICTION_KEY_PATTERN);
       const parsed = parsePredictionRecord(await context.memory.get<unknown>(key, { namespace: DEFECT_NAMESPACE }), now);
-      if (parsed && (!latest || Date.parse(parsed.timestamp) > Date.parse(latest.timestamp))) latest = parsed;
+      if (!parsed) continue;
+      if (!latest || Date.parse(parsed.timestamp) > Date.parse(latest.timestamp)) {
+        latest = parsed;
+        ambiguous = false;
+      } else if (Date.parse(parsed.timestamp) === Date.parse(latest.timestamp) && parsed.id !== latest.id) {
+        ambiguous = true;
+      }
     }
     if (!latest) return { measured: null, unusable: null };
+    // Timestamp precision cannot establish ordering between concurrent runs.
+    // Never let backend key ordering decide whether the current scan is clean.
+    if (ambiguous) return {
+      measured: null,
+      unusable: { id: `ambiguous:${latest.timestamp}`, outside: 0, missing: 0, ambiguous: true },
+    };
 
     const realRoot = realProjectRoot();
     const disposition = latest.predictions.map((p) => classifyPredictedFile(p.file, realRoot));
@@ -281,6 +323,7 @@ export class DefectPredictorWorker extends BaseWorker {
       schemaVersion: SCHEMA_VERSION,
       source: 'defect-intelligence',
       predictionId: latest.id,
+      ...(latest.estimated ? { estimated: true, predictionMethod: latest.predictionMethod, filesSkipped: latest.filesSkipped } : {}),
       predictedAt: latest.timestamp,
       evaluatedAt: new Date().toISOString(),
       predictions: existing,
@@ -292,7 +335,8 @@ export class DefectPredictorWorker extends BaseWorker {
   private analyzeHighRiskPredictions(
     predictions: DomainFilePrediction[],
     findings: WorkerFinding[],
-    recommendations: WorkerRecommendation[]
+    recommendations: WorkerRecommendation[],
+    estimated = false,
   ): void {
     const critical = predictions.filter(p => p.riskLevel === 'critical');
     const high = predictions.filter(p => p.riskLevel === 'high');
@@ -304,10 +348,13 @@ export class DefectPredictorWorker extends BaseWorker {
         severity: prediction.riskLevel as 'critical' | 'high',
         domain: 'defect-intelligence',
         title: `${prediction.riskLevel === 'critical' ? 'Critical' : 'High'} Defect Risk: ${name}`,
-        description: `${(prediction.probability * 100).toFixed(0)}% predicted defect probability (defect-intelligence predictor)`,
+        description: estimated
+          ? `${(prediction.probability * 100).toFixed(0)}% estimated code-risk score (static-code-indicators); not a calibrated defect probability`
+          : `${(prediction.probability * 100).toFixed(0)}% predicted defect probability (defect-intelligence predictor)`,
         resource: prediction.file,
         context: {
           probability: prediction.probability,
+          ...(estimated ? { estimated: true, predictionMethod: 'static-code-indicators' } : {}),
           factors: prediction.factors,
           recommendations: prediction.recommendations,
         },

@@ -6,6 +6,7 @@
  */
 
 import * as fs from 'fs/promises';
+import { randomUUID } from 'node:crypto';
 import * as path from 'path';
 import { ok, err } from '../../shared/types';
 import { toError } from '../../shared/error-utils.js';
@@ -159,7 +160,7 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
     };
 
     try {
-      const targetPath = payload.target || process.cwd();
+      const targetPath = path.resolve(payload.target || process.cwd());
       const minConfidence = payload.minConfidence || 0.5;
 
       // Discover actual source files in the target directory
@@ -179,7 +180,12 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
 
       // Analyze each file for defect indicators based on real metrics
       const predictedDefects: Array<{ file: string; probability: number; reason: string }> = [];
+      const predictions: Array<{
+        file: string; probability: number; riskLevel: string;
+        factors: Array<{ name: string; contribution: number }>; recommendations: string[];
+      }> = [];
 
+      let filesSkipped = 0;
       for (const filePath of sourceFiles) {
         try {
           const content = await fs.readFile(filePath, 'utf-8');
@@ -236,6 +242,19 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
 
           probability = Math.min(probability, 0.95);
 
+          // Keep every analyzed file, including a clean reanalysis below the
+          // display threshold. Absolute paths retain the project-relative
+          // identity when the caller targeted a nested directory (#1050).
+          const roundedProbability = Math.round(probability * 100) / 100;
+          predictions.push({
+            file: path.resolve(filePath),
+            probability: roundedProbability,
+            riskLevel: probability >= 0.8 ? 'critical' : probability >= 0.6 ? 'high'
+              : probability >= 0.4 ? 'medium' : probability >= 0.2 ? 'low' : 'info',
+            factors: [{ name: 'staticCodeIndicators', contribution: roundedProbability }],
+            recommendations: reasons,
+          });
+
           if (probability >= minConfidence) {
             // Use relative path for readability
             const relativePath = filePath.startsWith(targetPath)
@@ -248,9 +267,28 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
             });
           }
         } catch {
+          filesSkipped++;
           // Skip files that can't be read
         }
       }
+
+      if (predictions.length === 0) {
+        return err(new Error(`Defect prediction could not read any of ${sourceFiles.length} source files`));
+      }
+
+      // Record the run in the schema consumed by the background worker.
+      // These are static risk estimates from files actually read, not an
+      // empirically calibrated likelihood of future production defects.
+      const id = randomUUID();
+      await ctx.memory.set(`defect-intelligence:predictor:prediction:${id}`, {
+        id,
+        timestamp: new Date().toISOString(),
+        predictions,
+        predictionMethod: 'static-code-indicators',
+        estimated: true,
+        filesSkipped,
+        scanStatus: filesSkipped > 0 ? 'partial' : 'complete',
+      }, { namespace: 'defect-intelligence', ttl: 86400 * 7 });
 
       // Sort by probability descending
       predictedDefects.sort((a, b) => b.probability - a.probability);
@@ -264,7 +302,7 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
       // Generate recommendations from actual findings
       const recommendations: string[] = [];
       if (predictedDefects.length > 0) {
-        recommendations.push(`${predictedDefects.length} files flagged for potential defects out of ${sourceFiles.length} analyzed`);
+        recommendations.push(`${predictedDefects.length} files flagged for potential defects out of ${predictions.length} analyzed`);
         const topFile = predictedDefects[0];
         recommendations.push(`Highest risk: ${topFile.file} (${Math.round(topFile.probability * 100)}%) — ${topFile.reason}`);
       }
@@ -275,14 +313,20 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
         recommendations.push('Address TODO/FIXME comments to reduce technical debt');
       }
       if (predictedDefects.length === 0) {
-        recommendations.push('No files exceeded the defect probability threshold — code looks healthy');
+        recommendations.push(filesSkipped > 0
+          ? `No analyzed files exceeded the threshold; ${filesSkipped} unreadable source files remain unassessed`
+          : 'No files exceeded the defect probability threshold — code looks healthy');
       }
 
       return ok({
         predictedDefects: predictedDefects.slice(0, 20), // Top 20
         riskScore,
         recommendations,
-        filesAnalyzed: sourceFiles.length,
+        filesAnalyzed: predictions.length,
+        filesSkipped,
+        scanStatus: filesSkipped > 0 ? 'partial' : 'complete',
+        predictionMethod: 'static-code-indicators',
+        estimated: true,
       });
     } catch (error) {
       return err(toError(error));
