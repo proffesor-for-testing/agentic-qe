@@ -148,7 +148,7 @@ export class CodeIntelligencePlugin extends BaseDomainPlugin {
   // ============================================================================
 
   protected override getTaskHandlers(): Map<string, TaskHandler> {
-    return new Map([
+    const handlers = new Map<string, TaskHandler>([
       ['index', async (payload): Promise<Result<unknown, Error>> => {
         if (!this.coordinator) {
           return err(new Error('Coordinator not initialized'));
@@ -212,6 +212,10 @@ export class CodeIntelligencePlugin extends BaseDomainPlugin {
         });
       }],
     ]);
+    // `index-code` is the public Queen TaskType inferred by task_orchestrate.
+    // Both names share one execution handler and the same result lifecycle.
+    handlers.set('index-code', handlers.get('index')!);
+    return handlers;
   }
 
   // ============================================================================
