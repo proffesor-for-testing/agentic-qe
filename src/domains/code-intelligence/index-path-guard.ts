@@ -79,10 +79,18 @@ export async function confineIndexPaths(
 ): Promise<ConfinedIndexPaths> {
   const accepted: string[] = [];
   const skipped: SkippedIndexPath[] = [];
-  const rootReal = await fs.realpath(projectRoot).catch(() => path.resolve(projectRoot));
+  const rootLexical = path.resolve(projectRoot);
+  const rootReal = await fs.realpath(projectRoot).catch(() => rootLexical);
 
   for (const requested of paths) {
     const lexical = path.resolve(basePath, requested);
+    // A path that is not even spelled inside the root is refused before any
+    // filesystem call, so the reason cannot reveal whether an outside path
+    // exists or is readable.
+    if (!isWithin(rootLexical, lexical) && !isWithin(rootReal, lexical)) {
+      skipped.push({ path: requested, reason: 'outside-project-root' });
+      continue;
+    }
     let real: string;
     try {
       real = await fs.realpath(lexical);

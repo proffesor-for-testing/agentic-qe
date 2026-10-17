@@ -56,6 +56,30 @@ describe('index path guard (#1096)', () => {
       ]);
     });
 
+    it('gives the same reason for every outside path, whether it exists or not', async () => {
+      const outside = [
+        path.join(base, 'outside', 'secret.ts'),
+        path.join(base, 'outside', 'missing.ts'),
+        path.join(base, 'outside'),
+        path.join(base, 'proj-evil', 'x.ts'),
+      ];
+      const result = await confineIndexPaths(outside, project);
+
+      expect(result.accepted).toEqual([]);
+      expect(result.skipped).toEqual(outside.map((p) => ({ path: p, reason: 'outside-project-root' })));
+    });
+
+    it('accepts an in-root file named through the real path of a symlinked root', async () => {
+      const link = path.join(base, 'rootlink');
+      fs.symlinkSync('proj', link);
+
+      const viaReal = await confineIndexPaths([p('src/ok.ts')], link);
+      const viaLink = await confineIndexPaths([path.join(link, 'src', 'ok.ts')], link);
+
+      expect(viaReal.accepted).toEqual([p('src/ok.ts')]);
+      expect(viaLink.accepted).toEqual([path.join(link, 'src', 'ok.ts')]);
+    });
+
     it('resolves relative paths against the base path', async () => {
       const result = await confineIndexPaths(['src/ok.ts', 'src/leak.ts'], project, project);
 
