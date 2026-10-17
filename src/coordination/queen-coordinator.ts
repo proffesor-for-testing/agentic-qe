@@ -91,6 +91,7 @@ import { DynamicScaler, createDynamicScaler } from './dynamic-scaling/index.js';
 // Types, interfaces, constants, and config
 import {
   DEFAULT_QUEEN_CONFIG,
+  TASK_DOMAIN_MAP,
   initializeTaskDomainMap,
 } from './queen-types.js';
 
@@ -112,6 +113,7 @@ export { DOMAIN_GROUPS, TASK_DOMAIN_MAP } from './queen-types.js';
 
 import type {
   QueenTask,
+  TaskType,
   TaskExecution,
   QueenMetrics,
   QueenConfig,
@@ -375,6 +377,38 @@ export class QueenCoordinator implements IQueenCoordinator {
   // ============================================================================
   // Task Management
   // ============================================================================
+
+  /**
+   * #1075: check that a domain plugin will actually execute this task type
+   * before an external caller submits it. A type that no candidate domain
+   * handles falls through to the `TaskAssigned` event fallback in
+   * `assignTaskToDomain`, which never reports a terminal result, so the task
+   * would stay `running` and hold a concurrency slot for good.
+   *
+   * Every candidate domain must handle the type, because `assignTask` may pick
+   * any of them. Queens built without domain plugins cannot be checked and
+   * accept the type unchanged.
+   */
+  validateTaskExecutable(type: TaskType, targetDomains: readonly DomainName[] = []): Result<void, Error> {
+    const candidates = targetDomains.length > 0 ? targetDomains : TASK_DOMAIN_MAP[type] ?? [];
+    if (candidates.length === 0) {
+      return err(new Error(`Unknown task type '${type}': no domain is configured for it. Pass a target domain.`));
+    }
+    if (!this.domainPlugins) return ok(undefined);
+
+    const gaps: string[] = [];
+    for (const domain of candidates) {
+      const plugin = this.domainPlugins.get(domain);
+      if (!plugin) {
+        gaps.push(`${domain} (domain not loaded)`);
+      } else if (!plugin.executeTask || !plugin.canHandleTask?.(type)) {
+        const supported = plugin.getSupportedTaskTypes?.() ?? [];
+        gaps.push(supported.length > 0 ? `${domain} (supported: ${supported.join(', ')})` : domain);
+      }
+    }
+    if (gaps.length === 0) return ok(undefined);
+    return err(new Error(`No handler for task type '${type}' in domain ${gaps.join('; ')}`));
+  }
 
   async submitTask(taskInput: Omit<QueenTask, 'id' | 'createdAt'>): Promise<Result<string, Error>> {
     if (!this.initialized) {

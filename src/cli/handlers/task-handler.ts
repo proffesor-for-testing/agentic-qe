@@ -117,6 +117,14 @@ export class TaskHandler implements ICommandHandler {
       const payload = parseJsonOption(options.payload, 'payload');
       const targetDomains = options.domain ? [options.domain as DomainName] : [];
 
+      // #1075: reject a type that no domain plugin executes instead of waiting
+      // out the timeout on a task that can never finish.
+      const executable = context.queen!.validateTaskExecutable(taskType, targetDomains);
+      if (!executable.success) {
+        console.error(chalk.red(`\n  ${executable.error.message}\n`));
+        return this.cleanupAndExit(1);
+      }
+
       console.log(chalk.blue(`\n  Submitting task: ${taskType}\n`));
 
       // Use spinner for submit operation
