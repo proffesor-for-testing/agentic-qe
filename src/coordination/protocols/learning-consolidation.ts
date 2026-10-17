@@ -486,8 +486,14 @@ export class LearningConsolidationProtocol {
       const retainedPatterns: LearnedPattern[] = [];
       const toArchive: LearnedPattern[] = [];
 
+      // Patterns in their grace period are never merged either: a merge
+      // archives every source pattern (#1071).
+      retainedPatterns.push(...patterns.filter((p) => this.isInGracePeriod(p)));
+
       // Group similar patterns for merging
-      const similarGroups = this.groupSimilarPatterns(patterns);
+      const similarGroups = this.groupSimilarPatterns(
+        patterns.filter((p) => !this.isInGracePeriod(p))
+      );
 
       for (const group of similarGroups) {
         if (group.length >= 2 && this.config.dryRun) {
@@ -512,7 +518,7 @@ export class LearningConsolidationProtocol {
         } else {
           // Single pattern - check if it should be retained
           const pattern = group[0];
-          if (this.isInGracePeriod(pattern) || this.shouldRetainPattern(pattern)) {
+          if (this.shouldRetainPattern(pattern)) {
             retainedPatterns.push(pattern);
           } else {
             removedPatterns.push({

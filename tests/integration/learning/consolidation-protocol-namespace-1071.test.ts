@@ -169,6 +169,33 @@ describe('#1071 consolidation protocol on the learning namespace (real SQLite)',
     expect(await memory.get(`learning:pattern:archived:${ids.oldLow}`, NS)).toBeUndefined();
   });
 
+  it('never merges a pattern inside the retention grace period', async () => {
+    // Make all three similar: the two aged ones may merge, the young one must not.
+    for (const id of [ids.oldLow, ids.youngLow]) {
+      const stored = await memory.get<LearnedPattern>(`learning:pattern:${id}`, NS);
+      await memory.set(`learning:pattern:${id}`, { ...stored!, context: { ...stored!.context, language: 'go' } }, { ...NS, persist: true });
+    }
+    const youngBefore = await memory.get(`learning:pattern:${ids.youngLow}`, NS);
+
+    const result = await protocol({ dryRun: false }).execute();
+    if (!result.success) throw result.error;
+
+    const merged = result.value.domainReports.flatMap((r) => r.mergedPatterns.flatMap((m) => m.sourcePatternIds)).sort();
+    expect(merged).toEqual([ids.oldLow, ids.healthy].sort());
+    expect(await memory.get(`learning:pattern:${ids.youngLow}`, NS)).toEqual(youngBefore);
+    expect(await memory.get(`learning:pattern:archived:${ids.youngLow}`, NS)).toBeUndefined();
+  });
+
+  it('leaves a selected pattern active when it was used after selection', async () => {
+    const selected = await memory.get<LearnedPattern>(`learning:pattern:${ids.oldLow}`, NS);
+    const used = { ...selected!, usageCount: selected!.usageCount + 1, lastUsedAt: new Date() };
+    await memory.set(`learning:pattern:${ids.oldLow}`, used, { ...NS, persist: true });
+
+    expect(await archiveSelectedPattern(memory, selected!)).toBe('missing');
+    expect(await memory.get(`learning:pattern:${ids.oldLow}`, NS)).toEqual(JSON.parse(JSON.stringify(used)));
+    expect(await memory.get(`learning:pattern:archived:${ids.oldLow}`, NS)).toBeUndefined();
+  });
+
   it('reads back the results it stored', async () => {
     await protocol({ dryRun: false }).execute();
     const previous = await protocol().getPreviousConsolidations(5);

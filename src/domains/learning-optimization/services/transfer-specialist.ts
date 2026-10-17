@@ -403,10 +403,13 @@ export class TransferSpecialistService implements IKnowledgeSynthesisService {
   ): Promise<Result<TransferResult[]>> {
     try {
       // #1071: read project knowledge from the namespace it is written to
-      // below, every key, in key order.
-      const keys = await searchAllKeys(this.memory, `learning:knowledge:project:${sourceProject}:*`, {
-        retrieve: LEARNING_NS,
-      });
+      // below, every key, in key order. The scan is a glob (and
+      // case-insensitive on SQLite), so keep only this project's own
+      // `<prefix><id>` keys: `ALPHA` or `alpha:sub` must not leak into `alpha`.
+      const prefix = `learning:knowledge:project:${sourceProject}:`;
+      const keys = (await searchAllKeys(this.memory, `${prefix}*`, { retrieve: LEARNING_NS })).filter(
+        (key) => key.startsWith(prefix) && !key.slice(prefix.length).includes(':'),
+      );
       const results: TransferResult[] = [];
 
       for (const key of keys) {

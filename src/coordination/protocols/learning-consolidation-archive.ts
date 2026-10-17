@@ -9,8 +9,9 @@
  *
  * Safety rules:
  * - Only the active key of a pattern the protocol selected is deleted.
- * - The active record must still be the selected pattern (same id) when the
- *   archive runs, or nothing is written or deleted.
+ * - The active record must still be the selected pattern (same id, and the
+ *   same scores and last use) when the archive runs, or nothing is written or
+ *   deleted. A pattern used or re-scored since it was selected is left active.
  * - The archive copy is read back before the active key is deleted, so a
  *   failed write never loses the pattern.
  */
@@ -52,8 +53,8 @@ export async function archiveSelectedPattern(
   const activeKey = `${LEARNING_PATTERN_KEY_PREFIX}${pattern.id}`;
   if (!isActivePatternKey(activeKey)) return 'missing';
 
-  const current = await memory.get<{ id?: unknown }>(activeKey, LEARNING_NS);
-  if (!current || current.id !== pattern.id) return 'missing';
+  const current = await memory.get<Record<string, unknown>>(activeKey, LEARNING_NS);
+  if (!current || current.id !== pattern.id || changedSinceSelection(current, pattern)) return 'missing';
 
   const archiveKey = `${LEARNING_PATTERN_KEY_PREFIX}archived:${pattern.id}`;
   await memory.set(archiveKey, { ...pattern, archivedAt }, { ...LEARNING_NS, persist: true });
@@ -63,6 +64,17 @@ export async function archiveSelectedPattern(
 
   await memory.delete(activeKey, LEARNING_NS);
   return 'archived';
+}
+
+/** True when the stored record's scores or last use differ from the selected snapshot. */
+function changedSinceSelection(current: Record<string, unknown>, selected: LearnedPattern): boolean {
+  const time = (value: unknown): number => new Date(value as string | number | Date).getTime();
+  return (
+    !Object.is(current.usageCount, selected.usageCount) ||
+    !Object.is(current.confidence, selected.confidence) ||
+    !Object.is(current.successRate, selected.successRate) ||
+    !Object.is(time(current.lastUsedAt), time(selected.lastUsedAt))
+  );
 }
 
 /** True when the pattern was created less than `graceDays` days ago. */

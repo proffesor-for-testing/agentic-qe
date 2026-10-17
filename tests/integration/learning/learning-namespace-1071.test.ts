@@ -215,6 +215,15 @@ describe.each(['sqlite', 'memory'] as const)('#1071 learning namespace reads (%s
       expect(second.value).toHaveLength(3);
     });
 
+    it("reads only the source project's own keys", async () => {
+      await memory.set('learning:knowledge:project:alpha:own', knowledge('own', 'test-generation'), WRITE);
+      await memory.set('learning:knowledge:project:ALPHA:upper', knowledge('upper', 'test-generation'), WRITE);
+      await memory.set('learning:knowledge:project:alpha:sub:nested', knowledge('nested', 'test-generation'), WRITE);
+      const result = await new TransferSpecialistService(memory).bulkTransfer('alpha', 'beta');
+      if (!result.success) throw result.error;
+      expect(result.value).toHaveLength(1);
+    });
+
     it('ignores a same-named key in the default namespace', async () => {
       await memory.set('learning:knowledge:project:alpha:decoy', knowledge('decoy', 'test-generation'), { persist: true });
       const result = await new TransferSpecialistService(memory).bulkTransfer('alpha', 'beta');
