@@ -70,7 +70,11 @@ export class RecoveryPlaybook {
    */
   getRecoveryPlan(serviceName: string): ServiceRecoveryPlan | undefined {
     if (!this.config) return undefined;
-    return this.config.services[serviceName];
+    // Own-property lookup only: a name like `constructor` or `toString` must
+    // not resolve to an Object.prototype member (#1118).
+    return Object.hasOwn(this.config.services, serviceName)
+      ? this.config.services[serviceName]
+      : undefined;
   }
 
   /**
@@ -105,7 +109,9 @@ export class RecoveryPlaybook {
     const defaultMaxRetries = defaults.maxRetries ?? 3;
     const defaultBackoffMs = defaults.backoffMs ?? [2000, 5000, 10_000];
 
-    const services: Record<string, ServiceRecoveryPlan> = {};
+    // Null-prototype map so a service named `__proto__` is stored as an own
+    // key instead of silently replacing the prototype (#1118).
+    const services = Object.create(null) as Record<string, ServiceRecoveryPlan>;
 
     if (raw.services) {
       for (const [name, rawService] of Object.entries(raw.services)) {
@@ -170,7 +176,11 @@ export class RecoveryPlaybook {
    */
   private interpolate(template: string): string {
     return template.replace(/\$\{([^}]+)\}/g, (_match, varName: string) => {
-      return this.variables[varName] ?? _match;
+      // Own properties only: `${constructor}` must stay unresolved rather
+      // than expand to Object's function source (#1118).
+      return Object.hasOwn(this.variables, varName)
+        ? (this.variables[varName] ?? _match)
+        : _match;
     });
   }
 }

@@ -275,6 +275,59 @@ describe('RecoveryPlaybook', () => {
   });
 
   // ==========================================================================
+  // Prototype-safe service and variable names (#1118)
+  // ==========================================================================
+
+  describe('prototype-safe names (#1118)', () => {
+    const svc = (name: string) => `
+services:
+  ${name}:
+    healthCheck: "check"
+    recover: "recover"
+    verify: "verify"
+`;
+
+    it('keeps a service named __proto__ as a listed, retrievable service', () => {
+      playbook.loadFromString(`
+services:
+  "__proto__":
+    healthCheck: "check"
+    recover: "recover"
+    verify: "verify"
+`);
+
+      expect(playbook.listServices()).toEqual(['__proto__']);
+      expect(playbook.getRecoveryPlan('__proto__')?.serviceName).toBe('__proto__');
+    });
+
+    it.each(['constructor', 'toString', 'hasOwnProperty', '__proto__'])(
+      'does not resolve undefined service %s to an Object.prototype member',
+      (name) => {
+        playbook.loadFromString(svc('postgres'));
+        expect(playbook.getRecoveryPlan(name)).toBeUndefined();
+      },
+    );
+
+    it('still resolves a service legitimately named constructor', () => {
+      playbook.loadFromString(svc('constructor'));
+      expect(playbook.getRecoveryPlan('constructor')?.serviceName).toBe('constructor');
+    });
+
+    it('leaves ${constructor} unresolved instead of expanding Object source text', () => {
+      const pb = createRecoveryPlaybook();
+      pb.loadFromString(`
+services:
+  postgres:
+    healthCheck: "echo \${constructor} \${toString}"
+    recover: "recover"
+    verify: "verify"
+`);
+
+      expect(pb.getRecoveryPlan('postgres')!.healthCheck.command).toBe('echo ${constructor} ${toString}');
+    });
+  });
+
+  // ==========================================================================
   // Defaults Fallback
   // ==========================================================================
 
