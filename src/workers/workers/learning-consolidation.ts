@@ -38,7 +38,10 @@ import { getUnifiedMemory, findProjectRoot } from '../../kernel/unified-memory.j
 import { toErrorMessage } from '../../shared/error-utils.js';
 import { ExperienceConsolidator } from '../../learning/experience-consolidation.js';
 import { recordLoopHealth } from '../../learning/loop-health.js';
-import { pruneStaleDreamInsights } from '../../learning/dream/dream-insights-pruner.js';
+import {
+  pruneStaleDreamInsights,
+  DREAM_INSIGHTS_ARCHIVE_TABLE,
+} from '../../learning/dream/dream-insights-pruner.js';
 import { resolveDreamInsightsRetention } from '../worker-env.js';
 import { createLearningMetricsTracker } from '../../learning/metrics-tracker.js';
 
@@ -330,7 +333,7 @@ export class LearningConsolidationWorker extends BaseWorker {
   /**
    * #488 C.2 / #1061: run the dream_insights retention sweep when it is
    * enabled and the first tick after startup has passed. Returns the number
-   * of rows deleted.
+   * of rows moved to the archive table.
    */
   private pruneDreamInsights(findings: WorkerFinding[]): number {
     const retention = resolveDreamInsightsRetention();
@@ -343,22 +346,26 @@ export class LearningConsolidationWorker extends BaseWorker {
     if (Date.now() < this.dreamInsightsPruneNotBefore) return 0;
 
     const db = getUnifiedMemory().getDatabase();
-    const { pruned } = pruneStaleDreamInsights(db, { retentionDays });
+    // #1066: rows are copied to dream_insights_archive and verified first.
+    const { pruned, archived } = pruneStaleDreamInsights(db, { retentionDays });
     if (pruned > 0) {
       // Default log level, stderr only: MCP stdout carries JSON-RPC.
       process.stderr.write(
-        `[AQE] dream_insights retention: deleted ${pruned} unapplied insight(s) ` +
-          `older than ${retentionDays} days ` +
-          `(set AQE_DREAM_INSIGHTS_RETENTION_DAYS=off to keep them)\n`,
+        `[AQE] dream_insights retention: moved ${pruned} unapplied insight(s) ` +
+          `older than ${retentionDays} days to ${DREAM_INSIGHTS_ARCHIVE_TABLE} ` +
+          `(set AQE_DREAM_INSIGHTS_RETENTION_DAYS=off to keep them in place)\n`,
       );
       findings.push({
         type: 'dream-insights-pruned',
         severity: 'info',
         domain: 'learning-optimization',
-        title: 'Stale Dream Insights Pruned',
-        description: `${pruned} unapplied dream insights older than ${retentionDays} days deleted`,
+        title: 'Stale Dream Insights Archived',
+        description:
+          `${pruned} unapplied dream insights older than ${retentionDays} days ` +
+          `moved to ${DREAM_INSIGHTS_ARCHIVE_TABLE}`,
         context: {
           pruned,
+          archived,
           retentionDays,
         },
       });

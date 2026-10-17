@@ -292,6 +292,9 @@ export class WorkerManagerImpl implements IWorkerManager {
     this.running = true;
 
     for (const worker of Array.from(this.workers.values())) {
+      // #1066: startAll may run in the background (MCP startup), so a stop
+      // issued meanwhile must not be followed by more first runs.
+      if (!this.running) break;
       if (worker.config.enabled) {
         await this.startWorker(worker);
       }

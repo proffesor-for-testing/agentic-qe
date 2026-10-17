@@ -190,13 +190,17 @@ AQE_V3_BLOCK_ON_CRITICAL=true
 The MCP server (`aqe-mcp`) starts a background worker daemon and the
 QualityDaemon after it is ready. These variables control them. They are read
 from the MCP server's environment, for example the `env` block that
-`aqe init` writes into `.mcp.json`.
+`aqe init` writes into `.mcp.json`. `aqe daemon start` reads
+`AQE_WORKERS_ENABLED` too: when it is off, the command prints
+`Background workers are disabled (...); QE Quality Daemon not started` and
+exits with code 0, the same as a successful start, so a script cannot tell the
+two apart from the exit code alone.
 
 | Variable | Default | Effect |
 |----------|---------|--------|
-| `AQE_WORKERS_ENABLED` | `true` (unset) | `false`, `0`, `off` or `no` starts neither the worker daemon nor the QualityDaemon. Any other value, or unset, starts both. `aqe init --no-database` writes `false`. |
-| `AQE_DISABLED_WORKERS` | empty | Comma-separated worker ids to skip, for example `learning-consolidation,security-scan`. Unknown ids are reported on stderr and ignored. |
-| `AQE_DREAM_INSIGHTS_RETENTION_DAYS` | `30` | The `learning-consolidation` worker deletes unapplied `dream_insights` rows older than this many days. `0` or `off` disables the sweep. Any value that is not a whole number from 1 to 36500 is rejected with a warning on stderr, and the default applies. |
+| `AQE_WORKERS_ENABLED` | `true` (unset) | `false`, `0`, `off` or `no` starts neither the worker daemon nor the QualityDaemon, and `aqe daemon start` exits (code 0) without starting. Any other value, or unset, starts both. `aqe init --no-database` writes `false`. |
+| `AQE_DISABLED_WORKERS` | empty | Comma-separated worker ids to skip, for example `learning-consolidation,security-scan`. Case does not matter. Unknown ids are reported on stderr when the workers start, and ignored. |
+| `AQE_DREAM_INSIGHTS_RETENTION_DAYS` | `30` | The `learning-consolidation` worker moves unapplied `dream_insights` rows older than this many days to `dream_insights_archive`. `0`, `off`, `false`, `no`, `disable`, `disabled`, `none` or `never` disables the sweep. An empty or whitespace-only value counts as unset, so the 30-day default applies. Any other value that is not a whole number from 1 to 36500 is rejected with a warning on stderr, and the sweep stays off. |
 
 Worker ids: `test-health`, `coverage-tracker`, `flaky-detector`,
 `security-scan`, `quality-gate`, `learning-consolidation`,
@@ -204,15 +208,28 @@ Worker ids: `test-health`, `coverage-tracker`, `flaky-detector`,
 `compliance-checker`, `heartbeat-scheduler`.
 
 The `dream_insights` sweep never runs on the first tick after the server
-starts, so a short MCP session never deletes insights. It runs from the next
-scheduled tick, 30 minutes later. Each deletion is logged on stderr with the
-row count and the retention window, for example
-`[AQE] dream_insights retention: deleted 3 unapplied insight(s) older than 30 days`.
-Deleted rows are not archived, so set `AQE_DREAM_INSIGHTS_RETENTION_DAYS=off`
-if you need to keep the full insight history.
+starts, so a short MCP session never moves insights. It runs from the next
+scheduled tick, 30 minutes later. Each sweep copies the rows to
+`dream_insights_archive` (with an `archived_at` time), reads the copies back,
+and only then deletes them from `dream_insights`, all in one transaction. If
+the copies do not match, nothing is deleted. Each sweep is logged on stderr,
+for example
+`[AQE] dream_insights retention: moved 3 unapplied insight(s) older than 30 days to dream_insights_archive`.
+Set `AQE_DREAM_INSIGHTS_RETENTION_DAYS=off` to keep every insight in
+`dream_insights`.
+
+`dream_insights_archive` has no retention of its own and grows by the rows
+each sweep moves. Each copy has its own `archive_id`, so an insight that is
+swept again later keeps both copies. To trim the archive by hand, stop the
+MCP server, back up `.agentic-qe/memory.db`, then run for example:
 
 ```bash
-# Keep workers but never delete dream insights
+sqlite3 .agentic-qe/memory.db \
+  "DELETE FROM dream_insights_archive WHERE archived_at < datetime('now', '-365 days');"
+```
+
+```bash
+# Keep workers but never move dream insights
 AQE_DREAM_INSIGHTS_RETENTION_DAYS=off
 
 # Keep workers but skip the learning-consolidation worker
