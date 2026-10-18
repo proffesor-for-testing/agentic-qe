@@ -60,6 +60,16 @@ export async function routeInferredTask(type: TaskType, request: OrchestrateRequ
       return { kind: 'route', type: 'sast-scan', domain: 'security-compliance', payload: { files: confined.files } };
     }
 
+    case 'index-code':
+      // #1134: indexing reads exactly the files it is given; without them the
+      // task could only fail after it was accepted. The indexer confines the
+      // paths to the project itself (#1096).
+      if (filePaths.length === 0) {
+        return needs(type, 'no files to index were given. Pass filePaths with the files to index, ' +
+          'or use code_index with a target.');
+      }
+      return { kind: 'as-inferred' };
+
     case 'assess-quality': {
       if (filePaths.length === 0) {
         return needs(type, 'no source files were given. Pass filePaths with the source files to assess, ' +

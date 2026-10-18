@@ -82,12 +82,27 @@ describe('orchestrated index-code task execution', () => {
     expect(after.data.tasks.pending).toBe(0);
   }, 30000);
 
-  it('settles a missing-path request as failed instead of leaking a slot', async () => {
-    const submitted = await call('task_orchestrate', { task: 'index the code knowledge graph' });
-    expect(submitted.success, JSON.stringify(submitted)).toBe(true);
-    const status = await terminal(submitted.data.taskId);
-    expect(status.data, JSON.stringify(status)).toMatchObject({ status: 'failed', error: expect.stringContaining('missing paths') });
+  // #1134: task_submit with the code_index payload shape { target } is
+  // refused at submission; the index handler needs the file list in paths.
+  it('refuses task_submit index-code with a target and no paths, and creates no task', async () => {
+    const before = await call('fleet_status', {});
+    const refused = await call('task_submit', { type: 'index-code', payload: { target: 'src' } });
+    expect(refused.success, JSON.stringify(refused)).toBe(false);
+    expect(refused.error).toContain("Invalid index payload: 'index-code' needs 'paths'");
     const fleet = await call('fleet_status', {});
+    expect(fleet.data.tasks).toEqual(before.data.tasks);
+  }, 30000);
+
+  // #1134: refused at orchestration, before a task exists, instead of
+  // failing after it was accepted.
+  it('refuses a request without filePaths at orchestration and creates no task', async () => {
+    const before = await call('fleet_status', {});
+    const refused = await call('task_orchestrate', { task: 'index the code knowledge graph' });
+    expect(refused.success, JSON.stringify(refused)).toBe(false);
+    expect(refused.error).toContain("task_orchestrate inferred 'index-code' from the description, but no files to index were given");
+    expect(refused.error).toContain('use code_index with a target');
+    const fleet = await call('fleet_status', {});
+    expect(fleet.data.tasks).toEqual(before.data.tasks);
     expect(fleet.data.tasks.running).toBe(0);
     expect(fleet.data.tasks.pending).toBe(0);
   }, 30000);
