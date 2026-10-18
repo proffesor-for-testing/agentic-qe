@@ -126,7 +126,17 @@ export class QEDaemon implements IDaemon {
 
     // Auto-start workers if configured
     if (this.config.autoStart) {
-      await this.workerManager.startAll();
+      try {
+        await this.workerManager.startAll();
+      } catch (error) {
+        // #1116: a failed start must not leave the daemon reporting running.
+        this._running = false;
+        this._startedAt = undefined;
+        if (this._healthCheckTimer) clearInterval(this._healthCheckTimer);
+        this._healthCheckTimer = undefined;
+        await this.workerManager.stopAll().catch(() => undefined);
+        throw error;
+      }
       console.info('[Daemon] All workers started');
     }
 

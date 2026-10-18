@@ -36,6 +36,10 @@
  */
 
 import type { Database as DatabaseType } from 'better-sqlite3';
+import {
+  DREAM_INSIGHTS_ARCHIVE_TABLE,
+  DREAM_INSIGHTS_ARCHIVE_TABLE_SQL as CREATE_ARCHIVE_SQL,
+} from '../../migrations/20261018_add_dream_insights_archive.js';
 
 export interface PruneStaleDreamInsightsOptions {
   /**
@@ -51,35 +55,20 @@ export interface PruneResult {
   pruned: number;
   /** Number of rows copied to `dream_insights_archive` before the delete. */
   archived: number;
+  /**
+   * #1116: stale rows left in place because their `id` is NULL. The archive
+   * needs an id (NOT NULL) and the delete matches on it, so such a row can be
+   * neither copied nor removed safely; before #1116 it made every sweep fail.
+   */
+  skippedNullId: number;
 }
 
 const DEFAULT_RETENTION_DAYS = 30;
 
-/** Table that keeps every insight the sweep removes from `dream_insights`. */
-export const DREAM_INSIGHTS_ARCHIVE_TABLE = 'dream_insights_archive';
-
-// Same columns as dream_insights plus archive_id and archived_at. `id` is not
-// unique here: an insight that comes back (for example from a brain import)
-// and is swept again gets a second row instead of replacing the first. No
-// foreign key, so deleting a dream cycle does not cascade into the archive.
-const CREATE_ARCHIVE_SQL = `
-  CREATE TABLE IF NOT EXISTS ${DREAM_INSIGHTS_ARCHIVE_TABLE} (
-    archive_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    id TEXT NOT NULL,
-    cycle_id TEXT,
-    insight_type TEXT,
-    source_concepts TEXT,
-    description TEXT,
-    novelty_score REAL,
-    confidence_score REAL,
-    actionable INTEGER,
-    applied INTEGER,
-    suggested_action TEXT,
-    pattern_id TEXT,
-    created_at TEXT,
-    archived_at TEXT NOT NULL DEFAULT (datetime('now'))
-  )
-`;
+// #1116: the archive table is part of the versioned schema (v14). The sweep
+// still runs the same idempotent CREATE first, for a database whose schema
+// was not migrated by this version (for example opened directly by a test).
+export { DREAM_INSIGHTS_ARCHIVE_TABLE };
 
 function columnNames(db: DatabaseType, table: string): string[] {
   return (db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).map((c) => c.name);
@@ -89,7 +78,7 @@ function columnNames(db: DatabaseType, table: string): string[] {
  * Archive, then delete, stale unapplied insights. Idempotent — safe to call
  * on every tick.
  *
- * Returns `{ pruned: 0, archived: 0 }` if the table doesn't exist (init hasn't
+ * Returns `{ pruned: 0, archived: 0, skippedNullId: 0 }` if the table doesn't exist (init hasn't
  * created the dream schema yet) or if no rows qualify. Throws, with nothing
  * deleted, if the archive copy cannot be verified.
  */
@@ -107,7 +96,7 @@ export function pruneStaleDreamInsights(
     )
     .get();
   if (!tableExists) {
-    return { pruned: 0, archived: 0 };
+    return { pruned: 0, archived: 0, skippedNullId: 0 };
   }
 
   // One cutoff for every statement below, so the copy, the check and the
@@ -115,13 +104,18 @@ export function pruneStaleDreamInsights(
   const { cutoff } = db
     .prepare(`SELECT datetime('now', ?) AS cutoff`)
     .get(`-${retentionDays} days`) as { cutoff: string };
-  const stale = 'd.applied = 0 AND d.created_at < ?';
+  // #1116: a NULL id cannot be archived or matched for the delete; such rows
+  // stay where they are and are counted instead of failing the sweep.
+  const stale = 'd.applied = 0 AND d.created_at < ? AND d.id IS NOT NULL';
+  const skippedNullId = (db
+    .prepare(`SELECT COUNT(*) AS n FROM dream_insights d WHERE d.applied = 0 AND d.created_at < ? AND d.id IS NULL`)
+    .get(cutoff) as { n: number }).n;
 
   const sweep = db.transaction((): PruneResult => {
     const candidates = (db
       .prepare(`SELECT COUNT(*) AS n FROM dream_insights d WHERE ${stale}`)
       .get(cutoff) as { n: number }).n;
-    if (candidates === 0) return { pruned: 0, archived: 0 };
+    if (candidates === 0) return { pruned: 0, archived: 0, skippedNullId };
 
     db.exec(CREATE_ARCHIVE_SQL);
     const archiveColumns = new Set(columnNames(db, DREAM_INSIGHTS_ARCHIVE_TABLE));
@@ -163,7 +157,7 @@ export function pruneStaleDreamInsights(
     const pruned = db
       .prepare(
         `DELETE FROM dream_insights
-          WHERE applied = 0 AND created_at < ?
+          WHERE applied = 0 AND created_at < ? AND id IS NOT NULL
             AND id IN (SELECT id FROM ${DREAM_INSIGHTS_ARCHIVE_TABLE} WHERE archive_id > ?)`,
       )
       .run(cutoff, mark).changes;
@@ -177,7 +171,7 @@ export function pruneStaleDreamInsights(
         `dream_insights delete check failed: deleted ${pruned} of ${candidates}, ${left} left; rolled back`,
       );
     }
-    return { pruned, archived };
+    return { pruned, archived, skippedNullId };
   });
 
   // #1066 review: IMMEDIATE takes the write lock up front, so a busy database

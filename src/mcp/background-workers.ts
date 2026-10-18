@@ -12,7 +12,25 @@
 
 import { isWorkersEnabled, type WorkerEnv } from '../workers/worker-env.js';
 
-export type BackgroundWorkersOutcome = 'disabled' | 'started' | 'failed';
+/**
+ * #1116: `starting` while the worker daemon's first runs continue in the
+ * background; `startBackgroundWorkers` never reports `started` before they
+ * have finished. The settled state is in `getBackgroundWorkersState()`.
+ */
+export type BackgroundWorkersOutcome = 'disabled' | 'starting' | 'failed';
+
+export interface BackgroundWorkersState {
+  state: 'not-requested' | 'disabled' | 'starting' | 'started' | 'failed';
+  /** Why the start failed, when `state` is `failed`. */
+  error?: string;
+}
+
+let workersState: BackgroundWorkersState = { state: 'not-requested' };
+
+/** Where the worker daemon's start stands now, including a background failure. */
+export function getBackgroundWorkersState(): BackgroundWorkersState {
+  return { ...workersState };
+}
 
 export async function startBackgroundWorkers(
   log: (message: string) => void,
@@ -23,6 +41,7 @@ export async function startBackgroundWorkers(
       `[MCP] Background workers disabled (AQE_WORKERS_ENABLED=${env.AQE_WORKERS_ENABLED}); ` +
         'worker daemon and quality daemon not started\n',
     );
+    workersState = { state: 'disabled' };
     return 'disabled';
   }
 
@@ -41,12 +60,22 @@ export async function startBackgroundWorkers(
     // #1066: start() runs every worker's first tick one after another, which
     // can take minutes. Let it finish in the background so the QualityDaemon
     // (and the HTTP server after us) do not wait for it.
-    void daemon.start().catch((startError: unknown) => {
-      log(`[MCP] WARNING: Background workers failed to start: ${startError}\n`);
-    });
+    // #1116: report `starting` now and the real outcome when it settles, so a
+    // start that fails in the background is never reported as started.
+    workersState = { state: 'starting' };
+    void daemon.start().then(
+      () => {
+        workersState = { state: 'started' };
+        log('[MCP] Background workers started (first runs complete)\n');
+      },
+      (startError: unknown) => {
+        workersState = { state: 'failed', error: String(startError) };
+        log(`[MCP] WARNING: Background workers failed to start: ${startError}\n`);
+      },
+    );
     const status = daemon.getStatus();
     log(
-      `[MCP] Background workers started (${status.workerManager.totalWorkers} workers; ` +
+      `[MCP] Background workers starting (${status.workerManager.totalWorkers} workers; ` +
         'first runs continue in the background)\n',
     );
 
@@ -77,8 +106,9 @@ export async function startBackgroundWorkers(
       log(`[MCP] WARNING: Quality daemon failed to start: ${qdError}\n`);
       // Non-fatal — MCP continues without quality daemon
     }
-    return 'started';
+    return 'starting';
   } catch (daemonError) {
+    workersState = { state: 'failed', error: String(daemonError) };
     log(`[MCP] WARNING: Background workers failed to start: ${daemonError}\n`);
     // Non-fatal — MCP server continues without background workers
     return 'failed';

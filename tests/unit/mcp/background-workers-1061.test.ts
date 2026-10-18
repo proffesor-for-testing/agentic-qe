@@ -24,7 +24,7 @@ vi.mock('../../../src/workers/quality-daemon/persistent-memory.js', () => ({
   PersistentWorkerMemory: class {},
 }));
 
-import { startBackgroundWorkers } from '../../../src/mcp/background-workers';
+import { getBackgroundWorkersState, startBackgroundWorkers } from '../../../src/mcp/background-workers';
 
 describe('#1061 startBackgroundWorkers honours AQE_WORKERS_ENABLED', () => {
   beforeEach(() => {
@@ -48,7 +48,7 @@ describe('#1061 startBackgroundWorkers honours AQE_WORKERS_ENABLED', () => {
   it('starts both daemons when AQE_WORKERS_ENABLED is unset (unchanged default)', async () => {
     const outcome = await startBackgroundWorkers(vi.fn(), {});
 
-    expect(outcome).toBe('started');
+    expect(outcome).toBe('starting');
     expect(daemonStart).toHaveBeenCalledTimes(1);
     expect(qualityStart).toHaveBeenCalledTimes(1);
   });
@@ -56,7 +56,7 @@ describe('#1061 startBackgroundWorkers honours AQE_WORKERS_ENABLED', () => {
   it('starts both daemons when AQE_WORKERS_ENABLED=true', async () => {
     const outcome = await startBackgroundWorkers(vi.fn(), { AQE_WORKERS_ENABLED: 'true' });
 
-    expect(outcome).toBe('started');
+    expect(outcome).toBe('starting');
     expect(daemonStart).toHaveBeenCalledTimes(1);
     expect(qualityStart).toHaveBeenCalledTimes(1);
   });
@@ -68,7 +68,7 @@ describe('#1061 startBackgroundWorkers honours AQE_WORKERS_ENABLED', () => {
 
     const outcome = await startBackgroundWorkers(log, {});
 
-    expect(outcome).toBe('started');
+    expect(outcome).toBe('starting');
     expect(qualityStart).toHaveBeenCalledTimes(1);
     expect(log.mock.calls.map((c) => c[0]).join('')).toContain('[MCP] Quality daemon started');
   });
@@ -85,5 +85,29 @@ describe('#1061 startBackgroundWorkers honours AQE_WORKERS_ENABLED', () => {
     expect(log.mock.calls.map((c) => c[0]).join('')).toContain(
       '[MCP] WARNING: Background workers failed to start: Error: boom',
     );
+  });
+
+  it('#1116: reports starting, never started, until the background start settles', async () => {
+    let finish!: () => void;
+    daemonStart.mockImplementationOnce(() => new Promise<undefined>((resolve) => { finish = () => resolve(undefined); }));
+    const log = vi.fn();
+
+    expect(await startBackgroundWorkers(log, {})).toBe('starting');
+    expect(getBackgroundWorkersState()).toEqual({ state: 'starting' });
+    expect(log.mock.calls.map((c) => c[0]).join('')).not.toContain('Background workers started');
+
+    finish();
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(getBackgroundWorkersState()).toEqual({ state: 'started' });
+    expect(log.mock.calls.map((c) => c[0]).join('')).toContain('[MCP] Background workers started (first runs complete)');
+  });
+
+  it('#1116: a background start failure leaves the state failed, with the error', async () => {
+    daemonStart.mockImplementationOnce(async () => { throw new Error('boom'); });
+
+    expect(await startBackgroundWorkers(vi.fn(), {})).toBe('starting');
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(getBackgroundWorkersState()).toEqual({ state: 'failed', error: 'Error: boom' });
   });
 });

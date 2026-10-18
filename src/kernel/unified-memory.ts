@@ -64,6 +64,7 @@ import {
   FEEDBACK_SCHEMA,
   HYPERGRAPH_SCHEMA,
   PATTERN_NULLS_SCHEMA,
+  DREAM_INSIGHTS_ARCHIVE_SCHEMA,
   STATS_TABLES,
 } from './unified-memory-schemas.js';
 import { ensurePatternFtsInSync } from './pattern-fts-self-heal.js';
@@ -560,6 +561,8 @@ export class UnifiedMemoryManager {
         if (currentVersion < 11) this.migrateToV11GoapExecutionSteps();
         if (currentVersion < 12) applyLearningEvidenceMigration(this.db!);
         if (currentVersion < 13) this.migrateToV13EmbeddingSpace();
+        // #1116: additive; a table an earlier sweep created lazily is kept with its rows.
+        if (currentVersion < 14) this.db!.exec(DREAM_INSIGHTS_ARCHIVE_SCHEMA);
 
         this.db!.prepare(`
           INSERT OR REPLACE INTO schema_version (id, version, migrated_at)

@@ -176,7 +176,8 @@ describe('UnifiedMemoryManager', () => {
       expect(tableNames).toContain('schema_version');
       expect(tableNames).toContain('learning_evidence_manifests');
       expect(tableNames).toContain('learning_evidence_admissions');
-      expect((db.prepare('SELECT version FROM schema_version WHERE id = 1').get() as { version: number }).version).toBe(13);
+      expect(tableNames).toContain('dream_insights_archive'); // v14 (#1116)
+      expect((db.prepare('SELECT version FROM schema_version WHERE id = 1').get() as { version: number }).version).toBe(14);
     });
 
     it('upgrades an existing v12 embedding table without trusting legacy vectors', async () => {
@@ -208,7 +209,7 @@ describe('UnifiedMemoryManager', () => {
 
       expect(columns.map((column) => column.name)).toContain('space_id');
       expect(row.spaceId).toBeNull();
-      expect(version.version).toBe(13);
+      expect(version.version).toBe(14);
     });
   });
 

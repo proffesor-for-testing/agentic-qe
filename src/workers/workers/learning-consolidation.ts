@@ -131,6 +131,8 @@ export class LearningConsolidationWorker extends BaseWorker {
   private readonly dreamInsightsPruneNotBefore: number = Date.now() + CONFIG.intervalMs;
   /** #1061: an invalid retention value is reported once per process. */
   private retentionWarningLogged = false;
+  /** #1116: NULL-id stale rows last reported, so the warning is not repeated every tick. */
+  private nullIdRowsReported = 0;
 
   constructor() {
     super(CONFIG);
@@ -347,7 +349,18 @@ export class LearningConsolidationWorker extends BaseWorker {
 
     const db = getUnifiedMemory().getDatabase();
     // #1066: rows are copied to dream_insights_archive and verified first.
-    const { pruned, archived } = pruneStaleDreamInsights(db, { retentionDays });
+    const { pruned, archived, skippedNullId } = pruneStaleDreamInsights(db, { retentionDays });
+    // #1116: rows with a NULL id cannot be archived and are left in place.
+    // Warn when their number changes, not on every tick.
+    if (skippedNullId !== this.nullIdRowsReported) {
+      this.nullIdRowsReported = skippedNullId;
+      if (skippedNullId > 0) {
+        process.stderr.write(
+          `[AQE] WARN dream_insights retention: ${skippedNullId} stale insight(s) have no id and were ` +
+            'left in place (they cannot be archived); the other stale insights were archived as usual\n',
+        );
+      }
+    }
     if (pruned > 0) {
       // Default log level, stderr only: MCP stdout carries JSON-RPC.
       process.stderr.write(
