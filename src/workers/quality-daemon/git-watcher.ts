@@ -7,14 +7,14 @@
  */
 
 import { watch, type FSWatcher } from 'fs';
-import { execFile } from 'child_process';
-import { promisify } from 'util';
 import { resolve, join } from 'path';
 import { existsSync, readFileSync } from 'fs';
 import type { PriorityQueue, GitCommitPayload, QueueItem, DaemonTaskPayload } from './priority-queue';
 import { getGitRefError } from '../../shared/git/ref-validation';
+import { runGit } from '../../shared/git/git-process.js';
 
-const execFileAsync = promisify(execFile);
+/** A hung git must not stall the watcher; its process group is stopped (#1115). */
+const GIT_TIMEOUT_MS = 10_000;
 
 export interface GitWatcherOptions {
   /** Root of the git repository (defaults to cwd) */
@@ -125,11 +125,11 @@ export class GitWatcher {
     const changedBranches: string[] = [];
 
     try {
-      const { stdout } = await execFileAsync('git', [
+      const stdout = await runGit([
         'for-each-ref',
         '--format=%(refname:short) %(objectname:short)',
         'refs/heads/',
-      ], { cwd: this.options.repoRoot });
+      ], { cwd: this.options.repoRoot, timeout: GIT_TIMEOUT_MS });
 
       for (const line of stdout.trim().split('\n')) {
         if (!line) continue;
@@ -193,13 +193,13 @@ export class GitWatcher {
 
     let changedFiles: string[] = [];
     try {
-      const { stdout } = await execFileAsync('git', [
+      const stdout = await runGit([
         'diff-tree',
         '--no-commit-id',
         '--name-only',
         '-r',
         commitHash,
-      ], { cwd: this.options.repoRoot });
+      ], { cwd: this.options.repoRoot, timeout: GIT_TIMEOUT_MS });
 
       changedFiles = stdout
         .trim()
@@ -231,11 +231,11 @@ export class GitWatcher {
 
   private async snapshotHeads(): Promise<void> {
     try {
-      const { stdout } = await execFileAsync('git', [
+      const stdout = await runGit([
         'for-each-ref',
         '--format=%(refname:short) %(objectname:short)',
         'refs/heads/',
-      ], { cwd: this.options.repoRoot });
+      ], { cwd: this.options.repoRoot, timeout: GIT_TIMEOUT_MS });
 
       for (const line of stdout.trim().split('\n')) {
         if (!line) continue;

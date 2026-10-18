@@ -271,3 +271,24 @@ export function runTestRunnerProcess(
     proc.once('close', (status: number | null, signal: NodeJS.Signals | null) => settle(status, signal));
   });
 }
+
+/**
+ * Stdout of a command that must exit 0, run like runTestRunnerProcess (no
+ * blocking, process-group stop on timeout). Rejects with the ETIMEDOUT,
+ * ENOBUFS or spawn error, or with an error carrying `status` and `stderr`.
+ */
+export async function runProcessText(
+  command: string,
+  args: readonly string[],
+  options: TestRunnerProcessOptions,
+): Promise<string> {
+  const result = await runTestRunnerProcess(command, args, options);
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw Object.assign(
+      new Error(`${command} exited with ${result.status ?? result.signal}: ${result.stderr.trim()}`),
+      { status: result.status, stderr: result.stderr },
+    );
+  }
+  return result.stdout;
+}

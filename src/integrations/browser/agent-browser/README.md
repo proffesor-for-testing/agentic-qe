@@ -24,7 +24,7 @@ npm install agent-browser
 import { AgentBrowserCommandExecutor, isAgentBrowserAvailable } from './command-executor';
 
 // Check if agent-browser is available
-if (!isAgentBrowserAvailable()) {
+if (!(await isAgentBrowserAvailable())) {
   console.error('agent-browser CLI not found');
   process.exit(1);
 }
@@ -38,14 +38,14 @@ const executor = new AgentBrowserCommandExecutor({
 });
 
 // Open a URL
-const openResult = executor.open('https://example.com');
+const openResult = await executor.open('https://example.com');
 if (!openResult.success) {
   console.error('Failed to open URL:', openResult.error);
   process.exit(1);
 }
 
 // Get accessibility snapshot
-const snapshot = executor.snapshot({
+const snapshot = await executor.snapshot({
   interactive: true,  // Include interactive elements
   compact: true,      // Compact format
   depth: 3           // Max depth
@@ -54,19 +54,19 @@ const snapshot = executor.snapshot({
 console.log('Snapshot:', snapshot.data);
 
 // Interact with elements
-executor.click('#submit-button');
-executor.fill('#username', 'testuser');
-executor.type('#password', 'password123');
+await executor.click('#submit-button');
+await executor.fill('#username', 'testuser');
+await executor.type('#password', 'password123');
 
 // Wait for elements
-executor.waitForElement('#success-message');
-executor.waitForNetworkIdle();
+await executor.waitForElement('#success-message');
+await executor.waitForNetworkIdle();
 
 // Take screenshot
-const screenshotResult = executor.screenshot('/tmp/screenshot.png', true);
+const screenshotResult = await executor.screenshot('/tmp/screenshot.png', true);
 
 // Clean up
-executor.close();
+await executor.close();
 ```
 
 ## API Reference
@@ -87,10 +87,10 @@ new AgentBrowserCommandExecutor(config?: CommandExecutorConfig)
 
 ```typescript
 // Open URL
-executor.open(url: string): CommandResult<void>
+executor.open(url: string): Promise<CommandResult<void>>
 
 // Close browser
-executor.close(): CommandResult<void>
+executor.close(): Promise<CommandResult<void>>
 ```
 
 ### Snapshots (Key Feature)
@@ -101,26 +101,26 @@ executor.snapshot(options?: {
   interactive?: boolean;  // Include interactive elements
   compact?: boolean;      // Compact format
   depth?: number;         // Max tree depth
-}): CommandResult<string>
+}): Promise<CommandResult<string>>
 ```
 
 ### Element Interactions
 
 ```typescript
 // Click element by ref or selector
-executor.click(target: string): CommandResult<void>
+executor.click(target: string): Promise<CommandResult<void>>
 
 // Fill input (clears first)
-executor.fill(target: string, text: string): CommandResult<void>
+executor.fill(target: string, text: string): Promise<CommandResult<void>>
 
 // Type text (no clearing)
-executor.type(target: string, text: string): CommandResult<void>
+executor.type(target: string, text: string): Promise<CommandResult<void>>
 
 // Get element text
-executor.getText(target: string): CommandResult<string>
+executor.getText(target: string): Promise<CommandResult<string>>
 
 // Check visibility
-executor.isVisible(target: string): CommandResult<boolean>
+executor.isVisible(target: string): Promise<CommandResult<boolean>>
 ```
 
 ### Screenshots
@@ -130,66 +130,66 @@ executor.isVisible(target: string): CommandResult<boolean>
 executor.screenshot(
   path?: string,      // File path (optional, returns base64 if omitted)
   fullPage?: boolean  // Full page screenshot
-): CommandResult<string>
+): Promise<CommandResult<string>>
 ```
 
 ### Wait Commands
 
 ```typescript
 // Wait for element
-executor.waitForElement(target: string, timeout?: number): CommandResult<void>
+executor.waitForElement(target: string, timeout?: number): Promise<CommandResult<void>>
 
 // Wait for text
-executor.waitForText(text: string): CommandResult<void>
+executor.waitForText(text: string): Promise<CommandResult<void>>
 
 // Wait for URL pattern
-executor.waitForUrl(pattern: string): CommandResult<void>
+executor.waitForUrl(pattern: string): Promise<CommandResult<void>>
 
 // Wait for network idle
-executor.waitForNetworkIdle(): CommandResult<void>
+executor.waitForNetworkIdle(): Promise<CommandResult<void>>
 ```
 
 ### Device/Viewport
 
 ```typescript
 // Set device emulation
-executor.setDevice(deviceName: string): CommandResult<void>
+executor.setDevice(deviceName: string): Promise<CommandResult<void>>
 
 // Set viewport size
-executor.setViewport(width: number, height: number): CommandResult<void>
+executor.setViewport(width: number, height: number): Promise<CommandResult<void>>
 ```
 
 ### Network Mocking
 
 ```typescript
 // Mock route
-executor.mockRoute(urlPattern: string, body: unknown): CommandResult<void>
+executor.mockRoute(urlPattern: string, body: unknown): Promise<CommandResult<void>>
 
 // Abort route
-executor.abortRoute(urlPattern: string): CommandResult<void>
+executor.abortRoute(urlPattern: string): Promise<CommandResult<void>>
 
 // Clear all routes
-executor.clearRoutes(): CommandResult<void>
+executor.clearRoutes(): Promise<CommandResult<void>>
 ```
 
 ### State Management
 
 ```typescript
 // Save browser state (cookies, storage)
-executor.saveState(path: string): CommandResult<void>
+executor.saveState(path: string): Promise<CommandResult<void>>
 
 // Load browser state
-executor.loadState(path: string): CommandResult<void>
+executor.loadState(path: string): Promise<CommandResult<void>>
 ```
 
 ### JavaScript Evaluation
 
 ```typescript
 // Evaluate JS in page context
-executor.eval<T>(script: string): CommandResult<T>
+executor.eval<T>(script: string): Promise<CommandResult<T>>
 
 // Example
-const titleResult = executor.eval<string>('document.title');
+const titleResult = await executor.eval<string>('document.title');
 console.log('Page title:', titleResult.data);
 ```
 
@@ -213,7 +213,7 @@ const result = await executor.executeAsync('open', ['https://slow-site.com']);
 
 ## Return Type
 
-All commands return `CommandResult<T>`:
+All commands return a `Promise<CommandResult<T>>`; the command runs without blocking the event loop (#1115):
 
 ```typescript
 interface CommandResult<T = unknown> {
@@ -226,7 +226,7 @@ interface CommandResult<T = unknown> {
 **Usage pattern:**
 
 ```typescript
-const result = executor.click('#button');
+const result = await executor.click('#button');
 if (result.success) {
   console.log('Clicked successfully');
 } else {
@@ -240,7 +240,7 @@ The executor handles all errors gracefully:
 
 ```typescript
 try {
-  const result = executor.open('https://invalid-url');
+  const result = await executor.open('https://invalid-url');
   if (!result.success) {
     // Handle error
     console.error('Operation failed:', result.error);

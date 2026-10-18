@@ -64,7 +64,7 @@ const mockBrowserInstance = { page: vi.fn().mockResolvedValue(mockVibeInstance),
 const mockVibiumBrowser = { start: vi.fn().mockResolvedValue(mockBrowserInstance) };
 vi.mock('../../../src/integrations/vibium/runtime.js', async (importOriginal) => ({
   ...await importOriginal(),
-  isVibiumReady: vi.fn(() => true),
+  isVibiumReady: vi.fn(async () => true),
 }));
 
 // Mock the vibium module

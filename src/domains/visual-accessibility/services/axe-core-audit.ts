@@ -244,7 +244,7 @@ export class AccessibilityAuditor {
     // Check for vibium
     try {
       await loadVibium();
-      this.toolsAvailable.vibium = isVibiumReady();
+      this.toolsAvailable.vibium = await isVibiumReady();
     } catch {
       this.toolsAvailable.vibium = false;
     }

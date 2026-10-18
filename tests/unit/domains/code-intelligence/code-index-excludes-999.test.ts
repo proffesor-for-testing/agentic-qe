@@ -12,16 +12,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const spawn = vi.hoisted(() => ({ calls: [] as Array<{ cmd: string; args: string[]; cwd?: string }> }));
-vi.mock('child_process', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('child_process')>();
+vi.mock('../../../../src/shared/test-runner-process.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../../src/shared/test-runner-process.js')>();
   return {
     ...actual,
-    spawnSync: vi.fn((cmd: string, args: string[], opts: unknown) => {
+    runTestRunnerProcess: vi.fn(async (cmd: string, args: readonly string[], opts: { cwd: string }) => {
       if (cmd === 'cloc' || cmd === 'tokei') {
-        spawn.calls.push({ cmd, args, cwd: (opts as { cwd?: string } | undefined)?.cwd });
-        return { status: 1, stdout: '', stderr: '', error: new Error('not installed') };
+        spawn.calls.push({ cmd, args: [...args], cwd: opts.cwd });
+        return { status: 1, signal: null, stdout: '', stderr: '', error: new Error('not installed') };
       }
-      return actual.spawnSync(cmd, args, opts as never);
+      return actual.runTestRunnerProcess(cmd, args, opts as never);
     }),
   };
 });

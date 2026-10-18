@@ -14,6 +14,13 @@ vi.mock('child_process', () => ({
   execFile: (...args: unknown[]) => mockExecFile(...args),
 }));
 
+// git runs through runGit; route it to the execFile-style mock (#1115).
+vi.mock('../../../src/shared/git/git-process', () => ({
+  runGit: (args: string[], options: unknown) => new Promise((resolve, reject) => {
+    mockExecFile('git', args, options, (error: unknown, out: { stdout: string }) => (error ? reject(error) : resolve(out.stdout)));
+  }),
+}));
+
 // Mock fs.watch
 vi.mock('fs', async (importOriginal) => {
   const actual = await importOriginal() as Record<string, unknown>;

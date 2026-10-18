@@ -139,6 +139,10 @@ const DEFAULT_FEATURES: PredictionFeature[] = [
 
 const logger = LoggerFactory.create('defect-intelligence/defect-predictor');
 
+const GIT_TIMEOUT_WARNING =
+  'Git history timed out for this file: change frequency, developer experience, code age and bug history ' +
+  'use their "no git data" defaults, so this prediction is incomplete.';
+
 export class DefectPredictorService implements IDefectPredictorService {
   private readonly config: DefectPredictorConfig;
   private readonly memory: MemoryBackend;
@@ -609,7 +613,7 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
     threshold: number
   ): Promise<FilePrediction> {
     // Extract file metrics
-    const fileMetrics = await this.extractFileMetrics(file);
+    const { metrics: fileMetrics, gitTimedOut } = await this.extractFileMetrics(file);
 
     // Calculate probability based on weighted features
     const featureContributions: { name: string; contribution: number }[] = [];
@@ -633,6 +637,7 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
 
     // Generate recommendations based on high-contributing factors
     const recommendations = this.generateRecommendations(featureContributions, probability);
+    if (gitTimedOut) recommendations.unshift(GIT_TIMEOUT_WARNING);
 
     return {
       file,
@@ -640,37 +645,46 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
       riskLevel,
       factors: featureContributions.filter((f) => f.contribution > 0.05),
       recommendations,
+      ...(gitTimedOut ? { warnings: [GIT_TIMEOUT_WARNING] } : {}),
     };
   }
 
-  private async extractFileMetrics(file: string): Promise<Record<string, number>> {
+  private async extractFileMetrics(file: string): Promise<{ metrics: Record<string, number>; gitTimedOut: boolean }> {
     // Try to get cached metrics
     const cachedMetrics = await this.memory.get<Record<string, number>>(
       `${this.config.modelNamespace}:file-metrics:${file}`
     );
 
     if (cachedMetrics) {
-      return cachedMetrics;
+      return { metrics: cachedMetrics, gitTimedOut: false };
     }
 
     // Calculate metrics using real code analysis and git history
-    const metrics: Record<string, number> = {
+    const measure = async (): Promise<Record<string, number>> => ({
       codeComplexity: await this.calculateComplexity(file),
       changeFrequency: await this.getChangeFrequency(file),
       developerExperience: await this.getDeveloperExperience(file),
       testCoverage: await this.getTestCoverage(file),
       codeAge: await this.getCodeAge(file),
       bugHistory: await this.getBugHistory(file),
-    };
+    });
+    // #1115: the git-based metrics of one file share one deadline.
+    const metrics = this.gitAnalyzer.withFileDeadline
+      ? await this.gitAnalyzer.withFileDeadline(file, measure)
+      : await measure();
 
-    // Cache metrics
-    await this.memory.set(
-      `${this.config.modelNamespace}:file-metrics:${file}`,
-      metrics,
-      { namespace: 'defect-intelligence', ttl: 3600 } // 1 hour cache
-    );
+    // #1115: a git timeout left defaults in the git-based metrics; do not
+    // cache them as this file's measured metrics.
+    const gitTimedOut = this.gitAnalyzer.consumeTimeout?.(file) === true;
+    if (!gitTimedOut) {
+      await this.memory.set(
+        `${this.config.modelNamespace}:file-metrics:${file}`,
+        metrics,
+        { namespace: 'defect-intelligence', ttl: 3600 } // 1 hour cache
+      );
+    }
 
-    return metrics;
+    return { metrics, gitTimedOut };
   }
 
   /**
@@ -968,7 +982,7 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
 
     // Determine impacted areas based on file path
     const area = this.categorizeFile(file);
-    const fileRisk = (await this.extractFileMetrics(file)).codeComplexity;
+    const fileRisk = (await this.extractFileMetrics(file)).metrics.codeComplexity;
 
     areas.push({
       area,
@@ -983,7 +997,7 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
     if (depth === 'deep') {
       const dependencies = await this.analyzeDependencies(file);
       for (const dep of dependencies) {
-        const depRisk = (await this.extractFileMetrics(dep)).codeComplexity * 0.5;
+        const depRisk = (await this.extractFileMetrics(dep)).metrics.codeComplexity * 0.5;
         areas.push({
           area: this.categorizeFile(dep),
           files: [dep],

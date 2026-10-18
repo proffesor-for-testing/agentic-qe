@@ -56,7 +56,7 @@ export { DEFAULT_METRIC_CONFIG } from './interfaces.js';
  */
 export interface IMetricCollectorService extends MetricCollector {
   /** Check available tools on the system */
-  checkTools(): ToolAvailability[];
+  checkTools(): Promise<ToolAvailability[]>;
 
   /** Clear the metrics cache */
   clearCache(): void;
@@ -207,9 +207,8 @@ export class MetricCollectorService implements IMetricCollectorService {
   /**
    * Check available tools on the system
    */
-  checkTools(): ToolAvailability[] {
-    const locTools = checkLOCTools();
-    const testTools = checkTestRunners(process.cwd());
+  async checkTools(): Promise<ToolAvailability[]> {
+    const [locTools, testTools] = await Promise.all([checkLOCTools(), checkTestRunners(process.cwd())]);
     return [...locTools, ...testTools];
   }
 

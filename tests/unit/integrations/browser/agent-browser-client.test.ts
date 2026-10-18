@@ -44,7 +44,7 @@ vi.mock('../../../../src/integrations/browser/agent-browser/command-executor', (
 
   return {
     AgentBrowserCommandExecutor: MockAgentBrowserCommandExecutor,
-    isAgentBrowserAvailable: vi.fn().mockReturnValue(true),
+    isAgentBrowserAvailable: vi.fn().mockResolvedValue(true),
   };
 });
 

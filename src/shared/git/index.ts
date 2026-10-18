@@ -10,3 +10,4 @@ export type {
   FileHistory,
 } from './git-analyzer';
 export { assertSafeGitRef, getGitRefError } from './ref-validation';
+export { GitTimeoutError } from './git-process';

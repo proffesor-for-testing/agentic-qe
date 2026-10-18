@@ -2,7 +2,7 @@
  * Git Source - Recent commit context for target files
  */
 
-import { execFileSync } from 'node:child_process';
+import { runGit } from '../../shared/git/git-process.js';
 import type { ContextSource, ContextRequest, ContextFragment } from './types.js';
 
 export class GitContextSource implements ContextSource {
@@ -21,10 +21,11 @@ export class GitContextSource implements ContextSource {
         // filePaths can originate from MCP tool arguments. Pass each path as
         // one argv element; interpolating it into a shell command would allow
         // command execution via quotes or shell metacharacters.
-        const log = execFileSync(
-          'git', ['log', '--oneline', '-5', '--', file],
-          { cwd: this.cwd ?? process.cwd(), encoding: 'utf-8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] },
-        ).trim();
+        // Async, in its own process group, so a slow git can neither stall
+        // the MCP server's event loop nor outlive its timeout (#1115).
+        const log = (await runGit(['log', '--oneline', '-5', '--', file], {
+          cwd: this.cwd ?? process.cwd(), timeout: 5000,
+        })).trim();
 
         if (log) {
           const content = `Recent commits for ${file}:\n${log}`;

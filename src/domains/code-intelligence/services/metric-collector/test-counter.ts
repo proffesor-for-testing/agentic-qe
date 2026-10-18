@@ -13,7 +13,7 @@
  * @see docs/plans/AQE_V3_IMPROVEMENTS_PLAN.md - Phase 5, RM-003
  */
 
-import { execSync, spawn, spawnSync } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import { createRequire } from 'module';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'fs';
 import { tmpdir } from 'os';
@@ -28,6 +28,8 @@ import {
 } from './interfaces.js';
 import { safeJsonParse } from '@shared/safe-json.js';
 import { ownListingProcess } from './listing-process-owner.js';
+import { runTestRunnerProcess } from '../../../../shared/test-runner-process.js';
+import { npmCliInvocation } from '../../../../shared/npm-cli-invocation.js';
 
 // ============================================================================
 // Main Test Counting Function
@@ -117,78 +119,37 @@ export function detectTestRunner(projectPath: string): TestSource {
 /**
  * Check which test runners are available on the system
  */
-export function checkTestRunners(projectPath: string): ToolAvailability[] {
-  const tools: ToolAvailability[] = [];
+export async function checkTestRunners(projectPath: string): Promise<ToolAvailability[]> {
+  const npx = npmCliInvocation('npx');
+  const probes: Array<[string, [string, string[]] | null, string[], string, number]> = [
+    ['vitest', npx, ['vitest', '--version'], projectPath, 10000],
+    ['jest', npx, ['jest', '--version'], projectPath, 10000],
+    ['cargo', ['cargo', []], ['--version'], process.cwd(), 5000],
+    ['pytest', ['pytest', []], ['--version'], process.cwd(), 5000],
+    ['go', ['go', []], ['version'], process.cwd(), 5000],
+  ];
+  return Promise.all(probes.map(async ([name, invocation, args, cwd, timeout]): Promise<ToolAvailability> => {
+    const output = await runListing(invocation, args, cwd, timeout);
+    return output === null ? { name, available: false } : { name, available: true, version: output.trim() };
+  }));
+}
 
-  // Check npx vitest
-  try {
-    const result = spawnSync('npx', ['vitest', '--version'], {
-      cwd: projectPath,
-      encoding: 'utf-8',
-      timeout: 10000,
-    });
-    if (result.status === 0) {
-      tools.push({ name: 'vitest', available: true, version: result.stdout.trim() });
-    } else {
-      tools.push({ name: 'vitest', available: false });
-    }
-  } catch {
-    tools.push({ name: 'vitest', available: false });
-  }
-
-  // Check npx jest
-  try {
-    const result = spawnSync('npx', ['jest', '--version'], {
-      cwd: projectPath,
-      encoding: 'utf-8',
-      timeout: 10000,
-    });
-    if (result.status === 0) {
-      tools.push({ name: 'jest', available: true, version: result.stdout.trim() });
-    } else {
-      tools.push({ name: 'jest', available: false });
-    }
-  } catch {
-    tools.push({ name: 'jest', available: false });
-  }
-
-  // Check cargo
-  try {
-    const result = spawnSync('cargo', ['--version'], { encoding: 'utf-8', timeout: 5000 });
-    if (result.status === 0) {
-      tools.push({ name: 'cargo', available: true, version: result.stdout.trim() });
-    } else {
-      tools.push({ name: 'cargo', available: false });
-    }
-  } catch {
-    tools.push({ name: 'cargo', available: false });
-  }
-
-  // Check pytest
-  try {
-    const result = spawnSync('pytest', ['--version'], { encoding: 'utf-8', timeout: 5000 });
-    if (result.status === 0) {
-      tools.push({ name: 'pytest', available: true, version: result.stdout.trim() });
-    } else {
-      tools.push({ name: 'pytest', available: false });
-    }
-  } catch {
-    tools.push({ name: 'pytest', available: false });
-  }
-
-  // Check go
-  try {
-    const result = spawnSync('go', ['version'], { encoding: 'utf-8', timeout: 5000 });
-    if (result.status === 0) {
-      tools.push({ name: 'go', available: true, version: result.stdout.trim() });
-    } else {
-      tools.push({ name: 'go', available: false });
-    }
-  } catch {
-    tools.push({ name: 'go', available: false });
-  }
-
-  return tools;
+/**
+ * Run a probe or listing command without blocking the event loop (#1115).
+ * Resolves with stdout on exit 0, or null when it cannot start, fails or
+ * times out; a timeout stops the whole process group (cargo, npx trees).
+ */
+async function runListing(
+  invocation: [string, string[]] | null,
+  args: string[],
+  cwd: string,
+  timeout: number,
+  maxBuffer?: number
+): Promise<string | null> {
+  if (!invocation) return null;
+  const [command, leadingArgs] = invocation;
+  const result = await runTestRunnerProcess(command, [...leadingArgs, ...args], { cwd, timeout, maxBuffer });
+  return result.error || result.status !== 0 ? null : result.stdout;
 }
 
 // ============================================================================
@@ -323,21 +284,17 @@ async function countVitestTests(
  * Uses `jest --listTests` for accurate test file discovery WITHOUT execution.
  * Then parses the test files to count individual tests.
  */
-function countJestTests(
+async function countJestTests(
   projectPath: string,
   config: MetricCollectorConfig
-): TestMetrics {
+): Promise<TestMetrics> {
   try {
-    // Use jest --listTests for safe enumeration (NO execution)
-    const output = execSync(
-      'npx jest --listTests',
-      {
-        cwd: projectPath,
-        encoding: 'utf-8',
-        timeout: Math.min(config.timeout, 30000), // Cap at 30s for listing
-        maxBuffer: 10 * 1024 * 1024, // 10MB buffer (reduced from 50MB)
-      }
+    // Use jest --listTests for safe enumeration (NO execution), capped at 30s
+    const output = await runListing(
+      npmCliInvocation('npx'), ['jest', '--listTests'], projectPath,
+      Math.min(config.timeout, 30000), 10 * 1024 * 1024,
     );
+    if (output === null) return countTestsByFilePattern(projectPath, config);
 
     // Output is one test file path per line
     const testFiles = output
@@ -366,19 +323,13 @@ function countJestTests(
  * Count tests using Cargo (Rust)
  * Uses `cargo test -- --list` for accurate test enumeration
  */
-function countCargoTests(
+async function countCargoTests(
   projectPath: string,
   config: MetricCollectorConfig
-): TestMetrics {
+): Promise<TestMetrics> {
   try {
-    const output = execSync(
-      'cargo test -- --list',
-      {
-        cwd: projectPath,
-        encoding: 'utf-8',
-        timeout: config.timeout,
-      }
-    );
+    const output = await runListing(['cargo', []], ['test', '--', '--list'], projectPath, config.timeout);
+    if (output === null) throw new Error('listing failed');
 
     // Count lines ending with ": test"
     const testLines = output.split('\n').filter(line => line.endsWith(': test'));
@@ -413,19 +364,13 @@ function countCargoTests(
  * Count tests using pytest (Python)
  * Uses `pytest --collect-only` for test discovery
  */
-function countPytestTests(
+async function countPytestTests(
   projectPath: string,
   config: MetricCollectorConfig
-): TestMetrics {
+): Promise<TestMetrics> {
   try {
-    const output = execSync(
-      'pytest --collect-only -q',
-      {
-        cwd: projectPath,
-        encoding: 'utf-8',
-        timeout: config.timeout,
-      }
-    );
+    const output = await runListing(['pytest', []], ['--collect-only', '-q'], projectPath, config.timeout);
+    if (output === null) throw new Error('listing failed');
 
     // Count test function lines (format: "tests/test_foo.py::test_bar")
     const testLines = output.split('\n').filter(line =>
@@ -465,19 +410,13 @@ function countPytestTests(
  * Count tests using Go test
  * Uses `go test -list` for test discovery
  */
-function countGoTests(
+async function countGoTests(
   projectPath: string,
   config: MetricCollectorConfig
-): TestMetrics {
+): Promise<TestMetrics> {
   try {
-    const output = execSync(
-      'go test -list ".*" ./...',
-      {
-        cwd: projectPath,
-        encoding: 'utf-8',
-        timeout: config.timeout,
-      }
-    );
+    const output = await runListing(['go', []], ['test', '-list', '.*', './...'], projectPath, config.timeout);
+    if (output === null) throw new Error('listing failed');
 
     // Benchmarks and examples are listed too, but are not included in the
     // test total. Apply that same selection to every category.

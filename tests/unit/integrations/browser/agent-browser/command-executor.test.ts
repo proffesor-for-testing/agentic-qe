@@ -45,10 +45,10 @@ describe('AgentBrowserCommandExecutor', () => {
   });
 
   describe('Command Building', () => {
-    it('should build args correctly', () => {
+    it('should build args correctly', async () => {
       // This is tested indirectly through command execution
       // The buildArgs method is private, so we test its effects
-      const result = executor.snapshot({ compact: true, depth: 2 });
+      const result = await executor.snapshot({ compact: true, depth: 2 });
       // Should not throw during arg building
       expect(result).toBeDefined();
       expect(typeof result.success).toBe('boolean');
@@ -56,8 +56,8 @@ describe('AgentBrowserCommandExecutor', () => {
   });
 
   describe('Type Safety', () => {
-    it('should type CommandResult correctly for void operations', () => {
-      const result = executor.close();
+    it('should type CommandResult correctly for void operations', async () => {
+      const result = await executor.close();
       expect(result).toHaveProperty('success');
       // agent-browser CLI may return a success message string, not undefined
       if (result.success) {
@@ -68,8 +68,8 @@ describe('AgentBrowserCommandExecutor', () => {
       }
     });
 
-    it('should type CommandResult correctly for snapshot operations', () => {
-      const result = executor.snapshot();
+    it('should type CommandResult correctly for snapshot operations', async () => {
+      const result = await executor.snapshot();
       expect(result).toHaveProperty('success');
       if (result.success && result.data) {
         // Snapshot returns a JSON object or string
@@ -77,8 +77,8 @@ describe('AgentBrowserCommandExecutor', () => {
       }
     });
 
-    it('should type CommandResult correctly for boolean operations', () => {
-      const result = executor.isVisible('#test');
+    it('should type CommandResult correctly for boolean operations', async () => {
+      const result = await executor.isVisible('#test');
       expect(result).toHaveProperty('success');
       if (result.success && result.data !== undefined) {
         expect(typeof result.data).toBe('boolean');
@@ -87,25 +87,25 @@ describe('AgentBrowserCommandExecutor', () => {
   });
 
   describe('Error Handling', () => {
-    it('should handle command failure gracefully', () => {
+    it('should handle command failure gracefully', async () => {
       // Execute non-existent command
-      const result = executor.execute('nonexistent-command');
+      const result = await executor.execute('nonexistent-command');
       expect(result.success).toBe(false);
       expect(result.error).toBeDefined();
       expect(typeof result.error).toBe('string');
     });
 
-    it('should handle timeout gracefully', () => {
+    it('should handle timeout gracefully', async () => {
       const shortTimeoutExecutor = new AgentBrowserCommandExecutor({ timeout: 1 });
-      const result = shortTimeoutExecutor.execute('open', ['https://example.com']);
+      const result = await shortTimeoutExecutor.execute('open', ['https://example.com']);
       expect(result.success).toBe(false);
       expect(result.error).toBeDefined();
     });
   });
 
   describe('CLI Availability', () => {
-    it('should check agent-browser availability', () => {
-      const available = isAgentBrowserAvailable();
+    it('should check agent-browser availability', async () => {
+      const available = await isAgentBrowserAvailable();
       expect(typeof available).toBe('boolean');
       // May be true or false depending on environment
     });

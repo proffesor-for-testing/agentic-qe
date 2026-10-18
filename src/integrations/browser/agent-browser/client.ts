@@ -286,7 +286,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
       // Extra safety: also terminate via executor if we have one
       if (this.executor) {
         try {
-          this.executor.terminateDaemon();
+          await this.executor.terminateDaemon();
         } catch (error) {
           // Non-critical: best effort daemon termination
           console.debug('[AgentBrowserClient] Daemon termination error:', error instanceof Error ? error.message : error);
@@ -339,7 +339,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
     const startTime = Date.now();
 
     try {
-      const result = this.executor.open(url);
+      const result = await this.executor.open(url);
 
       if (!result.success) {
         return err(new BrowserError(result.error ?? 'Navigation failed', 'NAVIGATION_FAILED', 'agent-browser'));
@@ -351,7 +351,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
       }
 
       // Get page info for result
-      const evalResult = this.executor.eval<{ title: string; url: string }>(
+      const evalResult = await this.executor.eval<{ title: string; url: string }>(
         'JSON.stringify({ title: document.title, url: window.location.href })'
       );
 
@@ -385,7 +385,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
    */
   async reload(): Promise<Result<void, BrowserError>> {
     try {
-      const result = this.executor.eval<void>('window.location.reload()');
+      const result = await this.executor.eval<void>('window.location.reload()');
 
       if (!result.success) {
         return err(new BrowserError(result.error ?? 'Reload failed', 'RELOAD_FAILED', 'agent-browser'));
@@ -409,7 +409,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
    */
   async goBack(): Promise<Result<void, BrowserError>> {
     try {
-      const result = this.executor.eval<void>('window.history.back()');
+      const result = await this.executor.eval<void>('window.history.back()');
 
       if (!result.success) {
         return err(new BrowserError(result.error ?? 'Go back failed', 'HISTORY_FAILED', 'agent-browser'));
@@ -433,7 +433,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
    */
   async goForward(): Promise<Result<void, BrowserError>> {
     try {
-      const result = this.executor.eval<void>('window.history.forward()');
+      const result = await this.executor.eval<void>('window.history.forward()');
 
       if (!result.success) {
         return err(new BrowserError(result.error ?? 'Go forward failed', 'HISTORY_FAILED', 'agent-browser'));
@@ -462,7 +462,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
   async click(target: ElementTarget | string): Promise<Result<void, BrowserError>> {
     try {
       const resolvedTarget = resolveTarget(target);
-      const result = this.executor.click(resolvedTarget);
+      const result = await this.executor.click(resolvedTarget);
 
       if (!result.success) {
         return err(new BrowserElementNotFoundError('agent-browser', target, new Error(result.error)));
@@ -487,7 +487,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
   async fill(target: ElementTarget | string, text: string): Promise<Result<void, BrowserError>> {
     try {
       const resolvedTarget = resolveTarget(target);
-      const result = this.executor.fill(resolvedTarget, text);
+      const result = await this.executor.fill(resolvedTarget, text);
 
       if (!result.success) {
         return err(new BrowserElementNotFoundError('agent-browser', target, new Error(result.error)));
@@ -512,7 +512,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
   async getText(target: ElementTarget | string): Promise<Result<string, BrowserError>> {
     try {
       const resolvedTarget = resolveTarget(target);
-      const result = this.executor.getText(resolvedTarget);
+      const result = await this.executor.getText(resolvedTarget);
 
       if (!result.success) {
         return err(new BrowserElementNotFoundError('agent-browser', target, new Error(result.error)));
@@ -556,7 +556,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
   async isVisible(target: ElementTarget | string): Promise<Result<boolean, BrowserError>> {
     try {
       const resolvedTarget = resolveTarget(target);
-      const result = this.executor.isVisible(resolvedTarget);
+      const result = await this.executor.isVisible(resolvedTarget);
 
       if (!result.success) {
         // Element not found means not visible
@@ -587,14 +587,14 @@ export class AgentBrowserClient implements IAgentBrowserClient {
     options?: { path?: string; fullPage?: boolean }
   ): Promise<Result<BrowserScreenshotResult, BrowserError>> {
     try {
-      const result = this.executor.screenshot(options?.path, options?.fullPage);
+      const result = await this.executor.screenshot(options?.path, options?.fullPage);
 
       if (!result.success) {
         return err(new BrowserError(result.error ?? 'Screenshot failed', 'SCREENSHOT_FAILED', 'agent-browser'));
       }
 
       // Get viewport dimensions
-      const dimensionsResult = this.executor.eval<{ width: number; height: number }>(
+      const dimensionsResult = await this.executor.eval<{ width: number; height: number }>(
         'JSON.stringify({ width: window.innerWidth, height: window.innerHeight })'
       );
 
@@ -634,7 +634,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
    */
   async evaluate<T = unknown>(script: string): Promise<Result<T, BrowserError>> {
     try {
-      const result = this.executor.eval<T>(script);
+      const result = await this.executor.eval<T>(script);
 
       if (!result.success) {
         return err(new BrowserError(result.error ?? 'Evaluation failed', 'EVAL_FAILED', 'agent-browser'));
@@ -683,7 +683,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
     options?: { interactive?: boolean; depth?: number }
   ): Promise<Result<ParsedSnapshot, BrowserError>> {
     try {
-      const result = this.executor.snapshot({
+      const result = await this.executor.snapshot({
         interactive: options?.interactive,
         depth: options?.depth,
       });
@@ -702,8 +702,8 @@ export class AgentBrowserClient implements IAgentBrowserClient {
       }
 
       // Get current URL and title
-      const urlResult = this.executor.eval<string>('window.location.href');
-      const titleResult = this.executor.eval<string>('document.title');
+      const urlResult = await this.executor.eval<string>('window.location.href');
+      const titleResult = await this.executor.eval<string>('document.title');
 
       if (urlResult.success) {
         parsed.url = String(urlResult.data);
@@ -814,7 +814,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
         headers: response.headers,
       };
 
-      const result = this.executor.mockRoute(urlPattern, mockBody);
+      const result = await this.executor.mockRoute(urlPattern, mockBody);
 
       if (!result.success) {
         return err(new BrowserError(result.error ?? 'Mock route failed', 'MOCK_ROUTE_FAILED', 'agent-browser'));
@@ -838,7 +838,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
    */
   async abortRoute(urlPattern: string): Promise<Result<void, BrowserError>> {
     try {
-      const result = this.executor.abortRoute(urlPattern);
+      const result = await this.executor.abortRoute(urlPattern);
 
       if (!result.success) {
         return err(new BrowserError(result.error ?? 'Abort route failed', 'ABORT_ROUTE_FAILED', 'agent-browser'));
@@ -862,7 +862,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
    */
   async clearRoutes(): Promise<Result<void, BrowserError>> {
     try {
-      const result = this.executor.clearRoutes();
+      const result = await this.executor.clearRoutes();
 
       if (!result.success) {
         return err(new BrowserError(result.error ?? 'Clear routes failed', 'CLEAR_ROUTES_FAILED', 'agent-browser'));
@@ -890,7 +890,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
    */
   async setDevice(deviceName: string): Promise<Result<void, BrowserError>> {
     try {
-      const result = this.executor.setDevice(deviceName);
+      const result = await this.executor.setDevice(deviceName);
 
       if (!result.success) {
         return err(new BrowserError(result.error ?? 'Set device failed', 'SET_DEVICE_FAILED', 'agent-browser'));
@@ -914,7 +914,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
    */
   async setViewport(width: number, height: number): Promise<Result<void, BrowserError>> {
     try {
-      const result = this.executor.setViewport(width, height);
+      const result = await this.executor.setViewport(width, height);
 
       if (!result.success) {
         return err(new BrowserError(result.error ?? 'Set viewport failed', 'SET_VIEWPORT_FAILED', 'agent-browser'));
@@ -942,7 +942,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
    */
   async saveState(path: string): Promise<Result<void, BrowserError>> {
     try {
-      const result = this.executor.saveState(path);
+      const result = await this.executor.saveState(path);
 
       if (!result.success) {
         return err(new BrowserError(result.error ?? 'Save state failed', 'SAVE_STATE_FAILED', 'agent-browser'));
@@ -966,7 +966,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
    */
   async loadState(path: string): Promise<Result<void, BrowserError>> {
     try {
-      const result = this.executor.loadState(path);
+      const result = await this.executor.loadState(path);
 
       if (!result.success) {
         return err(new BrowserError(result.error ?? 'Load state failed', 'LOAD_STATE_FAILED', 'agent-browser'));
@@ -998,7 +998,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
   ): Promise<Result<void, BrowserError>> {
     try {
       const resolvedTarget = resolveTarget(target);
-      const result = this.executor.waitForElement(resolvedTarget, timeout);
+      const result = await this.executor.waitForElement(resolvedTarget, timeout);
 
       if (!result.success) {
         return err(
@@ -1028,7 +1028,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
       // but we accept it for interface compatibility
       void timeout;
 
-      const result = this.executor.waitForText(text);
+      const result = await this.executor.waitForText(text);
 
       if (!result.success) {
         return err(new BrowserTimeoutError('agent-browser', `waitForText("${text}")`, new Error(result.error)));
@@ -1055,7 +1055,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
       // The timeout parameter is ignored by the current CLI implementation
       void timeout;
 
-      const result = this.executor.waitForUrl(pattern);
+      const result = await this.executor.waitForUrl(pattern);
 
       if (!result.success) {
         return err(new BrowserTimeoutError('agent-browser', `waitForUrl("${pattern}")`, new Error(result.error)));
@@ -1082,7 +1082,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
       // The timeout parameter is ignored by the current CLI implementation
       void timeout;
 
-      const result = this.executor.waitForNetworkIdle();
+      const result = await this.executor.waitForNetworkIdle();
 
       if (!result.success) {
         return err(new BrowserTimeoutError('agent-browser', 'waitForNetworkIdle', new Error(result.error)));
@@ -1113,7 +1113,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
    */
   async startTrace(): Promise<Result<void, BrowserError>> {
     try {
-      const result = this.executor.startTrace();
+      const result = await this.executor.startTrace();
 
       if (!result.success) {
         return err(new BrowserError(result.error ?? 'Start trace failed', 'START_TRACE_FAILED', 'agent-browser'));
@@ -1140,7 +1140,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
    */
   async stopTrace(outputPath: string): Promise<Result<string, BrowserError>> {
     try {
-      const result = this.executor.stopTrace(outputPath);
+      const result = await this.executor.stopTrace(outputPath);
 
       if (!result.success) {
         return err(new BrowserError(result.error ?? 'Stop trace failed', 'STOP_TRACE_FAILED', 'agent-browser'));
@@ -1183,27 +1183,13 @@ export function createAgentBrowserClient(config?: AgentBrowserClientConfig): Age
  * Only use in test environments.
  */
 export async function cleanupAllBrowserProcesses(): Promise<void> {
-  const { execSync } = await import('child_process');
+  const { runTestRunnerProcess } = await import('../../../shared/test-runner-process.js');
+  // pkill exits 1 when nothing matched; cleanup is best effort either way
+  const pkill = async (pattern: string): Promise<void> => {
+    await runTestRunnerProcess('pkill', ['-9', '-f', pattern], { cwd: process.cwd(), timeout: 5000 });
+  };
 
-  try {
-    // Kill agent-browser daemons
-    execSync('pkill -9 -f "agent-browser.*daemon" 2>/dev/null || true', {
-      timeout: 5000,
-      stdio: 'ignore'
-    });
-  } catch (error) {
-    // Non-critical: daemon cleanup errors
-    console.debug('[AgentBrowserClient] Daemon cleanup error:', error instanceof Error ? error.message : error);
-  }
-
-  try {
-    // Kill chromium headless shell processes
-    execSync('pkill -9 -f "chromium_headless_shell\\|headless_shell" 2>/dev/null || true', {
-      timeout: 5000,
-      stdio: 'ignore'
-    });
-  } catch (error) {
-    // Non-critical: chromium cleanup errors
-    console.debug('[AgentBrowserClient] Chromium cleanup error:', error instanceof Error ? error.message : error);
-  }
+  // Kill agent-browser daemons, then chromium headless shell processes
+  await pkill('agent-browser.*daemon');
+  await pkill('chromium_headless_shell\\|headless_shell');
 }

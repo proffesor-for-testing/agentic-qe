@@ -3,9 +3,25 @@
  * Wraps CLI calls with type safety and error handling
  */
 
-import { spawnSync, spawn } from 'child_process';
+import { spawn } from 'child_process';
 import { safeJsonParse } from '../../../shared/safe-json.js';
+import { npmCliInvocation } from '../../../shared/npm-cli-invocation.js';
+import { runProcessText, runTestRunnerProcess, type TestRunnerProcessResult } from '../../../shared/test-runner-process.js';
 import { toErrorMessage } from '../../../shared/error-utils.js';
+
+
+/**
+ * Run `npx agent-browser ...` without blocking the event loop (#1115). A
+ * timeout stops the whole npx process tree, as the synchronous call did not.
+ */
+export function runAgentBrowser(args: string[], timeout: number, maxBuffer?: number): Promise<TestRunnerProcessResult> {
+  const npx = npmCliInvocation('npx');
+  if (!npx) {
+    const error = Object.assign(new Error('npx CLI not found next to node'), { code: 'ENOENT' });
+    return Promise.resolve({ status: null, signal: null, stdout: '', stderr: '', error });
+  }
+  return runTestRunnerProcess(npx[0], [...npx[1], 'agent-browser', ...args], { cwd: process.cwd(), timeout, maxBuffer });
+}
 
 // Command result from --json output
 export interface CommandResult<T = unknown> {
@@ -49,23 +65,17 @@ export class AgentBrowserCommandExecutor {
   // ========================================================================
 
   /**
-   * Execute a command synchronously and parse JSON result
+   * Execute a command and parse JSON result
    */
-  execute<T = unknown>(command: string, args: string[] = []): CommandResult<T> {
+  async execute<T = unknown>(command: string, args: string[] = []): Promise<CommandResult<T>> {
     const fullArgs = this.buildArgs(command, args);
-    const spawnArgs = ['agent-browser', ...fullArgs];
 
     if (this.config.debug) {
-      console.log(`[agent-browser] Executing: npx ${spawnArgs.join(' ')}`);
+      console.log(`[agent-browser] Executing: npx agent-browser ${fullArgs.join(' ')}`);
     }
 
     try {
-      const result = spawnSync('npx', spawnArgs, {
-        encoding: 'utf-8',
-        timeout: this.config.timeout,
-        maxBuffer: 10 * 1024 * 1024, // 10MB for screenshots
-        shell: false,
-      });
+      const result = await runAgentBrowser(fullArgs, this.config.timeout, 10 * 1024 * 1024); // 10MB for screenshots
 
       if (result.error) {
         return { success: false, error: result.error.message };
@@ -144,12 +154,12 @@ export class AgentBrowserCommandExecutor {
   /**
    * Open URL in browser (auto-launches if needed)
    */
-  open(url: string): CommandResult<void> {
+  async open(url: string): Promise<CommandResult<void>> {
     const args = [url];
     if (this.config.headed) {
       args.push('--headed');
     }
-    const result = this.execute<void>('open', args);
+    const result = await this.execute<void>('open', args);
     if (result.success) {
       this.browserLaunched = true;
     }
@@ -159,8 +169,8 @@ export class AgentBrowserCommandExecutor {
   /**
    * Close browser
    */
-  close(): CommandResult<void> {
-    const result = this.execute<void>('close');
+  async close(): Promise<CommandResult<void>> {
+    const result = await this.execute<void>('close');
     if (result.success) {
       this.browserLaunched = false;
     }
@@ -172,10 +182,10 @@ export class AgentBrowserCommandExecutor {
    * CRITICAL: Must be called to prevent memory leaks!
    * The daemon persists even after close() - this kills it entirely.
    */
-  terminateDaemon(): CommandResult<void> {
+  async terminateDaemon(): Promise<CommandResult<void>> {
     try {
       // First close the browser gracefully
-      this.close();
+      await this.close();
 
       // Kill all processes matching this session's daemon
       // The daemon runs as: node .../agent-browser/.../daemon.js
@@ -185,14 +195,9 @@ export class AgentBrowserCommandExecutor {
       // Find and kill processes by session name
       // Use pkill with argument array to prevent shell injection
       try {
-        spawnSync('pkill', ['-f', `agent-browser.*--session[= ]${sessionName}`], {
-          timeout: 5000,
-          stdio: 'ignore',
-          shell: false,
-        });
-      } catch (error) {
-        // Non-critical: pkill errors - process might already be dead
-        console.debug('[CommandExecutor] pkill error:', error instanceof Error ? error.message : error);
+        await runProcessText('pkill', ['-f', `agent-browser.*--session[= ]${sessionName}`], { cwd: process.cwd(), timeout: 5000 });
+      } catch {
+        // Non-critical: pkill exits 1 when nothing matched, or the process is already dead
       }
 
       // Also try to kill by AGENT_BROWSER_SESSION env var (harder to match)
@@ -215,7 +220,7 @@ export class AgentBrowserCommandExecutor {
   /**
    * Get accessibility snapshot with refs
    */
-  snapshot(options?: { interactive?: boolean; compact?: boolean; depth?: number }): CommandResult<string> {
+  async snapshot(options?: { interactive?: boolean; compact?: boolean; depth?: number }): Promise<CommandResult<string>> {
     const args: string[] = ['--json'];
     if (options?.interactive) args.push('-i');
     if (options?.compact) args.push('-c');
@@ -230,36 +235,36 @@ export class AgentBrowserCommandExecutor {
   /**
    * Click element by ref or selector
    */
-  click(target: string): CommandResult<void> {
+  async click(target: string): Promise<CommandResult<void>> {
     return this.execute('click', [target]);
   }
 
   /**
    * Fill input by ref or selector
    */
-  fill(target: string, text: string): CommandResult<void> {
+  async fill(target: string, text: string): Promise<CommandResult<void>> {
     return this.execute('fill', [target, text]);
   }
 
   /**
    * Type text (without clearing)
    */
-  type(target: string, text: string): CommandResult<void> {
+  async type(target: string, text: string): Promise<CommandResult<void>> {
     return this.execute('type', [target, text]);
   }
 
   /**
    * Get element text
    */
-  getText(target: string): CommandResult<string> {
+  async getText(target: string): Promise<CommandResult<string>> {
     return this.execute<string>('get', ['text', target, '--json']);
   }
 
   /**
    * Check if element is visible
    */
-  isVisible(target: string): CommandResult<boolean> {
-    const result = this.execute<{ success: boolean }>('is', ['visible', target, '--json']);
+  async isVisible(target: string): Promise<CommandResult<boolean>> {
+    const result = await this.execute<{ success: boolean }>('is', ['visible', target, '--json']);
     if (result.success && result.data) {
       return { success: true, data: result.data.success };
     }
@@ -273,7 +278,7 @@ export class AgentBrowserCommandExecutor {
   /**
    * Take screenshot
    */
-  screenshot(path?: string, fullPage?: boolean): CommandResult<string> {
+  async screenshot(path?: string, fullPage?: boolean): Promise<CommandResult<string>> {
     const args: string[] = [];
     if (path) args.push(path);
     if (fullPage) args.push('--full');
@@ -288,7 +293,7 @@ export class AgentBrowserCommandExecutor {
   /**
    * Wait for element
    */
-  waitForElement(target: string, timeout?: number): CommandResult<void> {
+  async waitForElement(target: string, timeout?: number): Promise<CommandResult<void>> {
     const args = [target];
     if (timeout) {
       // Wait command accepts ms or selector
@@ -300,14 +305,14 @@ export class AgentBrowserCommandExecutor {
   /**
    * Wait for text to appear
    */
-  waitForText(text: string): CommandResult<void> {
+  async waitForText(text: string): Promise<CommandResult<void>> {
     return this.execute('wait', ['--text', text]);
   }
 
   /**
    * Wait for URL pattern
    */
-  waitForUrl(pattern: string): CommandResult<void> {
+  async waitForUrl(pattern: string): Promise<CommandResult<void>> {
     // URL pattern needs to be a glob pattern, convert simple strings
     const urlPattern = pattern.includes('*') ? pattern : `**${pattern}**`;
     return this.execute('wait', ['--url', urlPattern]);
@@ -316,7 +321,7 @@ export class AgentBrowserCommandExecutor {
   /**
    * Wait for network idle
    */
-  waitForNetworkIdle(): CommandResult<void> {
+  async waitForNetworkIdle(): Promise<CommandResult<void>> {
     return this.execute('wait', ['--load', 'networkidle']);
   }
 
@@ -327,14 +332,14 @@ export class AgentBrowserCommandExecutor {
   /**
    * Set device emulation
    */
-  setDevice(deviceName: string): CommandResult<void> {
+  async setDevice(deviceName: string): Promise<CommandResult<void>> {
     return this.execute('set', ['device', deviceName]);
   }
 
   /**
    * Set viewport size
    */
-  setViewport(width: number, height: number): CommandResult<void> {
+  async setViewport(width: number, height: number): Promise<CommandResult<void>> {
     return this.execute('set', ['viewport', String(width), String(height)]);
   }
 
@@ -345,7 +350,7 @@ export class AgentBrowserCommandExecutor {
   /**
    * Mock network route
    */
-  mockRoute(urlPattern: string, body: unknown): CommandResult<void> {
+  async mockRoute(urlPattern: string, body: unknown): Promise<CommandResult<void>> {
     const bodyJson = JSON.stringify(body);
     return this.execute('network', ['route', urlPattern, '--body', bodyJson]);
   }
@@ -353,14 +358,14 @@ export class AgentBrowserCommandExecutor {
   /**
    * Abort network route
    */
-  abortRoute(urlPattern: string): CommandResult<void> {
+  async abortRoute(urlPattern: string): Promise<CommandResult<void>> {
     return this.execute('network', ['route', urlPattern, '--abort']);
   }
 
   /**
    * Clear network routes
    */
-  clearRoutes(): CommandResult<void> {
+  async clearRoutes(): Promise<CommandResult<void>> {
     return this.execute('network', ['unroute']);
   }
 
@@ -371,14 +376,14 @@ export class AgentBrowserCommandExecutor {
   /**
    * Save browser state (cookies, storage)
    */
-  saveState(path: string): CommandResult<void> {
+  async saveState(path: string): Promise<CommandResult<void>> {
     return this.execute('state', ['save', path]);
   }
 
   /**
    * Load browser state
    */
-  loadState(path: string): CommandResult<void> {
+  async loadState(path: string): Promise<CommandResult<void>> {
     return this.execute('state', ['load', path]);
   }
 
@@ -390,7 +395,7 @@ export class AgentBrowserCommandExecutor {
    * Start trace recording
    * Records browser activity for debugging and analysis
    */
-  startTrace(): CommandResult<void> {
+  async startTrace(): Promise<CommandResult<void>> {
     return this.execute('trace', ['start']);
   }
 
@@ -398,8 +403,8 @@ export class AgentBrowserCommandExecutor {
    * Stop trace recording and save to file
    * @param outputPath - Path to save the trace file
    */
-  stopTrace(outputPath: string): CommandResult<string> {
-    const result = this.execute<void>('trace', ['stop', outputPath]);
+  async stopTrace(outputPath: string): Promise<CommandResult<string>> {
+    const result = await this.execute<void>('trace', ['stop', outputPath]);
     if (result.success) {
       return { success: true, data: outputPath };
     }
@@ -413,7 +418,7 @@ export class AgentBrowserCommandExecutor {
   /**
    * Evaluate JavaScript in page context
    */
-  eval<T = unknown>(script: string): CommandResult<T> {
+  async eval<T = unknown>(script: string): Promise<CommandResult<T>> {
     return this.execute<T>('eval', [script, '--json']);
   }
 
@@ -457,15 +462,11 @@ export class AgentBrowserCommandExecutor {
 /**
  * Check if agent-browser CLI is available
  */
-export function isAgentBrowserAvailable(): boolean {
+export async function isAgentBrowserAvailable(): Promise<boolean> {
   try {
     // Use 'npx agent-browser' without args to check help output
     // --version is not a valid command, but running with no args shows help
-    const result = spawnSync('npx', ['agent-browser'], {
-      encoding: 'utf-8',
-      timeout: 10000,
-      shell: false,
-    });
+    const result = await runAgentBrowser([], 10000);
     const output = (result.stdout ?? '') + (result.stderr ?? '');
     return output.includes('agent-browser') && output.includes('Usage:');
   } catch {
