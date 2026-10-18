@@ -11,6 +11,7 @@ import type { ToolResult } from '../types.js';
 import { runPipeline, formatPipelineReport } from '../../validation/pipeline.js';
 import { createRequirementsPipeline, REQUIREMENTS_VALIDATION_STEPS } from '../../validation/steps/requirements.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
+import { MAX_PAYLOAD_FILE_BYTES, requirePayloadPath } from '../../shared/io/payload-path-guard.js';
 
 export interface ValidationPipelineParams {
   /** Path to the document to validate */
@@ -83,6 +84,10 @@ export async function handleValidationPipeline(
     content = params.content;
   } else if (params.filePath) {
     const absPath = resolve(process.cwd(), params.filePath);
+    // #1126: read only a regular file inside the project, within the size limit.
+    const confined = await requirePayloadPath('validation_pipeline', 'filePath', params.filePath,
+      { allowMissing: true, maxBytes: MAX_PAYLOAD_FILE_BYTES });
+    if (!confined.success) return { success: false, error: confined.error.message };
     if (!existsSync(absPath)) {
       return {
         success: false,

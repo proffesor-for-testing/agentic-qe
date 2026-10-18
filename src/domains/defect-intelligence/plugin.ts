@@ -10,6 +10,7 @@ import {
   AgentCoordinator,
 } from '../../kernel/interfaces';
 import { BaseDomainPlugin, TaskHandler } from '../domain-interface';
+import { MAX_PAYLOAD_FILE_BYTES, requirePayloadFiles } from '../../shared/io/payload-path-guard.js';
 import type { HybridRouter } from '../../shared/llm/router/hybrid-router.js';
 import {
   DefectIntelligenceAPI,
@@ -157,6 +158,9 @@ export class DefectIntelligencePlugin extends BaseDomainPlugin {
         if (!files || files.length === 0) {
           return err(new Error('Invalid predict-defects payload: missing files'));
         }
+        // #1126: refuse by name what FileReader would otherwise skip quietly.
+        const confined = await requirePayloadFiles('predict-defects', 'files', files, { maxBytes: MAX_PAYLOAD_FILE_BYTES });
+        if (!confined.success) return confined;
 
         return this.coordinator.predictDefects({
           files,
@@ -199,6 +203,9 @@ export class DefectIntelligencePlugin extends BaseDomainPlugin {
         if (!changedFiles || changedFiles.length === 0) {
           return err(new Error('Invalid analyze-regression-risk payload: missing changedFiles'));
         }
+        // #1126: a changeset may name deleted files, but never outside ones.
+        const confined = await requirePayloadFiles('analyze-regression-risk', 'changedFiles', changedFiles, { allowMissing: true });
+        if (!confined.success) return confined;
 
         return this.coordinator.analyzeRegressionRisk({
           changeset: changedFiles,

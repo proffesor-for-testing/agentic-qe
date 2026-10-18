@@ -17,6 +17,7 @@ import { discoverSecurityFiles, isSecuritySourceFile } from '../../domains/secur
 import type { SecurityScanEvidence, SecurityEngineEvidence, SecurityFileEvidence } from '../../domains/security-compliance/scan-evidence.js';
 import type { SASTResult, DASTResult } from '../../domains/security-compliance/interfaces.js';
 import { runDependencyAdvisoryScan, type DependencyAdvisoryOutcome } from '../../domains/security-compliance/dependency-advisory-engine.js';
+import { MAX_PAYLOAD_FILE_BYTES, requirePayloadPath } from '../../shared/io/payload-path-guard.js';
 
 export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
   // Register security scan handler - REAL IMPLEMENTATION
@@ -32,6 +33,12 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
     };
 
     try {
+      // #1126: scan only a file or directory inside the project.
+      if (payload.target && payload.target !== '.') {
+        const confined = await requirePayloadPath('scan-security', 'target', payload.target,
+          { allowDirectory: true, allowMissing: true, maxBytes: MAX_PAYLOAD_FILE_BYTES });
+        if (!confined.success) return confined;
+      }
       const targetPath = path.resolve(payload.target || process.cwd());
       const sastRequested = payload.sast !== false;
       const discoveryResult = sastRequested ? await discoverSecurityFiles(targetPath) : undefined;

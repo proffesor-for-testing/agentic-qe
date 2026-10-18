@@ -5,6 +5,7 @@
 
 import { DomainName, DomainEvent, Result, err } from '../../shared/types';
 import { BaseDomainPlugin, TaskHandler } from '../domain-interface';
+import { requirePayloadFiles } from '../../shared/io/payload-path-guard.js';
 import { EventBus, MemoryBackend } from '../../kernel/interfaces';
 import { TestExecutionAPI, IExecuteTestsRequest, ISimpleTestRequest } from './interfaces';
 import { TestExecutionCoordinator, createTestExecutionCoordinator } from './coordinator';
@@ -78,6 +79,13 @@ export class TestExecutionPlugin extends BaseDomainPlugin {
           return err(new Error('Coordinator not initialized'));
         }
 
+        // #1126: a runner executes the files it is given, so only files inside
+        // the project. A missing one is still reported by the runner (#909).
+        if (payload.testFiles !== undefined) {
+          const confined = await requirePayloadFiles('execute-tests', 'testFiles', payload.testFiles, { allowMissing: true });
+          if (!confined.success) return confined;
+        }
+
         // Support both simple and full request formats
         if (payload.testFiles && Array.isArray(payload.testFiles)) {
           // Simple request format
@@ -117,6 +125,8 @@ export class TestExecutionPlugin extends BaseDomainPlugin {
         if (!testFiles) {
           return err(new Error('Invalid detect-flaky payload: missing testFiles'));
         }
+        const confined = await requirePayloadFiles('detect-flaky', 'testFiles', testFiles, { allowMissing: true });
+        if (!confined.success) return confined;
 
         return this.coordinator.detectFlaky({
           testFiles,

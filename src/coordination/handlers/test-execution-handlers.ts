@@ -15,6 +15,7 @@ import { createVitestJsonReport } from '../../shared/vitest-json-report.js';
 import { jestExactPathPattern, runnerFilePath } from '../../shared/test-runner-args.js';
 import { testCasesFromRunnerReport } from '../../domains/test-execution/services/runner-test-cases.js';
 import { runTestRunnerProcess } from '../../shared/test-runner-process.js';
+import { MAX_PAYLOAD_FILE_BYTES, requirePayloadFiles } from '../../shared/io/payload-path-guard.js';
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -92,6 +93,12 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
         sourceFiles = payload.sourceFiles;
       } else if (payload.filePath) {
         sourceFiles = [payload.filePath];
+      }
+      if (sourceFiles.length > 0) {
+        // #1126: the generator reads each file whole, so only project files.
+        const field = payload.sourceFiles?.length ? 'sourceFiles' : 'filePath';
+        const confined = await requirePayloadFiles('generate-tests', field, sourceFiles, { maxBytes: MAX_PAYLOAD_FILE_BYTES });
+        if (!confined.success) return confined;
       } else if (payload.sourceCode) {
         // Write temporary file for analysis if only source code provided
         // Use correct file extension based on language parameter
@@ -223,6 +230,10 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
       if (testFiles.some(file => !safePathPattern.test(file))) {
         return err(new TestRunnerExecutionError('Some test file paths contain invalid characters and were rejected. Provide concrete paths; expand glob patterns before calling.'));
       }
+      // #1126: a runner executes what it is given, so only files inside the
+      // project. A missing file is still reported by the runner.
+      const confined = await requirePayloadFiles('execute-tests', 'testFiles', testFiles, { allowMissing: true });
+      if (!confined.success) return confined;
 
       // A caller-owned MCP task skips the Queen's plugin dispatch. Run through
       // that same domain API here: it owns persistence, measured quality evidence

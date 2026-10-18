@@ -10,6 +10,7 @@ import { ok, err } from '../../shared/types';
 import { toError, toErrorMessage } from '../../shared/error-utils.js';
 import type { TaskHandlerContext } from './handler-types';
 import { discoverSourceFiles } from './handler-utils';
+import { MAX_PAYLOAD_FILE_BYTES, requirePayloadPath } from '../../shared/io/payload-path-guard.js';
 
 export function registerRequirementsHandlers(ctx: TaskHandlerContext): void {
   // Register requirements validation handler
@@ -20,6 +21,12 @@ export function registerRequirementsHandlers(ctx: TaskHandlerContext): void {
     };
 
     try {
+      // #1126: list requirement files only inside the project.
+      if (payload.requirementsPath) {
+        const confined = await requirePayloadPath('validate-requirements', 'requirementsPath', payload.requirementsPath,
+          { allowDirectory: true, allowMissing: true });
+        if (!confined.success) return confined;
+      }
       const targetPath = payload.requirementsPath || process.cwd();
       // Look for requirements files (markdown, feature files, etc.)
       const reqFiles = await discoverSourceFiles(targetPath, {
@@ -70,6 +77,12 @@ export function registerRequirementsHandlers(ctx: TaskHandlerContext): void {
           error: 'contractPath is required. Provide a path to an OpenAPI spec, JSON Schema, or Protocol Buffer file.',
         });
       }
+
+      // #1126: read only a regular file inside the project, within the size
+      // limit; the result reports its line count and whether it parses.
+      const confined = await requirePayloadPath('validate-contracts', 'contractPath', payload.contractPath,
+        { maxBytes: MAX_PAYLOAD_FILE_BYTES });
+      if (!confined.success) return confined;
 
       // Check if the contract file exists
       try {

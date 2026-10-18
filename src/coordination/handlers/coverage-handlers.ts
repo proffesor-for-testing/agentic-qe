@@ -8,6 +8,7 @@
 import { ok, err } from '../../shared/types';
 import { toError } from '../../shared/error-utils.js';
 import type { TaskHandlerContext } from './handler-types';
+import { requirePayloadPath } from '../../shared/io/payload-path-guard.js';
 import type { CoverageData } from '../../domains/coverage-analysis/interfaces';
 import {
   buildEstimatedCoverage,
@@ -266,6 +267,13 @@ export function registerCoverageHandlers(ctx: TaskHandlerContext): void {
     };
 
     try {
+      // #1126: collect coverage (which may run the tests) only inside the
+      // project. A missing target keeps its own message below.
+      if (payload.target && payload.target !== '.') {
+        const confined = await requirePayloadPath('analyze-coverage', 'target', payload.target,
+          { allowDirectory: true, allowMissing: true });
+        if (!confined.success) return confined;
+      }
       const analyzer = ctx.getCoverageAnalyzer();
       const targetPath = payload.target || process.cwd();
       const threshold = payload.threshold || 80;

@@ -18,6 +18,18 @@ import { registerTestExecutionHandlers } from '../../../../src/coordination/hand
 import '../../../../src/mcp/handlers/domain-handlers';
 import { testExecuteConfig } from '../../../../src/mcp/handlers/domain-handler-configs';
 
+// #1126: these tests drive handlers with repository paths while the test env
+// points AQE_PROJECT_ROOT at a temp dir; confinement is covered by its own tests.
+vi.mock('../../../../src/shared/io/payload-path-guard.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../../src/shared/io/payload-path-guard.js')>();
+  const { ok } = await import('../../../../src/shared/types');
+  return {
+    ...actual,
+    requirePayloadFiles: async (_type: string, _field: string, value: unknown) => ok(value as string[]),
+    requirePayloadPath: async (_type: string, _field: string, value: unknown) => ok(value as string),
+  };
+});
+
 describe('#1027 N5 — test execution reports unmeasured coverage as null', () => {
   it('the execute-tests handler returns coverage: null, not 0', async () => {
     const handlers = new Map<string, (task: unknown) => Promise<{ success: boolean; value?: Record<string, unknown> }>>();

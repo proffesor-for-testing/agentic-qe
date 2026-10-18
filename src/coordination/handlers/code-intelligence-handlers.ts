@@ -16,6 +16,7 @@ import { discoverSourceFiles } from './handler-utils';
 import { resolveProjectRootFromPaths } from '../../domains/code-intelligence/project-root-resolver.js';
 import { nothingIndexedError } from '../../domains/code-intelligence/index-path-guard.js';
 import { createLogger } from '../../logging/logger-factory.js';
+import { requirePayloadPath } from '../../shared/io/payload-path-guard.js';
 
 const logger = createLogger('CodeIntelligenceHandlers');
 
@@ -60,6 +61,12 @@ async function collectProjectMetricsForTarget(
   }
 }
 
+/** #1126: a caller-named target must be a file or directory inside the project. */
+async function confineTarget(taskType: string, target: string | undefined) {
+  if (!target || target === '.') return ok(undefined);
+  return requirePayloadPath(taskType, 'target', target, { allowDirectory: true, allowMissing: true });
+}
+
 export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void {
   // Register code indexing handler - REAL IMPLEMENTATION
   ctx.registerHandler('index-code', async (task) => {
@@ -71,6 +78,10 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
     };
 
     try {
+      // #1126: refuse an outside target before listing it, so the error
+      // cannot name the files in an outside directory.
+      const confined = await confineTarget('index-code', payload.target);
+      if (!confined.success) return confined;
       const kg = ctx.getKnowledgeGraph();
       const targetPath = payload.target || process.cwd();
       const startTime = Date.now();
@@ -174,6 +185,8 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
     };
 
     try {
+      const confined = await confineTarget('predict-defects', payload.target);
+      if (!confined.success) return confined;
       const targetPath = path.resolve(payload.target || process.cwd());
       const minConfidence = payload.minConfidence || 0.5;
 

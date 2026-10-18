@@ -36,6 +36,11 @@ import type { QueenTask } from '../../../../src/coordination/queen-coordinator';
 // Side-effect import: registers the coverage-analysis domain service factory.
 import '../../../../src/domains/coverage-analysis';
 
+// #1126: the handler analyses only targets inside the project root, and these
+// fixtures live in the OS temp dir.
+beforeEach(() => { vi.stubEnv('AQE_PROJECT_ROOT', fs.realpathSync(os.tmpdir())); });
+afterEach(() => { vi.unstubAllEnvs(); });
+
 // ---------------------------------------------------------------------------
 // Fixture
 // ---------------------------------------------------------------------------

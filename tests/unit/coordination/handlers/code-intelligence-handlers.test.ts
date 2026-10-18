@@ -22,10 +22,13 @@ describe('index-code handler (#511 MCP parity)', () => {
   beforeEach(async () => {
     // discoverSourceFiles reads the real FS; keep the fixture under the repo.
     tmpDir = await fs.mkdtemp(path.join(__dirname, 'tmp-idx-'));
+    // #1126: the handler indexes only targets inside the project root.
+    vi.stubEnv('AQE_PROJECT_ROOT', tmpDir);
     await fs.writeFile(path.join(tmpDir, 'app.ts'), 'export const x = 1;\n');
   });
 
   afterEach(async () => {
+    vi.unstubAllEnvs();
     await fs.rm(tmpDir, { recursive: true, force: true });
   });
 
@@ -70,12 +73,15 @@ describe('index-code handler collects project metrics (#999 MCP-CLI parity)', ()
 
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(path.join(__dirname, 'tmp-idx999-'));
+    // #1126: the handler indexes only targets inside the project root.
+    vi.stubEnv('AQE_PROJECT_ROOT', tmpDir);
     await fs.writeFile(path.join(tmpDir, 'package.json'), '{"name":"p"}\n');
     await fs.mkdir(path.join(tmpDir, 'src'));
     await fs.writeFile(path.join(tmpDir, 'src', 'app.ts'), 'export const x = 1;\n');
   });
 
   afterEach(async () => {
+    vi.unstubAllEnvs();
     await fs.rm(tmpDir, { recursive: true, force: true });
   });
 
