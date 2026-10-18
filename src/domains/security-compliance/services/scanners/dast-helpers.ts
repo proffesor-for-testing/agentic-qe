@@ -159,40 +159,36 @@ export async function scanSensitiveFiles(
   for (const endpoint of sensitiveEndpoints) {
     if (crawledUrls >= maxDepth * 10) break;
 
-    try {
-      const testUrl = new URL(endpoint.path, parsedUrl.origin).toString();
-      const testResponse = await fetch(testUrl, {
-        method: 'GET',
-        signal: AbortSignal.timeout(5000),
-      });
+    const testUrl = new URL(endpoint.path, parsedUrl.origin).toString();
+    const testResponse = await fetch(testUrl, {
+      method: 'GET',
+      signal: AbortSignal.timeout(5000),
+    });
 
-      if (testResponse.ok) {
-        crawledUrls++;
-        const text = await testResponse.text();
+    if (testResponse.ok) {
+      crawledUrls++;
+      const text = await testResponse.text();
 
-        if (text.length > 20 && !text.toLowerCase().includes('not found') && !text.toLowerCase().includes('404')) {
-          const isSensitive =
-            endpoint.path.includes('.git') ||
-            endpoint.path.includes('.env') ||
-            endpoint.path.includes('.htaccess') ||
-            endpoint.path.includes('web.config');
+      if (text.length > 20 && !text.toLowerCase().includes('not found') && !text.toLowerCase().includes('404')) {
+        const isSensitive =
+          endpoint.path.includes('.git') ||
+          endpoint.path.includes('.env') ||
+          endpoint.path.includes('.htaccess') ||
+          endpoint.path.includes('web.config');
 
-          if (isSensitive) {
-            vulnerabilities.push({
-              id: uuidv4(),
-              title: `Sensitive File Exposed: ${endpoint.name}`,
-              description: `${endpoint.name} is publicly accessible`,
-              severity: endpoint.path.includes('.git') || endpoint.path.includes('.env') ? 'high' : 'medium',
-              category: 'sensitive-data',
-              location: { file: testUrl },
-              remediation: { description: `Restrict access to ${endpoint.path}`, estimatedEffort: 'trivial', automatable: true },
-              references: ['https://owasp.org/www-project-web-security-testing-guide/'],
-            });
-          }
+        if (isSensitive) {
+          vulnerabilities.push({
+            id: uuidv4(),
+            title: `Sensitive File Exposed: ${endpoint.name}`,
+            description: `${endpoint.name} is publicly accessible`,
+            severity: endpoint.path.includes('.git') || endpoint.path.includes('.env') ? 'high' : 'medium',
+            category: 'sensitive-data',
+            location: { file: testUrl },
+            remediation: { description: `Restrict access to ${endpoint.path}`, estimatedEffort: 'trivial', automatable: true },
+            references: ['https://owasp.org/www-project-web-security-testing-guide/'],
+          });
         }
       }
-    } catch {
-      // File not accessible - expected
     }
   }
 
@@ -210,31 +206,27 @@ export async function analyzeCORS(
   targetUrl: string,
   vulnerabilities: Vulnerability[]
 ): Promise<void> {
-  try {
-    const corsResponse = await fetch(targetUrl, {
-      method: 'OPTIONS',
-      headers: {
-        'Origin': 'https://evil-attacker.com',
-        'Access-Control-Request-Method': 'GET',
-      },
-      signal: AbortSignal.timeout(5000),
-    });
+  const corsResponse = await fetch(targetUrl, {
+    method: 'OPTIONS',
+    headers: {
+      'Origin': 'https://evil-attacker.com',
+      'Access-Control-Request-Method': 'GET',
+    },
+    signal: AbortSignal.timeout(5000),
+  });
 
-    const allowOrigin = corsResponse.headers.get('access-control-allow-origin');
-    if (allowOrigin === '*' || allowOrigin === 'https://evil-attacker.com') {
-      vulnerabilities.push({
-        id: uuidv4(),
-        title: 'Overly Permissive CORS Policy',
-        description: allowOrigin === '*' ? 'CORS allows all origins' : 'CORS reflects arbitrary origin',
-        severity: 'medium',
-        category: 'access-control',
-        location: { file: targetUrl, snippet: `Access-Control-Allow-Origin: ${allowOrigin}` },
-        remediation: { description: 'Restrict CORS to specific trusted origins', estimatedEffort: 'minor', automatable: false },
-        references: ['https://owasp.org/www-community/attacks/CORS_OriginHeaderScrutiny'],
-      });
-    }
-  } catch {
-    // OPTIONS request failed - CORS might be properly restricted
+  const allowOrigin = corsResponse.headers.get('access-control-allow-origin');
+  if (allowOrigin === '*' || allowOrigin === 'https://evil-attacker.com') {
+    vulnerabilities.push({
+      id: uuidv4(),
+      title: 'Overly Permissive CORS Policy',
+      description: allowOrigin === '*' ? 'CORS allows all origins' : 'CORS reflects arbitrary origin',
+      severity: 'medium',
+      category: 'access-control',
+      location: { file: targetUrl, snippet: `Access-Control-Allow-Origin: ${allowOrigin}` },
+      remediation: { description: 'Restrict CORS to specific trusted origins', estimatedEffort: 'minor', automatable: false },
+      references: ['https://owasp.org/www-community/attacks/CORS_OriginHeaderScrutiny'],
+    });
   }
 }
 
@@ -276,47 +268,43 @@ export async function extractAndCrawlLinks(
   for (const path of linksToCrawl) {
     if (crawledUrls >= maxCrawl) break;
 
-    try {
-      const crawlUrl = new URL(path, baseUrl.origin).toString();
-      const crawlResponse = await fetch(crawlUrl, {
-        method: 'GET',
-        headers: { 'User-Agent': 'AgenticQE-DAST-Scanner/3.0' },
-        signal: AbortSignal.timeout(5000),
-        redirect: 'follow',
-      });
+    const crawlUrl = new URL(path, baseUrl.origin).toString();
+    const crawlResponse = await fetch(crawlUrl, {
+      method: 'GET',
+      headers: { 'User-Agent': 'AgenticQE-DAST-Scanner/3.0' },
+      signal: AbortSignal.timeout(5000),
+      redirect: 'follow',
+    });
 
-      crawledUrls++;
+    crawledUrls++;
 
-      if (crawlResponse.ok) {
-        if (path.includes('password') || path.includes('token') || path.includes('api_key')) {
-          vulnerabilities.push({
-            id: uuidv4(),
-            title: 'Sensitive Data in URL Path',
-            description: `URL path may contain sensitive parameter names: ${path}`,
-            severity: 'medium',
-            category: 'sensitive-data',
-            location: { file: crawlUrl },
-            remediation: { description: 'Avoid sensitive data in URL paths', estimatedEffort: 'minor', automatable: false },
-            references: ['https://owasp.org/www-community/vulnerabilities/Information_exposure_through_query_strings_in_url'],
-          });
-        }
-
-        const responseText = await crawlResponse.text();
-        if (responseText.includes('Index of /') || responseText.includes('Directory listing for')) {
-          vulnerabilities.push({
-            id: uuidv4(),
-            title: 'Directory Listing Enabled',
-            description: `Directory listing is enabled at: ${crawlUrl}`,
-            severity: 'medium',
-            category: 'security-misconfiguration',
-            location: { file: crawlUrl },
-            remediation: { description: 'Disable directory listing in server configuration', estimatedEffort: 'trivial', automatable: true },
-            references: ['https://owasp.org/www-project-web-security-testing-guide/'],
-          });
-        }
+    if (crawlResponse.ok) {
+      if (path.includes('password') || path.includes('token') || path.includes('api_key')) {
+        vulnerabilities.push({
+          id: uuidv4(),
+          title: 'Sensitive Data in URL Path',
+          description: `URL path may contain sensitive parameter names: ${path}`,
+          severity: 'medium',
+          category: 'sensitive-data',
+          location: { file: crawlUrl },
+          remediation: { description: 'Avoid sensitive data in URL paths', estimatedEffort: 'minor', automatable: false },
+          references: ['https://owasp.org/www-community/vulnerabilities/Information_exposure_through_query_strings_in_url'],
+        });
       }
-    } catch {
-      // Page not accessible
+
+      const responseText = await crawlResponse.text();
+      if (responseText.includes('Index of /') || responseText.includes('Directory listing for')) {
+        vulnerabilities.push({
+          id: uuidv4(),
+          title: 'Directory Listing Enabled',
+          description: `Directory listing is enabled at: ${crawlUrl}`,
+          severity: 'medium',
+          category: 'security-misconfiguration',
+          location: { file: crawlUrl },
+          remediation: { description: 'Disable directory listing in server configuration', estimatedEffort: 'trivial', automatable: true },
+          references: ['https://owasp.org/www-project-web-security-testing-guide/'],
+        });
+      }
     }
   }
 

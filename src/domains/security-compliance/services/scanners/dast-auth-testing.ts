@@ -32,46 +32,42 @@ export async function testAuthorizationBypass(
   for (const endpoint of protectedEndpoints) {
     if (crawledUrls >= maxDepth * 15) break;
 
-    try {
-      const testUrl = new URL(endpoint, parsedUrl.origin).toString();
+    const testUrl = new URL(endpoint, parsedUrl.origin).toString();
 
-      // Try with authentication
-      const authResponse = await fetch(testUrl, {
+    // Try with authentication
+    const authResponse = await fetch(testUrl, {
+      method: 'GET',
+      headers: { ...authHeaders },
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (authResponse.ok) {
+      crawledUrls++;
+
+      // Try without authentication
+      const unauthResponse = await fetch(testUrl, {
         method: 'GET',
-        headers: { ...authHeaders },
         signal: AbortSignal.timeout(5000),
       });
 
-      if (authResponse.ok) {
-        crawledUrls++;
+      if (unauthResponse.ok && unauthResponse.status === 200) {
+        const authText = await authResponse.text();
+        const unauthText = await unauthResponse.text();
 
-        // Try without authentication
-        const unauthResponse = await fetch(testUrl, {
-          method: 'GET',
-          signal: AbortSignal.timeout(5000),
-        });
-
-        if (unauthResponse.ok && unauthResponse.status === 200) {
-          const authText = await authResponse.text();
-          const unauthText = await unauthResponse.text();
-
-          if (authText.length > 100 && unauthText.length > 100 &&
-              Math.abs(authText.length - unauthText.length) < authText.length * 0.1) {
-            vulnerabilities.push({
-              id: uuidv4(),
-              title: 'Missing Authentication on Protected Endpoint',
-              description: `Endpoint ${endpoint} is accessible without authentication`,
-              severity: 'high',
-              category: 'broken-auth',
-              location: { file: testUrl },
-              remediation: { description: 'Implement proper authentication checks', estimatedEffort: 'moderate', automatable: false },
-              references: ['https://owasp.org/www-project-web-security-testing-guide/'],
-            });
-          }
+        if (authText.length > 100 && unauthText.length > 100 &&
+            Math.abs(authText.length - unauthText.length) < authText.length * 0.1) {
+          vulnerabilities.push({
+            id: uuidv4(),
+            title: 'Missing Authentication on Protected Endpoint',
+            description: `Endpoint ${endpoint} is accessible without authentication`,
+            severity: 'high',
+            category: 'broken-auth',
+            location: { file: testUrl },
+            remediation: { description: 'Implement proper authentication checks', estimatedEffort: 'moderate', automatable: false },
+            references: ['https://owasp.org/www-project-web-security-testing-guide/'],
+          });
         }
       }
-    } catch {
-      // Endpoint not accessible - expected
     }
   }
 
@@ -98,33 +94,29 @@ export async function testIDOR(
   for (const endpoint of idorEndpoints.slice(0, 2)) {
     if (crawledUrls >= maxDepth * 15) break;
 
-    try {
-      const testUrl = new URL(endpoint, parsedUrl.origin).toString();
-      const response = await fetch(testUrl, {
-        method: 'GET',
-        headers: { ...authHeaders },
-        signal: AbortSignal.timeout(5000),
-      });
+    const testUrl = new URL(endpoint, parsedUrl.origin).toString();
+    const response = await fetch(testUrl, {
+      method: 'GET',
+      headers: { ...authHeaders },
+      signal: AbortSignal.timeout(5000),
+    });
 
-      if (response.ok) {
-        crawledUrls++;
-        const text = await response.text();
+    if (response.ok) {
+      crawledUrls++;
+      const text = await response.text();
 
-        if (text.includes('email') || text.includes('password') || text.includes('phone')) {
-          vulnerabilities.push({
-            id: uuidv4(),
-            title: 'Potential Insecure Direct Object Reference (IDOR)',
-            description: `Endpoint ${endpoint} may expose other users' data`,
-            severity: 'high',
-            category: 'access-control',
-            location: { file: testUrl },
-            remediation: { description: 'Implement proper authorization checks for resource access', estimatedEffort: 'moderate', automatable: false },
-            references: ['https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/05-Authorization_Testing/04-Testing_for_Insecure_Direct_Object_References'],
-          });
-        }
+      if (text.includes('email') || text.includes('password') || text.includes('phone')) {
+        vulnerabilities.push({
+          id: uuidv4(),
+          title: 'Potential Insecure Direct Object Reference (IDOR)',
+          description: `Endpoint ${endpoint} may expose other users' data`,
+          severity: 'high',
+          category: 'access-control',
+          location: { file: testUrl },
+          remediation: { description: 'Implement proper authorization checks for resource access', estimatedEffort: 'moderate', automatable: false },
+          references: ['https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/05-Authorization_Testing/04-Testing_for_Insecure_Direct_Object_References'],
+        });
       }
-    } catch {
-      // Endpoint not accessible
     }
   }
 

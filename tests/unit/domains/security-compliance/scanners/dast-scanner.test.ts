@@ -143,20 +143,11 @@ describe('DASTScanner', () => {
       }
     });
 
-    it('should_handleFetchError_gracefully', async () => {
-      // Arrange
+    it('should_reportFetchFailure_asFailedExecution', async () => {
       vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNREFUSED')));
-
-      // Act
       const result = await scanner.scanUrl('https://unreachable.example.com');
-
-      // Assert
-      expect(result.success).toBe(true);
-      // handleFetchError helper is called
-      const { handleFetchError } = await import(
-        '../../../../../src/domains/security-compliance/services/scanners/dast-helpers.js'
-      );
-      expect(handleFetchError).toHaveBeenCalled();
+      expect(result.success).toBe(false);
+      if (!result.success) expect(result.error.message).toContain('DAST target request failed');
     });
 
     it('should_storeResults_when_scanCompletes', async () => {

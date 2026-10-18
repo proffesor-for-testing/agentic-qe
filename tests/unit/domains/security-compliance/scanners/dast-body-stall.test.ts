@@ -71,10 +71,8 @@ describe('DAST scanner bounds the response body, not just the headers (#980)', (
     expect(Date.now() - started).toBeLessThan(8000);
     expect(stalledBodies).toBeGreaterThanOrEqual(1);
     const scan = result as Awaited<ReturnType<DASTScanner['scanUrl']>>;
-    expect(scan.success).toBe(true);
-    if (scan.success) {
-      expect(scan.value.vulnerabilities.map((v) => v.title)).toContain('Connection Timeout');
-    }
+    expect(scan.success).toBe(false);
+    if (!scan.success) expect(scan.error.message).toContain('timeout');
   }, 15_000);
 
   it('#980 review N8: the authenticated scan finishes and releases the stalled connection', async () => {

@@ -195,8 +195,10 @@ export class SecurityScannerService implements ISecurityScannerService {
         const dastScan = await this.scanUrl(targetUrl, options);
         if (dastScan.success) {
           dastResult = dastScan.value;
+        } else {
+          // A requested phase that did not execute cannot become a full scan.
+          return err(dastScan.error);
         }
-        // Don't fail the full scan if DAST fails
       }
 
       // Combine summaries
