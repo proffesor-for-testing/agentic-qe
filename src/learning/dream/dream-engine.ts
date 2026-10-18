@@ -390,6 +390,8 @@ export class DreamEngine {
   private currentCycle: DreamCycle | null = null;
   private initialized = false;
   private cancelled = false;
+  /** #1060: how many times cancelDream() was called (see cancelCount). */
+  private cancelRequests = 0;
   private branchEventListeners: Array<(event: string, branch: Branch, detail?: ValidationResult) => void> = [];
 
   /** Optional witness chain for audit trail of dream decisions (ADR-070) */
@@ -520,6 +522,16 @@ export class DreamEngine {
    * 4. Generates insights from activation patterns
    * 5. Persists the cycle and insights
    *
+   * The cycle row is written as 'running' when the dream starts. Another
+   * process's DreamEngine.initialize() marks a cycle still 'running' after
+   * max(its config.maxDurationMs, 60 s) + ABANDONED_CYCLE_GRACE_MS (10 min),
+   * i.e. 11 minutes by default, as interrupted ('abandoned: process exited').
+   * The MCP tool and the CLI cap dreams at 60 s. A library caller that runs
+   * dreams longer than about 10 minutes (graph loading included) should give
+   * every engine sharing the database a maxDurationMs at least that long, or
+   * a live cycle can be marked interrupted. Its commit still records the
+   * final status, and nothing is deleted.
+   *
    * @param durationMs - Maximum duration in milliseconds (default: config.maxDurationMs)
    * @returns Dream cycle result with insights and statistics
    */
@@ -564,10 +576,11 @@ export class DreamEngine {
     this.cancelled = false;
     this.currentCycle = cycle;
     const commitResults = options.commit !== false;
-    if (commitResults) await this.saveCycle(cycle);
 
     // If the engine closes or the process shuts down mid-dream, stop the dream
     // and record the cycle as interrupted instead of leaving it 'running'.
+    // Registered before the first await, so a close() or shutdown right after
+    // dream() is called still reaches this dream.
     const interrupt = this.createCycleInterrupter(cycle, startTime, abort);
     this.interruptActiveDream = interrupt;
     const unregisterShutdownGuard = registerStoreCloser(interrupt);
@@ -576,6 +589,9 @@ export class DreamEngine {
     let committed = false;
 
     try {
+      if (commitResults) await this.saveCycle(cycle);
+      if (!live()) throw new Error('Dream cycle cancelled');
+
       // 1. Check we have enough concepts
       const minConcepts = options.minConceptsRequired ?? this.config.minConceptsRequired;
       const allNodes = await graph.getActiveNodes(0);
@@ -1009,10 +1025,19 @@ export class DreamEngine {
   // ==========================================================================
 
   /**
+   * #1060: number of cancelDream() calls so far. A caller that runs several
+   * dreams in a row (SpeculativeDreamer) compares it to stop after a cancel.
+   */
+  get cancelCount(): number {
+    return this.cancelRequests;
+  }
+
+  /**
    * Cancel the running dream cycle.
    */
   async cancelDream(): Promise<void> {
     this.cancelled = true;
+    this.cancelRequests++;
     // #1060: stop the activation loop now; nothing of the dream is committed.
     this.activeAbort?.abort();
   }
@@ -1120,6 +1145,7 @@ export class DreamEngine {
     // wait (briefly) for it to unwind before letting go of the database.
     this.interruptActiveDream?.();
     this.interruptActiveDream = null;
+    this.activeAbort?.abort();
     const inFlight = this.activeDream?.done;
     if (inFlight) {
       let timer: NodeJS.Timeout | undefined;

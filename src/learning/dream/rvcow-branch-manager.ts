@@ -142,6 +142,10 @@ export type BranchEventListener = (event: BranchEvent, branch: Branch, detail?: 
  *   manager.discardBranch(branch);
  * }
  * ```
+ *
+ * @deprecated #1060: no dream path uses branching any more. A SAVEPOINT on
+ * the process-wide shared connection captures every foreground write made
+ * while it is open; do not reintroduce it there.
  */
 export class RVCOWBranchManager {
   private activeBranches: Map<string, Branch> = new Map();
@@ -196,6 +200,7 @@ export class RVCOWBranchManager {
    * @param name - Unique branch name (used as savepoint identifier)
    * @returns The created Branch
    * @throws If a branch with this name already exists
+   * @deprecated #1060: see the class note; never open this on the shared connection.
    */
   createBranch(name: string): Branch {
     if (this.activeBranches.has(name)) {

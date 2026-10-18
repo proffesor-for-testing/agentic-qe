@@ -91,7 +91,9 @@ export function commitDream(db: DatabaseType, dream: ComputedDream): DreamCommit
     for (const [nodeId, level, loadedLevel] of dream.activations) {
       // Conflict rule: the foreground wins. A node removed since the dream
       // loaded it is not recreated, and a node whose level changed since then
-      // is not overwritten; in both cases the UPDATE matches no row.
+      // is not overwritten; in both cases the UPDATE matches no row. The check
+      // compares values: a foreground write that set the node to exactly the
+      // level the dream loaded is indistinguishable and is overwritten.
       const expected = loadedLevel ?? null;
       activationsWritten += updateActivation.run(
         Math.max(0, Math.min(1, level)), nodeId, expected, expected,
@@ -127,6 +129,10 @@ export function commitDream(db: DatabaseType, dream: ComputedDream): DreamCommit
 /**
  * Margin added to the longest dream duration before a `running` cycle is
  * treated as abandoned (covers graph loading and insight generation).
+ * DreamEngine.initialize() sweeps cycles older than
+ * max(config.maxDurationMs, 60 s) + this margin, 11 minutes by default.
+ * Library callers running longer dreams must raise maxDurationMs on every
+ * engine sharing the database (see DreamEngine.dream()).
  */
 export const ABANDONED_CYCLE_GRACE_MS = 10 * 60 * 1000;
 

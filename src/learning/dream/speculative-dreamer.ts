@@ -80,6 +80,12 @@ export interface SpeculativeDreamResult {
 
   /** How long the winner's commit transaction took, in ms */
   commitDurationMs?: number;
+
+  /**
+   * True when DreamEngine.cancelDream() was called during the run: the
+   * remaining strategies were not run and nothing was committed.
+   */
+  cancelled: boolean;
 }
 
 /** Options for SpeculativeDreamer.dream(). */
@@ -170,8 +176,16 @@ export class SpeculativeDreamer {
 
     const totalStart = Date.now();
     const results: StrategyResult[] = [];
+    // #1060: a cancel stops the whole speculative run, not only the strategy
+    // that happens to be running; nothing further runs or is committed.
+    const cancelsAtStart = this.engine.cancelCount;
+    const cancelled = () => this.engine.cancelCount !== cancelsAtStart;
     for (const strategy of strategies) {
+      if (cancelled()) break;
       results.push(await this.executeStrategy(strategy, options.durationMs));
+    }
+    if (cancelled()) {
+      return { strategies: results, winner: null, totalDurationMs: Date.now() - totalStart, cancelled: true };
     }
 
     let winner: StrategyResult | null = null;
@@ -195,6 +209,7 @@ export class SpeculativeDreamer {
       winner,
       totalDurationMs: Date.now() - totalStart,
       commitDurationMs,
+      cancelled: false,
     };
   }
 
