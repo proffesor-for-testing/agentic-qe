@@ -82,6 +82,20 @@ describe('#1110 test_execute_parallel output', () => {
     expect(result.summary).toMatchObject({ parallelEfficiency: 1 });
     expect(result.unmeasured).toEqual(['results', 'workerStats.avgExecutionTime', 'summary.avgDuration']);
   });
+  // #1130: retries ran but no worker task was recorded, so retryStats used to be unmeasured.
+  it('reports the retries the domain ran as retryStats', () => {
+    const retries = {
+      totalRetries: 2, nowPassing: 1, stillFailing: 1,
+      tests: [
+        { name: 'suite > a', file: '/p/a.test.ts', attempts: 1, passed: true },
+        { name: 'b', file: '/p/b.test.ts', attempts: 0, passed: false, unmatched: true },
+      ],
+    };
+    const result = map({ retries });
+
+    expect(result.retryStats).toEqual(retries);
+    expect(result.unmeasured).not.toContain('retryStats');
+  });
 });
 
 describe('#1110 testCasesFromRunnerReport', () => {

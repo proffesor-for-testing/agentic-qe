@@ -938,6 +938,10 @@ function inferDomainFromDescription(description: string): string {
 function inferTaskType(description: string): TaskType {
   const lower = description.toLowerCase();
 
+  // #1130: "run chaos resilience testing" names a chaos run, not a test run.
+  if (/\b(chaos|resilience|fault.?inject\w*)\b/.test(lower)) {
+    return 'run-chaos';
+  }
   // Check execution first (more specific patterns)
   if (
     /run\s+(?:\w+\s+)*tests?/.test(lower) ||

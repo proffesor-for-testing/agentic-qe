@@ -197,7 +197,7 @@ export interface IQueenCoordinator {
   // Agent Management
   listAllAgents(): AgentInfo[];
   getAgentsByDomain(domain: DomainName): AgentInfo[];
-  requestAgentSpawn(domain: DomainName, type: string, capabilities: string[]): Promise<Result<string, Error>>;
+  requestAgentSpawn(domain: DomainName, type: string, capabilities: string[], taskId?: string): Promise<Result<string, Error>>;
 
   // Health & Metrics
   getHealth(): QueenHealth;

@@ -237,6 +237,12 @@ export function createTestCommand(
               console.log(`    Failed: ${chalk.red(run.failed)}`);
               console.log(`    Skipped: ${chalk.yellow(run.skipped)}`);
               console.log(`    Duration: ${chalk.cyan(run.duration + 'ms')}`);
+              if (run.retries) {
+                const unmatched = run.retries.tests.filter(t => t.unmatched).length;
+                console.log(`    Retries: ${chalk.white(run.retries.totalRetries)} run, ` +
+                  `${chalk.green(run.retries.nowPassing)} now passing, ${chalk.red(run.retries.stillFailing)} still failing` +
+                  (unmatched > 0 ? `, ${chalk.yellow(unmatched)} matched no test` : ''));
+              }
             }
 
             // Exit codes: 1 = failures, 2 = >20% skipped, 0 = all good

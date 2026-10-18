@@ -504,6 +504,27 @@ describe('Task Handlers', () => {
       expect(result.data!.type).toBe('execute-tests');
     }, 30000);
 
+    // #1130: "testing" after chaos wording must not read as a test run, and
+    // "default" must not read as fault injection.
+    it('should not infer a test run from chaos testing wording', async () => {
+      const result = await handleTaskOrchestrate({
+        task: 'Run chaos resilience testing with fault injection',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('run-chaos');
+      expect(result.error).toContain('Use chaos_test');
+    }, 30000);
+
+    it('should still infer a test run when the description says default', async () => {
+      const result = await handleTaskOrchestrate({
+        task: 'Run the tests with the default config',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.data!.type).toBe('execute-tests');
+    }, 30000);
+
     it('should infer coverage analysis type', async () => {
       const result = await handleTaskOrchestrate({
         task: 'Analyze test coverage for the project',
