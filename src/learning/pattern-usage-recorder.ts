@@ -102,11 +102,13 @@ export function recordPatternUsage(
     WHERE id = ?
   `);
 
+  // #1129: always a metrics object, so only pre-#1129 rows lack one
+  // (see usage-outcome.ts for how those rows are read).
   const txn = db.transaction(() => {
     insertUsage.run(
       record.patternId,
       successInc,
-      record.metrics ? JSON.stringify(record.metrics) : null,
+      JSON.stringify(record.metrics ?? {}),
       record.feedback ?? null,
     );
     updatePattern.run(
@@ -168,7 +170,7 @@ export function recordPatternUsageBatch(
       last_used_at = datetime('now'), updated_at = datetime('now')
     WHERE id = ?
   `);
-  const metricsJson = record.metrics ? JSON.stringify(record.metrics) : null;
+  const metricsJson = JSON.stringify(record.metrics ?? {});
   const feedback = record.feedback ?? null;
 
   db.transaction(() => {

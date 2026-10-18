@@ -175,7 +175,7 @@ describe('recordPatternUsage (#486 Gap B — single writer for pattern usage)', 
     expect(auditCount.n).toBe(3);
   });
 
-  it('handles null metrics and feedback by writing nulls (not "null" strings)', () => {
+  it('writes an empty metrics object when none is given, so new rows never look pre-#1129', () => {
     seedPattern(db, 'p1');
 
     recordPatternUsage(db, { patternId: 'p1', success: true });
@@ -183,7 +183,9 @@ describe('recordPatternUsage (#486 Gap B — single writer for pattern usage)', 
     const row = db
       .prepare(`SELECT metrics_json, feedback FROM qe_pattern_usage`)
       .get() as { metrics_json: string | null; feedback: string | null };
-    expect(row.metrics_json).toBeNull();
+    // #1129: a row with neither metrics nor feedback reads as a legacy
+    // completion-only row; a fresh write must not be classified that way.
+    expect(row.metrics_json).toBe('{}');
     expect(row.feedback).toBeNull();
   });
 

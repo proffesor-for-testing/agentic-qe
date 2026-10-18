@@ -645,8 +645,9 @@ export class LearningOptimizationCoordinator
       const report: CrossDomainSharingReport = {
         knowledgeShared,
         domainsUpdated,
+        // #1121: with no transfer attempted there is no rate, not 100%.
         transferSuccessRate:
-          totalTransfers > 0 ? successfulTransfers / totalTransfers : 1,
+          totalTransfers > 0 ? successfulTransfers / totalTransfers : null,
         newPatternsCreated,
       };
 
@@ -701,10 +702,12 @@ export class LearningOptimizationCoordinator
         ? milestonesResult.value
         : [];
 
-      // Calculate overall learning rate
-      const overallLearningRate = patternStats
+      // Calculate overall learning rate. #1121: when pattern stats cannot be
+      // read, or no measured pattern exists, there is no rate to report; the
+      // former 0.5 fallback was an invented value.
+      const overallLearningRate = patternStats && patternStats.totalPatterns > 0
         ? patternStats.avgSuccessRate * 0.6 + (patternStats.avgConfidence * 0.4)
-        : 0.5;
+        : null;
 
       // Determine top performing domains
       const topPerformingDomains: DomainName[] = [];
@@ -1447,7 +1450,8 @@ export class LearningOptimizationCoordinator
       sourceProject: 'current',
       targetProject: 'current',
       patternsTransferred: report.knowledgeShared,
-      successRate: report.transferSuccessRate,
+      // Published only after a transfer succeeded, so the rate is measured.
+      successRate: report.transferSuccessRate ?? 0,
     };
 
     const event = createEvent(

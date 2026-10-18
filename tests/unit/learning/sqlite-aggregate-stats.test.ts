@@ -46,6 +46,7 @@ describe('SQLitePatternStore.getAggregateOutcomeStats', () => {
     expect(agg.routingRequests).toBe(0);
     expect(agg.avgRoutingConfidence).toBe(0);
     expect(agg.learningOutcomes).toBe(0);
+    expect(agg.measuredOutcomes).toBe(0);
     expect(agg.successfulOutcomes).toBe(0);
     expect(agg.avgPatternSuccessRate).toBe(0);
   });
@@ -95,16 +96,40 @@ describe('SQLitePatternStore.getAggregateOutcomeStats', () => {
     if (!db) throw new Error('expected db');
 
     const insert = db.prepare(
-      `INSERT INTO qe_pattern_usage (pattern_id, success) VALUES (?, ?)`
+      `INSERT INTO qe_pattern_usage (pattern_id, success, metrics_json) VALUES (?, ?, ?)`
     );
-    insert.run('p1', 1);
-    insert.run('p1', 1);
-    insert.run('p1', 0);
-    insert.run('p2', 1);
+    insert.run('p1', 1, '{}');
+    insert.run('p1', 1, '{"outcome":"measured","outcomeBasis":"test-results"}');
+    insert.run('p1', 0, '{"testsPassed":1,"testsFailed":3}');
+    insert.run('p2', 1, '{}');
 
     const agg = store.getAggregateOutcomeStats();
     expect(agg.learningOutcomes).toBe(4);
+    expect(agg.measuredOutcomes).toBe(4);
     expect(agg.successfulOutcomes).toBe(3);
+  });
+
+  it('leaves completion-only usage rows out of the success counts (#1129)', () => {
+    const db = store.getDatabase();
+    if (!db) throw new Error('expected db');
+
+    const insert = db.prepare(
+      `INSERT INTO qe_pattern_usage (pattern_id, success, metrics_json, feedback) VALUES (?, ?, ?, ?)`
+    );
+    // Written before #1129 by experience capture: no metrics, no feedback.
+    insert.run('p1', 1, null, null);
+    // Written before #1129 by the MCP handler factory on tool completion.
+    insert.run('p1', 1, '{"executionTimeMs":12}', 'Domain handler test-execution execution succeeded');
+    // Tagged unmeasured after #1129.
+    insert.run('p1', 1, '{"outcome":"unmeasured","outcomeBasis":"tool-completed"}', null);
+    // Measured failure.
+    insert.run('p1', 0, '{"outcome":"measured","outcomeBasis":"test-results"}', null);
+
+    const agg = store.getAggregateOutcomeStats();
+    expect(agg.learningOutcomes).toBe(4);
+    expect(agg.measuredOutcomes).toBe(1);
+    expect(agg.unmeasuredOutcomes).toBe(3);
+    expect(agg.successfulOutcomes).toBe(0);
   });
 
   it('returns avg(success_rate) from qe_patterns when rows have total_uses > 0', () => {

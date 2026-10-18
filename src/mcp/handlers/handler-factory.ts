@@ -23,6 +23,12 @@ import { describeSavedResults, readSaveResultsOption } from './save-results-opti
 import { createInitializedFeedbackLoop, getQualityFeedbackLoop } from '../../feedback/feedback-loop.js';
 import type { TestOutcome as FeedbackTestOutcome, CoverageSession } from '../../feedback/types.js';
 import { isLearnableResult } from '../../learning/learnable-result.js';
+import {
+  measureToolOutcome,
+  TASK_FAILED_OUTCOME,
+  usageOutcomeMetrics,
+  type ToolOutcome,
+} from '../../learning/usage-outcome.js';
 
 // ============================================================================
 // Types
@@ -159,7 +165,8 @@ export async function captureExecutionLearning(
   toolName: string,
   params: Record<string, unknown>,
   result: unknown,
-  durationMs: number
+  durationMs: number,
+  outcome: ToolOutcome = measureToolOutcome(toolName, result)
 ): Promise<V2LearningFeedback> {
   const agentId = generateAgentId(agentType);
 
@@ -196,15 +203,21 @@ export async function captureExecutionLearning(
       }
     );
 
+    // #1129: success is the outcome read from the result (tests passed,
+    // files indexed). When the result has no such measure, the experience is
+    // kept but its pattern usage is tagged unmeasured, not counted a success.
+    const success = outcome.measured ? outcome.success === true : true;
+    const quality = success ? 0.7 : 0.3;
     captureService.recordStep(experienceId, {
       action: `execute-${toolName}`,
       result: typeof result === 'object' ? JSON.stringify(result).slice(0, 500) : String(result).slice(0, 500),
-      quality: 0.7, // Default quality for successful tool execution
+      quality,
     });
 
     const captureResult = await captureService.completeCapture(experienceId, {
-      success: true,
-      quality: 0.7,
+      success,
+      quality,
+      ...(outcome.measured ? { outcomeBasis: outcome.basis } : {}),
     });
 
     if (captureResult.success) {
@@ -764,14 +777,17 @@ export function resetLearningEngine(): void {
  */
 async function recordPatternUsageAsync(
   patternHints: readonly PatternHint[] | undefined,
-  success: boolean,
+  outcome: ToolOutcome,
   domain: string,
   durationMs: number
 ): Promise<void> {
   if (!patternHints || patternHints.length === 0) return;
+  // #1129: a completed call is not evidence the hinted pattern worked.
+  if (!outcome.measured) return;
   // Only use engine if already cached — don't trigger heavy init just for recording
   if (!cachedLearningEngine) return;
 
+  const success = outcome.success === true;
   try {
     for (const hint of patternHints) {
       if (!hint.patternId) continue;
@@ -780,8 +796,9 @@ async function recordPatternUsageAsync(
         success,
         metrics: {
           executionTimeMs: durationMs,
+          ...usageOutcomeMetrics(outcome),
         },
-        feedback: `Domain handler ${domain} execution ${success ? 'succeeded' : 'failed'}`,
+        feedback: `Domain handler ${domain} outcome ${success ? 'succeeded' : 'failed'} (${outcome.basis})`,
       });
     }
   } catch {
@@ -901,6 +918,17 @@ export function createDomainHandler<TParams, TResult extends BaseHandlerResult>(
       const result = await executor.execute(task.task);
 
       if (!result.success) {
+        // #1129: a task that ran and failed is a failed outcome, recorded so
+        // the usage success rate is not 100% by construction. Failures with
+        // structured details (caller input, insufficient evidence) carry no
+        // verdict on the work and are not recorded.
+        if (!result.errorDetails) {
+          recordPatternUsageAsync(routingResult?.patternHints, TASK_FAILED_OUTCOME, domain, result.duration);
+          captureExecutionLearning(
+            `qe-${domain}`, taskType, params as Record<string, unknown>,
+            { error: result.error }, result.duration, TASK_FAILED_OUTCOME
+          ).catch(() => {});
+        }
         return {
           success: false,
           error: result.error || 'Task execution failed',
@@ -928,10 +956,14 @@ export function createDomainHandler<TParams, TResult extends BaseHandlerResult>(
       const learnable = isLearnableResult(domain, data) && isLearnableResult('', mappedResult);
 
       if (learnable) {
-        // Step 5b: Record pattern usage on success (Phase 5.3 — fire-and-forget)
+        // #1129: the outcome comes from the result the caller sees (tests
+        // passed, files indexed), not from the call having completed.
+        const outcome = measureToolOutcome(taskType, mappedResult);
+
+        // Step 5b: Record pattern usage (Phase 5.3 — fire-and-forget)
         recordPatternUsageAsync(
           routingResult?.patternHints,
-          true,
+          outcome,
           domain,
           result.duration
         );
@@ -942,7 +974,8 @@ export function createDomainHandler<TParams, TResult extends BaseHandlerResult>(
           taskType,
           params as Record<string, unknown>,
           data,
-          result.duration
+          result.duration,
+          outcome
         ).catch(() => {}); // Swallow errors — learning is non-critical
 
         // Step 5d: Record feedback for test_outcomes / coverage_sessions
@@ -970,7 +1003,7 @@ export function createDomainHandler<TParams, TResult extends BaseHandlerResult>(
         // Record pattern usage on failure (Phase 5.3 — fire-and-forget)
         recordPatternUsageAsync(
           routingResult?.patternHints,
-          false,
+          TASK_FAILED_OUTCOME,
           domain,
           0
         );

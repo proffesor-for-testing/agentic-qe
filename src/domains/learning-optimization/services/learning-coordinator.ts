@@ -29,7 +29,7 @@ import {
 } from '../interfaces.js';
 import { toError } from '../../../shared/error-utils.js';
 import { readActivePatterns } from '../active-patterns.js';
-import { isMeasuredPattern, partitionByRewardSource } from '../reward-source.js';
+import { isMeasuredPattern, partitionByRewardSource, patternEvidenceOf } from '../reward-source.js';
 import {
   QEFlashAttention,
   createQEFlashAttention,
@@ -553,9 +553,10 @@ Provide:
       const inDomain = (await readActiveLearnedPatterns(this.memory)).filter(
         (pattern) => !domain || pattern.domain === domain
       );
-      // #1109: every figure below describes patterns with measured rates only.
+      // #1109/#1121: every figure below describes patterns with measured rates only.
       const patterns = inDomain.filter(isMeasuredPattern);
-      const assignedPatternsExcluded = inDomain.length - patterns.length;
+      const legacyPatternsExcluded = inDomain.filter((p) => patternEvidenceOf(p) === 'pre-1120').length;
+      const assignedPatternsExcluded = inDomain.length - patterns.length - legacyPatternsExcluded;
 
       const byType: Record<PatternType, number> = {
         'test-pattern': 0,
@@ -606,6 +607,7 @@ Provide:
           patterns.length > 0 ? totalSuccessRate / patterns.length : 0,
         topPatterns,
         ...(assignedPatternsExcluded > 0 ? { assignedPatternsExcluded } : {}),
+        ...(legacyPatternsExcluded > 0 ? { legacyPatternsExcluded } : {}),
       });
     } catch (error) {
       return err(toError(error));
@@ -707,6 +709,23 @@ Provide:
   ): Promise<Result<Experience[]>> {
     try {
       return ok(await this.getExperiencesByDomainAndTime(domain, timeRange));
+    } catch (error) {
+      return err(toError(error));
+    }
+  }
+
+  /**
+   * Read recorded experiences by ID (#1121). IDs with no stored experience
+   * are skipped, so the result length is the number actually read.
+   */
+  async getExperiencesByIds(ids: readonly string[]): Promise<Result<Experience[]>> {
+    try {
+      const experiences: Experience[] = [];
+      for (const id of new Set(ids)) {
+        const experience = await this.memory.get<Experience>(`learning:experience:${id}`, LEARNING_NS);
+        if (experience) experiences.push(experience);
+      }
+      return ok(experiences);
     } catch (error) {
       return err(toError(error));
     }

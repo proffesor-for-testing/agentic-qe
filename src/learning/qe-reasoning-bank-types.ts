@@ -154,6 +154,10 @@ export interface LearningOutcome {
     testsFailed?: number;
     coverageImprovement?: number;
     executionTimeMs?: number;
+    /** #1129: whether `success` was read from the result or only from completion. */
+    outcome?: 'measured' | 'unmeasured';
+    /** #1129: what a measured verdict was read from (e.g. test-results). */
+    outcomeBasis?: string;
   };
 
   /** Feedback from the agent or user */
@@ -254,8 +258,20 @@ export interface QEReasoningBankStats {
   /** Learning outcomes recorded */
   learningOutcomes: number;
 
-  /** Pattern success rate */
-  patternSuccessRate: number;
+  /** #1129: outcomes whose success was read from the result (tests, index count). */
+  measuredOutcomes?: number;
+
+  /** #1129: outcomes that only record a completed call; left out of the rate. */
+  unmeasuredOutcomes?: number;
+
+  /**
+   * Share of measured outcomes that succeeded; null when none is measured
+   * (#1129) instead of a rate built from completed calls.
+   */
+  patternSuccessRate: number | null;
+
+  /** #1129: set when no measured outcome exists to compute patternSuccessRate. */
+  evidenceStatus?: 'insufficient-evidence';
 
   /** Pattern store stats */
   patternStoreStats: import('./pattern-store.js').PatternStoreStats;
