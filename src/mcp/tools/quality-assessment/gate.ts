@@ -13,6 +13,8 @@
 import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema } from '../base';
 import { ToolResult } from '../../types';
 import { toErrorMessage } from '../../../shared/error-utils.js';
+import { MAX_PAYLOAD_FILE_BYTES, requirePayloadPath } from '../../../shared/io/payload-path-guard.js';
+import { findProjectRoot } from '../../../kernel/project-root.js';
 import { getLLMRouter } from '../base.js';
 import {
   runQualityGate,
@@ -66,6 +68,15 @@ export class QualityGateTool extends MCPToolBase<QualityGateParams, ReachAwareQu
       if (typeof params.artifact !== 'string' || params.artifact.length === 0) {
         return { success: false, error: 'artifact (non-empty string) is required' };
       }
+      // #1126: a caller-named anchor must be a regular file inside the project
+      // (relative paths resolve against the project root, as the runner does).
+      let anchorPath: string | undefined;
+      if (params.anchorPath !== undefined) {
+        const confined = await requirePayloadPath('qe/quality/gate', 'anchorPath', params.anchorPath,
+          { basePath: findProjectRoot(), maxBytes: MAX_PAYLOAD_FILE_BYTES });
+        if (!confined.success) return { success: false, error: confined.error.message };
+        anchorPath = confined.value;
+      }
 
       const router = await getLLMRouter(context);
       const judge = router
@@ -83,7 +94,7 @@ export class QualityGateTool extends MCPToolBase<QualityGateParams, ReachAwareQu
         artifact: params.artifact,
         checklistId: params.checklistId,
         judge,
-        anchorPath: params.anchorPath,
+        anchorPath,
         verificationManifest: params.verificationManifest,
       });
 

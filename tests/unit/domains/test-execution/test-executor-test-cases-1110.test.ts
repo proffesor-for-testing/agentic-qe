@@ -4,7 +4,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { TestExecutorService } from '../../../../src/domains/test-execution/services/test-executor.js';
@@ -56,12 +56,14 @@ describe('#1110 runner-reported test cases', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    fixture = mkdtempSync(join(tmpdir(), 'aqe-1110-'));
+    fixture = realpathSync(mkdtempSync(join(tmpdir(), 'aqe-1110-')));
+    // #1126: the handler runs only test files inside the project root.
+    vi.stubEnv('AQE_PROJECT_ROOT', fixture);
     file = join(fixture, 'math.test.ts');
     writeFileSync(file, '');
   });
 
-  afterEach(() => rmSync(fixture, { recursive: true, force: true }));
+  afterEach(() => { vi.unstubAllEnvs(); rmSync(fixture, { recursive: true, force: true }); });
 
   it('the executor returns each reported test case and does not persist them with the run record', async () => {
     const body = reportFor(assertions());

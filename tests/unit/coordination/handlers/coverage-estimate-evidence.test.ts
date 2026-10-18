@@ -28,6 +28,11 @@ import {
 import '../../../../src/domains/coverage-analysis';
 import { runJsCoverage, type JsCoverageRun } from '../../../../src/coordination/handlers/coverage-runner';
 
+// #1126: the handlers read only targets inside the project root, and these
+// fixtures live in the OS temp dir.
+beforeEach(() => { vi.stubEnv('AQE_PROJECT_ROOT', fs.realpathSync(os.tmpdir())); });
+afterEach(() => { vi.unstubAllEnvs(); });
+
 // The runner is real unless a test scripts its outcome (not installed, timeout, crash, ...).
 vi.mock('../../../../src/coordination/handlers/coverage-runner', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../../src/coordination/handlers/coverage-runner')>();

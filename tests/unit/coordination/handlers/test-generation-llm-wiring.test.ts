@@ -24,6 +24,11 @@ import { DomainServiceRegistry, ServiceKeys } from '../../../../src/shared/domai
 // Side-effect import: triggers the domain's DomainServiceRegistry.register().
 import '../../../../src/domains/test-generation';
 
+// #1126: the handlers read only targets inside the project root, and these
+// fixtures live in the OS temp dir.
+beforeEach(async () => { vi.stubEnv('AQE_PROJECT_ROOT', await fs.realpath(os.tmpdir())); });
+afterEach(() => { vi.unstubAllEnvs(); });
+
 // ---------------------------------------------------------------------------
 // Minimal fakes
 // ---------------------------------------------------------------------------

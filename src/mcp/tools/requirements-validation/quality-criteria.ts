@@ -24,6 +24,7 @@ import {
 } from '../../../domains/requirements-validation/index.js';
 import { existsSync, readFileSync } from 'fs';
 import { toErrorMessage } from '../../../shared/error-utils.js';
+import { MAX_PAYLOAD_FILE_BYTES, requirePayloadPath } from '../../../shared/io/payload-path-guard.js';
 
 // ============================================================================
 // Types
@@ -232,8 +233,13 @@ export class QualityCriteriaTool extends MCPToolBase<QualityCriteriaParams, Qual
 
       // Load epic content
       let content = epicContent || '';
-      if (epicPath && existsSync(epicPath)) {
-        content = readFileSync(epicPath, 'utf-8');
+      // #1126: the epic is returned verbatim in the agent prompt, so read it
+      // only from a regular file inside the project.
+      if (epicPath) {
+        const confined = await requirePayloadPath('quality-criteria', 'epicPath', epicPath,
+          { allowMissing: true, maxBytes: MAX_PAYLOAD_FILE_BYTES });
+        if (!confined.success) return { success: false, error: confined.error.message };
+        if (existsSync(confined.value)) content = readFileSync(confined.value, 'utf-8');
       }
 
       if (!content && !epicPath) {

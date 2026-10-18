@@ -5,6 +5,7 @@
 
 import { DomainName, DomainEvent, Result, err } from '../../shared/types';
 import { BaseDomainPlugin, TaskHandler } from '../domain-interface';
+import { requirePayloadFiles } from '../../shared/io/payload-path-guard.js';
 import { EventBus, MemoryBackend } from '../../kernel/interfaces';
 import { TestExecutionAPI, IExecuteTestsRequest, ISimpleTestRequest } from './interfaces';
 import { TestExecutionCoordinator, createTestExecutionCoordinator } from './coordinator';
@@ -78,11 +79,23 @@ export class TestExecutionPlugin extends BaseDomainPlugin {
           return err(new Error('Coordinator not initialized'));
         }
 
+        // #1126: a runner executes the files it is given, so only files and
+        // directories (#909 Jest targets) inside the project, passed on as the
+        // real paths that were checked. A missing one is still reported by the
+        // runner.
+        let testFiles: string[] | undefined;
+        if (payload.testFiles !== undefined) {
+          const confined = await requirePayloadFiles('execute-tests', 'testFiles', payload.testFiles,
+            { allowMissing: true, allowDirectory: true });
+          if (!confined.success) return confined;
+          testFiles = confined.value;
+        }
+
         // Support both simple and full request formats
-        if (payload.testFiles && Array.isArray(payload.testFiles)) {
+        if (testFiles) {
           // Simple request format
           const request: ISimpleTestRequest = {
-            testFiles: payload.testFiles as string[],
+            testFiles,
             parallel: payload.parallel as boolean | undefined,
             retryCount: payload.retryCount as number | undefined,
             timeout: payload.timeout as number | undefined,
@@ -92,7 +105,7 @@ export class TestExecutionPlugin extends BaseDomainPlugin {
         } else if (payload.framework) {
           // Full request format
           const request: IExecuteTestsRequest = {
-            testFiles: (payload.testFiles as string[]) || [],
+            testFiles: [],
             framework: payload.framework as string,
             timeout: payload.timeout as number | undefined,
             env: payload.env as Record<string, string> | undefined,
@@ -117,9 +130,12 @@ export class TestExecutionPlugin extends BaseDomainPlugin {
         if (!testFiles) {
           return err(new Error('Invalid detect-flaky payload: missing testFiles'));
         }
+        const confined = await requirePayloadFiles('detect-flaky', 'testFiles', testFiles,
+          { allowMissing: true, allowDirectory: true });
+        if (!confined.success) return confined;
 
         return this.coordinator.detectFlaky({
-          testFiles,
+          testFiles: confined.value,
           runs: runs ?? 5,
           threshold: threshold ?? 0.1,
         });

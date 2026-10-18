@@ -142,7 +142,11 @@ describe('CoverageAnalyzeTool', () => {
 
   beforeEach(() => {
     tool = new CoverageAnalyzeTool();
+    // #1126: target and coverageFile must lie inside the project root; these
+    // tests name paths in this checkout.
+    vi.stubEnv('AQE_PROJECT_ROOT', process.cwd());
   });
+  afterEach(() => { vi.unstubAllEnvs(); });
 
   it('should have correct name', () => {
     expect(tool.name).toBe('qe/coverage/analyze');
@@ -194,7 +198,11 @@ describe('CoverageGapsTool', () => {
 
   beforeEach(() => {
     tool = new CoverageGapsTool();
+    // #1126: target and coverageFile must lie inside the project root; these
+    // tests name paths in this checkout.
+    vi.stubEnv('AQE_PROJECT_ROOT', process.cwd());
   });
+  afterEach(() => { vi.unstubAllEnvs(); });
 
   it('should have correct name', () => {
     expect(tool.name).toBe('qe/coverage/gaps');
@@ -229,9 +237,10 @@ describe('CoverageGapsTool', () => {
     const fs = await import('fs');
     const empty = '/tmp/aqe-empty-coverage-' + Date.now() + '.json';
     fs.writeFileSync(empty, '{}');
+    vi.stubEnv('AQE_PROJECT_ROOT', '/tmp');
     try {
       const result = await tool.invoke({
-        target: 'src/',
+        target: '/tmp',
         coverageFile: empty,
       });
 
@@ -246,6 +255,7 @@ describe('CoverageGapsTool', () => {
   it('should distinguish autodiscovery miss from explicit-file miss', async () => {
     // Bug #4 regression: autodiscovery error must not look like an explicit-file
     // error so users do not misdiagnose a dropped coverageFile parameter.
+    vi.stubEnv('AQE_PROJECT_ROOT', '/tmp');
     const result = await tool.invoke({
       target: '/tmp/no-coverage-' + Date.now(),
     });

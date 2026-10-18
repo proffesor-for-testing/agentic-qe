@@ -9,21 +9,14 @@
  * skipped paths back with a reason; nothing skipped counts as indexed.
  */
 
-import * as fs from 'node:fs/promises';
-import * as path from 'node:path';
 import { Result, ok, err } from '../../shared/types';
+import { confinePayloadPaths } from '../../shared/io/payload-path-guard.js';
 import type { SkippedIndexPath } from './interfaces';
 
 export interface ConfinedIndexPaths {
   /** Requested paths (as given) that are regular files inside the project root. */
   accepted: string[];
   skipped: SkippedIndexPath[];
-}
-
-/** True when `candidate` is `root` or lies beneath it (both absolute). */
-function isWithin(root: string, candidate: string): boolean {
-  const relative = path.relative(root, candidate);
-  return relative === '' || (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
 }
 
 function describe(value: unknown): string {
@@ -96,49 +89,16 @@ export function validateIndexTaskPayload(type: string, payload: unknown): Error 
 /**
  * Split `paths` into those that may be indexed and those that must be skipped.
  * Relative paths resolve against `basePath` (default: cwd), as FileReader does.
+ * The rule is the shared payload-path guard (#1126) without a size limit.
  */
 export async function confineIndexPaths(
   paths: readonly string[],
   projectRoot: string,
   basePath: string = process.cwd(),
 ): Promise<ConfinedIndexPaths> {
-  const accepted: string[] = [];
-  const skipped: SkippedIndexPath[] = [];
-  const rootLexical = path.resolve(projectRoot);
-  const rootReal = await fs.realpath(projectRoot).catch(() => rootLexical);
-
-  for (const requested of paths) {
-    const lexical = path.resolve(basePath, requested);
-    // A path that is not even spelled inside the root is refused before any
-    // filesystem call, so the reason cannot reveal whether an outside path
-    // exists or is readable.
-    if (!isWithin(rootLexical, lexical) && !isWithin(rootReal, lexical)) {
-      skipped.push({ path: requested, reason: 'outside-project-root' });
-      continue;
-    }
-    let real: string;
-    try {
-      real = await fs.realpath(lexical);
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      skipped.push({ path: requested, reason: code === 'ENOENT' || code === 'ENOTDIR' ? 'not-found' : 'unreadable' });
-      continue;
-    }
-    if (!isWithin(rootReal, real)) {
-      skipped.push({ path: requested, reason: 'outside-project-root' });
-      continue;
-    }
-    const stat = await fs.stat(real).catch(() => null);
-    if (!stat) {
-      skipped.push({ path: requested, reason: 'unreadable' });
-    } else if (!stat.isFile()) {
-      skipped.push({ path: requested, reason: 'not-a-file' });
-    } else {
-      accepted.push(requested);
-    }
-  }
-
-  return { accepted, skipped };
+  const { accepted, skipped } = await confinePayloadPaths(paths, { projectRoot, basePath });
+  // Without maxBytes the guard never reports 'too-large'.
+  return { accepted, skipped: skipped as SkippedIndexPath[] };
 }
 
 /**

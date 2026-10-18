@@ -30,7 +30,9 @@ describe('Vitest report process boundaries', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    fixture = mkdtempSync(join(tmpdir(), 'aqe-report-boundary-'));
+    fixture = realpathSync(mkdtempSync(join(tmpdir(), 'aqe-report-boundary-')));
+    // #1126: the handler runs only test files inside the project root.
+    vi.stubEnv('AQE_PROJECT_ROOT', fixture);
     file = join(fixture, 'sample.test.js');
     writeFileSync(file, '');
     reportPaths = [];
@@ -44,6 +46,7 @@ describe('Vitest report process boundaries', () => {
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.useRealTimers();
     for (const path of reportPaths) rmSync(dirname(path), { recursive: true, force: true });
     rmSync(fixture, { recursive: true, force: true });
@@ -158,6 +161,8 @@ describe('Vitest report process boundaries', () => {
       if (args[0] === 'vitest') reportPath(args);
       return { status: 1, signal: null, stdout: '', stderr: 'no tests' };
     });
+    // These names resolve against the working directory, so it is the root here.
+    vi.stubEnv('AQE_PROJECT_ROOT', process.cwd());
     await handler({ payload: { testFiles: ['--watch', '-dash.test.js'] } } as QueenTask);
     expect(seen[0].slice(2, 4)).toEqual([resolve('--watch'), resolve('-dash.test.js')]);
     expect(seen.flat().filter(arg => arg === '--watch' || arg === '-dash.test.js')).toEqual([]);

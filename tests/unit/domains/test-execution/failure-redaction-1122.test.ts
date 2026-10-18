@@ -4,7 +4,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { TestExecutorService } from '../../../../src/domains/test-execution/services/test-executor.js';
@@ -65,12 +65,14 @@ describe('#1122 failure text redaction', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    fixture = mkdtempSync(join(tmpdir(), 'aqe-1122-'));
+    fixture = realpathSync(mkdtempSync(join(tmpdir(), 'aqe-1122-')));
+    // #1126: the handler runs only test files inside the project root.
+    vi.stubEnv('AQE_PROJECT_ROOT', fixture);
     file = join(fixture, 'db.test.ts');
     writeFileSync(file, '');
   });
 
-  afterEach(() => rmSync(fixture, { recursive: true, force: true }));
+  afterEach(() => { vi.unstubAllEnvs(); rmSync(fixture, { recursive: true, force: true }); });
 
   it('the executor redacts failedTests error/stack, testCases and the stored run record', async () => {
     runnerExits(failingReport(), 1);
