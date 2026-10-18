@@ -213,5 +213,13 @@ describe('consolidation does not exclude cli-hook agent (#464)', () => {
       `SELECT COUNT(*) AS count FROM qe_pattern_usage WHERE pattern_id = 'existing-monthly'`,
     ).get() as { count: number }).count;
     expect(auditCount).toBe(3);
+    // #1129: aggregates are selected by success rate, so their uses are
+    // tagged unmeasured and never count toward the pattern success rate.
+    const tags = db.prepare(
+      `SELECT DISTINCT metrics_json FROM qe_pattern_usage WHERE pattern_id = 'existing-monthly'`,
+    ).all() as Array<{ metrics_json: string }>;
+    expect(tags.map((t) => JSON.parse(t.metrics_json))).toEqual([expect.objectContaining({
+      source: 'session-consolidation', outcome: 'unmeasured', outcomeBasis: 'session-consolidation',
+    })]);
   });
 });

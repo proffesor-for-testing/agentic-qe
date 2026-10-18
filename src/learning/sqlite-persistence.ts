@@ -33,6 +33,7 @@ import {
   type EmbeddingSpaceDiagnostics,
 } from './embedding-space.js';
 import { recordPatternUsage } from './pattern-usage-recorder.js';
+import { MEASURED_USAGE_SQL, USAGE_RUN_SQL } from './usage-outcome.js';
 
 /**
  * SQLite persistence configuration
@@ -914,12 +915,18 @@ export class SQLitePatternStore {
    * routing_outcomes and qe_pattern_usage live in the same unified memory.db
    * as qe_patterns. avgConfidence/avgSuccessRate return 0 when the source
    * tables are empty rather than NaN.
+   *
+   * #1129: measuredOutcomes and successfulOutcomes count measured runs (rows
+   * tagged outcome 'measured', grouped by runId); unmeasuredOutcomes counts
+   * every other usage row. learningOutcomes stays the total row count.
    */
   getAggregateOutcomeStats(): {
     routingRequests: number;
     avgRoutingConfidence: number;
     successfulRoutings: number;
     learningOutcomes: number;
+    measuredOutcomes: number;
+    unmeasuredOutcomes: number;
     successfulOutcomes: number;
     avgPatternSuccessRate: number;
   } {
@@ -928,6 +935,8 @@ export class SQLitePatternStore {
       avgRoutingConfidence: 0,
       successfulRoutings: 0,
       learningOutcomes: 0,
+      measuredOutcomes: 0,
+      unmeasuredOutcomes: 0,
       successfulOutcomes: 0,
       avgPatternSuccessRate: 0,
     };
@@ -956,11 +965,16 @@ export class SQLitePatternStore {
       FROM routing_outcomes
     `);
 
-    const usage = safeGet<{ total: number; succ: number }>(`
+    const usage = safeGet<{ total: number; measuredRows: number; measured: number; succ: number }>(`
       SELECT
         COUNT(*) AS total,
-        COALESCE(SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END), 0) AS succ
-      FROM qe_pattern_usage
+        COALESCE(SUM(measured), 0) AS measuredRows,
+        COUNT(DISTINCT CASE WHEN measured = 1 THEN run END) AS measured,
+        COUNT(DISTINCT CASE WHEN measured = 1 AND success = 1 THEN run END) AS succ
+      FROM (
+        SELECT success, ${MEASURED_USAGE_SQL} AS measured, ${USAGE_RUN_SQL} AS run
+        FROM qe_pattern_usage
+      )
     `);
 
     const patternAvg = safeGet<{ avg_sr: number | null }>(`
@@ -974,6 +988,8 @@ export class SQLitePatternStore {
       avgRoutingConfidence: routing?.avg_q ?? 0,
       successfulRoutings: routing?.succ ?? 0,
       learningOutcomes: usage?.total ?? 0,
+      measuredOutcomes: usage?.measured ?? 0,
+      unmeasuredOutcomes: (usage?.total ?? 0) - (usage?.measuredRows ?? 0),
       successfulOutcomes: usage?.succ ?? 0,
       avgPatternSuccessRate: patternAvg?.avg_sr ?? 0,
     };

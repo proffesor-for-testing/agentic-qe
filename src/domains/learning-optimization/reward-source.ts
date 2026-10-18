@@ -19,6 +19,8 @@
  * Patterns learned before the tag existed are read the same way: a pattern
  * whose template lists only actions from those handlers, in the handler's own
  * domain, was mined from assigned rewards (its 100% rate came from them).
+ * Every other untagged pattern predates #1120 and is not measured either
+ * (see patternEvidenceOf).
  */
 
 import type { Experience, LearnedPattern } from './interfaces.js';
@@ -67,6 +69,22 @@ export function patternRewardSourceOf(pattern: PatternProvenanceFields): RewardS
   return allAssigned ? 'assigned' : 'measured';
 }
 
+/**
+ * Where a stored pattern's success rate came from (#1121).
+ * - `measured` / `assigned`: tagged when the pattern was learned (#1109 on).
+ * - `pre-1120`: untagged and not mined from assigned rewards. Before #1120,
+ *   mining dropped failed runs from each action group, so the rate of every
+ *   untagged pattern started at 100% by selection, not by observation. Such
+ *   patterns are kept, never rewritten, and never reported as measured; the
+ *   next learn run mines a tagged replacement from the recorded outcomes.
+ */
+export type PatternEvidence = RewardSource | 'pre-1120';
+
+export function patternEvidenceOf(pattern: PatternProvenanceFields): PatternEvidence {
+  if (pattern.rewardSource) return pattern.rewardSource;
+  return patternRewardSourceOf(pattern) === 'assigned' ? 'assigned' : 'pre-1120';
+}
+
 export function isMeasuredPattern(pattern: PatternProvenanceFields): boolean {
-  return patternRewardSourceOf(pattern) === 'measured';
+  return patternEvidenceOf(pattern) === 'measured';
 }

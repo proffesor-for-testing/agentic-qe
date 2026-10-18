@@ -254,7 +254,8 @@ export class DreamCycleTool extends MCPToolBase<DreamCycleParams, DreamCycleTool
         domain: result.pattern.qeDomain || 'learning-optimization',
         patternType: result.pattern.patternType,
         confidence: result.pattern.confidence,
-        successRate: result.pattern.successRate || 0.5,
+        // A real 0% stays 0%; a pattern never used has no rate (#1142 review).
+        successRate: result.pattern.usageCount > 0 ? result.pattern.successRate : undefined,
       }));
 
       const loaded = await engine.loadPatternsAsConcepts(importPatterns);
