@@ -315,6 +315,23 @@ describe('TestExecutionCoordinator', () => {
         });
       });
 
+      it('should attach no retry outcome when the retry step itself fails', async () => {
+        vi.spyOn(coordinator, 'executeParallel').mockResolvedValue({
+          success: true,
+          value: {
+            runId: 'r', status: 'failed', total: 1, passed: 0, failed: 1, skipped: 0, duration: 1,
+            failedTests: [{ testId: 'a', testName: 'a', file: '/p/a.test.ts', error: 'boom', duration: 1 }],
+          },
+        });
+        vi.spyOn(coordinator, 'retry').mockResolvedValue({ success: false, error: new Error('runner crashed') });
+
+        const result = await coordinator.runTests({ testFiles: ['a.test.ts', 'b.test.ts'], retryCount: 3 });
+
+        // No fabricated outcome: test_execute_parallel then lists retryStats as unmeasured.
+        expect(result.success && result.value).toMatchObject({ failed: 1 });
+        expect(result.success && result.value).not.toHaveProperty('retries');
+      });
+
       it('should report zero retries when retries were requested but nothing failed', async () => {
         vi.spyOn(coordinator, 'executeParallel').mockImplementation(async () => ({
           success: true,
