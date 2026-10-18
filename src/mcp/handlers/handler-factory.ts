@@ -28,6 +28,7 @@ import {
   usageOutcomeMetrics,
   type ToolOutcome,
 } from '../../learning/usage-outcome.js';
+import { redactLogText } from '../../logging/redaction.js';
 
 // ============================================================================
 // Types
@@ -925,9 +926,10 @@ export function createDomainHandler<TParams, TResult extends BaseHandlerResult>(
         // from. Its error may be the caller's input (an empty or glob test
         // list, a missing target) or the environment, so it is not recorded
         // as a measured failure; routing_outcomes still records the failure.
+        // #1122: a domain error can quote runner output; strip credentials.
         return {
           success: false,
-          error: result.error || 'Task execution failed',
+          error: result.error ? redactLogText(result.error, Number.POSITIVE_INFINITY) : 'Task execution failed',
           // #996: structured failure context (e.g. status + unmeasured metrics),
           // only when the failing handler provided it. success stays false.
           ...(result.errorDetails ? { data: result.errorDetails as unknown as TResult } : {}),
@@ -1002,7 +1004,7 @@ export function createDomainHandler<TParams, TResult extends BaseHandlerResult>(
 
       return {
         success: false,
-        error: `Failed to ${taskType.replace(/-/g, ' ')}: ${errorMessage}`,
+        error: redactLogText(`Failed to ${taskType.replace(/-/g, ' ')}: ${errorMessage}`, Number.POSITIVE_INFINITY),
         ...(callerError ? { data: { callerError: true } as unknown as TResult } : {}),
       };
     }

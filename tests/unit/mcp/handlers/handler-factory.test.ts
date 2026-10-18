@@ -286,6 +286,40 @@ describe('Handler Factory', () => {
       expect(result.error).toBe('Execution timeout');
     });
 
+    it('redacts credentials in a task execution error (#1122)', async () => {
+      mockRouter.routeTask.mockResolvedValue(null);
+      mockQueen.submitTask.mockResolvedValue({ success: true, value: 'task-123' });
+      mockQueen.getTaskStatus.mockReturnValue({ task: { id: 'task-123', type: 'execute-tests' } });
+      mockExecutor.execute.mockResolvedValue({
+        success: false,
+        error: 'vitest reported zero tests.\ncannot reach postgres://user:pass@host:5432/app',
+      });
+
+      const { createTaskExecutor } = await import('../../../../src/coordination/task-executor');
+      vi.mocked(createTaskExecutor).mockReturnValue(mockExecutor as unknown as ReturnType<typeof createTaskExecutor>);
+
+      const result = await createDomainHandler(createTestConfig())({ value: 'test' });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('vitest reported zero tests.\ncannot reach <REDACTED:');
+      expect(result.error).not.toContain('user:pass');
+    });
+
+    it('does not shorten a long task execution error while redacting it (#1122)', async () => {
+      mockRouter.routeTask.mockResolvedValue(null);
+      mockQueen.submitTask.mockResolvedValue({ success: true, value: 'task-123' });
+      mockQueen.getTaskStatus.mockReturnValue({ task: { id: 'task-123', type: 'execute-tests' } });
+      const longError = 'diagnostic line\n'.repeat(1000);
+      mockExecutor.execute.mockResolvedValue({ success: false, error: longError });
+
+      const { createTaskExecutor } = await import('../../../../src/coordination/task-executor');
+      vi.mocked(createTaskExecutor).mockReturnValue(mockExecutor as unknown as ReturnType<typeof createTaskExecutor>);
+
+      const result = await createDomainHandler(createTestConfig())({ value: 'test' });
+
+      expect(result.error).toBe(longError);
+    });
+
     it('should map successful result correctly', async () => {
       mockRouter.routeTask.mockResolvedValue(null);
       mockQueen.submitTask.mockResolvedValue({

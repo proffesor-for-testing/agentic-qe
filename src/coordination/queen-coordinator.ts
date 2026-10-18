@@ -460,8 +460,9 @@ export class QueenCoordinator implements IQueenCoordinator {
       // Assign task to domain
       const assignResult = await assignTask(this.createTaskContext(), task);
       if (!assignResult.success) {
-        // A task its plugin refused was already failed and gave its slot back.
-        if (this.tasks.get(taskId)?.status !== 'failed') {
+        // A task the Queen already settled (refused by its plugin, or reported
+        // failed through onComplete) gave its slot back (#1140).
+        if (!this.tasks.has(taskId)) {
           this.runningTaskCounter = Math.max(0, this.runningTaskCounter - 1);
         }
         return assignResult;
@@ -1013,6 +1014,7 @@ export class QueenCoordinator implements IQueenCoordinator {
       getBusyDomains: () => self.getBusyDomains(),
       getDomainLoad: (d) => self.getDomainLoad(d),
       // A queued entry can already be terminal (#1070); only a waiting task is stolen.
+      availableSlots: () => self.config.maxConcurrentTasks - self.runningTaskCounter,
       canExecuteInDomain: (d, t) => (self.tasks.get(t.id)?.status ?? 'queued') === 'queued'
         && canDomainExecuteTask(self.domainPlugins, d, t),
       removeFromQueues: (t) => removeFromQueues(self.taskQueue, self.domainQueues, t),

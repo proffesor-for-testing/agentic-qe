@@ -513,16 +513,17 @@ describe('Task Handlers', () => {
       expect(result.data!.type).toBe('analyze-coverage');
     }, 30000);
 
-    // #1081: no security-compliance handler executes scan-security, so the
-    // inferred task is rejected with the reason instead of left running.
-    it('should reject an inferred security scan type that no domain executes', async () => {
+    // #1081 / #1125: scan-security has no handler of its own; it runs as
+    // sast-scan, which needs the files to scan. Without them it is refused
+    // with what to pass instead of being submitted.
+    it('should refuse an inferred security scan without files, saying what to pass', async () => {
       const result = await handleTaskOrchestrate({
         task: 'Scan for security vulnerabilities',
       });
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain("No handler for task type 'scan-security' in domain security-compliance");
       expect(result.error).toContain("task_orchestrate inferred 'scan-security'");
+      expect(result.error).toContain('Pass filePaths');
     }, 30000);
 
     it('should respect strategy parameter', async () => {

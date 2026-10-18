@@ -11,6 +11,7 @@ import type {
 } from '../../kernel/interfaces.js';
 import { BaseDomainPlugin, TaskHandler } from '../domain-interface.js';
 import { FilePath } from '../../shared/value-objects/index.js';
+import { confineSastFiles, MAX_SAST_FILE_BYTES } from './sast-path-guard.js';
 import type {
   SecurityAuditOptions,
   SecurityAuditReport,
@@ -203,11 +204,27 @@ export class SecurityCompliancePlugin extends BaseDomainPlugin {
         if (!this.securityScanner) {
           return err(new Error('Security scanner not initialized'));
         }
-        const files = payload.files as FilePath[] | undefined;
-        if (!files || files.length === 0) {
+        const requested = payload.files as Array<FilePath | string> | undefined;
+        if (!requested || requested.length === 0) {
           return err(new Error('Invalid sast-scan payload: missing files'));
         }
-        return this.securityScanner.scanFiles(files);
+        // #1125: a payload that crossed a JSON boundary (task_submit,
+        // task_orchestrate, fleet run) carries plain path strings.
+        if (requested.some(f => typeof f === 'string' ? f.trim() === '' : !(f instanceof FilePath))) {
+          return err(new Error('Invalid sast-scan payload: files must be non-empty file paths'));
+        }
+        // Every file must be a regular file inside the project, within the
+        // size limit; otherwise nothing is read.
+        const { accepted, skipped } = await confineSastFiles(
+          requested.map(f => typeof f === 'string' ? f : f.value),
+        );
+        if (skipped.length > 0) {
+          return err(new Error(
+            `Invalid sast-scan payload: these files cannot be scanned: ${skipped.map(s => `${s.path} (${s.reason})`).join(', ')}. ` +
+            `Pass regular files inside the project, at most ${MAX_SAST_FILE_BYTES / (1024 * 1024)} MB each.`,
+          ));
+        }
+        return this.securityScanner.scanFiles(accepted.map(f => FilePath.create(f)));
       }],
 
       ['dast-scan', async (payload): Promise<Result<unknown, Error>> => {
