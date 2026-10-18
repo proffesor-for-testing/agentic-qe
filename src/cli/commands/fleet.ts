@@ -19,6 +19,7 @@ import { createPersistentScheduler } from '../scheduler/index.js';
 import { integrateCodeIntelligence, type FleetIntegrationResult } from '../../init/fleet-integration.js';
 import { runFleetInitWizard, type FleetWizardResult } from '../wizards/fleet-wizard.js';
 import { FleetProgressManager, createTimedSpinner } from '../utils/progress.js';
+import { FLEET_OPERATIONS, planFleetOperation, type FleetOperation } from '../utils/fleet-operation.js';
 import type { QEKernel } from '../../kernel/interfaces.js';
 import { type OutputFormat, writeOutput, toJSON } from '../utils/ci-output.js';
 
@@ -293,16 +294,19 @@ export function createFleetCommand(
         if (!Number.isSafeInteger(parallelCount) || parallelCount < 1) {
           throw new Error('--parallel must be a positive integer');
         }
-        if (!['test', 'analyze', 'scan'].includes(operation)) {
+        if (!(FLEET_OPERATIONS as readonly string[]).includes(operation)) {
           throw new Error(`Unsupported operation: ${operation}`);
         }
 
-        const operationTasks: Record<string, [DomainName, TaskType]> = {
-          test: ['test-generation', 'generate-tests'],
-          analyze: ['coverage-analysis', 'analyze-coverage'],
-          scan: ['security-compliance', 'scan-security'],
-        };
-        const [domain, taskType] = operationTasks[operation];
+        // #1125: each operation runs a real domain handler with the input it
+        // needs, taken from the target; without that input it is refused.
+        const plan = await planFleetOperation(operation as FleetOperation, options.target);
+        if (!plan.success) {
+          console.error(chalk.red(`\n Operation '${operation}' cannot run: ${plan.error}`));
+          return cleanupAndExit(1);
+        }
+        const { domain, payload } = plan.task;
+        const taskType = plan.task.type as TaskType;
 
         // #1081: refuse an operation whose task no domain plugin executes,
         // instead of submitting work that can only fail at dispatch.
@@ -349,7 +353,7 @@ export function createFleetCommand(
                 type: taskType,
                 priority: 'p1',
                 targetDomains: [domain],
-                payload: { target: options.target, workerId: op.id },
+                payload: { ...payload, target: options.target, workerId: op.id },
                 timeout: 60000,
               });
 

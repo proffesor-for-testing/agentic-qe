@@ -203,10 +203,16 @@ export class SecurityCompliancePlugin extends BaseDomainPlugin {
         if (!this.securityScanner) {
           return err(new Error('Security scanner not initialized'));
         }
-        const files = payload.files as FilePath[] | undefined;
-        if (!files || files.length === 0) {
+        const requested = payload.files as Array<FilePath | string> | undefined;
+        if (!requested || requested.length === 0) {
           return err(new Error('Invalid sast-scan payload: missing files'));
         }
+        // #1125: a payload that crossed a JSON boundary (task_submit,
+        // task_orchestrate, fleet run) carries plain path strings.
+        if (requested.some(f => typeof f === 'string' ? f.trim() === '' : !(f instanceof FilePath))) {
+          return err(new Error('Invalid sast-scan payload: files must be non-empty file paths'));
+        }
+        const files = requested.map(f => typeof f === 'string' ? FilePath.create(f) : f);
         return this.securityScanner.scanFiles(files);
       }],
 

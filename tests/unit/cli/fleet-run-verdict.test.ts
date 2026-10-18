@@ -9,6 +9,13 @@ vi.mock('../../../src/cli/utils/progress.js', () => ({
   createTimedSpinner: vi.fn(),
 }));
 
+// #1125: the operation's domain task and payload come from the target on disk.
+const plan = vi.hoisted(() => vi.fn());
+vi.mock('../../../src/cli/utils/fleet-operation.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../../../src/cli/utils/fleet-operation.js')>(),
+  planFleetOperation: plan,
+}));
+
 describe('fleet run execution verdicts', () => {
   const cleanup = vi.fn(async (_code: number) => undefined as never);
   const ensure = vi.fn(async () => true);
@@ -25,6 +32,7 @@ describe('fleet run execution verdicts', () => {
     submitTask.mockResolvedValue({ success: true, value: 'task-1' });
     getTaskStatus.mockReturnValue({ status: 'completed' });
     validateTaskExecutable.mockReturnValue({ success: true, value: undefined });
+    plan.mockResolvedValue({ success: true, task: { domain: 'test-generation', type: 'generate-tests', payload: { sourceFiles: ['src/a.ts'] } } });
     program = new Command().addCommand(createFleetCommand(
       { queen: { submitTask, getTaskStatus, validateTaskExecutable } } as unknown as CLIContext,
       cleanup, ensure, () => {},
@@ -87,20 +95,47 @@ describe('fleet run execution verdicts', () => {
     expect(submitTask).not.toHaveBeenCalled();
   });
 
-  // #1081: `fleet run scan` submitted scan-security, which no security-compliance
-  // handler executes, so each worker's task stayed running on a held Queen slot.
+  // #1081: an operation whose task no domain plugin executes is refused
+  // before anything is submitted.
   it('refuses an operation whose task type no domain executes, before submitting anything', async () => {
+    plan.mockResolvedValue({ success: true, task: { domain: 'security-compliance', type: 'sast-scan', payload: { files: ['src/a.ts'] } } });
     validateTaskExecutable.mockReturnValue({
       success: false,
-      error: new Error("No handler for task type 'scan-security' in domain security-compliance (supported: security-audit)"),
+      error: new Error("No handler for task type 'sast-scan' in domain security-compliance (domain not loaded)"),
     });
     const execution = program.parseAsync(['node', 'aqe', 'fleet', 'run', 'scan', '--parallel', '3']);
     await vi.advanceTimersByTimeAsync(65000);
     await execution;
-    expect(validateTaskExecutable).toHaveBeenCalledWith('scan-security', ['security-compliance']);
+    expect(validateTaskExecutable).toHaveBeenCalledWith('sast-scan', ['security-compliance']);
     expect(submitTask).not.toHaveBeenCalled();
     expect(cleanup).toHaveBeenCalledWith(1);
-    expect(console.error).toHaveBeenCalledWith(expect.stringContaining("No handler for task type 'scan-security'"));
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining("No handler for task type 'sast-scan'"));
+  });
+
+  // #1125: the domain task runs with the payload its handler needs.
+  it('submits the planned domain task with its payload to every worker', async () => {
+    plan.mockResolvedValue({ success: true, task: { domain: 'security-compliance', type: 'sast-scan', payload: { files: ['src/a.ts'] } } });
+    const execution = program.parseAsync(['node', 'aqe', 'fleet', 'run', 'scan', '--target', 'src', '--parallel', '2']);
+    await vi.advanceTimersByTimeAsync(1000);
+    await execution;
+    expect(plan).toHaveBeenCalledWith('scan', 'src');
+    expect(submitTask).toHaveBeenCalledTimes(2);
+    expect(submitTask).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'sast-scan', targetDomains: ['security-compliance'],
+      payload: expect.objectContaining({ files: ['src/a.ts'], target: 'src' }),
+    }));
+    expect(cleanup).toHaveBeenCalledWith(0);
+  });
+
+  // #1125: without the input the handler needs, nothing is submitted.
+  it('refuses an operation whose target cannot supply the handler input', async () => {
+    plan.mockResolvedValue({ success: false, error: 'No coverage report for project /p, so there is no coverage to analyze.' });
+    const execution = program.parseAsync(['node', 'aqe', 'fleet', 'run', 'analyze', '--parallel', '1']);
+    await vi.advanceTimersByTimeAsync(65000);
+    await execution;
+    expect(submitTask).not.toHaveBeenCalled();
+    expect(cleanup).toHaveBeenCalledWith(1);
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining("Operation 'analyze' cannot run: No coverage report"));
   });
 
   it('retains rejection and completion verdicts', async () => {
