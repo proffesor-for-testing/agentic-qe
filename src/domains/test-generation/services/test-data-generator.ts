@@ -273,7 +273,9 @@ export class TestDataGeneratorService implements ITestDataGeneratorService {
       let result: unknown = f;
 
       for (const part of parts) {
-        if (result && typeof result === 'object' && part in result) {
+        // #1136: a member every object inherits (`constructor`, `toString`)
+        // is not a faker method.
+        if (result && typeof result === 'object' && part in result && !(part in Object.prototype)) {
           const next = (result as Record<string, unknown>)[part];
           if (typeof next === 'function') {
             result = (next as () => unknown)();

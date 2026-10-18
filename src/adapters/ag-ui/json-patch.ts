@@ -13,6 +13,7 @@
 import * as fastJsonPatch from 'fast-json-patch';
 import type { JsonPatchOperation as AQEJsonPatchOperation } from './event-types.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
+import { getOwn, setOwn } from '../../shared/utils/safe-record.js';
 
 // ============================================================================
 // Types
@@ -178,7 +179,8 @@ export function getValueAtPath(
       }
       current = current[index];
     } else if (typeof current === 'object') {
-      current = (current as Record<string, unknown>)[token];
+      // #1136: own properties only; `/constructor` is not a path.
+      current = getOwn(current as Record<string, unknown>, token);
     } else {
       return undefined;
     }
@@ -213,7 +215,7 @@ export function pathExists(
       }
       current = current[index];
     } else if (typeof current === 'object') {
-      if (!(token in (current as Record<string, unknown>))) {
+      if (!Object.hasOwn(current, token)) {
         return false;
       }
       current = (current as Record<string, unknown>)[token];
@@ -253,7 +255,9 @@ export function setValueAtPath(
       }
       current = current[index];
     } else if (typeof current === 'object') {
-      if (!(token in (current as Record<string, unknown>))) {
+      // #1136: own properties only, so `/__proto__/x` cannot walk into and
+      // write Object.prototype.
+      if (!Object.hasOwn(current, token)) {
         throw new JsonPatchError(`Path does not exist: ${path}`, 'PATH_NOT_FOUND', { path });
       }
       current = (current as Record<string, unknown>)[token];
@@ -269,7 +273,7 @@ export function setValueAtPath(
     }
     current[index] = value;
   } else if (typeof current === 'object' && current !== null) {
-    (current as Record<string, unknown>)[lastToken] = value;
+    setOwn(current as Record<string, unknown>, lastToken, value);
   } else {
     throw new JsonPatchError(`Cannot set value at path: ${path}`, 'INVALID_OPERATION', { path });
   }
@@ -302,7 +306,7 @@ export function deleteValueAtPath(
       }
       current = current[index];
     } else if (typeof current === 'object') {
-      current = (current as Record<string, unknown>)[token];
+      current = getOwn(current as Record<string, unknown>, token);
     } else {
       throw new JsonPatchError(`Cannot traverse non-object: ${path}`, 'INVALID_PATH', { path });
     }
@@ -315,7 +319,7 @@ export function deleteValueAtPath(
     }
     current.splice(index, 1);
   } else if (typeof current === 'object' && current !== null) {
-    if (!(lastToken in (current as Record<string, unknown>))) {
+    if (!Object.hasOwn(current, lastToken)) {
       throw new JsonPatchError(`Path does not exist: ${path}`, 'PATH_NOT_FOUND', { path });
     }
     delete (current as Record<string, unknown>)[lastToken];

@@ -1088,7 +1088,8 @@ export function validateComponent(
   // Check required properties
   if (schema.required) {
     for (const prop of schema.required) {
-      if (!(prop in comp)) {
+      // #1136: own properties only; an inherited `constructor` is not present.
+      if (!Object.hasOwn(comp, prop)) {
         errors.push({
           path: prop,
           message: `Missing required property: ${prop}`,

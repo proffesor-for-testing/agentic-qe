@@ -177,7 +177,8 @@ function isValidFlagName(name: string): name is keyof RuVectorFeatureFlags {
 }
 
 function isValidProfile(name: string): name is FlagProfile {
-  return name in PROFILES;
+  // #1136: own entries only; `constructor` is not a profile.
+  return Object.hasOwn(PROFILES, name);
 }
 
 // ============================================================================

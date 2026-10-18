@@ -510,7 +510,8 @@ export class CrossPhaseHookExecutor {
 
   private getValueFromPath(obj: Record<string, unknown>, path: string): unknown {
     return path.split('.').reduce((curr: unknown, key) => {
-      if (curr && typeof curr === 'object' && key in curr) {
+      // #1136: own properties only.
+      if (curr && typeof curr === 'object' && Object.hasOwn(curr, key)) {
         return (curr as Record<string, unknown>)[key];
       }
       return undefined;
