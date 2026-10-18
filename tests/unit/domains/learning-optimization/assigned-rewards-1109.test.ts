@@ -286,7 +286,10 @@ describe('#1109 assigned rewards are recorded but never reported as measured', (
         createdAt: new Date(), lastUsedAt: new Date(),
       });
       const legacyAssigned = pattern('legacy-assigned', 'test-generation', 'test-generated');
-      const legacyMeasured = { ...pattern('legacy-measured', 'test-execution', 'test-run'), successRate: 0.75, confidence: 0.75 };
+      // Tagged: since #1121 an untagged pattern of any kind predates #1120 and is not measured.
+      const legacyMeasured: LearnedPattern = {
+        ...pattern('legacy-measured', 'test-execution', 'test-run'), successRate: 0.75, confidence: 0.75, rewardSource: 'measured',
+      };
       await memory.set('learning:pattern:legacy-assigned', legacyAssigned, { ...LEARNING, persist: true });
       await memory.set('learning:pattern:legacy-measured', legacyMeasured, { ...LEARNING, persist: true });
       expect(isMeasuredPattern(legacyAssigned)).toBe(false);

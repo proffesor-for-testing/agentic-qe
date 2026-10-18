@@ -81,7 +81,7 @@ export function registerSessionHooks(hooks: Command): void {
           contextParts.push(`Top domains: ${domainEntries.map(([d, c]) => `${d}(${c})`).join(', ')}`);
         }
 
-        if (stats.patternSuccessRate > 0) {
+        if (stats.patternSuccessRate !== null && stats.patternSuccessRate > 0) {
           contextParts.push(`Pattern success rate: ${(stats.patternSuccessRate * 100).toFixed(0)}%`);
         }
         if (stats.routingRequests > 0) {
@@ -154,7 +154,7 @@ export function registerSessionHooks(hooks: Command): void {
 
         if (options.json) {
           const summary = stats
-            ? `Session complete: ${stats.totalPatterns} patterns, ${stats.routingRequests} routings, ${(stats.patternSuccessRate * 100).toFixed(0)}% success rate`
+            ? `Session complete: ${stats.totalPatterns} patterns, ${stats.routingRequests} routings, ${stats.patternSuccessRate === null ? 'success rate: insufficient evidence' : `${(stats.patternSuccessRate * 100).toFixed(0)}% success rate`}`
             : 'Session complete';
 
           // Stop hooks don't support hookSpecificOutput — only simple fields

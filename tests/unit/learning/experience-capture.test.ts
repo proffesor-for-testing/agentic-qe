@@ -367,7 +367,10 @@ describe('ExperienceCaptureService', () => {
         quality: 0.85,
       });
 
-      expect(patternStore.recordUsage).toHaveBeenCalledWith('existing-pattern', true);
+      // #1129: the use is tagged; this caller passed no measured outcome.
+      expect(patternStore.recordUsage).toHaveBeenCalledWith(
+        'existing-pattern', true, { outcome: 'unmeasured', outcomeBasis: 'task-completed' }
+      );
       expect(result.value?.patterns).toContain('existing-pattern');
     });
 

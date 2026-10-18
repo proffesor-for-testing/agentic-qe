@@ -79,6 +79,7 @@ import { resolveTopologyCriticalFromSharedMincut } from './routing-topology-gate
 import { getUnifiedMemory } from '../kernel/unified-memory.js';
 import { resizeEmbedding, hashEmbedding } from './embedding-utils.js';
 import { maybeEnhanceRoutingWithPatterns } from './pattern-routing-guidance.js';
+import { usageOutcomeOf } from './usage-outcome.js';
 import {
   checkPatternPromotionWithCoherence,
   promotePattern as promotePatternFn,
@@ -150,6 +151,7 @@ export class QEReasoningBank implements IQEReasoningBank {
     routingRequests: 0,
     totalRoutingConfidence: 0,
     learningOutcomes: 0,
+    measuredOutcomes: 0,
     successfulOutcomes: 0,
   };
 
@@ -519,8 +521,11 @@ export class QEReasoningBank implements IQEReasoningBank {
 
     if (result.success) {
       this.stats.learningOutcomes++;
-      if (outcome.success) {
-        this.stats.successfulOutcomes++;
+      // #1129: only a measured outcome counts toward the success rate.
+      const measured = usageOutcomeOf(outcome.metrics as Record<string, unknown> | undefined) === 'measured';
+      if (measured) {
+        this.stats.measuredOutcomes++;
+        if (outcome.success) this.stats.successfulOutcomes++;
       }
 
       // ADR-070: Record pattern update in witness chain
@@ -854,10 +859,10 @@ export class QEReasoningBank implements IQEReasoningBank {
         ? this.stats.totalRoutingConfidence / this.stats.routingRequests
         : 0;
     let learningOutcomes = this.stats.learningOutcomes;
-    let patternSuccessRate =
-      this.stats.learningOutcomes > 0
-        ? this.stats.successfulOutcomes / this.stats.learningOutcomes
-        : 0;
+    // In process each recorded outcome is its own run; the DB groups by runId.
+    let measuredOutcomes = this.stats.measuredOutcomes;
+    let unmeasuredOutcomes = this.stats.learningOutcomes - this.stats.measuredOutcomes;
+    let successfulOutcomes = this.stats.successfulOutcomes;
 
     try {
       const agg = this.getSqliteStore().getAggregateOutcomeStats();
@@ -867,16 +872,18 @@ export class QEReasoningBank implements IQEReasoningBank {
       }
       if (agg.learningOutcomes > learningOutcomes) {
         learningOutcomes = agg.learningOutcomes;
-        // Prefer per-usage success rate (closer to recordOutcome semantics);
-        // fall back to qe_patterns.success_rate aggregate when no usage rows.
-        patternSuccessRate =
-          agg.learningOutcomes > 0
-            ? agg.successfulOutcomes / agg.learningOutcomes
-            : agg.avgPatternSuccessRate;
+        measuredOutcomes = agg.measuredOutcomes;
+        unmeasuredOutcomes = agg.unmeasuredOutcomes;
+        successfulOutcomes = agg.successfulOutcomes;
       }
     } catch {
       // best-effort — never let stats reporting crash the host
     }
+
+    // #1129: the rate is over measured outcomes only. A usage row that only
+    // records a completed call says nothing about whether the result was
+    // good, so with none measured there is no rate to report.
+    const patternSuccessRate = measuredOutcomes > 0 ? successfulOutcomes / measuredOutcomes : null;
 
     return {
       totalPatterns: patternStoreStats.totalPatterns,
@@ -884,7 +891,10 @@ export class QEReasoningBank implements IQEReasoningBank {
       routingRequests,
       avgRoutingConfidence,
       learningOutcomes,
+      measuredOutcomes,
+      unmeasuredOutcomes,
       patternSuccessRate,
+      ...(patternSuccessRate === null ? { evidenceStatus: 'insufficient-evidence' as const } : {}),
       patternStoreStats,
     };
   }

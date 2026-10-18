@@ -161,7 +161,8 @@ export async function checkAndTriggerDream(memoryBackend: MemoryBackend): Promis
         domain: r.pattern.qeDomain || 'learning-optimization',
         patternType: r.pattern.patternType,
         confidence: r.pattern.confidence,
-        successRate: r.pattern.successRate || 0.5,
+        // A real 0% stays 0%; a pattern never used has no rate (#1142 review).
+        successRate: r.pattern.usageCount > 0 ? r.pattern.successRate : undefined,
       }));
       await engine.loadPatternsAsConcepts(importPatterns);
     }
@@ -946,7 +947,13 @@ export async function consolidateExperiencesToPatterns(): Promise<number> {
           patternId: existing.id,
           usageCount: agg.cnt,
           successfulUses: agg.successes,
-          metrics: { source: 'session-consolidation', domain: agg.domain, agent: agg.agent },
+          // #1129: these aggregates are selected by success rate (HAVING
+          // success_rate >= 0.6) from hook-reported success, so they are uses,
+          // never measured outcomes.
+          metrics: {
+            source: 'session-consolidation', domain: agg.domain, agent: agg.agent,
+            outcome: 'unmeasured', outcomeBasis: 'session-consolidation',
+          },
         });
         db.prepare(`
           UPDATE qe_patterns

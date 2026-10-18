@@ -164,7 +164,8 @@ describe('#1055 active pattern reads (real SQLite)', () => {
   describe('defensive cases', () => {
     async function addMalformed(): Promise<void> {
       await memory.set('learning:pattern:malformed-no-context', { id: 'malformed-no-context', domain: 'code-intelligence' }, { ...NS, persist: true });
-      await memory.set('learning:pattern:malformed-tags', { id: 'malformed-tags', context: { tags: null }, domain: 'code-intelligence' }, { ...NS, persist: true });
+      // Tagged measured so the shape guard, not the #1121 pre-#1120 rule, decides whether stats read it.
+      await memory.set('learning:pattern:malformed-tags', { id: 'malformed-tags', context: { tags: null }, domain: 'code-intelligence', rewardSource: 'measured' }, { ...NS, persist: true });
       await memory.set('learning:pattern:id-mismatch', { id: 'something-else', context: { tags: [TAG] } }, { ...NS, persist: true });
     }
 
