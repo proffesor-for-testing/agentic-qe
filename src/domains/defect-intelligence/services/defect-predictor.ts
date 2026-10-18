@@ -7,6 +7,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { prunePredictionHistory } from '../prediction-history.js';
 import { LoggerFactory } from '../../../logging/index.js';
 import { Result, ok, err, Severity } from '../../../shared/types';
 import { MemoryBackend } from '../../../kernel/interfaces';
@@ -1159,6 +1160,7 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
       },
       { namespace: 'defect-intelligence', ttl: 86400 * 7 } // 7 days
     );
+    await prunePredictionHistory(this.memory, this.config.modelNamespace);
   }
 
   private async recalculateMetrics(feedback: PredictionFeedback): Promise<void> {
