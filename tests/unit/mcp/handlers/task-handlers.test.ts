@@ -531,6 +531,12 @@ describe('Task Handlers', () => {
       ['Assess code quality of the resilience layer', 'assess-quality'],
       ['Predict defects in fault-injection.ts', 'predict-defects'],
       ['Validate requirements for resilience stories', 'validate-requirements'],
+      // #1130 re-review: a path segment, a component name or chaos tests as the
+      // object of another activity are not a chaos run either.
+      ['Analyze coverage of src/fault-injection/index.ts', 'analyze-coverage'],
+      ['Run the tests for fault injector', 'execute-tests'],
+      ['Analyze coverage of chaos tests', 'analyze-coverage'],
+      ['Run resilience tests/unit/foo.test.ts', 'execute-tests'],
     ])('should keep the type of a task that only mentions chaos wording: %s', async (task, type) => {
       const result = await handleTaskOrchestrate({ task });
 
