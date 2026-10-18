@@ -10,6 +10,7 @@ import { DefaultPluginLoader } from '../../kernel/plugin-loader';
 import { ALL_DOMAINS, DomainName } from '../../shared/types';
 import { QueenCoordinator, createQueenCoordinator } from '../../coordination/queen-coordinator';
 import { WorkflowOrchestrator } from '../../coordination/workflow-orchestrator';
+import type { FleetMinCutHealth } from '../../coordination/mincut/queen-integration';
 
 /**
  * User-facing QE domains (excludes internal 'coordination' domain)
@@ -509,6 +510,18 @@ export async function handleFleetHealth(
         domain: issue.domain,
         timestamp: issue.timestamp.toISOString(),
       }));
+
+      // #1130: the raw MinCut and the fleet reading that decides `status`.
+      const minCut = (health as typeof health & { minCut?: FleetMinCutHealth }).minCut;
+      if (minCut) {
+        result.minCut = {
+          status: minCut.status,
+          minCutValue: minCut.minCutValue,
+          fleetStatus: minCut.fleetStatus,
+          fleetMinCutValue: minCut.fleetMinCutValue,
+          taskAgents: minCut.taskAgents,
+        };
+      }
     }
 
     // Enrich with structural health (mincut-lambda) if available

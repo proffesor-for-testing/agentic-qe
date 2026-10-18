@@ -252,6 +252,7 @@ export class RetryHandlerService implements IRetryHandler {
       const stillFailing: string[] = [];
       const flakyDetected: string[] = [];
       const unmatched: string[] = [];
+      const tests: NonNullable<RetryResult['tests']> = [];
 
       for (const test of failedTests) {
         const result = await this.retryTest(
@@ -279,6 +280,11 @@ export class RetryHandlerService implements IRetryHandler {
           if (result.unmatched) unmatched.push(test.testId);
         }
 
+        tests.push({
+          testId: test.testId, attempts: result.attempts, passed: result.passed,
+          ...(result.unmatched ? { unmatched: true } : {}),
+        });
+
         // Record retry history
         await this.recordRetry(test.testId, result);
       }
@@ -301,6 +307,7 @@ export class RetryHandlerService implements IRetryHandler {
         stillFailing: stillFailing.length,
         flakyDetected,
         unmatched,
+        tests,
       };
 
       return ok(retryResult);

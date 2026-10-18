@@ -196,6 +196,17 @@ export interface ITestRunResult {
   coverage?: ICoverageData;
   /** Per-file coverage data for granular quality assessment */
   fileCoverages?: IFileCoverageData[];
+  /** #1130: what the requested retries of failed tests did. Absent when none were requested. */
+  retries?: IRunRetrySummary;
+}
+
+/** #1130: the measured outcome of a run's retries, per failed test. */
+export interface IRunRetrySummary {
+  /** Reruns that executed a test (an unmatched retry runs nothing and is not counted). */
+  totalRetries: number;
+  nowPassing: number;
+  stillFailing: number;
+  tests: Array<{ name: string; file: string; attempts: number; passed: boolean; unmatched?: boolean }>;
 }
 
 /** One test case taken verbatim from a runner report (#1110). */
@@ -273,6 +284,8 @@ export interface IRetryResult {
   flakyDetected: string[];
   /** Failed tests whose retry filter selected no test, so none was rerun (#1141). */
   unmatched?: string[];
+  /** #1130: the outcome per retried test. */
+  tests?: Array<{ testId: string; attempts: number; passed: boolean; unmatched?: boolean }>;
 }
 
 export interface IExecutionStats {

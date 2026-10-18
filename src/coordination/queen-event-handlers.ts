@@ -130,6 +130,18 @@ async function handleDomainEvent(
 // Task completed handler
 // ============================================================================
 
+/**
+ * #1130: a caller-owned task finishes through these events, not through the
+ * plugin completion callback that stops a task's agents, so its agent stayed
+ * "running" after the task ended. A retried task spawns a new agent. Stopping
+ * an agent that is already stopped is a no-op.
+ */
+async function stopTaskAgents(ctx: QueenEventHandlerContext, execution: TaskExecution): Promise<void> {
+  for (const agentId of execution.assignedAgents) {
+    await ctx.agentCoordinator.stop(agentId);
+  }
+}
+
 export async function handleTaskCompleted(
   ctx: QueenEventHandlerContext,
   event: DomainEvent,
@@ -146,6 +158,7 @@ export async function handleTaskCompleted(
   const execution = ctx.tasks.get(taskId);
 
   if (execution) {
+    await stopTaskAgents(ctx, execution);
     // CC-002 FIX: Decrement the atomic counter when task completes
     if (execution.status === 'running' || execution.status === 'assigned') {
       ctx.runningTaskCounter = Math.max(0, ctx.runningTaskCounter - 1);
@@ -277,6 +290,7 @@ export async function handleTaskFailed(
   const execution = ctx.tasks.get(taskId);
 
   if (execution) {
+    await stopTaskAgents(ctx, execution);
     // CC-002 FIX: Decrement the atomic counter when task fails
     if (execution.status === 'running' || execution.status === 'assigned') {
       ctx.runningTaskCounter = Math.max(0, ctx.runningTaskCounter - 1);

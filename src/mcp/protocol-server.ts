@@ -862,6 +862,7 @@ export class MCPProtocolServer {
         isCacheable: false,
         parameters: [
           { name: 'domain', type: 'string', description: 'Specific domain to check' },
+          { name: 'detailed', type: 'boolean', description: 'Include per-domain health, issues and the MinCut reading (raw minCut status/value, and the fleet reading without task-scoped agents that decides status)', default: false },
         ],
       },
       handler: (params) => handleFleetHealth(params as unknown as Parameters<typeof handleFleetHealth>[0]),

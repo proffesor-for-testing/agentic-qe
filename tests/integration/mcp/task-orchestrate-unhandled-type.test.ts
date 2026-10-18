@@ -26,6 +26,8 @@ const bundle = resolve('dist/mcp/bundle.js');
 const NEEDS_INPUT = [
   ['scan for security vulnerabilities', 'scan-security', 'Pass filePaths'],
   ['run chaos fault injection', 'run-chaos', 'Use chaos_test'],
+  // #1130: this wording used to be inferred as execute-tests.
+  ['Run chaos resilience testing with fault injection', 'run-chaos', 'Use chaos_test'],
   ['assess code quality', 'assess-quality', 'Pass filePaths'],
   ['validate the api contract', 'validate-contracts', 'Use contract_validate'],
   ['validate requirements for login', 'validate-requirements', 'Use requirements_validate'],

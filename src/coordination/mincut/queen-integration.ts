@@ -39,6 +39,20 @@ import {
   DEFAULT_MINCUT_HEALTH_CONFIG,
 } from './interfaces';
 
+/**
+ * #1130: Queen health reads the MinCut of the fleet's own topology (domains
+ * and long-lived agents). An agent spawned for one task is a leaf with a
+ * single edge, so counting it would put every running task below threshold.
+ */
+export interface FleetMinCutHealth extends MinCutHealth {
+  /** Status of the topology without task-scoped agents; this one degrades Queen health. */
+  readonly fleetStatus: MinCutHealth['status'];
+  /** MinCut of the topology without task-scoped agents. `minCutValue` stays the raw value. */
+  readonly fleetMinCutValue: number;
+  /** Running task-scoped agents left out of `fleetStatus`. */
+  readonly taskAgents: number;
+}
+
 // ============================================================================
 // Queen-MinCut Integration Configuration
 // ============================================================================
@@ -96,6 +110,13 @@ export class QueenMinCutBridge {
   private readonly persistence: MinCutPersistence;
 
   private eventSubscriptions: Array<() => void> = [];
+  /**
+   * Agents with a vertex in the graph, from QueenAgentSpawned or from the
+   * coordinator when the graph was built. Pruned once they complete (#1130).
+   */
+  private readonly spawnedAgentIds = new Set<string>();
+  /** The subset spawned for a single task (#1130). */
+  private readonly taskAgentIds = new Set<string>();
   private snapshotTimer: NodeJS.Timeout | null = null;
   private initialized = false;
 
@@ -208,6 +229,8 @@ export class QueenMinCutBridge {
     // Add agent vertices
     for (const agent of agents) {
       this.addAgentVertex(agent);
+      // #1130: tracked so a completed agent is pruned like a spawned one
+      this.spawnedAgentIds.add(agent.id);
     }
 
     // Add edges based on coordination patterns
@@ -325,13 +348,16 @@ export class QueenMinCutBridge {
   private subscribeToEvents(): void {
     // Agent spawned
     const onAgentSpawned = async (event: DomainEvent) => {
-      const { agentId, domain, type, capabilities } = event.payload as {
+      const { agentId, domain, type, capabilities, taskId } = event.payload as {
         agentId: string;
         domain: DomainName;
         type: string;
         capabilities: string[];
+        taskId?: string;
       };
 
+      this.spawnedAgentIds.add(agentId);
+      if (taskId) this.taskAgentIds.add(agentId);
       // Cast to extended AgentInfo with optional properties
       this.addAgentVertex({
         id: agentId,
@@ -503,7 +529,9 @@ export class QueenMinCutBridge {
 
     // Add issues for weak vertices
     const weakVertices = this.monitor.getWeakVertices();
-    for (const weak of weakVertices.slice(0, 3)) { // Top 3 weak vertices
+    // #1130: a task-scoped agent is a leaf by design, not a weak point of the fleet
+    const fleetWeakVertices = weakVertices.filter(weak => !this.isTaskAgentVertex(weak.vertex.id));
+    for (const weak of fleetWeakVertices.slice(0, 3)) { // Top 3 weak vertices
       if (weak.riskScore > 0.7) {
         issues.push({
           severity: 'high',
@@ -518,20 +546,84 @@ export class QueenMinCutBridge {
   }
 
   /**
+   * #1130: nothing publishes QueenAgentTerminated, so a finished task agent
+   * stayed in the topology and kept the fleet degraded after its run. Drop the
+   * vertex of every tracked agent that completed normally or that the
+   * coordinator no longer lists. A failed agent keeps its vertex (see
+   * failedAgentIssues), so a crash never makes the fleet look healthier.
+   * Returns the tracked agents that failed.
+   */
+  private pruneCompletedAgents(): AgentInfo[] {
+    if (this.spawnedAgentIds.size === 0) return [];
+    const byId = new Map(this.agentCoordinator.listAgents().map(agent => [agent.id, agent]));
+    const failed: AgentInfo[] = [];
+    for (const agentId of this.spawnedAgentIds) {
+      const agent = byId.get(agentId);
+      if (agent?.status === 'failed') {
+        failed.push(agent);
+        continue;
+      }
+      if (agent && agent.status !== 'completed') continue;
+      this.graph.removeVertex(`agent:${agentId}`);
+      this.spawnedAgentIds.delete(agentId);
+      this.taskAgentIds.delete(agentId);
+    }
+    return failed;
+  }
+
+  /** #1130: one issue per failed agent, task-scoped or long-lived. */
+  private failedAgentIssues(failed: AgentInfo[]): HealthIssue[] {
+    return failed.map(agent => ({
+      severity: 'high' as const,
+      message: `Agent ${agent.id} (${agent.type}) failed`,
+      timestamp: new Date(),
+      domain: agent.domain,
+    }));
+  }
+
+  private isTaskAgentVertex(vertexId: string): boolean {
+    return vertexId.startsWith('agent:') && this.taskAgentIds.has(vertexId.slice('agent:'.length));
+  }
+
+  /**
+   * #1130: MinCut health with the fleet reading next to the raw one. The fleet
+   * reading drops task-scoped agents from a copy of the graph; the raw graph,
+   * its value and its alerts are unchanged.
+   */
+  getFleetMinCutHealth(): FleetMinCutHealth {
+    const raw = this.getMinCutHealth();
+    if (this.taskAgentIds.size === 0) {
+      return { ...raw, fleetStatus: raw.status, fleetMinCutValue: raw.minCutValue, taskAgents: 0 };
+    }
+    const fleetGraph = this.graph.clone();
+    for (const agentId of this.taskAgentIds) fleetGraph.removeVertex(`agent:${agentId}`);
+    const fleet = createMinCutHealthMonitor(fleetGraph, this.config).getHealth();
+    return {
+      ...raw,
+      fleetStatus: fleet.status,
+      fleetMinCutValue: fleet.minCutValue,
+      taskAgents: this.taskAgentIds.size,
+    };
+  }
+
+  /**
    * Extend Queen health with MinCut metrics
    */
-  extendQueenHealth(baseHealth: QueenHealth): QueenHealth & { minCut?: MinCutHealth } {
+  extendQueenHealth(baseHealth: QueenHealth): QueenHealth & { minCut?: FleetMinCutHealth } {
     if (!this.config.includeInQueenHealth) {
       return baseHealth;
     }
 
-    const minCutHealth = this.getMinCutHealth();
-    const minCutIssues = this.getHealthIssuesFromMinCut();
+    const failedAgents = this.pruneCompletedAgents();
+    const minCutHealth = this.getFleetMinCutHealth();
+    // #1130: with only task-scoped agents the fleet topology is idle, and the
+    // raw alerts describe those agents, not the fleet.
+    const minCutIssues = minCutHealth.fleetStatus === 'idle' ? [] : this.getHealthIssuesFromMinCut();
 
     // Issue #205 fix: Only degrade status for actual critical issues
     // 'idle' status is normal for fresh installs - don't degrade health
     let status = baseHealth.status;
-    if (minCutHealth.status === 'critical' && status === 'healthy') {
+    if ((minCutHealth.fleetStatus === 'critical' || failedAgents.length > 0) && status === 'healthy') {
       status = 'degraded';
     }
     // Note: 'idle' status does NOT trigger degradation - it's expected for fresh systems
@@ -539,7 +631,7 @@ export class QueenMinCutBridge {
     return {
       ...baseHealth,
       status,
-      issues: [...baseHealth.issues, ...minCutIssues],
+      issues: [...baseHealth.issues, ...this.failedAgentIssues(failedAgents), ...minCutIssues],
       minCut: minCutHealth,
     };
   }

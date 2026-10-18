@@ -84,7 +84,7 @@ export interface QueenTaskContext {
   readonly coExecutionRepo: CoExecutionRepository | null;
 
   // Callbacks into the coordinator
-  requestAgentSpawn(domain: DomainName, type: string, capabilities: string[]): Promise<Result<string, Error>>;
+  requestAgentSpawn(domain: DomainName, type: string, capabilities: string[], taskId?: string): Promise<Result<string, Error>>;
   publishEvent(type: string, payload: Record<string, unknown>): Promise<void>;
   getDomainLoad(domain: DomainName): number;
   getDomainHealth(domain: DomainName): import('../kernel/interfaces').DomainHealth | undefined;
@@ -241,6 +241,7 @@ export async function assignTaskToDomain(
     domain,
     agentType,
     spawnCapabilities,
+    task.id,
   );
 
   // A queued task can be cancelled while routing or agent spawn is awaiting.
