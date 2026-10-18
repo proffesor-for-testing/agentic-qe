@@ -298,6 +298,23 @@ describe('work stealing checks for a handler and takes a slot (#1124)', () => {
     expect(ctx.runningTaskCounter).toBe(1);
   });
 
+  // Unchanged: stealing still starts a task when every slot is taken. The
+  // counter now shows it, so the queue waits until it is back under the limit.
+  it('counts a task stolen at capacity, and the queue waits until a slot frees', async () => {
+    const { ctx, security } = createContext(1);
+    security.canHandleTask = (type: string) => type === 'ideation-assessment';
+    ctx.runningTaskCounter = 1;
+    setQueued(ctx, task('idea', 'ideation-assessment', 'coverage-analysis'));
+    setQueued(ctx, task('waiting', 'analyze-coverage', 'coverage-analysis'));
+
+    await steal(ctx, 'security-compliance', 'coverage-analysis');
+    await processQueue(asCtx(ctx));
+
+    expect(ctx.tasks.get('idea')?.status).toBe('running');
+    expect(ctx.tasks.get('waiting')?.status).toBe('queued');
+    expect(ctx.runningTaskCounter).toBe(2);
+  });
+
   it('fails a stolen task that cannot be assigned instead of dropping it from the queue', async () => {
     const { ctx, security } = createContext(4);
     security.canHandleTask = (type: string) => type === 'ideation-assessment';
