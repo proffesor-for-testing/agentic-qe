@@ -8,6 +8,10 @@
  * Drives the built server over stdio: such descriptions must be rejected with
  * the reason, and a handled description must reach a terminal state, so the
  * fleet ends with nothing running or pending.
+ *
+ * #1125: inferred types whose domain runs a concrete handler (sast-scan,
+ * analyze-quality) are routed there with input from the request; the others
+ * are refused with the input they need.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
@@ -17,12 +21,17 @@ import { join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 
 const bundle = resolve('dist/mcp/bundle.js');
-// Descriptions task_orchestrate maps to types no domain plugin handles.
-const UNHANDLED = [
-  ['scan for security vulnerabilities', 'scan-security'],
-  ['run chaos fault injection', 'run-chaos'],
-  ['assess code quality', 'assess-quality'],
-  ['validate the api contract', 'validate-contracts'],
+// Descriptions whose inferred type needs input a description does not carry
+// (#1125). Each is refused with what to supply instead of being submitted.
+const NEEDS_INPUT = [
+  ['scan for security vulnerabilities', 'scan-security', 'Pass filePaths'],
+  ['run chaos fault injection', 'run-chaos', 'Use chaos_test'],
+  ['assess code quality', 'assess-quality', 'Pass filePaths'],
+  ['validate the api contract', 'validate-contracts', 'Use contract_validate'],
+  ['validate requirements for login', 'validate-requirements', 'Use requirements_validate'],
+  ['test accessibility of https://example.com', 'test-accessibility', 'Use accessibility_test'],
+  // #1125 review: a vague description must not overwrite learned strategies.
+  ['improve the login page performance', 'optimize-learning', 'Use task_submit with type optimize-strategies'],
 ] as const;
 
 describe.skipIf(!existsSync(bundle) && !process.env.CI)('MCP task_orchestrate leaves no task running that nothing executes (#1081)', () => {
@@ -57,6 +66,7 @@ describe.skipIf(!existsSync(bundle) && !process.env.CI)('MCP task_orchestrate le
     symlinkSync(resolve('node_modules'), join(root, 'node_modules'), 'dir');
     writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'aqe-1081-fixture', version: '1.0.0', type: 'module' }));
     writeFileSync(join(root, 'src/math.js'), 'export function add(a, b) { return a + b; }');
+    writeFileSync(join(root, 'src/unsafe.js'), 'export function run(input) {\n  return eval(input);\n}\n');
     const home = join(root, '.home');
     mkdirSync(home);
     child = spawn(process.execPath, [bundle], {
@@ -110,18 +120,40 @@ describe.skipIf(!existsSync(bundle) && !process.env.CI)('MCP task_orchestrate le
     return state;
   }
 
-  it('rejects each description whose inferred type no domain executes, with the reason', async () => {
-    for (const [task, type] of UNHANDLED) {
+  it('refuses each description whose handler input the request does not carry, saying what to supply', async () => {
+    for (const [task, type, hint] of NEEDS_INPUT) {
       const result = await call('task_orchestrate', { task });
       expect(result.success, `${task}: ${JSON.stringify(result)}`).toBe(false);
-      expect(result.error).toContain(`No handler for task type '${type}'`);
-      expect(result.error).toContain('supported:');
+      expect(result.error).toContain(`task_orchestrate inferred '${type}' from the description`);
+      expect(result.error).toContain(hint);
     }
 
     const status = await call('fleet_status', {});
     expect(status.success, JSON.stringify(status)).toBe(true);
     expect(status.data.tasks.running).toBe(0);
     expect(status.data.tasks.pending).toBe(0);
+  }, 120000);
+
+  // #1125: these inferred types run the domain's concrete handler.
+  it.each([
+    ['scan for security vulnerabilities', { filePaths: ['src/unsafe.js'] }, 'scan-security', 'sast-scan'],
+    ['assess code quality', { filePaths: ['src/math.js'] }, 'assess-quality', 'analyze-quality'],
+  ])('routes "%s" to a real handler that completes', async (task, extra, inferredType, type) => {
+    const submitted = await call('task_orchestrate', { task, ...extra });
+    expect(submitted.success, JSON.stringify(submitted)).toBe(true);
+    expect(submitted.data).toMatchObject({ type, inferredType, status: 'submitted' });
+
+    expect(await settle(submitted.data.taskId)).toBe('completed');
+    if (type === 'sast-scan') {
+      const detail = await call('task_status', { taskId: submitted.data.taskId, detailed: true });
+      expect(JSON.stringify(detail.data.result)).toContain('eval()');
+    }
+  }, 120000);
+
+  it('refuses scan filePaths outside the project', async () => {
+    const result = await call('task_orchestrate', { task: 'scan for security vulnerabilities', filePaths: ['../outside.js'] });
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('these filePaths cannot be read: ../outside.js (outside-project-root)');
   }, 120000);
 
   it('still runs a handled description to a terminal state and frees its slot', async () => {

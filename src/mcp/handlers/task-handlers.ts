@@ -35,6 +35,7 @@ import { scoreUnjudgedTrajectories } from './trajectory-judge.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
 import { ALL_DOMAINS, invalidPriorityMessage, isDomainName, isPriority } from '../../shared/types/index.js';
 import { validateIndexPaths, validateIndexTaskPayload } from '../../domains/code-intelligence/index-path-guard.js';
+import { routeInferredTask } from './orchestrate-routes.js';
 
 // ============================================================================
 // Task Type to Workflow Mapping (Issue #206)
@@ -318,7 +319,10 @@ export interface TaskOrchestrateParams {
 
 export interface TaskOrchestrateResult {
   taskId: string;
+  /** The task type submitted to the domain. */
   type: TaskType;
+  /** #1125: the type inferred from the description, when another handler type runs it. */
+  inferredType?: TaskType;
   priority: 'p0' | 'p1' | 'p2' | 'p3';
   strategy: string;
   status: string;
@@ -484,10 +488,20 @@ export async function handleTaskOrchestrate(
       };
     }
 
-    // No workflow - submit as a regular task
-    // #1081: the inferred type must have a domain handler. Otherwise the Queen
-    // can only fail the task at dispatch, so reject it here with the reason.
-    const executable = queen!.validateTaskExecutable(taskType);
+    // No workflow - submit as a regular task.
+    // #1125: an inferred type without a handler of its own runs the domain's
+    // concrete handler, with a payload built only from the request, or is
+    // refused with the input it needs.
+    const route = await routeInferredTask(taskType, params);
+    if (route.kind === 'needs-input') {
+      return { success: false, error: route.error };
+    }
+    const submitType = route.kind === 'route' ? route.type as TaskType : taskType;
+    const targetDomains = route.kind === 'route' ? [route.domain] : [];
+
+    // #1081: the type must have a domain handler. Otherwise the Queen can
+    // only fail the task at dispatch, so reject it here with the reason.
+    const executable = queen!.validateTaskExecutable(submitType, targetDomains);
     if (!executable.success) {
       return {
         success: false,
@@ -516,11 +530,12 @@ export async function handleTaskOrchestrate(
     if (taskType === 'index-code') {
       taskPayload.paths = params.filePaths || [];
     }
+    if (route.kind === 'route') Object.assign(taskPayload, route.payload);
 
     const result = await queen!.submitTask({
-      type: taskType,
+      type: submitType,
       priority,
-      targetDomains: [],
+      targetDomains,
       payload: {
         ...taskPayload,
         // ADR-051: Include routing decision in payload for downstream processing
@@ -590,7 +605,8 @@ export async function handleTaskOrchestrate(
       success: true,
       data: {
         taskId,
-        type: taskType,
+        type: submitType,
+        ...(submitType !== taskType ? { inferredType: taskType } : {}),
         priority,
         strategy: params.strategy || 'adaptive',
         status: 'submitted',

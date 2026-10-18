@@ -932,6 +932,7 @@ export class MCPProtocolServer {
         parameters: [
           { name: 'task', type: 'string', description: 'Task description', required: true },
           { name: 'strategy', type: 'string', description: 'Execution strategy', enum: ['parallel', 'sequential', 'adaptive'] },
+          { name: 'filePaths', type: 'array', description: 'Project files the task works on. A security scan or quality assessment runs on these files and is refused without them.', items: { type: 'string' } },
         ],
       },
       handler: (params) => handleTaskOrchestrate(params as unknown as Parameters<typeof handleTaskOrchestrate>[0]),
