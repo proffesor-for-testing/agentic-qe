@@ -125,11 +125,31 @@ describe('index path guard (#1096)', () => {
       if (!empty.success) expect(empty.error.message).toContain("'paths[0]' must be a non-empty string");
     });
 
-    it('checks paths only for index task types that carry them', () => {
+    it('checks paths only for index task types', () => {
       expect(validateIndexTaskPayload('index-code', { paths: { a: 1 } })?.message).toContain('must be an array');
       expect(validateIndexTaskPayload('index', { paths: ['src/ok.ts'] })).toBeUndefined();
-      expect(validateIndexTaskPayload('index-code', { target: 'src' })).toBeUndefined();
       expect(validateIndexTaskPayload('generate-tests', { paths: 'x' })).toBeUndefined();
+      expect(validateIndexTaskPayload('generate-tests', { target: 'src' })).toBeUndefined();
+    });
+
+    // #1134: the handler indexes exactly `paths`; it does not expand a
+    // directory `target`, so a request without `paths` failed only after it
+    // was accepted. It is refused at submission now.
+    it.each([
+      ['a code_index-style target', { target: 'src' }],
+      ['an empty payload', {}],
+      ['no payload', undefined],
+      ['an inherited paths property', Object.create({ paths: ['src/ok.ts'] })],
+    ])('refuses an index task with %s and says paths is required', (_label, payload) => {
+      for (const type of ['index', 'index-code']) {
+        const error = validateIndexTaskPayload(type, payload);
+        expect(error?.message).toContain(`'${type}' needs 'paths', the list of files to index`);
+        expect(error?.message).toContain('use code_index (or `aqe code index`) with a target');
+      }
+    });
+
+    it('refuses an empty paths list', () => {
+      expect(validateIndexTaskPayload('index-code', { paths: [] })?.message).toContain("'paths' is empty");
     });
   });
 

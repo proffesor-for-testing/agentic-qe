@@ -44,6 +44,8 @@ describe('routeInferredTask (#1125)', () => {
   it.each([
     ['scan-security', 'Pass filePaths with the source files to scan'],
     ['assess-quality', 'Pass filePaths with the source files to assess'],
+    // #1134: indexing reads exactly the files it is given.
+    ['index-code', 'Pass filePaths with the files to index, or use code_index with a target'],
   ] as const)('refuses %s without files, saying what to pass', async (type, hint) => {
     const route = await routeInferredTask(type, { task: 'x' });
     expect(route).toEqual({ kind: 'needs-input', error: expect.stringContaining(hint) });

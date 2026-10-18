@@ -32,11 +32,17 @@ describe('built CLI code-index task alias', () => {
     expect(result.stdout + result.stderr).not.toContain('Task timed out');
   }, 15000);
 
-  it('reports a missing payload as a terminal error', () => {
-    const result = execute('index-code', {});
+  // #1134: refused at submission, before a task exists, instead of failing
+  // after it was accepted.
+  it.each([
+    ['a missing payload', {}],
+    ['a code_index-style target', { target: 'src' }],
+  ])('refuses %s at submission with a non-zero exit', (_label, payload) => {
+    const result = execute('index-code', payload);
     expect(result.error).toBeUndefined();
     expect(result.status).toBe(1);
-    expect(result.stderr + result.stdout).toContain('Invalid index payload: missing paths');
+    expect(result.stderr + result.stdout).toContain("Invalid index payload: 'index-code' needs 'paths'");
+    expect(result.stderr + result.stdout).not.toContain('Submitting task');
     expect(result.stderr + result.stdout).not.toContain('Task timed out');
   }, 15000);
 });
