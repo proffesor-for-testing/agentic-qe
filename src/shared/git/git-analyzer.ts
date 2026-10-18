@@ -112,6 +112,8 @@ export class GitAnalyzer {
   private readonly config: Required<GitAnalyzerConfig>;
   private readonly cache: Map<string, { data: unknown; timestamp: number }> = new Map();
   private isGitRepo: boolean | null = null;
+  /** After a rev-parse timeout, when to ask git again (until then: "timeout"). */
+  private repoRetryAt = 0;
   private readonly timedOutFiles = new Set<string>();
 
   constructor(config: GitAnalyzerConfig = {}) {
@@ -381,14 +383,22 @@ export class GitAnalyzer {
     }
   }
 
-  /** Whether the repo root is a git work tree. A timeout is not cached: git may answer next time. */
+  /**
+   * Whether the repo root is a git work tree. A timeout is not an answer: it
+   * is remembered for `cacheTtl` so a hung git is not waited on for every
+   * file, and then git is asked again.
+   */
   private async repoState(): Promise<boolean | 'timeout'> {
     if (this.isGitRepo !== null) return this.isGitRepo;
+    if (Date.now() < this.repoRetryAt) return 'timeout';
     try {
       await this.query().text(['rev-parse', '--is-inside-work-tree']);
       this.isGitRepo = true;
     } catch (error) {
-      if (error instanceof GitTimeoutError) return 'timeout';
+      if (error instanceof GitTimeoutError) {
+        this.repoRetryAt = Date.now() + this.config.cacheTtl;
+        return 'timeout';
+      }
       this.isGitRepo = false;
     }
     return this.isGitRepo;

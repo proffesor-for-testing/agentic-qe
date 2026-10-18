@@ -136,11 +136,17 @@ exec ${JSON.stringify(realGit)} "$@"
   it('asks again after a rev-parse timeout instead of turning git off for good', async () => {
     vi.stubEnv('HANG_REV_PARSE_ONCE', '1');
     rmSync(revParseOnce, { force: true });
-    const analyzer = new GitAnalyzer({ repoRoot: repo, enableCache: false, gitTimeoutMs: 500 });
+    const analyzer = new GitAnalyzer({ repoRoot: repo, enableCache: false, gitTimeoutMs: 500, cacheTtl: 1000 });
 
     expect(await analyzer.getChangeFrequency('auth.ts')).toBe(0.4);
     expect(existsSync(revParseOnce)).toBe(true);
     expect(analyzer.consumeTimeout('auth.ts')).toBe(true);
+    // Within cacheTtl the timeout stands in for git, without waiting again.
+    const started = Date.now();
+    expect(await analyzer.getCodeAge('auth.ts')).toBe(0.4);
+    expect(Date.now() - started).toBeLessThan(200);
+    expect(analyzer.consumeTimeout('auth.ts')).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 1100));
     expect(await analyzer.isGitRepository()).toBe(true);
     expect((await analyzer.getFileHistory('auth.ts')).totalCommits).toBe(1);
   }, 30000);

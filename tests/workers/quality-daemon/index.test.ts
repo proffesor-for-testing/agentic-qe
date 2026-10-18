@@ -13,6 +13,8 @@ vi.mock('child_process', () => ({
   }),
 }));
 
+vi.mock('../../../src/shared/git/git-process', () => ({ runGit: vi.fn(async () => '') }));
+
 // Mock fs.watch for git watcher
 vi.mock('fs', async (importOriginal) => {
   const actual = await importOriginal() as Record<string, unknown>;
