@@ -660,14 +660,18 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
     }
 
     // Calculate metrics using real code analysis and git history
-    const metrics: Record<string, number> = {
+    const measure = async (): Promise<Record<string, number>> => ({
       codeComplexity: await this.calculateComplexity(file),
       changeFrequency: await this.getChangeFrequency(file),
       developerExperience: await this.getDeveloperExperience(file),
       testCoverage: await this.getTestCoverage(file),
       codeAge: await this.getCodeAge(file),
       bugHistory: await this.getBugHistory(file),
-    };
+    });
+    // #1115: the git-based metrics of one file share one deadline.
+    const metrics = this.gitAnalyzer.withFileDeadline
+      ? await this.gitAnalyzer.withFileDeadline(file, measure)
+      : await measure();
 
     // #1115: a git timeout left defaults in the git-based metrics; do not
     // cache them as this file's measured metrics.

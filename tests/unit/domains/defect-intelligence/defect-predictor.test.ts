@@ -174,8 +174,11 @@ describe('DefectPredictorService', () => {
     // so and its metrics are not cached as measured for an hour.
     it('should warn about and not cache a prediction whose git history timed out', async () => {
       mockGit.consumeTimeout = vi.fn((file: string) => file === 'src/slow.ts');
+      mockGit.withFileDeadline = vi.fn((_file: string, work: () => Promise<unknown>) => work()) as GitAnalyzer['withFileDeadline'];
 
       const result = await service.predictDefects({ files: ['src/slow.ts', 'src/fast.ts'] });
+      // Each file's git metrics share one deadline.
+      expect(vi.mocked(mockGit.withFileDeadline!).mock.calls.map(([file]) => file)).toEqual(['src/slow.ts', 'src/fast.ts']);
 
       expect(result.success).toBe(true);
       if (!result.success) return;

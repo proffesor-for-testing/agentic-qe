@@ -121,6 +121,24 @@ exec ${JSON.stringify(realGit)} "$@"
     expect(analyzer.consumeTimeout('auth.ts')).toBe(false);
   }, 30000);
 
+  it('bounds all analyses of one file by one deadline inside withFileDeadline', async () => {
+    vi.stubEnv('HANG_GREP', '1');
+    // Each analysis alone could wait 20s; together they get 1.5s.
+    const analyzer = new GitAnalyzer({ repoRoot: repo, enableCache: false, gitTimeoutMs: 20000, fileTimeoutMs: 1500 });
+    const started = Date.now();
+    const [frequency, bugs, age] = await analyzer.withFileDeadline('auth.ts', async () => [
+      await analyzer.getChangeFrequency('auth.ts'),
+      await analyzer.getBugHistory('auth.ts'),
+      await analyzer.getCodeAge('auth.ts'),
+    ]);
+    expect(frequency).toBeCloseTo(1 / 30);
+    expect(bugs).toBe(0.2);
+    // The deadline has passed, so code age falls back without asking git.
+    expect(age).toBe(0.4);
+    expect(Date.now() - started).toBeLessThan(6000);
+    expect(analyzer.consumeTimeout('auth.ts')).toBe(true);
+  }, 30000);
+
   it('stops the whole git process group at the timeout', async () => {
     vi.stubEnv('HANG_GREP', '1');
     const analyzer = new GitAnalyzer({ repoRoot: repo, enableCache: false, gitTimeoutMs: 500 });

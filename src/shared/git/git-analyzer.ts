@@ -82,6 +82,8 @@ export interface GitAnalyzerConfig {
   cacheTtl?: number;
   /** Deadline in milliseconds shared by the git calls of one analysis (default: 30 seconds) */
   gitTimeoutMs?: number;
+  /** Deadline in milliseconds for all analyses of one file inside withFileDeadline() (default: 60 seconds) */
+  fileTimeoutMs?: number;
 }
 
 const DEFAULT_CONFIG: Required<GitAnalyzerConfig> = {
@@ -91,6 +93,7 @@ const DEFAULT_CONFIG: Required<GitAnalyzerConfig> = {
   enableCache: true,
   cacheTtl: 5 * 60 * 1000, // 5 minutes
   gitTimeoutMs: 30 * 1000,
+  fileTimeoutMs: 60 * 1000,
 };
 
 /** Room for `git blame --line-porcelain` on large files (execFileSync allowed 1 MiB). */
@@ -115,6 +118,8 @@ export class GitAnalyzer {
   /** After a rev-parse timeout, when to ask git again (until then: "timeout"). */
   private repoRetryAt = 0;
   private readonly timedOutFiles = new Set<string>();
+  /** Files inside withFileDeadline() and when their git time runs out. */
+  private readonly fileDeadlines = new Map<string, number>();
 
   constructor(config: GitAnalyzerConfig = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -133,6 +138,21 @@ export class GitAnalyzer {
    */
   consumeTimeout(filePath: string): boolean {
     return this.timedOutFiles.delete(filePath);
+  }
+
+  /**
+   * Run `work`, during which every analysis of `filePath` also stops at one
+   * shared `fileTimeoutMs` deadline. One file's analyses then wait for git at
+   * most that long together, rather than `gitTimeoutMs` each (#1115).
+   */
+  async withFileDeadline<T>(filePath: string, work: () => Promise<T>): Promise<T> {
+    if (this.fileDeadlines.has(filePath)) return work();
+    this.fileDeadlines.set(filePath, Date.now() + this.config.fileTimeoutMs);
+    try {
+      return await work();
+    } finally {
+      this.fileDeadlines.delete(filePath);
+    }
   }
 
   /**
@@ -376,7 +396,7 @@ export class GitAnalyzer {
       return fallback;
     }
     try {
-      return await work(this.query(), this.getRelativePath(filePath));
+      return await work(this.query(this.fileDeadlines.get(filePath)), this.getRelativePath(filePath));
     } catch (error) {
       if (error instanceof GitTimeoutError) this.timedOutFiles.add(filePath);
       return fallback;
@@ -406,12 +426,12 @@ export class GitAnalyzer {
 
   /**
    * Git queries in the repo root that share a deadline of `gitTimeoutMs` from
-   * now. Git runs asynchronously in its own process group, so a slow or hung
+   * now, or `fileDeadline` when that comes first. Git runs asynchronously in its own process group, so a slow or hung
    * git (a network filesystem, a credential prompt) neither blocks the MCP
    * server's event loop nor outlives its deadline (#1115).
    */
-  private query(): GitQuery {
-    const deadline = Date.now() + this.config.gitTimeoutMs;
+  private query(fileDeadline = Infinity): GitQuery {
+    const deadline = Math.min(Date.now() + this.config.gitTimeoutMs, fileDeadline);
     const text = (args: string[]) => runGit(args, {
       cwd: this.config.repoRoot, timeout: deadline - Date.now(), maxBuffer: GIT_MAX_BUFFER,
     });
