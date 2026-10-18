@@ -11,7 +11,7 @@ import type {
 } from '../shared/types';
 import { ok, err } from '../shared/types';
 import { binaryInsert, createdAtComparator } from '../shared/utils/index.js';
-import { toErrorMessage } from '../shared/error-utils.js';
+import { toError, toErrorMessage } from '../shared/error-utils.js';
 import type {
   AgentCoordinator,
   DomainPlugin,
@@ -251,13 +251,12 @@ async function releaseSlot(ctx: QueenTaskContext): Promise<void> {
     drainDirty.add(ctx.tasks);
     return;
   }
-  // The drain dispatches other tasks. Its failure belongs to none of them and
-  // must not reach the caller whose task released this slot.
-  try {
-    await processQueue(ctx);
-  } catch (error) {
+  // The drain dispatches other tasks. The caller whose task released this
+  // slot does not wait for it (#1140), and its failure belongs to none of
+  // them, so it must not reach that caller.
+  void processQueue(ctx).catch(error => {
     console.warn('[Queen] Queue drain after a released slot failed:', toErrorMessage(error));
-  }
+  });
 }
 
 /**
@@ -485,20 +484,28 @@ export async function assignTaskToDomain(
         correlationId: task.correlationId,
       };
 
-      const execResult = await plugin.executeTask(
-        request,
-        (result: DomainTaskResult) => handleTaskCompletionCallback(ctx, result),
-      );
+      // #1140: a plugin that throws is treated like one that returns err, so
+      // the task is settled here instead of left running on a released slot.
+      let execResult: Result<void, Error>;
+      try {
+        execResult = await plugin.executeTask(
+          request,
+          (result: DomainTaskResult) => handleTaskCompletionCallback(ctx, result),
+        );
+      } catch (error) {
+        execResult = err(toError(error));
+      }
 
       if (!execResult.success) {
         const cancelled = settleCancelledTask(ctx.tasks, task.id);
         if (cancelled.ignored) {
-          if (cancelled.settledNow) {
-            ctx.runningTaskCounter = Math.max(0, ctx.runningTaskCounter - 1);
-            await processQueue(ctx);
-          }
+          if (cancelled.settledNow) await releaseSlot(ctx);
           return ok(task.id);
         }
+        // #1140: the plugin already reported this task through onComplete,
+        // which settled it and released its slot.
+        if (ctx.tasks.get(task.id)?.status !== 'running') return err(execResult.error);
+
         ctx.tasks.set(task.id, {
           ...execution,
           status: 'failed',

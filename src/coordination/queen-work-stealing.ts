@@ -25,6 +25,8 @@ export interface QueenWorkStealingContext {
   getIdleDomains(): DomainName[];
   getBusyDomains(): DomainName[];
   getDomainLoad(domain: DomainName): number;
+  /** #1140: free Queen slots; a steal starts a task, so it needs one */
+  availableSlots(): number;
   /** #1124: the domain is configured for the task and its plugin can execute it */
   canExecuteInDomain(domain: DomainName, task: QueenTask): boolean;
   removeFromQueues(task: QueenTask): void;
@@ -59,7 +61,8 @@ export async function triggerWorkStealing(ctx: QueenWorkStealingContext): Promis
     const queue = ctx.domainQueues.get(busyDomain) || [];
     const stealCount = Math.min(queue.length, ctx.config.workStealing.stealBatchSize);
 
-    for (let i = 0; i < stealCount && idleDomains.length > 0; i++) {
+    // #1140: each steal takes a slot, so stop when none is free.
+    for (let i = 0; i < stealCount && idleDomains.length > 0 && ctx.availableSlots() > 0; i++) {
       const task = queue.find(t => ctx.canExecuteInDomain(idleDomains[0], t));
 
       if (task) {
