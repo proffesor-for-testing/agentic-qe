@@ -29,7 +29,27 @@ const ROUNDS = 3;
 
 let dir: string;
 
-function openInChild(dbPath: string): Promise<{ ok: boolean; version?: number; error?: string }> {
+type ChildResult = { ok: boolean; version?: number; migration?: 'applied' | 'waited' | 'none'; error?: string };
+
+/** Migrations each fixture's rounds saw, so a test can check the waiting path ran. */
+const migrations: string[] = [];
+
+/**
+ * Every process opens the database at the current version, and exactly one
+ * migrates it. Any other process either waited for the lock and found the
+ * migration done ('waited': the version re-read under the lock), or opened
+ * after it finished ('none'). Without the re-read, a process that waited
+ * re-ran the migration and also logged "Migration complete".
+ */
+function expectOneMigrator(results: ChildResult[]): void {
+  const detail = JSON.stringify(results);
+  for (const r of results) expect(r, detail).toMatchObject({ ok: true, version: SCHEMA_VERSION });
+  expect(results.filter((r) => r.migration === 'applied'), detail).toHaveLength(1);
+  for (const r of results) expect(['applied', 'waited', 'none'], detail).toContain(r.migration);
+  migrations.push(...results.map((r) => r.migration ?? 'missing'));
+}
+
+function openInChild(dbPath: string): Promise<ChildResult> {
   return new Promise((done) => {
     const child = spawn(process.execPath, ['--import', tsxLoader, childScript, dbPath], {
       cwd: dir,
@@ -101,14 +121,15 @@ describe('#1116 concurrent migration', () => {
 
     for (let round = 0; round < ROUNDS; round++) {
       const result = await openConcurrently(source, `swept-${round}`);
-      expect(result.results, JSON.stringify(result.results)).toEqual(
-        Array.from({ length: PROCESSES }, () => ({ ok: true, version: SCHEMA_VERSION })),
-      );
+      expectOneMigrator(result.results);
       expect(result.version).toBe(SCHEMA_VERSION);
       expect(result.integrity).toBe('ok');
       expect(result.archiveRows).toBe(3);
       expect(result.archiveIndex).toBe(1);
     }
+    // The waiting path ran at least once: a process re-read the version under
+    // the lock and applied nothing.
+    expect(migrations.splice(0), 'no process waited for the migration').toContain('waited');
   }, 180_000);
 
   it(`v11 with legacy rows: ${PROCESSES} processes x ${ROUNDS} rounds migrate it once, with no duplicated backfill`, async () => {
@@ -141,14 +162,15 @@ describe('#1116 concurrent migration', () => {
 
     for (let round = 0; round < ROUNDS; round++) {
       const result = await openConcurrently(source, `v11-${round}`);
-      expect(result.results, JSON.stringify(result.results)).toEqual(
-        Array.from({ length: PROCESSES }, () => ({ ok: true, version: SCHEMA_VERSION })),
-      );
+      expectOneMigrator(result.results);
       expect(result.version).toBe(SCHEMA_VERSION);
       expect(result.integrity).toBe('ok');
       expect(result.patterns).toBe(2);
       // The v12 backfill ran once: one legacy-unknown admission per pattern.
       expect(result.legacyAdmissions).toBe(2);
     }
+    // The waiting path ran at least once: a process re-read the version under
+    // the lock and applied nothing.
+    expect(migrations.splice(0), 'no process waited for the migration').toContain('waited');
   }, 180_000);
 });
