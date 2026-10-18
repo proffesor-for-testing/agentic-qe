@@ -3,10 +3,12 @@
  * Tests for SAST/DAST scanning and vulnerability detection
  */
 
+import { createServer, type Server } from 'node:http';
+import { err } from '../../../../src/shared/types';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { SecurityScannerService } from '../../../../src/domains/security-compliance/services/security-scanner';
 import type { MemoryBackend } from '../../../../src/kernel/interfaces';
 import type { FilePath } from '../../../../src/shared/value-objects';
@@ -38,6 +40,28 @@ const createMockFilePath = (path: string): FilePath => ({
 });
 
 describe('SecurityScannerService', () => {
+  let httpFixture: Server;
+  let targetUrl: string;
+  beforeAll(async () => {
+    httpFixture = createServer((request, response) => {
+      request.resume();
+      response.writeHead(request.url === '/' ? 200 : 404, {
+        'Content-Type': 'text/html', 'Content-Security-Policy': "default-src 'none'",
+        'Strict-Transport-Security': 'max-age=31536000', 'X-Frame-Options': 'DENY',
+        'X-Content-Type-Options': 'nosniff',
+      });
+      response.end('<html><body>owned security scanner fixture</body></html>');
+    });
+    await new Promise<void>(resolve => httpFixture.listen(0, '127.0.0.1', resolve));
+    const address = httpFixture.address();
+    if (!address || typeof address === 'string') throw new Error('Missing owned fixture address');
+    targetUrl = `http://127.0.0.1:${address.port}/`;
+  });
+  afterAll(async () => {
+    httpFixture.closeAllConnections();
+    await new Promise<void>(resolve => httpFixture.close(() => resolve()));
+  });
+
   let service: SecurityScannerService;
   let mockMemory: MemoryBackend;
   let fixture: string;
@@ -263,7 +287,6 @@ describe('SecurityScannerService', () => {
   describe('DAST Scanning', () => {
     describe('scanUrl', () => {
       it('should scan URL and return DAST results', async () => {
-        const targetUrl = 'https://example.com';
 
         const result = await service.scanUrl(targetUrl);
 
@@ -276,7 +299,6 @@ describe('SecurityScannerService', () => {
       });
 
       it('should respect DAST options', async () => {
-        const targetUrl = 'https://example.com';
         const options: DASTOptions = {
           maxDepth: 2,
           activeScanning: true,
@@ -292,7 +314,6 @@ describe('SecurityScannerService', () => {
       });
 
       it('should store DAST scan results in memory', async () => {
-        const targetUrl = 'https://example.com';
 
         await service.scanUrl(targetUrl);
 
@@ -304,7 +325,6 @@ describe('SecurityScannerService', () => {
 
     describe('scanAuthenticated', () => {
       it('should scan authenticated endpoints with valid credentials', async () => {
-        const targetUrl = 'https://example.com';
         const credentials: AuthCredentials = {
           type: 'bearer',
           token: 'valid-token-12345',
@@ -320,7 +340,6 @@ describe('SecurityScannerService', () => {
       });
 
       it('should return error for missing basic auth credentials', async () => {
-        const targetUrl = 'https://example.com';
         const credentials: AuthCredentials = {
           type: 'basic',
         };
@@ -334,7 +353,6 @@ describe('SecurityScannerService', () => {
       });
 
       it('should return error for missing bearer token', async () => {
-        const targetUrl = 'https://example.com';
         const credentials: AuthCredentials = {
           type: 'bearer',
         };
@@ -384,7 +402,6 @@ describe('SecurityScannerService', () => {
 
       it('should run both SAST and DAST when URL provided', async () => {
         const files = [createMockFilePath(join(fixture, 'app.ts'))];
-        const targetUrl = 'https://example.com';
 
         const result = await service.runFullScan(files, targetUrl);
 
@@ -397,7 +414,6 @@ describe('SecurityScannerService', () => {
 
       it('should combine summaries from SAST and DAST', async () => {
         const files = [createMockFilePath(join(fixture, 'app.ts'))];
-        const targetUrl = 'https://example.com';
 
         const result = await service.runFullScan(files, targetUrl);
 
@@ -412,16 +428,17 @@ describe('SecurityScannerService', () => {
         }
       });
 
-      it('should not fail full scan if DAST fails', async () => {
+      it('fails the combined request when DAST fails and retains the stored SAST summary', async () => {
         const files = [createMockFilePath(join(fixture, 'app.ts'))];
-        // Full scan should complete even if DAST portion has issues
-
-        const result = await service.runFullScan(files, 'https://example.com');
-
-        expect(result.success).toBe(true);
-        if (result.success) {
-          expect(result.value.sastResult).toBeDefined();
-        }
+        vi.spyOn(service, 'scanUrl').mockResolvedValue(err(new Error('owned DAST failure')));
+        const result = await service.runFullScan(files, targetUrl);
+        expect(result.success).toBe(false);
+        if (!result.success) expect(result.error.message).toBe('owned DAST failure');
+        expect(mockMemory.set).toHaveBeenCalledWith(
+          expect.stringMatching(/^security:scan:/),
+          expect.objectContaining({ scanType: 'sast' }),
+          expect.objectContaining({ namespace: 'security-compliance' }),
+        );
       });
     });
   });
