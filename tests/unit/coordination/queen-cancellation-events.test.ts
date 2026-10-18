@@ -88,7 +88,10 @@ describe('cancelled task event conservation', () => {
     const stop = vi.fn(async () => ok(undefined));
     const publishEvent = vi.fn(async () => {});
     const context = {
+      config: { maxConcurrentTasks: 4 },
       tasks: new Map([[task.id, execution]]),
+      // The released slot is handed to the queue (#1127); nothing is waiting.
+      taskQueue: new Map(),
       runningTaskCounter: 1,
       tinyDancerRouter: null,
       domainBreakerRegistry: null,

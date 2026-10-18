@@ -38,8 +38,32 @@ import type {
   IPatternLearningService,
   IKnowledgeSynthesisService,
 } from '../../domains/learning-optimization/interfaces.js';
+import { buildConsolidatedPattern } from '../../domains/learning-optimization/pattern-consolidation.js';
 
 const logger = LoggerFactory.create('learning-consolidation-protocol');
+
+/**
+ * Id of a merged pattern a dry run predicts but never stores (#1106). It only
+ * appears in `removedPatterns` when the predicted merge would itself be trimmed.
+ */
+export const DRY_RUN_MERGE_ID_PREFIX = 'dry-run-merge:';
+
+/** Failed steps inside one domain's report (#1106). */
+function domainStepErrors(report: DomainConsolidationReport): ConsolidationError[] {
+  const errors: ConsolidationError[] = report.mergeFailures.map((failure) => ({
+    domain: report.domain,
+    step: 'merge',
+    error: `${failure.sourcePatternIds.join(', ')}: ${failure.error}`,
+  }));
+  if (report.archiveCounts.failed > 0) {
+    errors.push({
+      domain: report.domain,
+      step: 'archive',
+      error: `${report.archiveCounts.failed} selected patterns could not be archived (archive copy not verified) and were left active`,
+    });
+  }
+  return errors;
+}
 
 // ============================================================================
 // Protocol Configuration
@@ -180,10 +204,25 @@ export interface TransferablePattern {
   reason: string;
 }
 
+/** One step of a run that did not complete (#1106). */
+export interface ConsolidationError {
+  /** Domain the step ran for; absent for run-wide steps. */
+  domain?: DomainName;
+  step: 'consolidate' | 'merge' | 'archive' | 'knowledge-update' | 'transfer';
+  error: string;
+}
+
 export interface ConsolidationResult {
   consolidationId: string;
   /** True when nothing was merged, archived or written (#1071). */
   dryRun: boolean;
+  /**
+   * #1106: `completed` only when every step of every domain succeeded;
+   * `partial` when some failed (see `errors`). When every domain fails,
+   * `execute()` returns an error instead of a result.
+   */
+  status: 'completed' | 'partial';
+  errors: ConsolidationError[];
   startedAt: Date;
   completedAt: Date;
   stats: ConsolidationStats;
@@ -200,6 +239,8 @@ export interface DomainConsolidationReport {
   removedPatterns: RemovedPatternInfo[];
   /** Outcome of archiving `removedPatterns` (all zero but `selected` in a dry run). */
   archiveCounts: ArchiveCounts;
+  /** #1106: merges that failed; their source patterns were left active and kept. */
+  mergeFailures: Array<{ sourcePatternIds: string[]; error: string }>;
   topPerformingPatterns: LearnedPattern[];
   improvementAreas: string[];
 }
@@ -270,18 +311,31 @@ export class LearningConsolidationProtocol {
       let totalRetained = 0;
       const dryRun = this.config.dryRun;
 
+      // #1106: a failed step is recorded, never swallowed.
+      const errors: ConsolidationError[] = [];
+
       for (const domainGroup of gatheredPatterns.value) {
         const consolidationResult = await this.consolidatePatterns(
           consolidationId,
           domainGroup
         );
         if (consolidationResult.success) {
-          domainReports.push(consolidationResult.value);
-          totalMerged += consolidationResult.value.mergedPatterns.length;
-          totalRemoved += consolidationResult.value.removedPatterns.length;
-          totalArchived += consolidationResult.value.archiveCounts.archived;
-          totalRetained += consolidationResult.value.patternsAfterCount;
+          const report = consolidationResult.value;
+          domainReports.push(report);
+          totalMerged += report.mergedPatterns.length;
+          totalRemoved += report.removedPatterns.length;
+          totalArchived += report.archiveCounts.archived;
+          totalRetained += report.patternsAfterCount;
+          errors.push(...domainStepErrors(report));
+        } else {
+          errors.push({ domain: domainGroup.domain, step: 'consolidate', error: consolidationResult.error.message });
         }
+      }
+
+      if (gatheredPatterns.value.length > 0 && domainReports.length === 0) {
+        return err(new Error(
+          `Learning consolidation failed in every domain: ${errors.map((e) => `${e.domain}: ${e.error}`).join('; ')}`
+        ));
       }
 
       // Step 3: Update knowledge base with consolidated patterns (writes, so
@@ -295,6 +349,13 @@ export class LearningConsolidationProtocol {
       const transferResult = dryRun
         ? ok<TransferablePattern[]>([])
         : await this.prepareTransfer(consolidationId, domainReports);
+
+      if (!knowledgeUpdateResult.success) {
+        errors.push({ step: 'knowledge-update', error: knowledgeUpdateResult.error.message });
+      }
+      if (!transferResult.success) {
+        errors.push({ step: 'transfer', error: transferResult.error.message });
+      }
 
       // Step 5: Generate weekly insights
       const insights = await this.generateInsights(
@@ -326,8 +387,14 @@ export class LearningConsolidationProtocol {
           : 0,
       };
 
+      const status: ConsolidationResult['status'] = errors.length > 0 ? 'partial' : 'completed';
+      if (errors.length > 0) {
+        logger.warn('Learning consolidation finished with errors', { consolidationId, dryRun, errors });
+      }
+
       logger.info('Learning consolidation finished', {
         consolidationId,
+        status,
         dryRun,
         analyzed: stats.totalPatternsAnalyzed,
         merged: totalMerged,
@@ -342,6 +409,8 @@ export class LearningConsolidationProtocol {
       const result: ConsolidationResult = {
         consolidationId,
         dryRun,
+        status,
+        errors,
         startedAt,
         completedAt,
         stats,
@@ -495,25 +564,29 @@ export class LearningConsolidationProtocol {
         patterns.filter((p) => !this.isInGracePeriod(p))
       );
 
+      const mergeFailures: DomainConsolidationReport['mergeFailures'] = [];
+      const mergeReason = 'Similar pattern context and template';
+
       for (const group of similarGroups) {
-        if (group.length >= 2 && this.config.dryRun) {
-          // Dry run: report the merge, keep every source pattern
-          mergedPatterns.push({
-            resultPatternId: '',
-            sourcePatternIds: group.map((p) => p.id),
-            mergeReason: 'Similar pattern context and template',
-          });
-          retainedPatterns.push(...group);
-        } else if (group.length >= 2) {
-          // Merge similar patterns
-          const mergeResult = await this.mergePatternGroup(group);
-          if (mergeResult.success) {
+        if (group.length >= 2) {
+          const sourcePatternIds = group.map((p) => p.id);
+          // #1106: both runs carry the same set into the trim step. A dry run
+          // keeps the merged pattern the real run would store (built by the
+          // same function, never written); a real run keeps the stored one, or
+          // the sources themselves when the merge failed and left them active.
+          const merged = this.config.dryRun
+            ? ok(buildConsolidatedPattern(group, `${DRY_RUN_MERGE_ID_PREFIX}${sourcePatternIds.join('+')}`))
+            : await this.mergePatternGroup(group);
+          if (merged.success) {
             mergedPatterns.push({
-              resultPatternId: mergeResult.value.id,
-              sourcePatternIds: group.map((p) => p.id),
-              mergeReason: 'Similar pattern context and template',
+              resultPatternId: this.config.dryRun ? '' : merged.value.id,
+              sourcePatternIds,
+              mergeReason,
             });
-            retainedPatterns.push(mergeResult.value);
+            retainedPatterns.push(merged.value);
+          } else {
+            mergeFailures.push({ sourcePatternIds, error: merged.error.message });
+            retainedPatterns.push(...group);
           }
         } else {
           // Single pattern - check if it should be retained
@@ -565,6 +638,7 @@ export class LearningConsolidationProtocol {
         mergedPatterns,
         removedPatterns,
         archiveCounts,
+        mergeFailures,
         topPerformingPatterns: this.getTopPerformingPatterns(finalPatterns, 5),
         improvementAreas: this.identifyImprovementAreas(domainGroup),
       };
