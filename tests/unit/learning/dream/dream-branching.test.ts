@@ -6,7 +6,7 @@
  * in-memory SQLite databases (never touches real memory.db).
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
 import type { Database as DatabaseType } from 'better-sqlite3';
 import {
@@ -22,6 +22,7 @@ import {
   type DreamStrategy,
   BUILT_IN_STRATEGIES,
 } from '../../../../src/learning/dream/speculative-dreamer.js';
+import type { DreamEngine, DreamCycleResult, DreamRunOptions } from '../../../../src/learning/dream/dream-engine.js';
 
 // ============================================================================
 // Test Helpers
@@ -379,139 +380,109 @@ describe('RVCOWBranchManager', () => {
 });
 
 // ============================================================================
-// SpeculativeDreamer Tests
+// SpeculativeDreamer Tests (#1060: commit:false per strategy, commit the best)
 // ============================================================================
 
 describe('SpeculativeDreamer', () => {
-  let db: DatabaseType;
-  let dreamer: SpeculativeDreamer;
+  function fakeResult(name: string, insightScores: number[]): DreamCycleResult {
+    return {
+      cycle: {
+        id: `cycle-${name}`, startTime: new Date(), conceptsProcessed: 3, associationsFound: 1,
+        insightsGenerated: insightScores.length, status: 'completed',
+      },
+      insights: insightScores.map((score, i) => ({
+        id: `${name}-${i}`, cycleId: `cycle-${name}`, type: 'novel_association',
+        sourceConcepts: [], description: '', noveltyScore: 1, confidenceScore: score, actionable: false,
+      })) as DreamCycleResult['insights'],
+      activationStats: { totalIterations: 1, peakActivation: 1, nodesActivated: 3 },
+      patternsCreated: 0,
+      pending: { cycle: {} as DreamCycleResult['cycle'], activations: [], insights: [] },
+    };
+  }
 
-  beforeEach(() => {
-    db = createTestDb();
-    seedPatterns(db, 50, 0.7);
-    dreamer = new SpeculativeDreamer(db);
+  function fakeEngine(outcomes: Record<string, DreamCycleResult | Error>) {
+    const byDecay = new Map(Object.entries(outcomes));
+    return {
+      dream: vi.fn(async (_durationMs: number | undefined, options: DreamRunOptions) => {
+        const outcome = byDecay.get(String(options.activationConfig?.decayRate));
+        if (!outcome) throw new Error('unexpected strategy');
+        if (outcome instanceof Error) throw outcome;
+        return outcome;
+      }),
+      commitDreamResult: vi.fn(() => 1.5),
+    };
+  }
+
+  const strategies: DreamStrategy[] = [
+    { name: 'strategy-a', activationConfig: { decayRate: 0.1 } },
+    { name: 'strategy-b', activationConfig: { decayRate: 0.2 } },
+  ];
+
+  it('runs every strategy without committing, then commits only the best', async () => {
+    const weak = fakeResult('a', [0.5]);
+    const strong = fakeResult('b', [0.9, 0.8]);
+    const engine = fakeEngine({ '0.1': weak, '0.2': strong });
+
+    const result = await new SpeculativeDreamer(engine as unknown as DreamEngine).dream(strategies, { durationMs: 200 });
+
+    expect(engine.dream).toHaveBeenCalledTimes(2);
+    for (const call of engine.dream.mock.calls) {
+      expect(call[0]).toBe(200);
+      expect(call[1]).toMatchObject({ commit: false });
+    }
+    expect(engine.commitDreamResult).toHaveBeenCalledTimes(1);
+    expect(engine.commitDreamResult).toHaveBeenCalledWith(strong);
+    expect(result.winner?.strategy.name).toBe('strategy-b');
+    expect(result.winner?.selected).toBe(true);
+    expect(result.strategies[0].selected).toBe(false);
+    expect(result.commitDurationMs).toBe(1.5);
   });
 
-  afterEach(() => {
-    db.close();
+  it('skips a failed strategy and commits a working one', async () => {
+    const good = fakeResult('b', [0.6]);
+    const engine = fakeEngine({ '0.1': new Error('Dream exploded'), '0.2': good });
+
+    const result = await new SpeculativeDreamer(engine as unknown as DreamEngine).dream(strategies);
+
+    expect(result.strategies[0]).toMatchObject({ result: null, error: 'Dream exploded', selected: false });
+    expect(result.winner?.strategy.name).toBe('strategy-b');
+    expect(engine.commitDreamResult).toHaveBeenCalledWith(good);
   });
 
-  describe('dream', () => {
-    it('should execute multiple strategies and select the best', async () => {
-      const strategies: DreamStrategy[] = [
-        {
-          name: 'strategy-a',
-          activationConfig: { decayRate: 0.1 },
-        },
-        {
-          name: 'strategy-b',
-          activationConfig: { decayRate: 0.2 },
-        },
-      ];
+  it('commits nothing when every strategy fails', async () => {
+    const engine = fakeEngine({ '0.1': new Error('x'), '0.2': new Error('y') });
 
-      // Executor that adds a pattern (simulates dream producing results)
-      let callCount = 0;
-      const executor = async () => {
-        callCount++;
-        // Add a pattern to show the dream did something
-        db.prepare('INSERT OR IGNORE INTO qe_patterns (id, name, confidence) VALUES (?, ?, ?)').run(
-          `dream-insight-${callCount}`, `Dream Pattern ${callCount}`, 0.85
-        );
-        return 1;
-      };
+    const result = await new SpeculativeDreamer(engine as unknown as DreamEngine).dream(strategies);
 
-      const result = await dreamer.dream(strategies, executor);
-
-      expect(result.strategies).toHaveLength(2);
-      expect(result.totalDurationMs).toBeGreaterThanOrEqual(0);
-      // At least one strategy should pass (we only added patterns, no degradation)
-      // The winner gets re-executed, so callCount includes re-execution
-    });
-
-    it('should return no winner when all strategies fail validation', async () => {
-      const strategies: DreamStrategy[] = [
-        { name: 'bad-1', activationConfig: { decayRate: 0.5 } },
-        { name: 'bad-2', activationConfig: { decayRate: 0.9 } },
-      ];
-
-      // Executor that removes many patterns (will fail validation)
-      const executor = async () => {
-        // Delete 20% of patterns -- exceeds 5% threshold
-        db.exec('DELETE FROM qe_patterns WHERE rowid IN (SELECT rowid FROM qe_patterns LIMIT 10)');
-        return 0;
-      };
-
-      const result = await dreamer.dream(strategies, executor);
-
-      expect(result.winner).toBeNull();
-      expect(result.strategies.every(s => !s.selected)).toBe(true);
-    });
-
-    it('should handle executor errors gracefully', async () => {
-      const strategies: DreamStrategy[] = [
-        { name: 'error-strategy', activationConfig: { decayRate: 0.1 } },
-      ];
-
-      const executor = async () => {
-        throw new Error('Dream exploded');
-      };
-
-      const result = await dreamer.dream(strategies, executor);
-
-      expect(result.strategies).toHaveLength(1);
-      expect(result.strategies[0].validation.passed).toBe(false);
-      expect(result.winner).toBeNull();
-    });
-
-    it('should reject empty strategy list', async () => {
-      const executor = async () => 0;
-      await expect(dreamer.dream([], executor)).rejects.toThrow('At least one strategy');
-    });
-
-    it('should reject too many strategies', async () => {
-      const strategies = Array.from({ length: 6 }, (_, i) => ({
-        name: `s-${i}`,
-        activationConfig: {},
-      }));
-      const executor = async () => 0;
-      await expect(dreamer.dream(strategies, executor)).rejects.toThrow('Maximum 5 strategies');
-    });
-
-    it('should use built-in strategies', async () => {
-      expect(BUILT_IN_STRATEGIES).toHaveLength(3);
-      expect(BUILT_IN_STRATEGIES[0].name).toBe('aggressive-exploration');
-      expect(BUILT_IN_STRATEGIES[1].name).toBe('conservative-consolidation');
-      expect(BUILT_IN_STRATEGIES[2].name).toBe('balanced-discovery');
-    });
-
-    it('should ensure database state is clean after speculation', async () => {
-      const dataBefore = db.prepare('SELECT id, name, confidence FROM qe_patterns ORDER BY id').all();
-
-      const strategies: DreamStrategy[] = [
-        { name: 'spec-1', activationConfig: { decayRate: 0.1 } },
-        { name: 'spec-2', activationConfig: { decayRate: 0.2 } },
-      ];
-
-      // Executor that modifies data but all fail validation
-      const executor = async () => {
-        // Delete enough to fail validation
-        db.exec('DELETE FROM qe_patterns WHERE rowid IN (SELECT rowid FROM qe_patterns LIMIT 15)');
-        return 0;
-      };
-
-      const result = await dreamer.dream(strategies, executor);
-      expect(result.winner).toBeNull();
-
-      // Database should be back to original state
-      const dataAfter = db.prepare('SELECT id, name, confidence FROM qe_patterns ORDER BY id').all();
-      expect(dataAfter).toEqual(dataBefore);
-    });
+    expect(result.winner).toBeNull();
+    expect(engine.commitDreamResult).not.toHaveBeenCalled();
   });
 
-  describe('getBranchManager', () => {
-    it('should expose the underlying branch manager', () => {
-      const bm = dreamer.getBranchManager();
-      expect(bm).toBeInstanceOf(RVCOWBranchManager);
-    });
+  it('reports no winner when the commit fails', async () => {
+    const engine = fakeEngine({ '0.1': fakeResult('a', [0.5]), '0.2': fakeResult('b', [0.4]) });
+    engine.commitDreamResult.mockImplementation(() => { throw new Error('engine closed'); });
+
+    const result = await new SpeculativeDreamer(engine as unknown as DreamEngine).dream(strategies);
+
+    expect(result.winner).toBeNull();
+    expect(result.strategies[0]).toMatchObject({ selected: false, error: 'engine closed' });
+  });
+
+  it('should reject empty strategy list', async () => {
+    const engine = fakeEngine({});
+    await expect(new SpeculativeDreamer(engine as unknown as DreamEngine).dream([])).rejects.toThrow('At least one strategy');
+  });
+
+  it('should reject too many strategies', async () => {
+    const many = Array.from({ length: 6 }, (_, i) => ({ name: `s-${i}`, activationConfig: {} }));
+    const engine = fakeEngine({});
+    await expect(new SpeculativeDreamer(engine as unknown as DreamEngine).dream(many)).rejects.toThrow('Maximum 5 strategies');
+  });
+
+  it('should use built-in strategies', () => {
+    expect(BUILT_IN_STRATEGIES).toHaveLength(3);
+    expect(BUILT_IN_STRATEGIES[0].name).toBe('aggressive-exploration');
+    expect(BUILT_IN_STRATEGIES[1].name).toBe('conservative-consolidation');
+    expect(BUILT_IN_STRATEGIES[2].name).toBe('balanced-discovery');
   });
 });
