@@ -158,6 +158,8 @@ export interface LearningOutcome {
     outcome?: 'measured' | 'unmeasured';
     /** #1129: what a measured verdict was read from (e.g. test-results). */
     outcomeBasis?: string;
+    /** #1129: the run this use belongs to; one run may use several patterns. */
+    runId?: string;
   };
 
   /** Feedback from the agent or user */
@@ -258,14 +260,14 @@ export interface QEReasoningBankStats {
   /** Learning outcomes recorded */
   learningOutcomes: number;
 
-  /** #1129: outcomes whose success was read from the result (tests, index count). */
+  /** #1129: measured runs (success read from the result, e.g. test counts). */
   measuredOutcomes?: number;
 
-  /** #1129: outcomes that only record a completed call; left out of the rate. */
+  /** #1129: usage rows without a measured outcome; left out of the rate. */
   unmeasuredOutcomes?: number;
 
   /**
-   * Share of measured outcomes that succeeded; null when none is measured
+   * Share of measured runs that succeeded; null when none is measured
    * (#1129) instead of a rate built from completed calls.
    */
   patternSuccessRate: number | null;

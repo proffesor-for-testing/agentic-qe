@@ -522,9 +522,7 @@ export class QEReasoningBank implements IQEReasoningBank {
     if (result.success) {
       this.stats.learningOutcomes++;
       // #1129: only a measured outcome counts toward the success rate.
-      // The recorder stores missing metrics as {}, so read them the same way.
-      const metrics = (outcome.metrics ?? {}) as Record<string, unknown>;
-      const measured = usageOutcomeOf(metrics, outcome.feedback) === 'measured';
+      const measured = usageOutcomeOf(outcome.metrics as Record<string, unknown> | undefined) === 'measured';
       if (measured) {
         this.stats.measuredOutcomes++;
         if (outcome.success) this.stats.successfulOutcomes++;
@@ -861,7 +859,9 @@ export class QEReasoningBank implements IQEReasoningBank {
         ? this.stats.totalRoutingConfidence / this.stats.routingRequests
         : 0;
     let learningOutcomes = this.stats.learningOutcomes;
+    // In process each recorded outcome is its own run; the DB groups by runId.
     let measuredOutcomes = this.stats.measuredOutcomes;
+    let unmeasuredOutcomes = this.stats.learningOutcomes - this.stats.measuredOutcomes;
     let successfulOutcomes = this.stats.successfulOutcomes;
 
     try {
@@ -873,6 +873,7 @@ export class QEReasoningBank implements IQEReasoningBank {
       if (agg.learningOutcomes > learningOutcomes) {
         learningOutcomes = agg.learningOutcomes;
         measuredOutcomes = agg.measuredOutcomes;
+        unmeasuredOutcomes = agg.unmeasuredOutcomes;
         successfulOutcomes = agg.successfulOutcomes;
       }
     } catch {
@@ -891,7 +892,7 @@ export class QEReasoningBank implements IQEReasoningBank {
       avgRoutingConfidence,
       learningOutcomes,
       measuredOutcomes,
-      unmeasuredOutcomes: learningOutcomes - measuredOutcomes,
+      unmeasuredOutcomes,
       patternSuccessRate,
       ...(patternSuccessRate === null ? { evidenceStatus: 'insufficient-evidence' as const } : {}),
       patternStoreStats,

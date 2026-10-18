@@ -932,9 +932,10 @@ export class ExperienceCaptureService {
    */
   /** #1129: tag the usage row so readers can tell a measured outcome from completion. */
   private usageOutcomeTag(experience: TaskExperience): Record<string, unknown> {
+    const runId = typeof experience.metadata?.runId === 'string' ? experience.metadata.runId : undefined;
     return experience.outcomeBasis !== undefined
-      ? usageOutcomeMetrics({ measured: true, success: experience.success, basis: experience.outcomeBasis })
-      : usageOutcomeMetrics({ measured: false, success: null, basis: 'task-completed' });
+      ? usageOutcomeMetrics({ measured: true, success: experience.success, basis: experience.outcomeBasis }, runId)
+      : usageOutcomeMetrics({ measured: false, success: null, basis: 'task-completed' }, runId);
   }
 
   private experienceToPatternOptions(experience: TaskExperience): CreateQEPatternOptions {

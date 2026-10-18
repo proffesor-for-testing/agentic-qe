@@ -29,8 +29,10 @@ describe('#1129 measureToolOutcome', () => {
     ['a run with a failing test', 'execute-tests', { total: 3, passed: 2, failed: 1 }, { measured: true, success: false, basis: 'test-results' }],
     ['a run where every test passed', 'execute-tests', { total: 3, passed: 3, failed: 0 }, { measured: true, success: true, basis: 'test-results' }],
     ['a run that found no tests', 'execute-tests', { total: 0, passed: 0, failed: 0 }, { measured: false, success: null, basis: 'no-test-results' }],
-    ['an index that indexed files', 'index-code', { filesIndexed: 1 }, { measured: true, success: true, basis: 'files-indexed' }],
-    ['an index that indexed nothing', 'index-code', { filesIndexed: 0 }, { measured: true, success: false, basis: 'files-indexed' }],
+    // #1142 review: an index fails for the caller's input and for indexer
+    // errors alike; counting only successes would be 100% by selection.
+    ['an index that indexed files', 'index-code', { filesIndexed: 1 }, { measured: false, success: null, basis: 'tool-completed' }],
+    ['an index of a missing target', 'index-code', { filesIndexed: 0 }, { measured: false, success: null, basis: 'tool-completed' }],
     ['a tool with no outcome measure', 'generate-tests', { tests: [] }, { measured: false, success: null, basis: 'tool-completed' }],
   ])('%s', (_label, taskType, data, expected) => {
     expect(measureToolOutcome(taskType, data)).toEqual(expected);
@@ -38,23 +40,27 @@ describe('#1129 measureToolOutcome', () => {
 });
 
 describe('#1129 usage row classification (TypeScript and SQL agree)', () => {
-  const rows: Array<[string, string | null, string | null, 'measured' | 'unmeasured']> = [
-    ['tagged measured', '{"outcome":"measured","outcomeBasis":"test-results"}', null, 'measured'],
-    ['tagged unmeasured', '{"outcome":"unmeasured","outcomeBasis":"tool-completed"}', null, 'unmeasured'],
-    ['pre-#1129 experience capture (no metrics, no feedback)', null, null, 'unmeasured'],
-    ['pre-#1129 MCP handler success', '{"executionTimeMs":5}', 'Domain handler test-execution execution succeeded', 'unmeasured'],
-    ['pre-#1129 MCP handler failure', '{"executionTimeMs":0}', 'Domain handler code-intelligence execution failed', 'unmeasured'],
-    ['hook with observed pass rate', '{"testsPassed":4,"testsFailed":1}', null, 'measured'],
-    ['hook edit outcome', '{}', 'Edit succeeded: src/a.ts', 'measured'],
-    ['new row without metrics', '{}', null, 'measured'],
+  // Only an explicit outcome tag makes a row measured (#1142 review B1).
+  const rows: Array<[string, string | null, 'measured' | 'unmeasured']> = [
+    ['tagged measured', '{"outcome":"measured","outcomeBasis":"test-results"}', 'measured'],
+    ['tagged unmeasured', '{"outcome":"unmeasured","outcomeBasis":"tool-completed"}', 'unmeasured'],
+    ['session consolidation, as written before #1129', '{"source":"session-consolidation","domain":"test-generation","agent":"cli-hook"}', 'unmeasured'],
+    ['session consolidation, as written now', '{"source":"session-consolidation","domain":"test-generation","agent":"cli-hook","outcome":"unmeasured","outcomeBasis":"session-consolidation"}', 'unmeasured'],
+    ['pre-#1129 experience capture (no metrics)', null, 'unmeasured'],
+    ['pre-#1129 MCP handler row', '{"executionTimeMs":5}', 'unmeasured'],
+    ['hook-reported pass counts', '{"testsPassed":4,"testsFailed":1}', 'unmeasured'],
+    ['empty metrics', '{}', 'unmeasured'],
+    ['malformed metrics', '{"outcome":"measured"', 'unmeasured'],
   ];
 
-  it.each(rows)('%s', (_label, metricsJson, feedback, expected) => {
-    expect(usageOutcomeOf(metricsJson ? JSON.parse(metricsJson) : null, feedback)).toBe(expected);
+  it.each(rows)('%s', (_label, metricsJson, expected) => {
+    let parsed: Record<string, unknown> | null = null;
+    try { parsed = metricsJson ? JSON.parse(metricsJson) : null; } catch { parsed = null; }
+    expect(usageOutcomeOf(parsed)).toBe(expected);
 
     const db = new Database(':memory:');
-    db.exec('CREATE TABLE qe_pattern_usage (metrics_json TEXT, feedback TEXT)');
-    db.prepare('INSERT INTO qe_pattern_usage VALUES (?, ?)').run(metricsJson, feedback);
+    db.exec('CREATE TABLE qe_pattern_usage (id INTEGER PRIMARY KEY, metrics_json TEXT)');
+    db.prepare('INSERT INTO qe_pattern_usage (metrics_json) VALUES (?)').run(metricsJson);
     const row = db.prepare(`SELECT ${MEASURED_USAGE_SQL} AS measured FROM qe_pattern_usage`).get() as { measured: number };
     db.close();
     expect(row.measured).toBe(expected === 'measured' ? 1 : 0);
@@ -63,15 +69,15 @@ describe('#1129 usage row classification (TypeScript and SQL agree)', () => {
 
 describe('#1129 stats wording', () => {
   it('says insufficient evidence instead of a rate when nothing is measured', () => {
-    const stats = { learningOutcomes: 5, measuredOutcomes: 0, patternSuccessRate: null };
-    expect(formatLearningOutcomes(stats)).toBe('5 (0 measured, 5 completion-only)');
+    const stats = { learningOutcomes: 418, measuredOutcomes: 0, unmeasuredOutcomes: 418, patternSuccessRate: null };
+    expect(formatLearningOutcomes(stats)).toBe('418 (0 measured runs, 418 unmeasured)');
     expect(formatPatternSuccessRate(stats)).toBe('insufficient evidence (no measured outcomes)');
   });
 
-  it('prints the measured rate and a plain count when every outcome is measured', () => {
-    const stats = { learningOutcomes: 9, measuredOutcomes: 9, patternSuccessRate: 1 / 9 };
-    expect(formatLearningOutcomes(stats)).toBe('9');
-    expect(formatPatternSuccessRate(stats)).toBe('11.1%');
+  it('prints the rate over measured runs, which can be fewer than rows', () => {
+    const stats = { learningOutcomes: 9, measuredOutcomes: 5, unmeasuredOutcomes: 0, patternSuccessRate: 1 / 5 };
+    expect(formatLearningOutcomes(stats)).toBe('9 (5 measured runs, 0 unmeasured)');
+    expect(formatPatternSuccessRate(stats)).toBe('20.0% of 5 measured runs');
   });
 });
 
@@ -127,6 +133,15 @@ describe('#1129 experience capture records measured failures', () => {
     );
   });
 
+  it('carries the run id so rows from one run count once', async () => {
+    const id = service.startCapture('execute-tests: run', { domain: 'test-execution', metadata: { runId: 'task-7' } });
+    await service.completeCapture(id, { success: false, quality: 0.3, outcomeBasis: 'test-results' });
+
+    expect(patternStore.recordUsage).toHaveBeenCalledWith(
+      'p-new', false, { outcome: 'measured', outcomeBasis: 'test-results', runId: 'task-7' }
+    );
+  });
+
   it('still records nothing for an unmeasured failure', async () => {
     await capture({ success: false, quality: 0.3 });
 
@@ -174,10 +189,12 @@ describe('#1129 QEReasoningBank.getStats', () => {
     });
   });
 
-  it('takes the rate over measured outcomes only', async () => {
-    const stats = await bankWith({ learningOutcomes: 9, measuredOutcomes: 8, unmeasuredOutcomes: 1, successfulOutcomes: 2 }).getStats();
+  it('takes the rate over measured runs, and reports unmeasured rows as rows', async () => {
+    // 10 rows: 8 measured rows from 4 runs, plus 2 unmeasured rows.
+    const stats = await bankWith({ learningOutcomes: 10, measuredOutcomes: 4, unmeasuredOutcomes: 2, successfulOutcomes: 1 }).getStats();
 
     expect(stats.patternSuccessRate).toBe(0.25);
+    expect(stats).toMatchObject({ measuredOutcomes: 4, unmeasuredOutcomes: 2 });
     expect(stats).not.toHaveProperty('evidenceStatus');
   });
 });

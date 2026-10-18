@@ -1,9 +1,10 @@
 /**
  * #1129: MCP domain handlers recorded pattern usage and captured experience
- * as `success: true` whenever the call completed, and recorded nothing when
- * the task itself failed. Success now describes the outcome (tests passed,
- * files indexed); a failed task is a failed outcome; a tool whose result has
- * no outcome measure is not recorded as a pattern success.
+ * as `success: true` whenever the call completed. Success now describes the
+ * outcome of a test run (every test passed, or some failed). A tool whose
+ * result has no outcome measure, and a task that errored (often the caller's
+ * input: an empty or glob test list, a missing target; #1142 review B2), is
+ * not recorded as a pattern success or a measured failure.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
@@ -15,6 +16,7 @@ import {
 import * as coreHandlers from '../../../../src/mcp/handlers/core-handlers';
 import * as taskRouter from '../../../../src/mcp/services/task-router';
 import { ok } from '../../../../src/shared/types';
+import { TestRunnerExecutionError } from '../../../../src/shared/test-runner-verdict';
 
 const capture = {
   startCapture: vi.fn(() => 'exp-1'),
@@ -79,54 +81,52 @@ describe('#1129 handler factory records the outcome, not the completed call', ()
     vi.mocked(createTaskExecutor).mockReturnValue(executor as never);
   });
 
-  it('a test run with a failing test is a failed, measured outcome', async () => {
+  it('a test run with a failing test is a failed, measured outcome, tagged with its run', async () => {
     const result = await run('execute-tests', { success: true, data: { total: 3, passed: 2, failed: 1 } });
 
     expect(result.success).toBe(true);
     expect(engine.recordOutcome).toHaveBeenCalledWith(expect.objectContaining({
       patternId: 'hint-1',
       success: false,
-      metrics: expect.objectContaining({ outcome: 'measured', outcomeBasis: 'test-results' }),
+      metrics: expect.objectContaining({ outcome: 'measured', outcomeBasis: 'test-results', runId: 'task-1' }),
     }));
     expect(capture.completeCapture).toHaveBeenCalledWith('exp-1', expect.objectContaining({
       success: false, outcomeBasis: 'test-results',
     }));
-  });
-
-  it('an index that indexed files is a successful, measured outcome', async () => {
-    await run('index-code', { success: true, data: { filesIndexed: 1 } }, 'code-intelligence');
-
-    expect(engine.recordOutcome).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
-    expect(capture.completeCapture).toHaveBeenCalledWith('exp-1', expect.objectContaining({
-      success: true, outcomeBasis: 'files-indexed',
+    expect(capture.startCapture).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+      metadata: expect.objectContaining({ runId: 'task-1' }),
     }));
   });
 
-  it('a tool without an outcome measure records no pattern success', async () => {
-    await run('generate-tests', { success: true, data: { tests: [] } }, 'test-generation');
+  it('a test run where every test passed is a successful, measured outcome', async () => {
+    await run('execute-tests', { success: true, data: { total: 3, passed: 3, failed: 0 } });
+
+    expect(engine.recordOutcome).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+    expect(capture.completeCapture).toHaveBeenCalledWith('exp-1', expect.objectContaining({
+      success: true, outcomeBasis: 'test-results',
+    }));
+  });
+
+  it.each([
+    ['an index of existing files', 'index-code', { filesIndexed: 1 }, 'code-intelligence'],
+    ['an index of a missing target (filesIndexed 0)', 'index-code', { filesIndexed: 0 }, 'code-intelligence'],
+    ['a tool without an outcome measure', 'generate-tests', { tests: [] }, 'test-generation'],
+  ])('%s records no pattern success or failure', async (_label, taskType, data, domain) => {
+    await run(taskType, { success: true, data }, domain);
 
     expect(engine.recordOutcome).not.toHaveBeenCalled();
     const [, outcome] = capture.completeCapture.mock.calls[0] as unknown as [string, Record<string, unknown>];
     expect(outcome).not.toHaveProperty('outcomeBasis');
   });
 
-  it('a task that ran and failed is recorded as a failed outcome', async () => {
-    const result = await run('index-code', { success: false, error: 'Nothing was indexed' }, 'code-intelligence');
+  it.each([
+    ['an empty test list', new TestRunnerExecutionError('No test files specified. Provide testFiles array with paths to test files.')],
+    ['a glob test path', new TestRunnerExecutionError('Some test file paths contain invalid characters and were rejected.')],
+    ['a missing index target', new Error('Nothing was indexed: 0 of 1 requested path(s) indexed - no/such/dir (not-found)')],
+  ])('a task that errored on %s is not recorded as a measured failure', async (_label, error) => {
+    const result = await run('execute-tests', { success: false, error: error.message });
 
     expect(result.success).toBe(false);
-    expect(engine.recordOutcome).toHaveBeenCalledWith(expect.objectContaining({
-      success: false, metrics: expect.objectContaining({ outcome: 'measured', outcomeBasis: 'task-failed' }),
-    }));
-    expect(capture.completeCapture).toHaveBeenCalledWith('exp-1', expect.objectContaining({
-      success: false, outcomeBasis: 'task-failed',
-    }));
-  });
-
-  it('a failure with structured details (caller input, insufficient evidence) is not recorded', async () => {
-    await run('assess-quality', {
-      success: false, error: 'insufficient evidence', errorDetails: { status: 'insufficient-evidence' },
-    }, 'quality-assessment');
-
     expect(engine.recordOutcome).not.toHaveBeenCalled();
     expect(capture.completeCapture).not.toHaveBeenCalled();
   });

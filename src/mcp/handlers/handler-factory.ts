@@ -25,7 +25,6 @@ import type { TestOutcome as FeedbackTestOutcome, CoverageSession } from '../../
 import { isLearnableResult } from '../../learning/learnable-result.js';
 import {
   measureToolOutcome,
-  TASK_FAILED_OUTCOME,
   usageOutcomeMetrics,
   type ToolOutcome,
 } from '../../learning/usage-outcome.js';
@@ -166,7 +165,8 @@ export async function captureExecutionLearning(
   params: Record<string, unknown>,
   result: unknown,
   durationMs: number,
-  outcome: ToolOutcome = measureToolOutcome(toolName, result)
+  outcome: ToolOutcome = measureToolOutcome(toolName, result),
+  runId?: string
 ): Promise<V2LearningFeedback> {
   const agentId = generateAgentId(agentType);
 
@@ -199,6 +199,8 @@ export async function captureExecutionLearning(
         metadata: {
           tool: toolName,
           durationMs,
+          // #1129: rows from one run share it, so the rate counts runs.
+          ...(runId ? { runId } : {}),
         },
       }
     );
@@ -779,7 +781,8 @@ async function recordPatternUsageAsync(
   patternHints: readonly PatternHint[] | undefined,
   outcome: ToolOutcome,
   domain: string,
-  durationMs: number
+  durationMs: number,
+  runId?: string
 ): Promise<void> {
   if (!patternHints || patternHints.length === 0) return;
   // #1129: a completed call is not evidence the hinted pattern worked.
@@ -796,7 +799,7 @@ async function recordPatternUsageAsync(
         success,
         metrics: {
           executionTimeMs: durationMs,
-          ...usageOutcomeMetrics(outcome),
+          ...usageOutcomeMetrics(outcome, runId),
         },
         feedback: `Domain handler ${domain} outcome ${success ? 'succeeded' : 'failed'} (${outcome.basis})`,
       });
@@ -918,17 +921,10 @@ export function createDomainHandler<TParams, TResult extends BaseHandlerResult>(
       const result = await executor.execute(task.task);
 
       if (!result.success) {
-        // #1129: a task that ran and failed is a failed outcome, recorded so
-        // the usage success rate is not 100% by construction. Failures with
-        // structured details (caller input, insufficient evidence) carry no
-        // verdict on the work and are not recorded.
-        if (!result.errorDetails) {
-          recordPatternUsageAsync(routingResult?.patternHints, TASK_FAILED_OUTCOME, domain, result.duration);
-          captureExecutionLearning(
-            `qe-${domain}`, taskType, params as Record<string, unknown>,
-            { error: result.error }, result.duration, TASK_FAILED_OUTCOME
-          ).catch(() => {});
-        }
+        // #1129: a task that errored produced no result to read an outcome
+        // from. Its error may be the caller's input (an empty or glob test
+        // list, a missing target) or the environment, so it is not recorded
+        // as a measured failure; routing_outcomes still records the failure.
         return {
           success: false,
           error: result.error || 'Task execution failed',
@@ -965,7 +961,8 @@ export function createDomainHandler<TParams, TResult extends BaseHandlerResult>(
           routingResult?.patternHints,
           outcome,
           domain,
-          result.duration
+          result.duration,
+          submitResult.value
         );
 
         // Step 5c: Capture real execution learning (fire-and-forget)
@@ -975,7 +972,8 @@ export function createDomainHandler<TParams, TResult extends BaseHandlerResult>(
           params as Record<string, unknown>,
           data,
           result.duration,
-          outcome
+          outcome,
+          submitResult.value
         ).catch(() => {}); // Swallow errors — learning is non-critical
 
         // Step 5d: Record feedback for test_outcomes / coverage_sessions
@@ -999,15 +997,8 @@ export function createDomainHandler<TParams, TResult extends BaseHandlerResult>(
       // as a pattern-usage failure.
       const callerError = isCallerInputError(error);
 
-      if (!callerError) {
-        // Record pattern usage on failure (Phase 5.3 — fire-and-forget)
-        recordPatternUsageAsync(
-          routingResult?.patternHints,
-          TASK_FAILED_OUTCOME,
-          domain,
-          0
-        );
-      }
+      // #1129: a thrown error is not a measured outcome (see the failed-task
+      // branch above), so no pattern usage is recorded for it.
 
       return {
         success: false,
