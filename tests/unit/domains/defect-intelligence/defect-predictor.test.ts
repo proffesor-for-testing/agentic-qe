@@ -170,6 +170,24 @@ describe('DefectPredictorService', () => {
       }
     });
 
+    // #1115: a git timeout leaves "no git data" defaults; the prediction says
+    // so and its metrics are not cached as measured for an hour.
+    it('should warn about and not cache a prediction whose git history timed out', async () => {
+      mockGit.consumeTimeout = vi.fn((file: string) => file === 'src/slow.ts');
+
+      const result = await service.predictDefects({ files: ['src/slow.ts', 'src/fast.ts'] });
+
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      const [slow, fast] = result.value.predictions;
+      expect(slow.warnings).toEqual([expect.stringContaining('Git history timed out')]);
+      expect(slow.recommendations[0]).toContain('Git history timed out');
+      expect(fast.warnings).toBeUndefined();
+      const cachedKeys = vi.mocked(mockMemory.set).mock.calls.map(([key]) => key);
+      expect(cachedKeys.some(key => key.endsWith(':file-metrics:src/slow.ts'))).toBe(false);
+      expect(cachedKeys.some(key => key.endsWith(':file-metrics:src/fast.ts'))).toBe(true);
+    });
+
     it('should return error for empty files array', async () => {
       const result = await service.predictDefects({ files: [] });
 

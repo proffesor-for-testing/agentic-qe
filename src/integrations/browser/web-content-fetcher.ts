@@ -13,7 +13,7 @@
  * @since v3
  */
 
-import { exec, execFile } from 'child_process';
+import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -22,9 +22,9 @@ import { BrowserError } from './types';
 import { toErrorMessage } from '../../shared/error-utils.js';
 import { safeJsonParse } from '../../shared/safe-json.js';
 import { npmCliInvocation } from '../../shared/npm-cli-invocation.js';
+import { runProcessText } from '../../shared/test-runner-process.js';
 
 const execAsync = promisify(exec);
-const execFileAsync = promisify(execFile);
 
 // ============================================================================
 // Types
@@ -385,10 +385,11 @@ export class WebContentFetcher {
       fs.writeFileSync(packageJsonPath, JSON.stringify({ name: 'pw-fetch', type: 'commonjs' }));
 
       try {
-        // Async so the install does not block the event loop for up to 120s (#1115).
+        // Async so the install does not block the event loop for up to 120s,
+        // and a timeout stops npm with its children (#1115).
         const npm = npmCliInvocation('npm');
         if (!npm) throw new Error('npm CLI not found');
-        await execFileAsync(npm[0], [...npm[1], 'install', 'playwright-extra', 'puppeteer-extra-plugin-stealth', 'playwright'], {
+        await runProcessText(npm[0], [...npm[1], 'install', 'playwright-extra', 'puppeteer-extra-plugin-stealth', 'playwright'], {
           cwd: workDir,
           timeout: 120000,
         });

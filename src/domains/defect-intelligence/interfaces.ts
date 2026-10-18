@@ -71,6 +71,8 @@ export interface FilePrediction {
   riskLevel: Severity;
   factors: { name: string; contribution: number }[];
   recommendations: string[];
+  /** Why this prediction is incomplete, e.g. git history timed out (#1115). */
+  warnings?: string[];
 }
 
 export interface RootCauseRequest {

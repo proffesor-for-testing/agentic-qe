@@ -1183,11 +1183,11 @@ export function createAgentBrowserClient(config?: AgentBrowserClientConfig): Age
  * Only use in test environments.
  */
 export async function cleanupAllBrowserProcesses(): Promise<void> {
-  const { execFile } = await import('child_process');
-  const pkill = (pattern: string) => new Promise<void>((resolve) => {
-    // pkill exits 1 when nothing matched; cleanup is best effort either way
-    execFile('pkill', ['-9', '-f', pattern], { timeout: 5000 }, () => resolve());
-  });
+  const { runTestRunnerProcess } = await import('../../../shared/test-runner-process.js');
+  // pkill exits 1 when nothing matched; cleanup is best effort either way
+  const pkill = async (pattern: string): Promise<void> => {
+    await runTestRunnerProcess('pkill', ['-9', '-f', pattern], { cwd: process.cwd(), timeout: 5000 });
+  };
 
   // Kill agent-browser daemons, then chromium headless shell processes
   await pkill('agent-browser.*daemon');

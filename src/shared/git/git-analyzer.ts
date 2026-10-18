@@ -9,12 +9,9 @@
  * - Bug history from commit messages
  */
 
-import { execFile } from 'child_process';
 import * as path from 'path';
-import { promisify } from 'util';
 import { assertSafeGitRef } from './ref-validation';
-
-const execFileAsync = promisify(execFile);
+import { GitTimeoutError, runGit } from './git-process.js';
 
 /**
  * Sanitize a string for safe use in git arguments
@@ -83,7 +80,7 @@ export interface GitAnalyzerConfig {
   enableCache?: boolean;
   /** Cache TTL in milliseconds (default: 5 minutes) */
   cacheTtl?: number;
-  /** Per-call git timeout in milliseconds (default: 30 seconds) */
+  /** Deadline in milliseconds shared by the git calls of one analysis (default: 30 seconds) */
   gitTimeoutMs?: number;
 }
 
@@ -96,8 +93,17 @@ const DEFAULT_CONFIG: Required<GitAnalyzerConfig> = {
   gitTimeoutMs: 30 * 1000,
 };
 
-/** Room for `git blame --line-porcelain` on large files. */
+/** Room for `git blame --line-porcelain` on large files (execFileSync allowed 1 MiB). */
 const GIT_MAX_BUFFER = 64 * 1024 * 1024;
+
+/** Git queries that share one deadline. A timeout rejects; it never reads as "no history". */
+interface GitQuery {
+  text(args: string[]): Promise<string>;
+  /** Non-empty output lines, or none when git fails (e.g. the file is not tracked). */
+  lines(args: string[]): Promise<string[]>;
+  /** Paths from a `-z` query; NUL records preserve whitespace, newlines and quoted Unicode. */
+  paths(args: string[]): Promise<string[]>;
+}
 
 /**
  * Git Analyzer for defect prediction metrics
@@ -106,6 +112,7 @@ export class GitAnalyzer {
   private readonly config: Required<GitAnalyzerConfig>;
   private readonly cache: Map<string, { data: unknown; timestamp: number }> = new Map();
   private isGitRepo: boolean | null = null;
+  private readonly timedOutFiles = new Set<string>();
 
   constructor(config: GitAnalyzerConfig = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -115,15 +122,15 @@ export class GitAnalyzer {
    * Check if current directory is a git repository
    */
   async isGitRepository(): Promise<boolean> {
-    if (this.isGitRepo !== null) return this.isGitRepo;
+    return (await this.repoState()) === true;
+  }
 
-    try {
-      await this.git(['rev-parse', '--is-inside-work-tree']);
-      this.isGitRepo = true;
-    } catch {
-      this.isGitRepo = false;
-    }
-    return this.isGitRepo;
+  /**
+   * True when git timed out while analysing `filePath` since the last call, so
+   * the analysis returned its "git unavailable" default rather than a result.
+   */
+  consumeTimeout(filePath: string): boolean {
+    return this.timedOutFiles.delete(filePath);
   }
 
   /**
@@ -135,23 +142,16 @@ export class GitAnalyzer {
     const cached = this.getFromCache<number>(cacheKey);
     if (cached !== undefined) return cached;
 
-    if (!(await this.isGitRepository())) {
-      return 0.4; // Default when not in git repo
-    }
-
-    try {
-      const relativePath = this.getRelativePath(filePath);
+    return this.analyze(filePath, 0.4, async (git, relativePath) => {
       // Literal pathspecs preserve route filenames such as app/[id].tsx.
-      // execFile passes arguments directly without shell interpretation.
-      const output = (await this.git(['--literal-pathspecs', 'log', '--oneline', '--since=90 days ago', '--', relativePath])).trim();
+      // Arguments go to git directly, without shell interpretation.
+      const output = (await git.text(['--literal-pathspecs', 'log', '--oneline', '--since=90 days ago', '--', relativePath])).trim();
 
       const commits = output ? output.split('\n').length : 0;
       const frequency = Math.min(1, commits / 30); // Normalize: 30+ commits in 90 days = 1.0
       this.setCache(cacheKey, frequency);
       return frequency;
-    } catch {
-      return 0.4; // Default on error
-    }
+    });
   }
 
   /**
@@ -163,20 +163,12 @@ export class GitAnalyzer {
     const cached = this.getFromCache<number>(cacheKey);
     if (cached !== undefined) return cached;
 
-    if (!(await this.isGitRepository())) {
-      return 0.5; // Default when not in git repo
-    }
-
-    try {
-      const relativePath = this.getRelativePath(filePath);
-
-      // Get blame info
-      const blameOutput = await this.git(['--literal-pathspecs', 'blame', '--line-porcelain', '--', relativePath]);
+    return this.analyze(filePath, 0.5, async (git, relativePath) => {
+      const blameOutput = await git.text(['--literal-pathspecs', 'blame', '--line-porcelain', '--', relativePath]);
 
       // Parse blame output - count authors manually instead of piping through shell
       const authorCounts = new Map<string, number>();
-      const lines = blameOutput.split('\n');
-      for (const line of lines) {
+      for (const line of blameOutput.split('\n')) {
         if (line.startsWith('author ')) {
           const author = line.substring(7).trim();
           authorCounts.set(author, (authorCounts.get(author) || 0) + 1);
@@ -184,19 +176,13 @@ export class GitAnalyzer {
       }
 
       const totalLines = Array.from(authorCounts.values()).reduce((a, b) => a + b, 0);
-      const uniqueAuthors = authorCounts.size;
-
-      // Score based on code ownership concentration
-      // High concentration by few authors = more experience = lower risk
       if (totalLines === 0) return 0.5;
 
       // More authors touching the file = higher risk (less concentrated ownership)
-      const riskScore = Math.min(1, uniqueAuthors / 10);
+      const riskScore = Math.min(1, authorCounts.size / 10);
       this.setCache(cacheKey, riskScore);
       return riskScore;
-    } catch {
-      return 0.5; // Default on error
-    }
+    });
   }
 
   /**
@@ -208,25 +194,18 @@ export class GitAnalyzer {
     const cached = this.getFromCache<number>(cacheKey);
     if (cached !== undefined) return cached;
 
-    if (!(await this.isGitRepository())) {
-      return 0.4; // Default when not in git repo
-    }
-
-    try {
-      const relativePath = this.getRelativePath(filePath);
-
+    return this.analyze(filePath, 0.4, async (git, relativePath) => {
       // First commit: the last line (oldest) of the commits that added the file
-      const added = await this.gitLines(['--literal-pathspecs', 'log', '--format=%at', '--follow', '--diff-filter=A', '--', relativePath]);
+      const added = await git.lines(['--literal-pathspecs', 'log', '--format=%at', '--follow', '--diff-filter=A', '--', relativePath]);
       const firstCommitTimestamp = parseInt(added[added.length - 1] ?? '', 10);
-      const [lastLine] = await this.gitLines(['--literal-pathspecs', 'log', '-1', '--format=%at', '--', relativePath]);
+      const [lastLine] = await git.lines(['--literal-pathspecs', 'log', '-1', '--format=%at', '--', relativePath]);
       const lastCommitTimestamp = parseInt(lastLine ?? '', 10);
-
-      const now = Date.now() / 1000;
 
       if (isNaN(lastCommitTimestamp)) {
         return 0.4; // File not in git
       }
 
+      const now = Date.now() / 1000;
       const daysSinceLastChange = (now - lastCommitTimestamp) / (60 * 60 * 24);
       const totalAgeDays = isNaN(firstCommitTimestamp)
         ? daysSinceLastChange
@@ -243,9 +222,7 @@ export class GitAnalyzer {
 
       this.setCache(cacheKey, riskScore);
       return riskScore;
-    } catch {
-      return 0.4; // Default on error
-    }
+    });
   }
 
   /**
@@ -257,20 +234,12 @@ export class GitAnalyzer {
     const cached = this.getFromCache<number>(cacheKey);
     if (cached !== undefined) return cached;
 
-    if (!(await this.isGitRepository())) {
-      return 0.2; // Default when not in git repo
-    }
-
-    try {
-      const relativePath = this.getRelativePath(filePath);
-
-      const bugCommits = await this.countBugFixCommits(relativePath);
+    return this.analyze(filePath, 0.2, async (git, relativePath) => {
+      const bugCommits = await this.countBugFixCommits(git, relativePath);
       const riskScore = Math.min(1, bugCommits / 10); // Normalize: 10+ bug fixes = 1.0
       this.setCache(cacheKey, riskScore);
       return riskScore;
-    } catch {
-      return 0.2; // Default on error
-    }
+    });
   }
 
   /**
@@ -281,20 +250,14 @@ export class GitAnalyzer {
     const cached = this.getFromCache<FileHistory>(cacheKey);
     if (cached) return cached;
 
-    if (!(await this.isGitRepository())) {
-      return this.getDefaultFileHistory(filePath);
-    }
-
-    try {
-      const relativePath = this.getRelativePath(filePath);
-
+    return this.analyze(filePath, this.getDefaultFileHistory(filePath), async (git, relativePath) => {
       // Each query yields no lines when the file is not in git
-      const totalCommits = (await this.gitLines(['--literal-pathspecs', 'log', '--oneline', '--', relativePath])).length;
+      const totalCommits = (await git.lines(['--literal-pathspecs', 'log', '--oneline', '--', relativePath])).length;
       // Parse authors here instead of piping through sort/wc
-      const uniqueAuthors = new Set(await this.gitLines(['--literal-pathspecs', 'log', '--format=%ae', '--', relativePath])).size;
-      const followed = await this.gitLines(['--literal-pathspecs', 'log', '--format=%at', '--follow', '--', relativePath]);
+      const uniqueAuthors = new Set(await git.lines(['--literal-pathspecs', 'log', '--format=%ae', '--', relativePath])).size;
+      const followed = await git.lines(['--literal-pathspecs', 'log', '--format=%at', '--follow', '--', relativePath]);
       const firstCommit = timestampToDate(followed[followed.length - 1]);
-      const [lastLine] = await this.gitLines(['--literal-pathspecs', 'log', '-1', '--format=%at', '--', relativePath]);
+      const [lastLine] = await git.lines(['--literal-pathspecs', 'log', '-1', '--format=%at', '--', relativePath]);
       const lastCommit = timestampToDate(lastLine);
 
       // Calculate change frequency (commits per month)
@@ -312,8 +275,6 @@ export class GitAnalyzer {
         ? Date.now() - lastCommit.getTime() < 7 * 24 * 60 * 60 * 1000
         : false;
 
-      const bugFixCommits = await this.countBugFixCommits(relativePath);
-
       const history: FileHistory = {
         filePath: relativePath,
         totalCommits,
@@ -322,20 +283,19 @@ export class GitAnalyzer {
         lastCommit,
         changeFrequency,
         isRecentlyModified,
-        bugFixCommits,
+        bugFixCommits: await this.countBugFixCommits(git, relativePath),
       };
 
       this.setCache(cacheKey, history);
       return history;
-    } catch {
-      return this.getDefaultFileHistory(filePath);
-    }
+    });
   }
 
   /**
    * Get files changed since a specific date
    * @param since - Date to check changes from (default: 24 hours ago)
    * @returns Array of changed file paths relative to repo root
+   * @throws GitTimeoutError when git does not answer within `gitTimeoutMs`
    */
   async getChangedFiles(since?: Date): Promise<string[]> {
     if (!(await this.isGitRepository())) {
@@ -343,7 +303,7 @@ export class GitAnalyzer {
     }
 
     const sinceDate = since || new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const files = await this.gitPaths(['log', `--since=${sinceDate.toISOString()}`, '--name-only', '-z', '--format=']);
+    const files = await this.query().paths(['log', `--since=${sinceDate.toISOString()}`, '--name-only', '-z', '--format=']);
     return Array.from(new Set(files));
   }
 
@@ -354,9 +314,10 @@ export class GitAnalyzer {
    * @throws Error when `commitHash` is option-shaped (starts with "-") or otherwise
    *   not a safe revision argument; git would otherwise parse it as an option
    *   (e.g. `--output=<path>` writes an arbitrary file). See issue #960.
+   * @throws GitTimeoutError when git does not answer within `gitTimeoutMs`
    */
   async getCommitFiles(commitHash: string = 'HEAD'): Promise<string[]> {
-    // Validate before touching git: execFile has no shell, so stripping
+    // Validate before touching git: there is no shell, so stripping
     // metacharacters does not help, but a leading "-" is still parsed as an option.
     assertSafeGitRef(commitHash, 'commit hash');
 
@@ -364,12 +325,13 @@ export class GitAnalyzer {
       return [];
     }
 
-    return this.gitPaths(['diff-tree', '--root', '--no-commit-id', '--name-only', '-z', '-r', commitHash]);
+    return this.query().paths(['diff-tree', '--root', '--no-commit-id', '--name-only', '-z', '-r', commitHash]);
   }
 
   /**
    * Get files with uncommitted changes (staged + unstaged)
    * @returns Array of modified file paths relative to repo root
+   * @throws GitTimeoutError when git does not answer within `gitTimeoutMs`
    */
   async getUncommittedFiles(): Promise<string[]> {
     if (!(await this.isGitRepository())) {
@@ -377,65 +339,85 @@ export class GitAnalyzer {
     }
 
     // `diff HEAD` fails before the first commit; `--cached` still lists staged files.
-    const unstaged = await this.gitPaths(['diff', '--name-only', '-z', 'HEAD']);
-    const staged = await this.gitPaths(['diff', '--name-only', '-z', '--cached']);
+    const git = this.query();
+    const unstaged = await git.paths(['diff', '--name-only', '-z', 'HEAD']);
+    const staged = await git.paths(['diff', '--name-only', '-z', '--cached']);
     return Array.from(new Set([...unstaged, ...staged]));
   }
 
   /**
-   * Count unique commits whose message matches a bug keyword. Each keyword is
-   * searched separately so keywords from config never reach a shell.
+   * Count commits whose message matches any bug keyword, in one `git log`
+   * (repeated --grep patterns are OR-ed). Keywords are sanitized arguments and
+   * never reach a shell.
    */
-  private async countBugFixCommits(relativePath: string): Promise<number> {
-    const seen = new Set<string>();
-    for (const keyword of this.config.bugKeywords) {
-      const lines = await this.gitLines([
-        '--literal-pathspecs', 'log', '--oneline', '--grep', sanitizeGitArg(keyword), '-i', '--', relativePath,
-      ]);
-      for (const line of lines) {
-        const hash = line.split(' ')[0];
-        if (hash) seen.add(hash);
-      }
-    }
-    return seen.size;
+  private async countBugFixCommits(git: GitQuery, relativePath: string): Promise<number> {
+    if (this.config.bugKeywords.length === 0) return 0;
+    const greps = this.config.bugKeywords.flatMap((keyword) => ['--grep', sanitizeGitArg(keyword)]);
+    const lines = await git.lines(['--literal-pathspecs', 'log', '--oneline', '-i', ...greps, '--', relativePath]);
+    return new Set(lines.map((line) => line.split(' ')[0]).filter(Boolean)).size;
   }
 
   /**
-   * Run git asynchronously in the repo root (#1115). A slow or hung git (a
-   * network filesystem, a credential prompt) must not block the event loop
-   * of the MCP server, so this never uses the synchronous child-process API
-   * and every call is bounded by `gitTimeoutMs`.
+   * Run one file's analysis with every git call sharing one `gitTimeoutMs`
+   * deadline (#1115). When git is unavailable or times out, the analysis
+   * returns its default, which callers treat as "no git data", and a timeout
+   * is recorded for consumeTimeout(). A timeout never yields a measured 0.
    */
-  private async git(args: string[]): Promise<string> {
-    const { stdout } = await execFileAsync('git', args, {
-      cwd: this.config.repoRoot,
-      encoding: 'utf-8',
-      timeout: this.config.gitTimeoutMs,
-      maxBuffer: GIT_MAX_BUFFER,
-      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+  private async analyze<T>(
+    filePath: string,
+    fallback: T,
+    work: (git: GitQuery, relativePath: string) => Promise<T>,
+  ): Promise<T> {
+    const repo = await this.repoState();
+    if (repo !== true) {
+      if (repo === 'timeout') this.timedOutFiles.add(filePath);
+      return fallback;
+    }
+    try {
+      return await work(this.query(), this.getRelativePath(filePath));
+    } catch (error) {
+      if (error instanceof GitTimeoutError) this.timedOutFiles.add(filePath);
+      return fallback;
+    }
+  }
+
+  /** Whether the repo root is a git work tree. A timeout is not cached: git may answer next time. */
+  private async repoState(): Promise<boolean | 'timeout'> {
+    if (this.isGitRepo !== null) return this.isGitRepo;
+    try {
+      await this.query().text(['rev-parse', '--is-inside-work-tree']);
+      this.isGitRepo = true;
+    } catch (error) {
+      if (error instanceof GitTimeoutError) return 'timeout';
+      this.isGitRepo = false;
+    }
+    return this.isGitRepo;
+  }
+
+  /**
+   * Git queries in the repo root that share a deadline of `gitTimeoutMs` from
+   * now. Git runs asynchronously in its own process group, so a slow or hung
+   * git (a network filesystem, a credential prompt) neither blocks the MCP
+   * server's event loop nor outlives its deadline (#1115).
+   */
+  private query(): GitQuery {
+    const deadline = Date.now() + this.config.gitTimeoutMs;
+    const text = (args: string[]) => runGit(args, {
+      cwd: this.config.repoRoot, timeout: deadline - Date.now(), maxBuffer: GIT_MAX_BUFFER,
     });
-    return stdout;
-  }
-
-  /** Non-empty output lines of a git query, or none when git fails. */
-  private async gitLines(args: string[]): Promise<string[]> {
-    try {
-      return (await this.git(args)).split('\n').map((line) => line.trim()).filter(Boolean);
-    } catch {
-      return [];
-    }
-  }
-
-  /**
-   * Paths from a `-z` git query, or none when git fails. NUL records preserve
-   * whitespace, newlines and Git-quoted Unicode paths.
-   */
-  private async gitPaths(args: string[]): Promise<string[]> {
-    try {
-      return (await this.git(args)).split('\0').filter(Boolean);
-    } catch {
-      return [];
-    }
+    const orNothing = async (args: string[], separator: string): Promise<string[]> => {
+      try {
+        return (await text(args)).split(separator);
+      } catch (error) {
+        if (error instanceof GitTimeoutError) throw error;
+        return [];
+      }
+    };
+    return {
+      text,
+      lines: async (args) => (await orNothing(args, '\n')).map((line) => line.trim()).filter(Boolean),
+      paths: async (args) => (await orNothing(args, '\0')).filter(Boolean),
+    };
   }
 
   /**

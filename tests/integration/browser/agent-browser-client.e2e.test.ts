@@ -79,7 +79,7 @@ describeIfAvailable('AgentBrowserCommandExecutor - Real CLI Execution', () => {
   afterAll(async () => {
     // Clean up - terminate daemon (not just close browser)
     try {
-      executor.terminateDaemon();
+      await executor.terminateDaemon();
     } catch {
       // Ignore cleanup errors
     }
@@ -87,22 +87,22 @@ describeIfAvailable('AgentBrowserCommandExecutor - Real CLI Execution', () => {
     await cleanupAllBrowserProcesses();
   });
 
-  it('should open a real URL and get page info', () => {
-    const openResult = executor.open(TEST_URLS.simple);
+  it('should open a real URL and get page info', async () => {
+    const openResult = await executor.open(TEST_URLS.simple);
     expect(openResult.success).toBe(true);
 
     // Get page title
-    const titleResult = executor.execute<string>('get', ['title']);
+    const titleResult = await executor.execute<string>('get', ['title']);
     expect(titleResult.success).toBe(true);
     expect(titleResult.data).toContain('Example');
   }, BROWSER_TIMEOUT);
 
-  it('should get real accessibility snapshot with refs', () => {
+  it('should get real accessibility snapshot with refs', async () => {
     // Navigate first
-    executor.open(TEST_URLS.simple);
+    await executor.open(TEST_URLS.simple);
 
     // Get snapshot
-    const snapshotResult = executor.snapshot({ interactive: false });
+    const snapshotResult = await executor.snapshot({ interactive: false });
     expect(snapshotResult.success).toBe(true);
     expect(snapshotResult.data).toBeDefined();
 
@@ -115,10 +115,10 @@ describeIfAvailable('AgentBrowserCommandExecutor - Real CLI Execution', () => {
     expect(snapshotText.length).toBeGreaterThan(10);
   }, BROWSER_TIMEOUT);
 
-  it('should take a real screenshot and return base64', () => {
-    executor.open(TEST_URLS.simple);
+  it('should take a real screenshot and return base64', async () => {
+    await executor.open(TEST_URLS.simple);
 
-    const screenshotResult = executor.screenshot();
+    const screenshotResult = await executor.screenshot();
     expect(screenshotResult.success).toBe(true);
 
     // Screenshot should be base64 encoded PNG
@@ -133,10 +133,10 @@ describeIfAvailable('AgentBrowserCommandExecutor - Real CLI Execution', () => {
     }
   }, BROWSER_TIMEOUT);
 
-  it('should get current URL after navigation', () => {
-    executor.open(TEST_URLS.simple);
+  it('should get current URL after navigation', async () => {
+    await executor.open(TEST_URLS.simple);
 
-    const urlResult = executor.execute<string>('get', ['url']);
+    const urlResult = await executor.execute<string>('get', ['url']);
     expect(urlResult.success).toBe(true);
     expect(urlResult.data).toContain('example.com');
   }, BROWSER_TIMEOUT);
@@ -157,17 +157,17 @@ describeIfAvailable('SnapshotParser - Real Snapshot Parsing', () => {
 
   afterAll(async () => {
     try {
-      executor.terminateDaemon();
+      await executor.terminateDaemon();
     } catch {
       // Ignore cleanup errors
     }
     await cleanupAllBrowserProcesses();
   });
 
-  it('should parse real snapshot from example.com', () => {
-    executor.open(TEST_URLS.simple);
+  it('should parse real snapshot from example.com', async () => {
+    await executor.open(TEST_URLS.simple);
 
-    const snapshotResult = executor.snapshot({ interactive: false });
+    const snapshotResult = await executor.snapshot({ interactive: false });
     expect(snapshotResult.success).toBe(true);
 
     // CLI returns JSON format with --json flag, use parseJson for objects
@@ -180,10 +180,10 @@ describeIfAvailable('SnapshotParser - Real Snapshot Parsing', () => {
     expect(parsed.stats.totalElements).toBeGreaterThan(0);
   }, BROWSER_TIMEOUT);
 
-  it('should find interactive elements on a real page', () => {
-    executor.open(TEST_URLS.simple);
+  it('should find interactive elements on a real page', async () => {
+    await executor.open(TEST_URLS.simple);
 
-    const snapshotResult = executor.snapshot({ interactive: true });
+    const snapshotResult = await executor.snapshot({ interactive: true });
     expect(snapshotResult.success).toBe(true);
 
     // CLI returns JSON format with --json flag, use parseJson for objects

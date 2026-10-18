@@ -6,10 +6,8 @@ const seam = vi.hoisted(() => ({
   },
 }));
 vi.mock('node:module', () => ({ createRequire: () => Object.assign(() => seam.runtime, { resolve: seam.resolve }) }));
-vi.mock('node:child_process', () => ({
-  execFile: (file: string, args: string[], options: unknown, done: (error: unknown, stdout?: string) => void) => {
-    try { done(null, seam.execute(file, args, options)); } catch (error) { done(error); }
-  },
+vi.mock('../../../src/shared/test-runner-process.js', () => ({
+  runProcessText: async (file: string, args: string[], options: unknown) => seam.execute(file, args, options),
 }));
 vi.mock('vibium', () => seam.runtime);
 import { isVibiumReady, loadVibium, npmInvocation } from '../../../src/integrations/vibium/runtime.js';
@@ -55,7 +53,7 @@ describe('Optional modern Vibium runtime contract', () => {
   it('checks the exact library payload, not a different PATH CLI', async () => {
     expect(await isVibiumReady()).toBe(true);
     expect(seam.execute).toHaveBeenCalledWith(process.execPath,
-      ['/project/node_modules/vibium/bin/cli.js', 'is-installed'], { encoding: 'utf8', timeout: 5000 });
+      ['/project/node_modules/vibium/bin/cli.js', 'is-installed'], { cwd: process.cwd(), timeout: 5000 });
   });
   it('reports a missing payload without starting an installation', async () => {
     seam.execute.mockImplementation(() => { throw new Error('payload missing'); });

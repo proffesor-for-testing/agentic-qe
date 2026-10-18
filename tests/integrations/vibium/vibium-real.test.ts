@@ -21,7 +21,7 @@ describe.skipIf(process.env.VIBIUM_REAL_TESTS !== 'true')('Modern Vibium: real b
   let server: Server;
   let url: string;
   beforeAll(async () => {
-    expect(isVibiumReady(), 'Run aqe init --browser-engine before opting into real tests').toBe(true);
+    expect(await isVibiumReady(), 'Run aqe init --browser-engine before opting into real tests').toBe(true);
     await loadVibium();
     server = createServer((_req, res) => { res.setHeader('Content-Type', 'text/html'); res.end(html); });
     await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));

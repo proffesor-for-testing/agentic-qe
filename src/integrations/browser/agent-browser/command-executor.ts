@@ -3,14 +3,12 @@
  * Wraps CLI calls with type safety and error handling
  */
 
-import { execFile, spawn } from 'child_process';
-import { promisify } from 'util';
+import { spawn } from 'child_process';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { npmCliInvocation } from '../../../shared/npm-cli-invocation.js';
-import { runTestRunnerProcess, type TestRunnerProcessResult } from '../../../shared/test-runner-process.js';
+import { runProcessText, runTestRunnerProcess, type TestRunnerProcessResult } from '../../../shared/test-runner-process.js';
 import { toErrorMessage } from '../../../shared/error-utils.js';
 
-const execFileAsync = promisify(execFile);
 
 /**
  * Run `npx agent-browser ...` without blocking the event loop (#1115). A
@@ -197,7 +195,7 @@ export class AgentBrowserCommandExecutor {
       // Find and kill processes by session name
       // Use pkill with argument array to prevent shell injection
       try {
-        await execFileAsync('pkill', ['-f', `agent-browser.*--session[= ]${sessionName}`], { timeout: 5000 });
+        await runProcessText('pkill', ['-f', `agent-browser.*--session[= ]${sessionName}`], { cwd: process.cwd(), timeout: 5000 });
       } catch {
         // Non-critical: pkill exits 1 when nothing matched, or the process is already dead
       }
