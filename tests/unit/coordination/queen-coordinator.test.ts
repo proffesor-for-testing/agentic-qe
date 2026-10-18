@@ -440,6 +440,36 @@ describe('QueenCoordinator', () => {
       await limitedQueen.dispose();
     });
 
+    // #1124: a task its plugin refused was settled and its slot released, and
+    // submitTask released the slot a second time. The counter went to -1 and
+    // the next submissions ran past maxConcurrentTasks instead of queueing.
+    it('keeps the concurrency limit after a domain plugin refuses a submitted task', async () => {
+      const executeTask = vi.fn()
+        .mockResolvedValueOnce(err(new Error('refused')))
+        .mockResolvedValue(ok(undefined));
+      const plugins = new Map([['test-generation', {
+        executeTask, canHandleTask: () => true, getSupportedTaskTypes: () => ['generate-tests'],
+        getHealth: () => ({ status: 'healthy', agents: { total: 0, active: 0, idle: 0, failed: 0 }, errors: [] }),
+      }]]) as unknown as ConstructorParameters<typeof QueenCoordinator>[6];
+      const limitedQueen = new QueenCoordinator(
+        eventBus, agentCoordinator, memory, router, undefined, undefined, plugins,
+        { maxConcurrentTasks: 1, workStealing: { enabled: false, idleThreshold: 100, loadThreshold: 5, stealBatchSize: 2, checkInterval: 1000 } },
+      );
+      await limitedQueen.initialize();
+      const submit = () => limitedQueen.submitTask({
+        type: 'generate-tests', priority: 'p1', targetDomains: ['test-generation'], payload: {}, timeout: 30000,
+      });
+
+      expect((await submit()).success).toBe(false);
+      const first = await submit();
+      const second = await submit();
+
+      expect(first.success && limitedQueen.getTaskStatus(first.value)?.status).toBe('running');
+      expect(second.success && limitedQueen.getTaskStatus(second.value)?.status).toBe('queued');
+      expect(eventBus.publishedEvents.some(e => e.type === 'QueenTaskFailed')).toBe(true);
+      await limitedQueen.dispose();
+    });
+
     it('should publish task submitted event', async () => {
       await queen.submitTask({
         type: 'scan-security',

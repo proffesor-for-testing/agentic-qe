@@ -14,17 +14,14 @@
  *   deleted. A pattern used or re-scored since it was selected is left active.
  * - The archive copy is read back before the active key is deleted, so a
  *   failed write never loses the pattern.
+ * The move is implemented in domains/learning-optimization/pattern-archive.ts.
  */
 
-import type { MemoryBackend } from '../../kernel/interfaces.js';
-import {
-  LEARNING_NS,
-  LEARNING_PATTERN_KEY_PREFIX,
-  isActivePatternKey,
-} from '../../domains/learning-optimization/active-patterns.js';
 import type { LearnedPattern } from '../../domains/learning-optimization/interfaces.js';
 
-export type ArchiveOutcome = 'archived' | 'missing' | 'failed';
+// The move itself lives with the patterns, so the merge path in
+// LearningCoordinatorService uses the same read-back rule (#1106).
+export { archiveSelectedPattern, type ArchiveOutcome } from '../../domains/learning-optimization/pattern-archive.js';
 
 /** Counts of one consolidation run's archive step, for logs and results. */
 export interface ArchiveCounts {
@@ -40,41 +37,6 @@ export interface ArchiveCounts {
 
 export function emptyArchiveCounts(): ArchiveCounts {
   return { selected: 0, archived: 0, missing: 0, failed: 0 };
-}
-
-/**
- * Move one selected pattern to its archive key in the learning namespace.
- */
-export async function archiveSelectedPattern(
-  memory: MemoryBackend,
-  pattern: LearnedPattern,
-  archivedAt: Date = new Date(),
-): Promise<ArchiveOutcome> {
-  const activeKey = `${LEARNING_PATTERN_KEY_PREFIX}${pattern.id}`;
-  if (!isActivePatternKey(activeKey)) return 'missing';
-
-  const current = await memory.get<Record<string, unknown>>(activeKey, LEARNING_NS);
-  if (!current || current.id !== pattern.id || changedSinceSelection(current, pattern)) return 'missing';
-
-  const archiveKey = `${LEARNING_PATTERN_KEY_PREFIX}archived:${pattern.id}`;
-  await memory.set(archiveKey, { ...pattern, archivedAt }, { ...LEARNING_NS, persist: true });
-
-  const copy = await memory.get<{ id?: unknown }>(archiveKey, LEARNING_NS);
-  if (!copy || copy.id !== pattern.id) return 'failed';
-
-  await memory.delete(activeKey, LEARNING_NS);
-  return 'archived';
-}
-
-/** True when the stored record's scores or last use differ from the selected snapshot. */
-function changedSinceSelection(current: Record<string, unknown>, selected: LearnedPattern): boolean {
-  const time = (value: unknown): number => new Date(value as string | number | Date).getTime();
-  return (
-    !Object.is(current.usageCount, selected.usageCount) ||
-    !Object.is(current.confidence, selected.confidence) ||
-    !Object.is(current.successRate, selected.successRate) ||
-    !Object.is(time(current.lastUsedAt), time(selected.lastUsedAt))
-  );
 }
 
 /** True when the pattern was created less than `graceDays` days ago. */

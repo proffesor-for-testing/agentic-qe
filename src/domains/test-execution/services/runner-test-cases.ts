@@ -7,6 +7,7 @@
  */
 
 import type { ITestCaseResult } from '../interfaces';
+import { redactLogText } from '../../../logging/redaction.js';
 
 const SKIPPED_STATUSES = new Set(['skipped', 'pending', 'todo']);
 /** Upper bound on a reported failure message, so one stack cannot swamp the output. */
@@ -27,11 +28,30 @@ interface RunnerFileResult {
 
 function failureMessageOf(assertion: RunnerAssertion): string | undefined {
   if (!Array.isArray(assertion.failureMessages)) return undefined;
-  const message = assertion.failureMessages.filter((m): m is string => typeof m === 'string').join('\n').trim();
-  if (!message) return undefined;
+  const joined = assertion.failureMessages.filter((m): m is string => typeof m === 'string').join('\n').trim();
+  if (!joined) return undefined;
+  const message = redactFailureText(joined);
   return message.length > MAX_FAILURE_MESSAGE_LENGTH
     ? `${message.slice(0, MAX_FAILURE_MESSAGE_LENGTH)}… [truncated]`
     : message;
+}
+
+/**
+ * #1122: failure text goes back over MCP and into saved results, so
+ * credential-shaped values (e.g. a connection string) are redacted first.
+ * The text is not shortened here; callers apply their own caps.
+ */
+export function redactFailureText(text: string): string {
+  return redactLogText(text, Number.POSITIVE_INFINITY);
+}
+
+/** Failed tests with `error` and `stack` redacted (#1122). */
+export function redactFailedTests<T extends { error: string; stack?: string }>(tests: T[]): T[] {
+  return tests.map(test => ({
+    ...test,
+    error: redactFailureText(test.error),
+    ...(typeof test.stack === 'string' ? { stack: redactFailureText(test.stack) } : {}),
+  }));
 }
 
 function toStatus(status: unknown): ITestCaseResult['status'] | undefined {

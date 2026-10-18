@@ -8,7 +8,6 @@ import type { DomainName } from '../shared/types';
 import { toErrorMessage } from '../shared/error-utils.js';
 import type { TaskAuditLogger } from './services';
 import type { QueenTask, QueenConfig } from './queen-types.js';
-import { canDomainHandleTask } from './queen-task-management.js';
 
 // ============================================================================
 // Context interface for work stealing
@@ -26,8 +25,13 @@ export interface QueenWorkStealingContext {
   getIdleDomains(): DomainName[];
   getBusyDomains(): DomainName[];
   getDomainLoad(domain: DomainName): number;
+  /** #1140: free Queen slots; a steal starts a task, so it needs one */
+  availableSlots(): number;
+  /** #1124: the domain is configured for the task and its plugin can execute it */
+  canExecuteInDomain(domain: DomainName, task: QueenTask): boolean;
   removeFromQueues(task: QueenTask): void;
-  assignTaskToDomain(task: QueenTask, domain: DomainName): Promise<void>;
+  /** Dispatch a stolen task; resolves whether it now runs in `domain`. */
+  assignTaskToDomain(task: QueenTask, domain: DomainName): Promise<boolean>;
   publishEvent(type: string, payload: Record<string, unknown>): Promise<void>;
 }
 
@@ -57,18 +61,20 @@ export async function triggerWorkStealing(ctx: QueenWorkStealingContext): Promis
     const queue = ctx.domainQueues.get(busyDomain) || [];
     const stealCount = Math.min(queue.length, ctx.config.workStealing.stealBatchSize);
 
-    for (let i = 0; i < stealCount && idleDomains.length > 0; i++) {
-      const task = queue.find(t => canDomainHandleTask(idleDomains[0], t));
+    // #1140: each steal takes a slot, so stop when none is free.
+    for (let i = 0; i < stealCount && idleDomains.length > 0 && ctx.availableSlots() > 0; i++) {
+      const task = queue.find(t => ctx.canExecuteInDomain(idleDomains[0], t));
 
       if (task) {
         const stealerDomain = idleDomains.shift()!;
         ctx.removeFromQueues(task);
 
+        // #1124: a task that is not running afterwards (already terminal, or
+        // failed at assignment) was not stolen.
+        if (!await ctx.assignTaskToDomain(task, stealerDomain)) continue;
+
         // SEC-003 Simplified: Log work stealing for observability
         ctx.auditLogger.logSteal(task.id, busyDomain, stealerDomain);
-
-        await ctx.assignTaskToDomain(task, stealerDomain);
-
         stolenCount++;
         ctx.tasksStolen++;
 

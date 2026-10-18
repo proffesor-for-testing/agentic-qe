@@ -9,6 +9,19 @@ vi.mock('../../../src/cli/utils/progress.js', () => ({
   createTimedSpinner: vi.fn(),
 }));
 
+// #1125: the operation's domain task and payload come from the target on disk.
+const plan = vi.hoisted(() => vi.fn());
+vi.mock('../../../src/cli/utils/fleet-operation.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../../../src/cli/utils/fleet-operation.js')>(),
+  planFleetOperation: plan,
+}));
+
+const cleanScan = {
+  vulnerabilities: [], summary: { critical: 0, high: 0, medium: 0, low: 0, informational: 0 },
+  coverage: { filesScanned: 1 }, evidence: { completeness: 'complete' },
+};
+const passingTests = { tests: [{ name: 't', testFile: 'a.test.ts', assertions: 2, generationMode: 'behavior-examples', qualityGateResult: { passed: true } }] };
+
 describe('fleet run execution verdicts', () => {
   const cleanup = vi.fn(async (_code: number) => undefined as never);
   const ensure = vi.fn(async () => true);
@@ -23,8 +36,9 @@ describe('fleet run execution verdicts', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     ensure.mockResolvedValue(true);
     submitTask.mockResolvedValue({ success: true, value: 'task-1' });
-    getTaskStatus.mockReturnValue({ status: 'completed' });
+    getTaskStatus.mockReturnValue({ status: 'completed', result: passingTests });
     validateTaskExecutable.mockReturnValue({ success: true, value: undefined });
+    plan.mockResolvedValue({ success: true, task: { domain: 'test-generation', type: 'generate-tests', payload: { sourceFiles: ['src/a.ts'] } } });
     program = new Command().addCommand(createFleetCommand(
       { queen: { submitTask, getTaskStatus, validateTaskExecutable } } as unknown as CLIContext,
       cleanup, ensure, () => {},
@@ -43,7 +57,8 @@ describe('fleet run execution verdicts', () => {
     await run();
     expect(cleanup).toHaveBeenCalledWith(1);
     expect(progress.completeAgent).toHaveBeenCalledWith('test-agent-1', false);
-    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Successful: 0'));
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Completed: 0'));
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Verdict: FAILED (1 of 1 workers did not complete)'));
   });
 
   it('waits for a running task to actually finish', async () => {
@@ -52,7 +67,7 @@ describe('fleet run execution verdicts', () => {
     await vi.advanceTimersByTimeAsync(5000);
     expect(cleanup).not.toHaveBeenCalled();
     expect(progress.completeAgent).not.toHaveBeenCalled();
-    getTaskStatus.mockReturnValue({ status: 'completed' });
+    getTaskStatus.mockReturnValue({ status: 'completed', result: passingTests });
     await vi.advanceTimersByTimeAsync(500);
     await execution;
     expect(cleanup).toHaveBeenCalledWith(0);
@@ -87,20 +102,82 @@ describe('fleet run execution verdicts', () => {
     expect(submitTask).not.toHaveBeenCalled();
   });
 
-  // #1081: `fleet run scan` submitted scan-security, which no security-compliance
-  // handler executes, so each worker's task stayed running on a held Queen slot.
+  // #1081: an operation whose task no domain plugin executes is refused
+  // before anything is submitted.
   it('refuses an operation whose task type no domain executes, before submitting anything', async () => {
+    plan.mockResolvedValue({ success: true, task: { domain: 'security-compliance', type: 'sast-scan', payload: { files: ['src/a.ts'] } } });
     validateTaskExecutable.mockReturnValue({
       success: false,
-      error: new Error("No handler for task type 'scan-security' in domain security-compliance (supported: security-audit)"),
+      error: new Error("No handler for task type 'sast-scan' in domain security-compliance (domain not loaded)"),
     });
     const execution = program.parseAsync(['node', 'aqe', 'fleet', 'run', 'scan', '--parallel', '3']);
     await vi.advanceTimersByTimeAsync(65000);
     await execution;
-    expect(validateTaskExecutable).toHaveBeenCalledWith('scan-security', ['security-compliance']);
+    expect(validateTaskExecutable).toHaveBeenCalledWith('sast-scan', ['security-compliance']);
     expect(submitTask).not.toHaveBeenCalled();
     expect(cleanup).toHaveBeenCalledWith(1);
-    expect(console.error).toHaveBeenCalledWith(expect.stringContaining("No handler for task type 'scan-security'"));
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining("No handler for task type 'sast-scan'"));
+  });
+
+  // #1125: the domain task runs with the payload its handler needs.
+  it('submits the planned domain task with its payload to every worker', async () => {
+    plan.mockResolvedValue({ success: true, task: { domain: 'security-compliance', type: 'sast-scan', payload: { files: ['src/a.ts'] } } });
+    getTaskStatus.mockReturnValue({ status: 'completed', result: cleanScan });
+    const execution = program.parseAsync(['node', 'aqe', 'fleet', 'run', 'scan', '--target', 'src', '--parallel', '2']);
+    await vi.advanceTimersByTimeAsync(1000);
+    await execution;
+    expect(plan).toHaveBeenCalledWith('scan', 'src');
+    expect(submitTask).toHaveBeenCalledTimes(2);
+    expect(submitTask).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'sast-scan', targetDomains: ['security-compliance'],
+      payload: expect.objectContaining({ files: ['src/a.ts'], target: 'src' }),
+    }));
+    expect(cleanup).toHaveBeenCalledWith(0);
+  });
+
+  // #1125: without the input the handler needs, nothing is submitted.
+  it('refuses an operation whose target cannot supply the handler input', async () => {
+    plan.mockResolvedValue({ success: false, error: 'No coverage report for project /p, so there is no coverage to analyze.' });
+    const execution = program.parseAsync(['node', 'aqe', 'fleet', 'run', 'analyze', '--parallel', '1']);
+    await vi.advanceTimersByTimeAsync(65000);
+    await execution;
+    expect(submitTask).not.toHaveBeenCalled();
+    expect(cleanup).toHaveBeenCalledWith(1);
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining("Operation 'analyze' cannot run: No coverage report"));
+  });
+
+  // #1125 review: a completed task is not a passed check.
+  it('fails a scan that completed with a critical finding, and lists it', async () => {
+    plan.mockResolvedValue({ success: true, task: { domain: 'security-compliance', type: 'sast-scan', payload: { files: ['src/a.js'] } } });
+    getTaskStatus.mockReturnValue({ status: 'completed', result: {
+      ...cleanScan,
+      vulnerabilities: [{ severity: 'critical', title: 'Code Injection via eval()', location: { file: 'src/a.js', line: 2 } }],
+      summary: { ...cleanScan.summary, critical: 1 },
+    } });
+    const execution = program.parseAsync(['node', 'aqe', 'fleet', 'run', 'scan', '--parallel', '2']);
+    await vi.advanceTimersByTimeAsync(1000);
+    await execution;
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Findings: critical 1, high 0'));
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('[critical] Code Injection via eval() @ src/a.js:2'));
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Verdict: FAILED (1 critical and 0 high findings)'));
+    expect(cleanup).toHaveBeenCalledWith(1);
+  });
+
+  it('fails generated tests that failed the test quality gate', async () => {
+    getTaskStatus.mockReturnValue({ status: 'completed', result: { tests: [
+      { name: 't', testFile: 'a.test.ts', assertions: 0, generationMode: 'scaffolding', qualityGateResult: { passed: false } },
+    ] } });
+    await run();
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Tests generated: 1, assertions: 0, generation mode: scaffolding'));
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Quality gate: failed for 1 of 1 tests'));
+    expect(cleanup).toHaveBeenCalledWith(1);
+  });
+
+  it('passes a completed operation whose result passes, and says so', async () => {
+    await run();
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Quality gate: passed'));
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Verdict: PASSED'));
+    expect(cleanup).toHaveBeenCalledWith(0);
   });
 
   it('retains rejection and completion verdicts', async () => {

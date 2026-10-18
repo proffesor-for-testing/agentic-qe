@@ -17,6 +17,7 @@ import { toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { secureRandom } from '../../../shared/utils/crypto-random.js';
 import { terminateTestRunner, trackTestRunnerExit } from '../../../shared/test-runner-process.js';
+import { redactFailureText } from './runner-test-cases.js';
 
 /**
  * Whether a runner-reported test file and the requested target are the same
@@ -397,7 +398,8 @@ export class RetryHandlerService implements IRetryHandler {
     onRetry?: (testId: string, attempt: number) => void
   ): Promise<RetryTestResult> {
     let attempts = 0;
-    let lastError = test.error;
+    // #1122: the final error is persisted in retry-history, so keep it redacted.
+    let lastError = redactFailureText(test.error);
 
     while (attempts < maxRetries) {
       // Check if should retry
@@ -429,7 +431,7 @@ export class RetryHandlerService implements IRetryHandler {
         };
       }
 
-      lastError = result.error ?? lastError;
+      lastError = result.error !== undefined ? redactFailureText(result.error) : lastError;
     }
 
     return {
@@ -767,7 +769,7 @@ export class RetryHandlerService implements IRetryHandler {
     const errorOutput = stderr || stdout || `Test failed with exit code ${exitCode}`;
     return {
       passed: false,
-      error: errorOutput.substring(0, 1000), // Truncate long error messages
+      error: redactFailureText(errorOutput).substring(0, 1000), // Truncate long error messages
     };
   }
 
