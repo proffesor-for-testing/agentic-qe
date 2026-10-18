@@ -28,7 +28,8 @@ export interface QueenWorkStealingContext {
   /** #1124: the domain is configured for the task and its plugin can execute it */
   canExecuteInDomain(domain: DomainName, task: QueenTask): boolean;
   removeFromQueues(task: QueenTask): void;
-  assignTaskToDomain(task: QueenTask, domain: DomainName): Promise<void>;
+  /** Dispatch a stolen task; resolves whether it now runs in `domain`. */
+  assignTaskToDomain(task: QueenTask, domain: DomainName): Promise<boolean>;
   publishEvent(type: string, payload: Record<string, unknown>): Promise<void>;
 }
 
@@ -65,11 +66,12 @@ export async function triggerWorkStealing(ctx: QueenWorkStealingContext): Promis
         const stealerDomain = idleDomains.shift()!;
         ctx.removeFromQueues(task);
 
+        // #1124: a task that is not running afterwards (already terminal, or
+        // failed at assignment) was not stolen.
+        if (!await ctx.assignTaskToDomain(task, stealerDomain)) continue;
+
         // SEC-003 Simplified: Log work stealing for observability
         ctx.auditLogger.logSteal(task.id, busyDomain, stealerDomain);
-
-        await ctx.assignTaskToDomain(task, stealerDomain);
-
         stolenCount++;
         ctx.tasksStolen++;
 

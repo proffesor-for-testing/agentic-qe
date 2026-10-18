@@ -248,6 +248,27 @@ describe('a task its plugin refuses at dispatch (#1124)', () => {
   });
 });
 
+describe('a drain started by a released slot (#1127 review)', () => {
+  // Review of #1138 (R1): a refused submission releases its slot, and the
+  // drain that starts dispatches an unrelated queued task whose plugin throws.
+  // That error reached the refused submitter, whose catch decremented again.
+  it('does not pass a drain error to the caller whose task released the slot', async () => {
+    const { ctx, security, coverage } = createContext(2);
+    security.executeTask.mockImplementationOnce(async () => ({ success: false, error: new Error('refused') }) as never);
+    coverage.executeTask.mockImplementationOnce(async () => { throw new Error('plugin crashed'); });
+    setQueued(ctx, task('queued', 'analyze-coverage', 'coverage-analysis'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    ctx.runningTaskCounter++;
+    const result = await assignTask(asCtx(ctx), task('refused', 'security-audit', 'security-compliance'));
+
+    expect(result).toMatchObject({ success: false, error: expect.objectContaining({ message: 'refused' }) });
+    expect(ctx.runningTaskCounter).toBe(0);
+    expect(warn).toHaveBeenCalledWith('[Queen] Queue drain after a released slot failed:', 'plugin crashed');
+    warn.mockRestore();
+  });
+});
+
 describe('work stealing checks for a handler and takes a slot (#1124)', () => {
   async function steal(ctx: Ctx, idle: DomainName, busy: DomainName) {
     const { dispatchStolenTask, canDomainExecuteTask } = await import('../../../src/coordination/queen-task-management.js');
@@ -315,15 +336,35 @@ describe('work stealing checks for a handler and takes a slot (#1124)', () => {
     expect(ctx.runningTaskCounter).toBe(2);
   });
 
-  it('fails a stolen task that cannot be assigned instead of dropping it from the queue', async () => {
+  it('fails a stolen task that cannot be assigned, and does not count or announce it as stolen', async () => {
     const { ctx, security } = createContext(4);
     security.canHandleTask = (type: string) => type === 'ideation-assessment';
     ctx.domainBreakerRegistry = { canExecuteInDomain: () => false };
     setQueued(ctx, task('idea', 'ideation-assessment', 'coverage-analysis'));
 
-    await steal(ctx, 'security-compliance', 'coverage-analysis');
+    const stolen = await steal(ctx, 'security-compliance', 'coverage-analysis');
 
     expect(ctx.tasks.get('idea')).toMatchObject({ status: 'failed', error: expect.stringContaining('circuit breaker is open') });
     expect(ctx.runningTaskCounter).toBe(0);
+    expect(stolen).toBe(0);
+    expect(ctx.auditLogger.logSteal).not.toHaveBeenCalled();
+    expect(ctx.publishEvent).not.toHaveBeenCalledWith('TaskStolen', expect.anything());
+  });
+
+  // Review of #1138 (R2): after #1070 a queued entry can already be terminal,
+  // e.g. a caller-owned task its caller executed directly. Stealing it flipped
+  // it back to running and, now that a steal takes a slot, leaked that slot.
+  it('does not steal a queued entry that is already terminal', async () => {
+    const { ctx } = createContext(2);
+    const t = { ...task('done', 'ideation-assessment', 'coverage-analysis'), executionOwner: 'caller' as const };
+    setQueued(ctx, t);
+    ctx.tasks.set('done', { taskId: 'done', task: t, status: 'completed', assignedAgents: [], retryCount: 0 });
+
+    const stolen = await steal(ctx, 'security-compliance', 'coverage-analysis');
+
+    expect(stolen).toBe(0);
+    expect(ctx.tasks.get('done')?.status).toBe('completed');
+    expect(ctx.runningTaskCounter).toBe(0);
+    expect(ctx.requestAgentSpawn).not.toHaveBeenCalled();
   });
 });

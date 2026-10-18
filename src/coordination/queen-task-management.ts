@@ -11,6 +11,7 @@ import type {
 } from '../shared/types';
 import { ok, err } from '../shared/types';
 import { binaryInsert, createdAtComparator } from '../shared/utils/index.js';
+import { toErrorMessage } from '../shared/error-utils.js';
 import type {
   AgentCoordinator,
   DomainPlugin,
@@ -246,8 +247,17 @@ const drainDirty = new WeakSet<Map<string, TaskExecution>>();
  */
 async function releaseSlot(ctx: QueenTaskContext): Promise<void> {
   ctx.runningTaskCounter = Math.max(0, ctx.runningTaskCounter - 1);
-  if (drainDepth.has(ctx.tasks)) drainDirty.add(ctx.tasks);
-  else await processQueue(ctx);
+  if (drainDepth.has(ctx.tasks)) {
+    drainDirty.add(ctx.tasks);
+    return;
+  }
+  // The drain dispatches other tasks. Its failure belongs to none of them and
+  // must not reach the caller whose task released this slot.
+  try {
+    await processQueue(ctx);
+  } catch (error) {
+    console.warn('[Queen] Queue drain after a released slot failed:', toErrorMessage(error));
+  }
 }
 
 /**
@@ -561,12 +571,18 @@ async function settleFailedBeforeRun(
  * Work stealing: dispatch a queued task to another domain. It takes a slot
  * like any dispatched task, so its settle leaves the counter balanced, and it
  * is failed with the reason if it cannot be assigned (#1124).
+ *
+ * Returns whether the task is now running in `domain`. An entry that reached a
+ * terminal state while still queued (#1070) is not dispatched at all.
  */
 export async function dispatchStolenTask(
   ctx: QueenTaskContext,
   task: QueenTask,
   domain: DomainName,
-): Promise<void> {
+): Promise<boolean> {
+  const status = ctx.tasks.get(task.id)?.status;
+  if (status !== undefined && status !== 'queued') return false;
+
   ctx.runningTaskCounter++;
   let assigned: Result<string, Error>;
   try {
@@ -578,6 +594,8 @@ export async function dispatchStolenTask(
   if (!assigned.success && (ctx.tasks.get(task.id)?.status ?? 'queued') === 'queued') {
     await settleFailedBeforeRun(ctx, task, domain, assigned.error.message);
   }
+  const after = ctx.tasks.get(task.id);
+  return after?.assignedDomain === domain && (after.status === 'running' || after.status === 'completed');
 }
 
 // ============================================================================
