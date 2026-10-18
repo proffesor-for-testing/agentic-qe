@@ -63,6 +63,8 @@ export interface LearnResult {
   measuredExperiences?: number;
   /** #1109: experiences recorded with an assigned reward, excluded from every rate. */
   assignedRewardsExcluded?: number;
+  /** #1121: requested experience IDs with no stored experience; not processed. */
+  experienceIdsNotFound?: number;
   evidenceStatus?: 'insufficient-evidence';
   patternsLearned: number;
   newPatterns: LearnedPattern[];
@@ -124,8 +126,14 @@ export interface PatternResult {
   byType: Record<string, number>;
   byDomain: Record<string, number>;
   topPatterns: LearnedPattern[];
-  avgConfidence: number;
-  avgSuccessRate: number;
+  /** Null when no pattern has a measured rate (#1121); not a 0 that reads as measured. */
+  avgConfidence: number | null;
+  avgSuccessRate: number | null;
+  /** #1109: patterns learned from assigned rewards, left out of every figure. */
+  assignedPatternsExcluded?: number;
+  /** #1121: untagged patterns mined before #1120, left out of every figure. */
+  legacyPatternsExcluded?: number;
+  evidenceStatus?: 'insufficient-evidence';
   /** Read-only persisted SONA visibility when an initialized fleet is available. */
   sona?: SONASnapshot;
 }
@@ -140,6 +148,8 @@ export interface DashboardResult {
   assignedRewardsExcluded?: number;
   /** #1109: stored patterns excluded because they were learned from assigned rewards. */
   assignedPatternsExcluded?: number;
+  /** #1121: untagged patterns mined before #1120 (rate selected over successes), excluded likewise. */
+  legacyPatternsExcluded?: number;
   /** Ranked by measured success rate; empty when no domain has a measured outcome. */
   topPerformingDomains: DomainName[];
   evidenceStatus?: 'insufficient-evidence';
@@ -248,6 +258,9 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
           break;
         case 'patterns':
           result.patternResult = await this.executePatterns(domain, context);
+          if (result.patternResult.evidenceStatus === 'insufficient-evidence') {
+            result.evidenceStatus = 'insufficient-evidence';
+          }
           break;
         case 'dashboard':
           result.dashboardResult = await this.executeDashboard(context);
@@ -294,7 +307,12 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
       message: `Learning from ${experienceIds?.length || 'recent'} experiences`,
     });
 
-    // Get experiences from memory or mine recent ones
+    // #1121: learn from the requested experiences; count only those read.
+    if (experienceIds && experienceIds.length > 0) {
+      return this.learnFromExperienceIds(learningCoordinator, experienceIds);
+    }
+
+    // Mine recent experiences
     const timeRange = TimeRange.lastNDays(7);
     const mineResult = await learningCoordinator.mineExperiences(targetDomain, timeRange);
 
@@ -325,11 +343,6 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
       }
     }
 
-    // If specific experience IDs provided, record them
-    if (experienceIds && experienceIds.length > 0) {
-      experiencesProcessed = experienceIds.length;
-    }
-
     // If no patterns were learned, return empty result (not fake data)
     // This is a valid state - no patterns discovered yet
     // #1109: there is no recorded baseline, so improvement is never computed
@@ -338,6 +351,46 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
     return {
       experiencesProcessed,
       ...evidence,
+      patternsLearned: newPatterns.length,
+      newPatterns,
+      improvement: null,
+      unmeasured: ['improvement'],
+    };
+  }
+
+  /**
+   * #1121: learn from explicitly requested experiences. experiencesProcessed
+   * is the number actually read; IDs with no stored experience are counted in
+   * experienceIdsNotFound instead of being reported as processed.
+   */
+  private async learnFromExperienceIds(
+    learningCoordinator: LearningCoordinatorService,
+    experienceIds: string[]
+  ): Promise<LearnResult> {
+    const readResult = await learningCoordinator.getExperiencesByIds(experienceIds);
+    if (!readResult.success) throw readResult.error;
+    const read = readResult.value;
+    const { measured, assignedExcluded } = partitionByRewardSource(read);
+    const learned = measured.length > 0 ? await learningCoordinator.learnPattern(read) : null;
+    const newPatterns: LearnedPattern[] = learned?.success
+      ? [{
+          id: learned.value.id,
+          type: learned.value.type,
+          name: learned.value.name,
+          description: learned.value.description,
+          confidence: learned.value.confidence,
+          usageCount: learned.value.usageCount,
+          successRate: learned.value.successRate,
+        }]
+      : [];
+
+    this.markAsRealData();
+    return {
+      experiencesProcessed: read.length,
+      experienceIdsNotFound: new Set(experienceIds).size - read.length,
+      measuredExperiences: measured.length,
+      assignedRewardsExcluded: assignedExcluded,
+      ...(measured.length === 0 ? { evidenceStatus: 'insufficient-evidence' as const } : {}),
       patternsLearned: newPatterns.length,
       newPatterns,
       improvement: null,
@@ -581,14 +634,15 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
     const statsResult = await learningCoordinator.getPatternStats(domain);
 
     if (!statsResult.success) {
-      // Return empty stats on failure
+      // Stats could not be read: nothing is measured, so no averages (#1121).
       return {
         totalPatterns: 0,
         byType: {},
         byDomain: {},
         topPatterns: [],
-        avgConfidence: 0,
-        avgSuccessRate: 0,
+        avgConfidence: null,
+        avgSuccessRate: null,
+        evidenceStatus: 'insufficient-evidence',
         sona,
       };
     }
@@ -606,13 +660,17 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
       successRate: p.successRate,
     }));
 
+    const measured = stats.totalPatterns > 0;
     return {
       totalPatterns: stats.totalPatterns,
       byType: stats.byType,
       byDomain: stats.byDomain,
       topPatterns,
-      avgConfidence: stats.avgConfidence,
-      avgSuccessRate: stats.avgSuccessRate,
+      avgConfidence: measured ? stats.avgConfidence : null,
+      avgSuccessRate: measured ? stats.avgSuccessRate : null,
+      ...(stats.assignedPatternsExcluded ? { assignedPatternsExcluded: stats.assignedPatternsExcluded } : {}),
+      ...(stats.legacyPatternsExcluded ? { legacyPatternsExcluded: stats.legacyPatternsExcluded } : {}),
+      ...(measured ? {} : { evidenceStatus: 'insufficient-evidence' as const }),
       sona,
     };
   }
@@ -671,6 +729,9 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
     const assignedPatternsExcluded = statsResult.success
       ? statsResult.value.assignedPatternsExcluded ?? 0
       : 0;
+    const legacyPatternsExcluded = statsResult.success
+      ? statsResult.value.legacyPatternsExcluded ?? 0
+      : 0;
     const avgSuccessRate = totalPatterns > 0 && statsResult.success
       ? statsResult.value.avgSuccessRate
       : null;
@@ -728,6 +789,7 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
       experiencesLast24h,
       ...(assignedRewardsExcluded > 0 ? { assignedRewardsExcluded } : {}),
       ...(assignedPatternsExcluded > 0 ? { assignedPatternsExcluded } : {}),
+      ...(legacyPatternsExcluded > 0 ? { legacyPatternsExcluded } : {}),
       topPerformingDomains,
       ...(unmeasured.length > 0
         ? { evidenceStatus: 'insufficient-evidence' as const, unmeasured }

@@ -290,6 +290,8 @@ export interface PatternStats {
   readonly topPatterns: LearnedPattern[];
   /** #1109: patterns left out of every figure because they were learned from assigned rewards. */
   readonly assignedPatternsExcluded?: number;
+  /** #1121: untagged patterns mined before #1120 (rate selected over successes); left out likewise. */
+  readonly legacyPatternsExcluded?: number;
 }
 
 /**
@@ -611,12 +613,14 @@ export interface DomainOptimizationResult {
 export interface CrossDomainSharingReport {
   readonly knowledgeShared: number;
   readonly domainsUpdated: DomainName[];
-  readonly transferSuccessRate: number;
+  /** Null when no transfer was attempted (#1121). */
+  readonly transferSuccessRate: number | null;
   readonly newPatternsCreated: number;
 }
 
 export interface LearningDashboard {
-  readonly overallLearningRate: number;
+  /** Null when pattern stats are unavailable or no measured pattern exists (#1121). */
+  readonly overallLearningRate: number | null;
   readonly totalPatterns: number;
   readonly totalKnowledge: number;
   readonly experiencesLast24h: number;

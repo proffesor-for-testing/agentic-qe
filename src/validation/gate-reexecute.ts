@@ -27,6 +27,7 @@ import { createHash } from 'node:crypto';
 import { meetsNoRegression } from './anchor-set.js';
 import { tierAllowsPromotion } from '../learning/provenance-tier.js';
 import { bootstrapDeltaCILow, pairedDeltas } from './paired-bootstrap.js';
+import { getOwn } from '../shared/utils/safe-record.js';
 
 /** The inputs a promotion decision was made on — sealed at decision time. */
 export interface SealedInputs {
@@ -182,7 +183,8 @@ export function sealedHash(sealed: SealedInputs): string {
  * unknown version so a missing rule can never silently pass verification.
  */
 export function gateFingerprint(ruleVersion: string): string {
-  if (!(ruleVersion in ACCEPTANCE_RULES)) {
+  // #1136: own entries only; `constructor` is not a registered rule.
+  if (!Object.hasOwn(ACCEPTANCE_RULES, ruleVersion)) {
     throw new Error(`Unknown acceptance rule version '${ruleVersion}' — cannot fingerprint an unregistered rule.`);
   }
   return createHash('sha256').update(RULE_TAG).update('\0').update(ruleVersion).digest('hex');
@@ -190,7 +192,8 @@ export function gateFingerprint(ruleVersion: string): string {
 
 /** Re-execute a frozen rule on sealed inputs. Throws for an unknown version. */
 export function reExecuteGate(ruleVersion: string, sealed: SealedInputs): RuleResult {
-  const rule = ACCEPTANCE_RULES[ruleVersion];
+  // #1136: an inherited member (`constructor` is Object) is not a rule.
+  const rule = getOwn(ACCEPTANCE_RULES, ruleVersion);
   if (!rule) {
     throw new Error(`Unknown acceptance rule version '${ruleVersion}' — refusing to re-execute an unregistered rule.`);
   }
@@ -401,7 +404,7 @@ export function pathSealedHash(sealed: PathSealedInputs): string {
 
 /** Fingerprint of a path-rule VERSION. Throws for an unregistered rule. */
 export function pathGateFingerprint(ruleVersion: string): string {
-  if (!(ruleVersion in PROMOTION_PATH_RULES)) {
+  if (!Object.hasOwn(PROMOTION_PATH_RULES, ruleVersion)) {
     throw new Error(`Unknown promotion-path rule version '${ruleVersion}' — cannot fingerprint an unregistered rule.`);
   }
   return createHash('sha256').update(PATH_RULE_TAG).update('\0').update(ruleVersion).digest('hex');
@@ -409,7 +412,7 @@ export function pathGateFingerprint(ruleVersion: string): string {
 
 /** Re-execute a frozen path rule on sealed inputs. Throws for an unknown version. */
 export function reExecutePathGate(ruleVersion: string, sealed: PathSealedInputs): RuleResult {
-  const rule = PROMOTION_PATH_RULES[ruleVersion];
+  const rule = getOwn(PROMOTION_PATH_RULES, ruleVersion);
   if (!rule) {
     throw new Error(`Unknown promotion-path rule version '${ruleVersion}' — refusing to re-execute an unregistered rule.`);
   }

@@ -11,6 +11,7 @@ import { safeJsonParse } from '../shared/safe-json.js';
 import { getProjectStorePath } from '../kernel/project-root.js';
 import type { SecurityScanEvidence } from '../domains/security-compliance/scan-evidence.js';
 import type { SecurityCoverage } from '../domains/security-compliance/interfaces.js';
+import { resultForSaver } from './result-saver-adapters.js';
 
 /** Cap on the sanitized stem of a generated test file name (see generatedTestFilename). */
 const MAX_GENERATED_STEM_LENGTH = 100;
@@ -200,15 +201,17 @@ export class ResultSaver {
   async save(
     taskId: string,
     taskType: TaskType,
-    result: unknown,
+    taskResult: unknown,
     options: SaveOptions = {}
   ): Promise<SavedResult> {
+    // #1125: concrete handler types are saved by their abstract type's saver.
+    const { saveType, report: result } = resultForSaver(taskType, taskResult);
     const timestamp = new Date();
     const files: SavedFile[] = [];
 
     // Database-free mode (#534): do not write .agentic-qe/results/* to disk.
     if (process.env.AQE_MEMORY_BACKEND === 'memory') {
-      return { taskId, taskType, timestamp, files, summary: this.extractSummary(taskType, result) };
+      return { taskId, taskType, timestamp, files, summary: this.extractSummary(saveType, result) };
     }
 
     // Ensure directories exist
@@ -224,7 +227,7 @@ export class ResultSaver {
     const prefix = options.filenamePrefix || `${tsStr}_${this.uniqueSuffix(taskId)}`;
 
     // Save based on task type
-    switch (taskType) {
+    switch (saveType) {
       case 'generate-tests':
         files.push(...await this.saveTestGeneration(result, prefix, options));
         break;
@@ -254,11 +257,11 @@ export class ResultSaver {
         break;
       default:
         // Generic JSON save for unknown types
-        files.push(...await this.saveGeneric(taskType, result, prefix));
+        files.push(...await this.saveGeneric(saveType, result, prefix));
     }
 
     // Update index
-    const summary = this.extractSummary(taskType, result);
+    const summary = this.extractSummary(saveType, result);
     await this.updateIndex(taskId, taskType, timestamp, files, summary);
 
     return {

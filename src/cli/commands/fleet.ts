@@ -19,6 +19,8 @@ import { createPersistentScheduler } from '../scheduler/index.js';
 import { integrateCodeIntelligence, type FleetIntegrationResult } from '../../init/fleet-integration.js';
 import { runFleetInitWizard, type FleetWizardResult } from '../wizards/fleet-wizard.js';
 import { FleetProgressManager, createTimedSpinner } from '../utils/progress.js';
+import { FLEET_OPERATIONS, planFleetOperation, type FleetOperation } from '../utils/fleet-operation.js';
+import { reportFleetVerdict } from '../utils/fleet-result.js';
 import type { QEKernel } from '../../kernel/interfaces.js';
 import { type OutputFormat, writeOutput, toJSON } from '../utils/ci-output.js';
 
@@ -293,16 +295,19 @@ export function createFleetCommand(
         if (!Number.isSafeInteger(parallelCount) || parallelCount < 1) {
           throw new Error('--parallel must be a positive integer');
         }
-        if (!['test', 'analyze', 'scan'].includes(operation)) {
+        if (!(FLEET_OPERATIONS as readonly string[]).includes(operation)) {
           throw new Error(`Unsupported operation: ${operation}`);
         }
 
-        const operationTasks: Record<string, [DomainName, TaskType]> = {
-          test: ['test-generation', 'generate-tests'],
-          analyze: ['coverage-analysis', 'analyze-coverage'],
-          scan: ['security-compliance', 'scan-security'],
-        };
-        const [domain, taskType] = operationTasks[operation];
+        // #1125: each operation runs a real domain handler with the input it
+        // needs, taken from the target; without that input it is refused.
+        const plan = await planFleetOperation(operation as FleetOperation, options.target);
+        if (!plan.success) {
+          console.error(chalk.red(`\n Operation '${operation}' cannot run: ${plan.error}`));
+          return cleanupAndExit(1);
+        }
+        const { domain, payload } = plan.task;
+        const taskType = plan.task.type as TaskType;
 
         // #1081: refuse an operation whose task no domain plugin executes,
         // instead of submitting work that can only fail at dispatch.
@@ -349,7 +354,7 @@ export function createFleetCommand(
                 type: taskType,
                 priority: 'p1',
                 targetDomains: [domain],
-                payload: { target: options.target, workerId: op.id },
+                payload: { ...payload, target: options.target, workerId: op.id },
                 timeout: 60000,
               });
 
@@ -365,7 +370,7 @@ export function createFleetCommand(
                 if (!task) throw new Error(`Task status unavailable: ${taskResult.value}`);
                 if (task.status === 'completed') {
                   progress.completeAgent(op.id, true);
-                  return { id: op.id, success: true };
+                  return { id: op.id, success: true, result: task.result };
                 }
                 if (task.status === 'failed' || task.status === 'cancelled') {
                   throw new Error(task.error || `Task ${task.status}`);
@@ -376,7 +381,7 @@ export function createFleetCommand(
             } catch (error) {
               console.error(chalk.red(`   ${op.name}: ${error instanceof Error ? error.message : String(error)}`));
               progress.completeAgent(op.id, false);
-              return { id: op.id, success: false };
+              return { id: op.id, success: false, result: undefined };
             }
           })
         );
@@ -389,13 +394,16 @@ export function createFleetCommand(
         console.log(chalk.blue('\n Operation Summary:'));
         console.log(chalk.gray(`   Operation: ${operation}`));
         console.log(chalk.gray(`   Target: ${options.target}`));
-        console.log(chalk.green(`   Successful: ${successful}`));
+        console.log(chalk.gray(`   Completed: ${successful}`));
         if (failed > 0) {
           console.log(chalk.red(`   Failed: ${failed}`));
         }
+
+        // #1125 review: a completed task is not a passed check.
+        const passed = reportFleetVerdict(operation as FleetOperation, results);
         console.log('');
 
-        await cleanupAndExit(failed > 0 ? 1 : 0);
+        await cleanupAndExit(passed ? 0 : 1);
 
       } catch (error) {
         console.error(chalk.red('\n Fleet operation failed:'), error);

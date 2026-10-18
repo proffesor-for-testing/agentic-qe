@@ -34,6 +34,7 @@ import { createSQLitePatternStore } from '../../learning/sqlite-persistence.js';
 import { getActiveEmbeddingSpaceIdentity } from '../../learning/real-embeddings.js';
 import { inspectEmbeddingSpaceRows } from '../../learning/embedding-space.js';
 import { committedPendingIndexPatternId } from '../../learning/pattern-mutation-error.js';
+import { formatLearningOutcomes, formatPatternSuccessRate } from '../../learning/usage-outcome.js';
 
 // Extracted helpers
 import {
@@ -286,8 +287,8 @@ function registerStatsCommand(learning: Command): void {
           console.log(chalk.bold('\nLearning:'));
           console.log(`  Routing Requests: ${stats.routingRequests}`);
           console.log(`  Avg Routing Confidence: ${(stats.avgRoutingConfidence * 100).toFixed(1)}%`);
-          console.log(`  Learning Outcomes: ${stats.learningOutcomes}`);
-          console.log(`  Pattern Success Rate: ${(stats.patternSuccessRate * 100).toFixed(1)}%`);
+          console.log(`  Learning Outcomes: ${formatLearningOutcomes(stats)}`);
+          console.log(`  Pattern Success Rate: ${formatPatternSuccessRate(stats)}`);
 
           console.log(chalk.bold('\nSearch Performance:'));
           console.log(`  Operations: ${stats.patternStoreStats.searchOperations}`);
@@ -1237,7 +1238,8 @@ function registerDreamCommand(learning: Command): void {
             description: result.pattern.description || `${result.pattern.patternType} pattern`,
             domain: result.pattern.qeDomain || 'learning-optimization',
             patternType: result.pattern.patternType, confidence: result.pattern.confidence,
-            successRate: result.pattern.successRate || 0.5,
+            // A real 0% stays 0%; a pattern never used has no rate (#1142 review).
+            successRate: result.pattern.usageCount > 0 ? result.pattern.successRate : undefined,
           }));
           loaded = await engine.loadPatternsAsConcepts(importPatterns);
           printInfo(`Loaded ${loaded} patterns from ReasoningBank as concepts`);

@@ -11,6 +11,7 @@ import { QE_HOOK_EVENTS } from '../../../learning/qe-hooks.js';
 import type { QEDomain } from '../../../learning/qe-patterns.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { committedPendingIndexPatternId } from '../../../learning/pattern-mutation-error.js';
+import { formatLearningOutcomes, formatPatternSuccessRate } from '../../../learning/usage-outcome.js';
 import {
   getHooksSystem,
   printJson,
@@ -91,8 +92,8 @@ export function registerStatsHooks(hooks: Command): void {
           console.log(`  Avg Confidence: ${(stats.avgRoutingConfidence * 100).toFixed(1)}%`);
 
           console.log(chalk.bold('\nLearning:'));
-          console.log(`  Outcomes: ${stats.learningOutcomes}`);
-          console.log(`  Success Rate: ${(stats.patternSuccessRate * 100).toFixed(1)}%`);
+          console.log(`  Outcomes: ${formatLearningOutcomes(stats)}`);
+          console.log(`  Success Rate: ${formatPatternSuccessRate(stats)}`);
 
           console.log(chalk.bold('\nSearch Performance:'));
           console.log(`  Operations: ${stats.patternStoreStats.searchOperations}`);

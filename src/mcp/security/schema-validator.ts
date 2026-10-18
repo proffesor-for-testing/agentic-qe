@@ -644,7 +644,8 @@ export class SchemaValidator {
     // Check required properties
     if (schema.required) {
       for (const required of schema.required) {
-        if (!(required in data)) {
+        // #1136: own properties only; an inherited `constructor` is not present.
+        if (!Object.hasOwn(data, required)) {
           errors.push({
             path: path ? `${path}.${required}` : required,
             message: `Required property '${required}' is missing`,
@@ -658,7 +659,7 @@ export class SchemaValidator {
     // Validate properties
     if (schema.properties) {
       for (const [key, propSchema] of Object.entries(schema.properties)) {
-        if (key in data) {
+        if (Object.hasOwn(data, key)) {
           this.validateValue(
             data[key],
             propSchema,

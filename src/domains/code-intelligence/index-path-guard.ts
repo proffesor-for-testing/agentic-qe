@@ -71,14 +71,26 @@ export function validateIndexPaths(
 
 /**
  * Boundary check shared by `task_submit` and `aqe task submit`: an `index` or
- * `index-code` task that carries `paths` must carry a well-formed list.
- * Returns undefined when the task is acceptable.
+ * `index-code` task must carry a non-empty, well-formed `paths` list. The task
+ * handler indexes exactly those files; it does not expand a directory
+ * `target` (#1134), so a request without `paths` is refused here instead of
+ * failing after it was accepted. Returns undefined when the task is acceptable.
  */
 export function validateIndexTaskPayload(type: string, payload: unknown): Error | undefined {
   if (type !== 'index' && type !== 'index-code') return undefined;
-  if (payload === null || typeof payload !== 'object' || !('paths' in payload)) return undefined;
+  if (payload === null || typeof payload !== 'object' || !Object.hasOwn(payload, 'paths')) {
+    return new Error(
+      `Invalid index payload: '${type}' needs 'paths', the list of files to index. ` +
+      "It does not expand a directory 'target'; use code_index (or `aqe code index`) with a target, " +
+      'or list the files in paths.',
+    );
+  }
   const result = validateIndexPaths((payload as { paths: unknown }).paths);
-  return result.success ? undefined : result.error;
+  if (!result.success) return result.error;
+  if (result.value.length === 0) {
+    return new Error("Invalid index payload: 'paths' is empty; list at least one file to index");
+  }
+  return undefined;
 }
 
 /**

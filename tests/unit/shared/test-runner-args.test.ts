@@ -62,9 +62,9 @@ describe('test-runner-args helpers', () => {
   });
 
   it('puts name filters in --flag=value form', () => {
-    expect(nameFilterArg('jest', '-x')).toBe('--testNamePattern=-x');
-    expect(nameFilterArg('vitest', 'a.b')).toBe('--testNamePattern=a\\.b');
-    expect(nameFilterArg('mocha', '-x (y)')).toBe('--grep=-x \\(y\\)');
+    expect(nameFilterArg('jest', '-x')).toBe('--testNamePattern=^-x$');
+    expect(nameFilterArg('vitest', 'a.b')).toBe('--testNamePattern=^a\\.b$');
+    expect(nameFilterArg('mocha', '-x (y)')).toBe('--grep=^-x(?: > | )\\(y\\)$');
   });
 
   it('recognises Jest command vectors', () => {

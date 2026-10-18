@@ -211,6 +211,8 @@ describe('LearningCoordinatorService', () => {
         template: { type: 'workflow', content: 'test', variables: [] },
         createdAt: new Date(),
         lastUsedAt: new Date(),
+        // #1121: an untagged pattern predates #1120 and is never matched.
+        rewardSource: 'measured',
       };
 
       await mockMemory.set(`learning:pattern:${pattern.id}`, pattern);

@@ -533,7 +533,8 @@ export class MessageBrokerService {
       // Check required properties
       if (schemaDef.required && Array.isArray(schemaDef.required) && typeof data === 'object' && data !== null) {
         for (const prop of schemaDef.required) {
-          if (!(prop in data)) {
+          // #1136: own properties only; an inherited `constructor` is not present.
+          if (!Object.hasOwn(data, prop)) {
             errors.push(`Required property '${prop}' is missing`);
           }
         }
@@ -542,7 +543,7 @@ export class MessageBrokerService {
       // Check properties if defined
       if (schemaDef.properties && typeof data === 'object' && data !== null) {
         for (const [prop, propSchema] of Object.entries(schemaDef.properties)) {
-          if (prop in data) {
+          if (Object.hasOwn(data, prop)) {
             const propDef = propSchema as Record<string, unknown>;
             if (propDef.type) {
               const actualType = Array.isArray(data[prop]) ? 'array' : typeof data[prop];

@@ -31,6 +31,7 @@ import type {
   QEPatternType,
 } from './qe-patterns.js';
 import type { IPatternStore } from './pattern-store.js';
+import { usageOutcomeMetrics } from './usage-outcome.js';
 
 // ============================================================================
 // Types
@@ -129,6 +130,12 @@ export interface TaskExperience {
 
   /** Test outcome category (if applicable) */
   testOutcome?: TestOutcome;
+
+  /**
+   * #1129: what `success` was read from (e.g. test-results). Absent when the
+   * caller only knows the task completed; such usage is not a measured outcome.
+   */
+  outcomeBasis?: string;
 
   /** Feedback provided */
   feedback?: string;
@@ -404,6 +411,8 @@ export class ExperienceCaptureService {
       quality?: number;
       feedback?: string;
       testOutcome?: TestOutcome;
+      /** #1129: set when `success` was read from the result, not from completion. */
+      outcomeBasis?: string;
     }
   ): Promise<Result<TaskExperience>> {
     const experience = this.activeExperiences.get(experienceId);
@@ -417,6 +426,7 @@ export class ExperienceCaptureService {
     experience.durationMs = now - experience.startedAt;
     experience.success = outcome.success;
     experience.feedback = outcome.feedback;
+    if (outcome.outcomeBasis) experience.outcomeBasis = outcome.outcomeBasis;
 
     // Calculate quality from steps if not provided
     if (outcome.quality !== undefined) {
@@ -491,10 +501,14 @@ export class ExperienceCaptureService {
     // Extract patterns: require positive reward (or no reward signal) AND quality threshold
     // Zero or negative reward blocks extraction — only learn from genuinely positive outcomes
     const rewardAllowsExtraction = experience.reward === undefined || experience.reward > 0;
+    // #1129: a measured outcome is recorded whether it succeeded or failed.
+    // Recording only successes made the usage success rate 100% by selection.
     if (
-      experience.success &&
-      experience.quality >= this.config.minQualityForPatternExtraction &&
-      rewardAllowsExtraction
+      experience.outcomeBasis !== undefined || (
+        experience.success &&
+        experience.quality >= this.config.minQualityForPatternExtraction &&
+        rewardAllowsExtraction
+      )
     ) {
       const extractionResult = await this.extractPattern(experience);
       if (extractionResult.newPattern || extractionResult.reinforced) {
@@ -668,15 +682,18 @@ export class ExperienceCaptureService {
         && (!experience.domain || existing.pattern.qeDomain === experience.domain)) {
         const usageResult = await this.patternStore.recordUsage(
           existing.pattern.id,
-          experience.success
+          experience.success,
+          this.usageOutcomeTag(experience)
         );
 
         // Check if pattern should be promoted (short-term → long-term)
         const pattern = await this.patternStore.get(existing.pattern.id);
         let promoted = false;
 
+        // A failed use is now recorded too (#1129); it never promotes.
         if (
           pattern &&
+          experience.success &&
           pattern.tier === 'short-term' &&
           pattern.usageCount >= this.config.promotionThreshold
         ) {
@@ -708,7 +725,11 @@ export class ExperienceCaptureService {
       this.stats.patternsExtracted++;
 
       // Record the initial usage (the experience that created this pattern)
-      await this.patternStore.recordUsage(createResult.value.id, experience.success);
+      await this.patternStore.recordUsage(
+        createResult.value.id,
+        experience.success,
+        this.usageOutcomeTag(experience)
+      );
 
       return {
         newPattern: true,
@@ -909,6 +930,14 @@ export class ExperienceCaptureService {
   /**
    * Convert experience to pattern options
    */
+  /** #1129: tag the usage row so readers can tell a measured outcome from completion. */
+  private usageOutcomeTag(experience: TaskExperience): Record<string, unknown> {
+    const runId = typeof experience.metadata?.runId === 'string' ? experience.metadata.runId : undefined;
+    return experience.outcomeBasis !== undefined
+      ? usageOutcomeMetrics({ measured: true, success: experience.success, basis: experience.outcomeBasis }, runId)
+      : usageOutcomeMetrics({ measured: false, success: null, basis: 'task-completed' }, runId);
+  }
+
   private experienceToPatternOptions(experience: TaskExperience): CreateQEPatternOptions {
     // Detect pattern type from task
     const patternType = this.detectPatternType(experience.task);

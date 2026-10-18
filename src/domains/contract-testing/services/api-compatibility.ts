@@ -384,9 +384,10 @@ export class ApiCompatibilityService implements IApiCompatibilityService {
       const oldRequired = (oldContent.required as string[]) || [];
       const newRequired = (newContent.required as string[]) || [];
 
-      // Check for removed properties
+      // Check for removed properties. #1136: own properties only, so a
+      // property named `constructor` or `toString` is compared like any other.
       for (const prop of Object.keys(oldProps)) {
-        if (!(prop in newProps)) {
+        if (!Object.hasOwn(newProps, prop)) {
           breakingChanges.push({
             type: 'removed-field',
             location: `schema:${oldSchema.id}.${prop}`,
@@ -399,7 +400,7 @@ export class ApiCompatibilityService implements IApiCompatibilityService {
 
       // Check for added properties
       for (const prop of Object.keys(newProps)) {
-        if (!(prop in oldProps)) {
+        if (!Object.hasOwn(oldProps, prop)) {
           nonBreakingChanges.push({
             type: 'added-field',
             location: `schema:${newSchema.id}.${prop}`,
@@ -411,7 +412,7 @@ export class ApiCompatibilityService implements IApiCompatibilityService {
       // Check for new required fields (breaking if field existed as optional)
       for (const req of newRequired) {
         if (!oldRequired.includes(req)) {
-          if (req in oldProps) {
+          if (Object.hasOwn(oldProps, req)) {
             // Was optional, now required
             if (!this.config.allowOptionalToRequired) {
               breakingChanges.push({
@@ -422,7 +423,7 @@ export class ApiCompatibilityService implements IApiCompatibilityService {
                 affectedConsumers: consumers,
               });
             }
-          } else if (req in newProps) {
+          } else if (Object.hasOwn(newProps, req)) {
             // New required field
             breakingChanges.push({
               type: 'required-field-added',
@@ -437,7 +438,7 @@ export class ApiCompatibilityService implements IApiCompatibilityService {
 
       // Check for type changes
       for (const prop of Object.keys(oldProps)) {
-        if (prop in newProps) {
+        if (Object.hasOwn(newProps, prop)) {
           const oldPropDef = oldProps[prop] as Record<string, unknown>;
           const newPropDef = newProps[prop] as Record<string, unknown>;
 

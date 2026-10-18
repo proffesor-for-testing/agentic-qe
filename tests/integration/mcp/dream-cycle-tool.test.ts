@@ -6,7 +6,8 @@
  * These tests verify the DreamCycleTool MCP wrapper:
  * 1. Properly integrates with DreamEngine
  * 2. Creates REAL patterns in QEReasoningBank (not fake IDs)
- * 3. Handles config changes by recreating engine
+ * 3. Applies per-call duration and minimum patterns without recreating the
+ *    engine, and refuses a concurrent dream (#1060)
  * 4. Uses empty string (not '*') for pattern loading
  *
  * NOTE: Dream cycles on large production DBs take significant time
@@ -157,7 +158,7 @@ describe('DreamCycleTool Integration Tests', () => {
       }
       expect(result1.success).toBe(true);
 
-      // Second call with different duration (engine should be recreated)
+      // Second call with a different duration: applied per call, same engine (#1060)
       const result2 = await tool.invoke({
         action: 'dream',
         durationMs: 3000,
@@ -169,6 +170,20 @@ describe('DreamCycleTool Integration Tests', () => {
         console.log(`  error: ${result2.error}`);
       }
       expect(result2.success).toBe(true);
+    }, DOUBLE_DREAM_TIMEOUT);
+
+    it('#1060: refuses a second dream while one is running, without interrupting it', async () => {
+      const first = tool.invoke({ action: 'dream', durationMs: 3000, minPatterns: 1, loadFromReasoningBank: false });
+      // Let the first dream get past engine setup into its activation loop.
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      const second = await tool.invoke({ action: 'dream', durationMs: 1000, minPatterns: 1, loadFromReasoningBank: false });
+      const firstResult = await first;
+
+      expect(second.success).toBe(false);
+      expect(second.error).toMatch(/already running/);
+      expect(firstResult.success).toBe(true);
+      expect(firstResult.data?.dreamResult?.status).not.toBe('interrupted');
     }, DOUBLE_DREAM_TIMEOUT);
   });
 

@@ -3,6 +3,7 @@ import { join, basename, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { parse as parseYaml } from 'yaml';
 import { safeEvaluateBoolean } from '../../shared/utils/safe-expression-evaluator.js';
+import { setOwn } from '../../shared/utils/safe-record.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -231,8 +232,9 @@ export class WorkflowLoader {
     const workflow = await this.load(templateName);
 
     // Validate required variables
+    // #1136: a variable counts as given only when it is an own property.
     const missingVars = workflow.variables
-      .filter(v => v.required && !(v.name in variables))
+      .filter(v => v.required && !Object.hasOwn(variables, v.name))
       .map(v => v.name);
 
     if (missingVars.length > 0) {
@@ -244,10 +246,10 @@ export class WorkflowLoader {
     // Resolve variables with defaults
     const resolvedVariables: Record<string, any> = {};
     workflow.variables.forEach(varDef => {
-      if (varDef.name in variables) {
-        resolvedVariables[varDef.name] = variables[varDef.name];
+      if (Object.hasOwn(variables, varDef.name)) {
+        setOwn(resolvedVariables, varDef.name, variables[varDef.name]);
       } else if ('default' in varDef) {
-        resolvedVariables[varDef.name] = varDef.default;
+        setOwn(resolvedVariables, varDef.name, varDef.default);
       }
     });
 
@@ -324,7 +326,8 @@ export function interpolateVariables(
     let value: unknown = variables;
 
     for (const k of keys) {
-      if (value && typeof value === 'object' && k in (value as Record<string, unknown>)) {
+      // #1136: own properties only; {{constructor}} is not a variable.
+      if (value && typeof value === 'object' && Object.hasOwn(value, k)) {
         value = (value as Record<string, unknown>)[k];
       } else {
         return match; // Return original if key not found

@@ -69,9 +69,14 @@ export function jestExactPathPattern(file: string, cwd: string = process.cwd()):
 /**
  * Literal test-name filter in `--flag=value` form. Mocha uses `--grep`; Jest
  * and Vitest use `--testNamePattern` (the long form of `-t`).
+ *
+ * `testName` is the full name the runner reported (describe titles, then the
+ * test title). Runners match the filter against that name joined with ' '
+ * (Jest, Mocha, Vitest 3) or ' > ' (Vitest 4+), so each space matches either
+ * separator, and the name is anchored so a retry targets that one test (#1141).
  */
 export function nameFilterArg(runner: NameFilterRunner, testName: string): string {
-  const pattern = escapeRegExpLiteral(testName);
+  const pattern = `^${testName.split(' ').map(escapeRegExpLiteral).join('(?: > | )')}$`;
   return runner === 'mocha' ? `--grep=${pattern}` : `--testNamePattern=${pattern}`;
 }
 

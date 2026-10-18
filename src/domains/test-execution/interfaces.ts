@@ -271,6 +271,8 @@ export interface IRetryResult {
   nowPassing: number;
   stillFailing: number;
   flakyDetected: string[];
+  /** Failed tests whose retry filter selected no test, so none was rerun (#1141). */
+  unmatched?: string[];
 }
 
 export interface IExecutionStats {

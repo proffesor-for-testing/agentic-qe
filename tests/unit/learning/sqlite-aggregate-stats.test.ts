@@ -46,6 +46,7 @@ describe('SQLitePatternStore.getAggregateOutcomeStats', () => {
     expect(agg.routingRequests).toBe(0);
     expect(agg.avgRoutingConfidence).toBe(0);
     expect(agg.learningOutcomes).toBe(0);
+    expect(agg.measuredOutcomes).toBe(0);
     expect(agg.successfulOutcomes).toBe(0);
     expect(agg.avgPatternSuccessRate).toBe(0);
   });
@@ -90,21 +91,51 @@ describe('SQLitePatternStore.getAggregateOutcomeStats', () => {
     expect(agg.successfulRoutings).toBe(1);
   });
 
-  it('aggregates qe_pattern_usage success counts', () => {
+  it('counts measured runs: rows of one run count once, untagged rows never (#1129)', () => {
     const db = store.getDatabase();
     if (!db) throw new Error('expected db');
 
     const insert = db.prepare(
-      `INSERT INTO qe_pattern_usage (pattern_id, success) VALUES (?, ?)`
+      `INSERT INTO qe_pattern_usage (pattern_id, success, metrics_json) VALUES (?, ?, ?)`
     );
-    insert.run('p1', 1);
-    insert.run('p1', 1);
-    insert.run('p1', 0);
-    insert.run('p2', 1);
+    const measured = (runId: string) => JSON.stringify({ outcome: 'measured', outcomeBasis: 'test-results', runId });
+    // Run 1 failed and used 3 patterns (experience + 2 hints); run 2 failed; run 3 passed.
+    insert.run('p1', 0, measured('run-1'));
+    insert.run('h1', 0, measured('run-1'));
+    insert.run('h2', 0, measured('run-1'));
+    insert.run('p1', 0, measured('run-2'));
+    insert.run('p1', 1, measured('run-3'));
+    // A measured row with no runId is its own run.
+    insert.run('p2', 1, '{"outcome":"measured","outcomeBasis":"test-results"}');
 
     const agg = store.getAggregateOutcomeStats();
-    expect(agg.learningOutcomes).toBe(4);
-    expect(agg.successfulOutcomes).toBe(3);
+    expect(agg.learningOutcomes).toBe(6);
+    expect(agg.measuredOutcomes).toBe(4);
+    expect(agg.unmeasuredOutcomes).toBe(0);
+    expect(agg.successfulOutcomes).toBe(2);
+  });
+
+  it('leaves every row without an outcome tag out of the success counts (#1129)', () => {
+    const db = store.getDatabase();
+    if (!db) throw new Error('expected db');
+
+    const insert = db.prepare(
+      `INSERT INTO qe_pattern_usage (pattern_id, success, metrics_json, feedback) VALUES (?, ?, ?, ?)`
+    );
+    // The row shape session consolidation wrote on real installs before #1129
+    // (selected by HAVING success_rate >= 0.6; #1142 review B1).
+    insert.run('p1', 1, '{"source":"session-consolidation","domain":"test-generation","agent":"cli-hook"}', null);
+    insert.run('p1', 1, null, null);
+    insert.run('p1', 1, '{"executionTimeMs":12}', 'Domain handler test-execution execution succeeded');
+    insert.run('p1', 1, '{"testsPassed":4,"testsFailed":0}', null);
+    insert.run('p1', 1, '{"outcome":"unmeasured","outcomeBasis":"session-consolidation"}', null);
+    insert.run('p1', 1, 'not json', null);
+
+    const agg = store.getAggregateOutcomeStats();
+    expect(agg.learningOutcomes).toBe(6);
+    expect(agg.measuredOutcomes).toBe(0);
+    expect(agg.unmeasuredOutcomes).toBe(6);
+    expect(agg.successfulOutcomes).toBe(0);
   });
 
   it('returns avg(success_rate) from qe_patterns when rows have total_uses > 0', () => {
