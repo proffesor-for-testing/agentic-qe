@@ -284,6 +284,41 @@ describe('#1060 SpeculativeDreamer cancellation', () => {
     expect(activations()).toEqual(before);
   });
 
+  it('close() during strategy 2 of 2 commits nothing, not even the finished strategy 1', async () => {
+    const before = activations();
+    const dreamer = new SpeculativeDreamer(engine);
+    const running = dreamer.dream(
+      [
+        { name: 'a', activationConfig: { spreadFactor: 0.5 } },
+        { name: 'b', activationConfig: { spreadFactor: 0.6 } },
+      ],
+      { durationMs: 1000 },
+    );
+    // Re-review repro: close at 1.3 s, while strategy b runs.
+    await sleep(1300);
+    await engine.close();
+    const result = await running;
+
+    expect(result.cancelled).toBe(true);
+    expect(result.winner).toBeNull();
+    expect(result.strategies.every((s) => !s.selected)).toBe(true);
+    expect(count('dream_cycles')).toBe(0);
+    expect(count('dream_insights')).toBe(0);
+    expect(activations()).toEqual(before);
+  });
+
+  it('a closing engine refuses to start a dream or commit a pending result', async () => {
+    const pending = await engine.dream(200, { commit: false });
+    const closing = engine.close();
+
+    // Both checks run before close() reaches its first await.
+    expect(() => engine.commitDreamResult(pending)).toThrow('closing');
+    const refused = engine.dream(200);
+    await expect(refused).rejects.toThrow('closing');
+    await closing;
+    expect(count('dream_cycles')).toBe(0);
+  });
+
   it('a cancel between strategies also stops the run', async () => {
     const dreamer = new SpeculativeDreamer(engine);
     const realDream = engine.dream.bind(engine);
