@@ -31,6 +31,7 @@ import { toError } from '../../../shared/error-utils.js';
 import { readActivePatterns } from '../active-patterns.js';
 import { isMeasuredPattern, partitionByRewardSource } from '../reward-source.js';
 import { copyPatternToArchive, removeArchivedPattern } from '../pattern-archive.js';
+import { buildConsolidatedPattern } from '../pattern-consolidation.js';
 import {
   QEFlashAttention,
   createQEFlashAttention,
@@ -504,33 +505,7 @@ Provide:
       }
 
       // Merge patterns - take best template, combine contexts
-      const bestPattern = patterns.reduce((best, current) =>
-        current.successRate > best.successRate ? current : best
-      );
-
-      const mergedContext: PatternContext = {
-        language: bestPattern.context.language,
-        framework: bestPattern.context.framework,
-        testType: bestPattern.context.testType,
-        codeContext: bestPattern.context.codeContext,
-        tags: [...new Set(patterns.flatMap((p) => p.context.tags))],
-      };
-
-      const consolidatedPattern: LearnedPattern = {
-        id: uuidv4(),
-        type: bestPattern.type,
-        domain: bestPattern.domain,
-        name: `consolidated-${bestPattern.name}`,
-        description: `Consolidated from ${patterns.length} patterns`,
-        confidence: this.calculateConsolidatedConfidence(patterns),
-        usageCount: patterns.reduce((sum, p) => sum + p.usageCount, 0),
-        successRate: this.calculateWeightedSuccessRate(patterns),
-        context: mergedContext,
-        template: bestPattern.template,
-        createdAt: new Date(),
-        lastUsedAt: new Date(),
-        rewardSource: patterns.every(isMeasuredPattern) ? 'measured' : 'assigned',
-      };
+      const consolidatedPattern = buildConsolidatedPattern(patterns, uuidv4());
 
       // #1106: all or nothing. Every source pattern's archive copy is written
       // and read back first; then the consolidated pattern is stored and read
@@ -1183,30 +1158,6 @@ Provide:
       framework,
       tags: Array.from(tags),
     };
-  }
-
-  private calculateConsolidatedConfidence(patterns: LearnedPattern[]): number {
-    const totalUsage = patterns.reduce((sum, p) => sum + p.usageCount, 0);
-    let weightedConfidence = 0;
-
-    for (const pattern of patterns) {
-      const weight = totalUsage > 0 ? pattern.usageCount / totalUsage : 1 / patterns.length;
-      weightedConfidence += pattern.confidence * weight;
-    }
-
-    return weightedConfidence;
-  }
-
-  private calculateWeightedSuccessRate(patterns: LearnedPattern[]): number {
-    const totalUsage = patterns.reduce((sum, p) => sum + p.usageCount, 0);
-    let weightedRate = 0;
-
-    for (const pattern of patterns) {
-      const weight = totalUsage > 0 ? pattern.usageCount / totalUsage : 1 / patterns.length;
-      weightedRate += pattern.successRate * weight;
-    }
-
-    return weightedRate;
   }
 
   private detectAnomalies(experiences: Experience[]): ExperienceAnomaly[] {
