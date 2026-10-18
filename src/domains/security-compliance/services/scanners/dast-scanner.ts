@@ -3,7 +3,6 @@
  * Performs dynamic analysis of running applications to detect security vulnerabilities
  */
 
-import { LoggerFactory } from '../../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err } from '@shared/types/index.js';
 import type {
@@ -31,7 +30,6 @@ import {
   testIDOR,
   validateCredentials,
   buildAuthHeaders,
-  handleFetchError,
   calculateSummary,
   storeScanResults,
 } from './dast-helpers.js';
@@ -39,6 +37,18 @@ import {
 // ============================================================================
 // DAST Scanner Service
 // ============================================================================
+
+/** Transport failures are execution errors, not absence of vulnerabilities. */
+function dastRequestFailure(error: unknown): Error {
+  if (error instanceof Error && 'code' in error && ['DAST_AUTHENTICATION_FAILED', 'DAST_TARGET_UNAVAILABLE'].includes(String(error.code))) return error;
+  const timeout = error instanceof Error && /timeout|abort/i.test(error.message);
+  return Object.assign(new Error(timeout
+    ? 'DAST target request timeout; dynamic analysis is incomplete'
+    : 'DAST target request failed; dynamic analysis is incomplete'), {
+    code: timeout ? 'DAST_REQUEST_TIMEOUT' : 'DAST_REQUEST_FAILED',
+  });
+}
+
 
 /**
  * DAST Scanner - Dynamic Application Security Testing
@@ -61,7 +71,6 @@ import {
  * - No JavaScript execution (static response analysis only)
  * - No session management testing beyond cookie attributes
  */
-const logger = LoggerFactory.create('security-compliance/dast-scanner');
 
 export class DASTScanner {
   private readonly config: SecurityScannerConfig;
@@ -148,7 +157,7 @@ export class DASTScanner {
       // Validate credentials
       const credValidation = validateCredentials(credentials);
       if (!credValidation.valid) {
-        return err(new Error(credValidation.reason));
+        throw new Error(credValidation.reason);
       }
 
       const mergedOptions: DASTOptions = {
@@ -245,6 +254,13 @@ export class DASTScanner {
           () => new Error(`DAST request timeout after ${deadlineMs}ms: ${targetUrl}`),
         );
 
+        if (response.status === 401 || response.status === 403 || response.status >= 500) {
+          await response.body?.cancel().catch(() => undefined);
+          throw Object.assign(new Error(`DAST ${response.status < 500 ? 'authentication rejected' : 'target unavailable'} (HTTP ${response.status}); dynamic analysis is incomplete`), {
+            code: response.status < 500 ? 'DAST_AUTHENTICATION_FAILED' : 'DAST_TARGET_UNAVAILABLE',
+          });
+        }
+
         crawledUrls++;
 
         // Security header analysis
@@ -292,11 +308,11 @@ export class DASTScanner {
         }
 
       } catch (fetchError) {
-        handleFetchError(fetchError, targetUrl, vulnerabilities);
+        throw dastRequestFailure(fetchError);
       }
 
     } catch (error) {
-      logger.error('DAST scan error:', error instanceof Error ? error : undefined);
+      throw toError(error);
     }
 
     return { vulnerabilities, crawledUrls };
@@ -349,12 +365,14 @@ export class DASTScanner {
         );
         await response.body?.cancel().catch(() => undefined);
 
-        crawledUrls++;
-
-        // Check if authentication was successful
-        if (response.status === 401 || response.status === 403) {
-          vulnerabilities.push(this.createAuthFailedVuln(targetUrl, response.status));
+        if (response.status === 401 || response.status === 403 || response.status >= 500) {
+          await response.body?.cancel().catch(() => undefined);
+          throw Object.assign(new Error(`DAST ${response.status < 500 ? 'authentication rejected' : 'target unavailable'} (HTTP ${response.status}); dynamic analysis is incomplete`), {
+            code: response.status < 500 ? 'DAST_AUTHENTICATION_FAILED' : 'DAST_TARGET_UNAVAILABLE',
+          });
         }
+
+        crawledUrls++;
 
         // Standard security header checks
         analyzeSecurityHeaders(response.headers, targetUrl, vulnerabilities, true);
@@ -374,11 +392,11 @@ export class DASTScanner {
         analyzeCookieSecurity(response.headers, targetUrl, vulnerabilities, true);
 
       } catch (fetchError) {
-        handleFetchError(fetchError, targetUrl, vulnerabilities);
+        throw dastRequestFailure(fetchError);
       }
 
     } catch (error) {
-      logger.error('Authenticated DAST scan error:', error instanceof Error ? error : undefined);
+      throw toError(error);
     }
 
     return { vulnerabilities, crawledUrls };
@@ -411,19 +429,6 @@ export class DASTScanner {
       location: { file: targetUrl },
       remediation: { description: 'Redirect all HTTP traffic to HTTPS', estimatedEffort: 'moderate', automatable: false },
       references: ['https://owasp.org/www-project-web-security-testing-guide/'],
-    };
-  }
-
-  private createAuthFailedVuln(targetUrl: string, status: number): Vulnerability {
-    return {
-      id: uuidv4(),
-      title: 'Authentication Failed',
-      description: `Authentication returned ${status} status`,
-      severity: 'informational',
-      category: 'broken-auth',
-      location: { file: targetUrl },
-      remediation: { description: 'Verify credentials are correct', estimatedEffort: 'trivial', automatable: false },
-      references: [],
     };
   }
 

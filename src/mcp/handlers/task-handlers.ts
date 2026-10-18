@@ -513,6 +513,9 @@ export async function handleTaskOrchestrate(
       taskPayload.language = taskPayload.language || 'typescript';
       taskPayload.testType = taskPayload.testType || 'unit';
     }
+    if (taskType === 'index-code') {
+      taskPayload.paths = params.filePaths || [];
+    }
 
     const result = await queen!.submitTask({
       type: taskType,
