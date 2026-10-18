@@ -12,6 +12,12 @@
  *   engine-close - close the engine mid-dream (what MCP fleet dispose does
  *              before the store closers run), then shut down and exit
  *   complete - let the dream finish normally (control)
+ *   commit-error - make the dream's single commit transaction fail (a TEMP
+ *              trigger aborts the final cycle update): nothing of the dream
+ *              may be written, the foreground write must stay
+ *   branching - like complete, with the deprecated enableBranching: true
+ *   abrupt   - SIGKILL the process mid-dream (no closers run)
+ *   concurrent - start a second dream while the first runs; it must be refused
  *
  * Writes the acknowledgment to ack.json in the cwd. The parent reopens the
  * database on its own connection to check what is on disk.
@@ -28,7 +34,7 @@ import {
 } from '../../../src/mcp/handlers/memory-handlers.js';
 
 const mode = process.argv[2];
-if (!['cancel', 'shutdown', 'engine-close', 'complete'].includes(mode)) {
+if (!['cancel', 'shutdown', 'engine-close', 'complete', 'commit-error', 'branching', 'abrupt', 'concurrent'].includes(mode)) {
   throw new Error(`unknown mode: ${mode}`);
 }
 
@@ -43,7 +49,11 @@ const { backend } = await createMemoryBackend(
 );
 const db = getUnifiedMemory().getDatabase();
 
-const engine = createDreamEngine({ minConceptsRequired: 3, maxDurationMs: 1500 });
+const engine = createDreamEngine({
+  minConceptsRequired: 3,
+  maxDurationMs: 1500,
+  ...(mode === 'branching' ? { enableBranching: true } : {}),
+});
 await engine.initialize();
 await engine.loadPatternsAsConcepts(
   Array.from({ length: 12 }, (_, i) => ({
@@ -55,6 +65,15 @@ await engine.loadPatternsAsConcepts(
     successRate: 0.9,
   })),
 );
+
+// What the dream may change, as it was before the dream (#1060 atomicity).
+writeFileSync('before.json', JSON.stringify(
+  db.prepare('SELECT id, activation_level, last_activated FROM concept_nodes ORDER BY id').all(),
+));
+if (mode === 'commit-error') {
+  db.exec(`CREATE TEMP TRIGGER fail_dream_commit BEFORE UPDATE OF status ON dream_cycles
+           WHEN NEW.status = 'completed' BEGIN SELECT RAISE(ABORT, 'injected commit failure'); END`);
+}
 
 // Start the dream and do not await it: the MCP server keeps dispatching
 // requests while a dream is in flight.
@@ -81,15 +100,26 @@ const ack = {
 };
 writeFileSync('ack.json', JSON.stringify(ack));
 
+if (mode === 'concurrent') {
+  const second = await engine.dream(500).then(() => 'completed', (err: unknown) => (err as Error).name);
+  writeFileSync('dream.json', JSON.stringify({ second, outcome: await dreaming }));
+} else if (mode === 'abrupt') {
+  process.kill(process.pid, 'SIGKILL');
+}
+
 if (mode === 'cancel') {
+  const cancelledAt = Date.now();
   await engine.cancelDream();
-  writeFileSync('dream.json', JSON.stringify({ outcome: await dreaming }));
-} else if (mode === 'complete') {
+  const outcome = await dreaming;
+  writeFileSync('dream.json', JSON.stringify({ outcome, stopMs: Date.now() - cancelledAt }));
+} else if (mode === 'complete' || mode === 'commit-error' || mode === 'branching') {
   writeFileSync('dream.json', JSON.stringify({ outcome: await dreaming }));
 } else if (mode === 'engine-close') {
   await engine.close();
   closeRegisteredStores();
   process.exit(0);
+} else if (mode === 'concurrent') {
+  // dream.json already written
 } else {
   // What the MCP server does on stdin EOF: run the registered store closers
   // (memory.db closes last), then exit without waiting for the dream.

@@ -24,6 +24,8 @@ export { CHAIN_REANCHOR_ACTION } from './witness-chain-verifier.js';
 export type WitnessActionType =
   | 'PATTERN_CREATE' | 'PATTERN_UPDATE' | 'PATTERN_PROMOTE' | 'PATTERN_QUARANTINE'
   | 'DREAM_MERGE' | 'DREAM_DISCARD'
+  // #1060: a dream's single commit transaction (replaces DREAM_MERGE).
+  | 'DREAM_COMMIT'
   | 'QUALITY_GATE_PASS' | 'QUALITY_GATE_FAIL'
   | 'ROUTING_DECISION'
   // A7: provenance of DELIVERED review findings (adversarially-verified survivors)

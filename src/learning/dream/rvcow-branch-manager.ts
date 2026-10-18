@@ -19,7 +19,9 @@
  * process-wide shared connection, foreground writes made in the meantime
  * (memory_store and other acknowledged writes) join the savepoint and are
  * rolled back by a discard, or lost if the connection closes before
- * RELEASE. DreamEngine therefore defaults `enableBranching` to false.
+ * RELEASE. Since #1060 neither DreamEngine nor SpeculativeDreamer branches:
+ * a dream is computed in memory and committed in one short transaction
+ * (dream-commit.ts).
  *
  * @module learning/dream/rvcow-branch-manager
  */
@@ -140,6 +142,10 @@ export type BranchEventListener = (event: BranchEvent, branch: Branch, detail?: 
  *   manager.discardBranch(branch);
  * }
  * ```
+ *
+ * @deprecated #1060: no dream path uses branching any more. A SAVEPOINT on
+ * the process-wide shared connection captures every foreground write made
+ * while it is open; do not reintroduce it there.
  */
 export class RVCOWBranchManager {
   private activeBranches: Map<string, Branch> = new Map();
@@ -194,6 +200,7 @@ export class RVCOWBranchManager {
    * @param name - Unique branch name (used as savepoint identifier)
    * @returns The created Branch
    * @throws If a branch with this name already exists
+   * @deprecated #1060: see the class note; never open this on the shared connection.
    */
   createBranch(name: string): Branch {
     if (this.activeBranches.has(name)) {

@@ -40,12 +40,17 @@ import {
   type ConceptGraph as InsightConceptGraph,
 } from './insight-generator.js';
 import {
-  RVCOWBranchManager,
   type Branch,
   type ValidationResult,
   type ValidationThresholds,
   DEFAULT_VALIDATION_THRESHOLDS,
 } from './rvcow-branch-manager.js';
+import {
+  commitDream,
+  markAbandonedCycles,
+  ABANDONED_CYCLE_GRACE_MS,
+  type ComputedDream,
+} from './dream-commit.js';
 import type { WitnessChain } from '../../audit/witness-chain.js';
 import type {
   DreamCycle,
@@ -80,19 +85,12 @@ export interface DreamConfig {
   insightConfig: InsightConfig;
 
   /**
-   * Enable RVCOW branching for reversible dream cycles (ADR-069).
-   * Default: false (#1060).
-   *
-   * RISK — opt in only for an isolated database connection. The branch is a
-   * SQLite SAVEPOINT on the process-wide shared connection, and it stays open
-   * for the whole asynchronous dream (up to `maxDurationMs`). Every other
-   * write made on that connection in the meantime (memory_store, pattern
-   * updates, experience capture) joins the savepoint. A discard (failed
-   * validation, error, cancel) rolls those foreground writes back even though
-   * they were already acknowledged. Branch validation only inspects
-   * `qe_patterns`, which `dream()` does not write, so branching adds little
-   * protection to a dream cycle. A compute-then-commit rework is tracked in
-   * #1060.
+   * @deprecated #1060: ignored. A dream is computed in memory and its results
+   * are committed in one short synchronous transaction (see dream-commit.ts),
+   * which gives the atomicity branching was meant to provide without holding
+   * a SAVEPOINT on the shared connection across the asynchronous dream (that
+   * rolled back acknowledged foreground writes). Setting it to true logs a
+   * warning and has no other effect. Kept so existing configs still load.
    */
   enableBranching: boolean;
 
@@ -118,7 +116,7 @@ export const DEFAULT_DREAM_CONFIG: DreamConfig = {
     minConfidence: 0.5,
     maxInsightsPerCycle: 10,
   },
-  // #1060: off by default; see the RISK note on DreamConfig.enableBranching.
+  // #1060: deprecated and ignored; see DreamConfig.enableBranching.
   enableBranching: false,
   branchValidationThresholds: { ...DEFAULT_VALIDATION_THRESHOLDS },
 };
@@ -146,6 +144,42 @@ export interface DreamCycleResult {
 
   /** Number of patterns created from insights */
   patternsCreated: number;
+
+  /** #1060: how long the single commit transaction held the write lock, in ms. */
+  commitDurationMs?: number;
+
+  /**
+   * #1060: the uncommitted results of a `dream(…, { commit: false })` run.
+   * Pass the result to DreamEngine.commitDreamResult() to write them.
+   */
+  pending?: ComputedDream;
+}
+
+/** #1060: per-call options for DreamEngine.dream(). */
+export interface DreamRunOptions {
+  /** Minimum concepts required for this run (default: config.minConceptsRequired). */
+  minConceptsRequired?: number;
+  /** Activation parameter overrides for this run (SpeculativeDreamer strategies). */
+  activationConfig?: Partial<ActivationConfig>;
+  /**
+   * Write the results (default true). With false the dream writes nothing at
+   * all, not even its cycle row, and returns them in `pending`.
+   */
+  commit?: boolean;
+}
+
+/**
+ * #1060: the longest dream the MCP tool runs (its durationMs cap). The
+ * abandoned-cycle sweep waits at least this long plus the grace period.
+ */
+const MAX_TOOL_DREAM_MS = 60_000;
+
+/** #1060: a second dream on the same engine while one is running. */
+export class DreamAlreadyRunningError extends Error {
+  constructor(readonly cycleId: string) {
+    super(`A dream cycle is already running (cycle ${cycleId}); wait for it to finish or cancel it`);
+    this.name = 'DreamAlreadyRunningError';
+  }
 }
 
 /**
@@ -178,6 +212,8 @@ class ConceptGraphAdapter implements SpreadingConceptGraph, InsightConceptGraph 
   private nodeCache: Map<string, ConceptNode> = new Map();
   private edgeCache: Map<string, ConceptEdge[]> = new Map();
   private activationLevels: Map<string, number> = new Map();
+  /** #1060: each node's level when loaded, for the commit's conflict check. */
+  private loadedLevels: Map<string, number> = new Map();
 
   constructor(private readonly graph: ConceptGraph) {}
 
@@ -191,6 +227,7 @@ class ConceptGraphAdapter implements SpreadingConceptGraph, InsightConceptGraph 
     this.nodeCache.clear();
     this.edgeCache.clear();
     this.activationLevels.clear();
+    this.loadedLevels.clear();
 
     // Load nodes (all or capped)
     let nodes = await this.graph.getActiveNodes(0);
@@ -203,6 +240,7 @@ class ConceptGraphAdapter implements SpreadingConceptGraph, InsightConceptGraph 
     for (const node of nodes) {
       this.nodeCache.set(node.id, node);
       this.activationLevels.set(node.id, node.activationLevel);
+      this.loadedLevels.set(node.id, node.activationLevel);
     }
 
     // Load edges for each node
@@ -214,13 +252,17 @@ class ConceptGraphAdapter implements SpreadingConceptGraph, InsightConceptGraph 
   }
 
   /**
-   * Persist activation levels back to the database
+   * Final activation levels with the levels loaded, written by commitDream()
+   * in the cycle's single transaction (#1060) instead of one awaited UPDATE
+   * per node. The loaded level lets the commit skip a node a foreground write
+   * changed during the dream.
    */
-  async persistActivations(): Promise<void> {
-    const entries = Array.from(this.activationLevels.entries());
-    for (const [nodeId, level] of entries) {
-      await this.graph.updateActivation(nodeId, level);
-    }
+  activationEntries(): Array<[string, number, number | undefined]> {
+    return Array.from(this.activationLevels.entries(), ([id, level]) => [
+      id,
+      level,
+      this.loadedLevels.get(id),
+    ]);
   }
 
   // SpreadingConceptGraph interface implementation
@@ -339,23 +381,28 @@ export class DreamEngine {
   private persistence: UnifiedPersistenceManager | null = null;
   private graph: ConceptGraph | null = null;
   private db: DatabaseType | null = null;
-  private branchManager: RVCOWBranchManager | null = null;
   /** #1060: marks the in-flight dream cycle interrupted (set while dreaming). */
   private interruptActiveDream: (() => void) | null = null;
+  /** #1060: the in-flight dream, so close() can wait for it to stop. */
+  private activeDream: { cycleId: string; done: Promise<unknown> } | null = null;
+  /** #1060: stops the in-flight dream's activation loop. */
+  private activeAbort: AbortController | null = null;
   private currentCycle: DreamCycle | null = null;
   private initialized = false;
   private cancelled = false;
+  /** #1060: how many times cancelDream() was called (see cancelCount). */
+  private cancelRequests = 0;
+  /** #1060: set by close() until the engine is initialized again. */
+  private closing = false;
   private branchEventListeners: Array<(event: string, branch: Branch, detail?: ValidationResult) => void> = [];
 
   /** Optional witness chain for audit trail of dream decisions (ADR-070) */
   private _witnessChain: WitnessChain | null = null;
   set witnessChain(wc: WitnessChain | null) { this._witnessChain = wc; }
 
-  /** Optional RVF adapter for COW branching (ADR-069). Set externally to share with PatternStore. */
+  /** @deprecated #1060: branching is ignored, so the RVF adapter is unused. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private _rvfAdapter: any = null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  set rvfAdapter(adapter: any) { this._rvfAdapter = adapter; }
+  set rvfAdapter(_adapter: any) { /* ignored (#1060) */ }
 
   constructor(config?: Partial<DreamConfig>) {
     this.config = { ...DEFAULT_DREAM_CONFIG, ...config };
@@ -391,22 +438,25 @@ export class DreamEngine {
       this.graph = new ConceptGraph();
       await this.graph.initialize();
 
-      // Initialize RVCOW branch manager (ADR-069)
+      // #1060: branching is deprecated; dream results commit in one transaction.
       if (this.config.enableBranching) {
-        this.branchManager = new RVCOWBranchManager(
-          this.db,
-          this.config.branchValidationThresholds,
+        dreamLogger.warn(
+          'DreamConfig.enableBranching is deprecated and ignored (#1060): dream results are ' +
+            'committed in one short transaction instead of a SAVEPOINT held across the dream',
         );
+      }
 
-        // ADR-069: Wire RVF adapter for true COW branching when available
-        // Uses externally-provided adapter to avoid duplicate file handles
-        if (this._rvfAdapter) {
-          this.branchManager.setRvfAdapter(this._rvfAdapter, true);
-          console.log('[DreamEngine] RVF COW branching activated (ADR-069)');
-        }
+      // #1060: a process that exited mid-dream left its cycle 'running'.
+      const abandoned = markAbandonedCycles(
+        this.db,
+        Math.max(this.config.maxDurationMs, MAX_TOOL_DREAM_MS) + ABANDONED_CYCLE_GRACE_MS,
+      );
+      if (abandoned > 0) {
+        dreamLogger.info('Marked abandoned dream cycles as interrupted', { abandoned });
       }
 
       this.initialized = true;
+      this.closing = false;
       console.log(`[DreamEngine] Initialized: ${this.persistence.getDbPath()}`);
     } catch (error) {
       throw new Error(
@@ -475,18 +525,26 @@ export class DreamEngine {
    * 4. Generates insights from activation patterns
    * 5. Persists the cycle and insights
    *
+   * The cycle row is written as 'running' when the dream starts. Another
+   * process's DreamEngine.initialize() marks a cycle still 'running' after
+   * max(its config.maxDurationMs, 60 s) + ABANDONED_CYCLE_GRACE_MS (10 min),
+   * i.e. 11 minutes by default, as interrupted ('abandoned: process exited').
+   * The MCP tool and the CLI cap dreams at 60 s. A library caller that runs
+   * dreams longer than about 10 minutes (graph loading included) should give
+   * every engine sharing the database a maxDurationMs at least that long, or
+   * a live cycle can be marked interrupted. Its commit still records the
+   * final status, and nothing is deleted.
+   *
    * @param durationMs - Maximum duration in milliseconds (default: config.maxDurationMs)
    * @returns Dream cycle result with insights and statistics
    */
-  async dream(durationMs?: number): Promise<DreamCycleResult> {
+  async dream(durationMs?: number, options: DreamRunOptions = {}): Promise<DreamCycleResult> {
     this.ensureInitialized();
-    this.cancelled = false;
+    if (this.closing) throw new Error('Dream engine is closing; no new dream is started');
+    // #1060: one dream at a time per engine; a second request is refused.
+    if (this.activeDream) throw new DreamAlreadyRunningError(this.activeDream.cycleId);
 
-    const maxDuration = durationMs ?? this.config.maxDurationMs;
-    const startTime = Date.now();
-
-    // Create cycle record
-    this.currentCycle = {
+    const cycle: DreamCycle = {
       id: uuidv4(),
       startTime: new Date(),
       conceptsProcessed: 0,
@@ -494,108 +552,88 @@ export class DreamEngine {
       insightsGenerated: 0,
       status: 'running' as DreamCycleStatus,
     };
-    await this.saveCycle(this.currentCycle);
-
-    // ADR-069: Create RVCOW branch before dream consolidation (opt-in, #1060)
-    let branch: Branch | null = null;
-    if (this.branchManager) {
-      const branchName = `dream-${this.currentCycle.id}-${Date.now()}`;
-      branch = this.branchManager.createBranch(branchName);
-      this.emitBranchEvent('dream:branch_created', branch);
+    const run = this.runDream(cycle, durationMs ?? this.config.maxDurationMs, options);
+    this.activeDream = { cycleId: cycle.id, done: run.catch(() => undefined) };
+    try {
+      return await run;
+    } finally {
+      if (this.activeDream?.cycleId === cycle.id) this.activeDream = null;
     }
+  }
 
-    // #1060: if the engine closes or the process shuts down mid-dream, record
-    // the cycle as interrupted instead of leaving it 'running' forever.
-    const interrupt = this.createCycleInterrupter(this.currentCycle, startTime, () => branch);
+  /**
+   * #1060: compute, then commit. Everything up to the commit reads the
+   * database or works in memory; the results are written by commitDream() in
+   * one synchronous transaction, so no lock is held across an await and no
+   * foreground write can join the dream's writes or be rolled back with them.
+   */
+  private async runDream(
+    cycle: DreamCycle,
+    maxDuration: number,
+    options: DreamRunOptions,
+  ): Promise<DreamCycleResult> {
+    const db = this.db!;
+    const graph = this.graph!;
+    const startTime = Date.now();
+    const abort = new AbortController();
+    this.activeAbort = abort;
+    this.cancelled = false;
+    this.currentCycle = cycle;
+    const commitResults = options.commit !== false;
+
+    // If the engine closes or the process shuts down mid-dream, stop the dream
+    // and record the cycle as interrupted instead of leaving it 'running'.
+    // Registered before the first await, so a close() or shutdown right after
+    // dream() is called still reaches this dream.
+    const interrupt = this.createCycleInterrupter(cycle, startTime, abort);
     this.interruptActiveDream = interrupt;
     const unregisterShutdownGuard = registerStoreCloser(interrupt);
+    // The engine still owns this database and nobody asked the dream to stop.
+    const live = () => !this.cancelled && !abort.signal.aborted && this.db === db;
+    let committed = false;
 
     try {
+      if (commitResults) await this.saveCycle(cycle);
+      if (!live()) throw new Error('Dream cycle cancelled');
+
       // 1. Check we have enough concepts
-      const allNodes = await this.graph!.getActiveNodes(0);
-      if (allNodes.length < this.config.minConceptsRequired) {
-        throw new Error(
-          `Insufficient concepts: ${allNodes.length} < ${this.config.minConceptsRequired}`
-        );
+      const minConcepts = options.minConceptsRequired ?? this.config.minConceptsRequired;
+      const allNodes = await graph.getActiveNodes(0);
+      if (allNodes.length < minConcepts) {
+        throw new Error(`Insufficient concepts: ${allNodes.length} < ${minConcepts}`);
       }
 
-      // 2. Create adapter and load graph into memory.
-      //    Cap nodes to keep wall-clock time reasonable on large concept graphs.
-      //    Each node requires DB queries for edges (O(N) queries per node),
-      //    so fewer nodes significantly reduces initialization time.
-      const adapter = new ConceptGraphAdapter(this.graph!);
+      // 2. Load the graph into memory. Each node requires DB queries for
+      //    edges, so the node count is capped to keep wall-clock time reasonable.
+      const adapter = new ConceptGraphAdapter(graph);
       await adapter.loadIntoMemory(30);
 
-      // 3. Run spreading activation (the "dreaming")
-      const activation = new SpreadingActivation(adapter, this.config.activationConfig);
-      const activationResult = await activation.dream(maxDuration);
+      // 3. Spreading activation (the "dreaming"), in memory only.
+      const activation = new SpreadingActivation(adapter, {
+        ...this.config.activationConfig,
+        ...options.activationConfig,
+      });
+      const activationResult = await activation.dream(maxDuration, abort.signal);
+      if (!live()) throw new Error('Dream cycle cancelled');
 
-      // Check for cancellation
-      if (this.cancelled) {
-        this.currentCycle.status = 'interrupted';
-        this.currentCycle.endTime = new Date();
-        this.currentCycle.durationMs = Date.now() - startTime;
-        await this.updateCycle(this.currentCycle);
-        throw new Error('Dream cycle cancelled');
-      }
+      cycle.conceptsProcessed = activationResult.nodesActivated;
+      cycle.associationsFound = activationResult.novelAssociations.length;
 
-      this.currentCycle.conceptsProcessed = activationResult.nodesActivated;
-      this.currentCycle.associationsFound = activationResult.novelAssociations.length;
-
-      // 4. Persist activation levels
-      await adapter.persistActivations();
-
-      // 5. Generate insights from activation
+      // 4. Insights, in memory only.
       const generator = new InsightGenerator(adapter, this.config.insightConfig);
-      const insights = await generator.generateFromActivation(
-        this.currentCycle.id,
-        activationResult
-      );
+      const insights = await generator.generateFromActivation(cycle.id, activationResult);
+      if (!live()) throw new Error('Dream cycle cancelled');
 
-      this.currentCycle.insightsGenerated = insights.length;
-
-      // 6. Save insights
-      for (const insight of insights) {
-        await this.saveInsight(insight);
-      }
-
-      // 7. Finalize cycle
-      this.currentCycle.endTime = new Date();
-      this.currentCycle.durationMs = Date.now() - startTime;
-      this.currentCycle.status = 'completed';
-      await this.updateCycle(this.currentCycle);
-
-      // ADR-069: Validate and merge/discard the RVCOW branch
-      if (branch && this.branchManager) {
-        const validation = this.branchManager.validateBranch(branch);
-        if (validation.passed) {
-          this.branchManager.mergeBranch(branch);
-          this.emitBranchEvent('dream:branch_merged', branch, validation);
-          try {
-            this._witnessChain?.append('DREAM_MERGE', {
-              cycleId: this.currentCycle!.id, branchName: branch.name,
-            }, 'dream-engine');
-          } catch { /* best-effort witness */ }
-        } else {
-          this.branchManager.discardBranch(branch);
-          this.emitBranchEvent('dream:branch_discarded', branch, validation);
-          try {
-            this._witnessChain?.append('DREAM_DISCARD', {
-              cycleId: this.currentCycle!.id, branchName: branch.name,
-              reason: validation.reason,
-            }, 'dream-engine');
-          } catch { /* best-effort witness */ }
-          dreamLogger.warn('Dream branch discarded: quality validation failed', {
-            cycleId: this.currentCycle.id,
-            reason: validation.reason,
-          });
-          // Still return results so caller sees what happened
-        }
-        branch = null; // Prevent double-discard in catch
-      }
-
+      // 5. Commit activations, insights and the final cycle row together.
+      //    live() was checked synchronously just above, so the dream is
+      //    still wanted and the engine still owns the database.
+      cycle.insightsGenerated = insights.length;
+      cycle.endTime = new Date();
+      cycle.durationMs = Date.now() - startTime;
+      cycle.status = 'completed';
+      const computed: ComputedDream = { cycle, activations: adapter.activationEntries(), insights };
       const result: DreamCycleResult = {
-        cycle: { ...this.currentCycle },
+        cycle: { ...cycle },
         insights,
         activationStats: {
           totalIterations: activationResult.iterations,
@@ -604,60 +642,89 @@ export class DreamEngine {
         },
         patternsCreated: 0, // Updated when insights are applied
       };
-
-      this.currentCycle = null;
+      if (!commitResults) {
+        committed = true; // nothing to record: the caller decides
+        return { ...result, pending: computed };
+      }
+      result.commitDurationMs = this.commitComputed(db, computed);
+      committed = true;
       return result;
     } catch (error) {
-      // ADR-069: Discard branch on error to ensure no partial mutations persist
-      if (branch && this.branchManager) {
+      // Nothing of the dream was committed. An interrupted cycle was already
+      // recorded by the interrupter; anything else is recorded as failed.
+      if (!committed && cycle.status !== 'interrupted') {
+        cycle.status = this.cancelled ? 'interrupted' : 'failed';
+        cycle.error = toErrorMessage(error);
+        cycle.endTime = new Date();
+        cycle.durationMs = Date.now() - startTime;
+        if (commitResults && this.db === db) {
+          try { this.updateCycleSync(cycle); } catch { /* best effort */ }
+        }
+      }
+      if (!committed && commitResults) {
         try {
-          this.branchManager.discardBranch(branch);
-          this.emitBranchEvent('dream:branch_discarded', branch);
-        } catch {
-          // Branch may already be discarded; ignore
-        }
+          this._witnessChain?.append('DREAM_DISCARD', {
+            cycleId: cycle.id, reason: toErrorMessage(error),
+          }, 'dream-engine');
+        } catch { /* best-effort witness */ }
       }
-
-      if (this.currentCycle) {
-        if (this.currentCycle.status === 'running') {
-          this.currentCycle.status = 'failed';
-        }
-        this.currentCycle.error = toErrorMessage(error);
-        this.currentCycle.endTime = new Date();
-        this.currentCycle.durationMs = Date.now() - startTime;
-        await this.updateCycle(this.currentCycle);
-      }
-      this.currentCycle = null;
       throw error;
     } finally {
       unregisterShutdownGuard();
       if (this.interruptActiveDream === interrupt) this.interruptActiveDream = null;
+      if (this.currentCycle === cycle) this.currentCycle = null;
+      if (this.activeAbort === abort) this.activeAbort = null;
     }
   }
 
   /**
-   * #1060: build a synchronous handler that records a still-running cycle as
-   * 'interrupted'. It runs from close() and from a process store closer,
-   * which runs before the shared database closes (closers run newest first).
-   * When opt-in branching left a savepoint open, the savepoint is released
-   * first so foreground writes made on the shared connection during the
-   * dream are committed rather than lost with the connection.
+   * #1060: write the results of a `dream(…, { commit: false })` run, in the
+   * same single transaction a normal dream uses. Returns the commit duration
+   * in ms. Throws (and writes nothing) if the engine is closed or the write
+   * fails.
+   */
+  commitDreamResult(result: DreamCycleResult): number {
+    this.ensureInitialized();
+    if (this.closing) {
+      throw new Error('Dream engine is closing; nothing is committed');
+    }
+    if (!result.pending) {
+      throw new Error('Dream result has nothing pending to commit (it was already committed)');
+    }
+    const duration = this.commitComputed(this.db!, result.pending);
+    result.pending = undefined;
+    result.commitDurationMs = duration;
+    return duration;
+  }
+
+  /** Commit a computed dream, then record it in the witness chain (#1060). */
+  private commitComputed(db: DatabaseType, computed: ComputedDream): number {
+    const commit = commitDream(db, computed);
+    try {
+      this._witnessChain?.append('DREAM_COMMIT', {
+        cycleId: computed.cycle.id,
+        insights: commit.insightsWritten,
+        activations: commit.activationsWritten,
+        commitDurationMs: commit.commitDurationMs,
+      }, 'dream-engine');
+    } catch { /* best-effort witness */ }
+    return commit.commitDurationMs;
+  }
+
+  /**
+   * #1060: build a synchronous handler that stops a still-running dream and
+   * records its cycle as 'interrupted'. It runs from close() and from a
+   * process store closer, which runs before the shared database closes
+   * (closers run newest first). Nothing of the dream is committed afterwards.
    */
   private createCycleInterrupter(
     cycle: DreamCycle,
     startTime: number,
-    getBranch: () => Branch | null,
+    abort: AbortController,
   ): () => void {
     return () => {
+      abort.abort();
       if (cycle.status !== 'running' || !this.db) return;
-      const branch = getBranch();
-      if (branch && this.branchManager) {
-        try {
-          this.branchManager.mergeBranch(branch);
-        } catch {
-          // Branch already resolved; nothing to release
-        }
-      }
       cycle.status = 'interrupted';
       cycle.error = 'Interrupted: engine closed or process shut down during the dream cycle';
       cycle.endTime = new Date();
@@ -965,10 +1032,21 @@ export class DreamEngine {
   // ==========================================================================
 
   /**
+   * #1060: number of cancelDream() calls so far. A caller that runs several
+   * dreams in a row (SpeculativeDreamer) compares it to stop after a cancel.
+   */
+  get cancelCount(): number {
+    return this.cancelRequests;
+  }
+
+  /**
    * Cancel the running dream cycle.
    */
   async cancelDream(): Promise<void> {
     this.cancelled = true;
+    this.cancelRequests++;
+    // #1060: stop the activation loop now; nothing of the dream is committed.
+    this.activeAbort?.abort();
   }
 
   /**
@@ -1013,10 +1091,6 @@ export class DreamEngine {
     );
   }
 
-  private async updateCycle(cycle: DreamCycle): Promise<void> {
-    this.updateCycleSync(cycle);
-  }
-
   private updateCycleSync(cycle: DreamCycle): void {
     if (!this.db) return;
 
@@ -1039,31 +1113,6 @@ export class DreamEngine {
     );
   }
 
-  private async saveInsight(insight: DreamInsight): Promise<void> {
-    if (!this.db) return;
-
-    const stmt = this.db.prepare(`
-      INSERT INTO dream_insights
-      (id, cycle_id, insight_type, source_concepts, description, novelty_score,
-       confidence_score, actionable, applied, suggested_action, pattern_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    stmt.run(
-      insight.id,
-      insight.cycleId,
-      insight.type,
-      JSON.stringify(insight.sourceConcepts),
-      insight.description,
-      insight.noveltyScore,
-      insight.confidenceScore,
-      insight.actionable ? 1 : 0,
-      0, // Not applied yet
-      insight.suggestedAction ?? null,
-      null // No pattern yet
-    );
-  }
-
   private async getInsightRowById(id: string): Promise<InsightRow | null> {
     if (!this.db) return null;
 
@@ -1078,27 +1127,17 @@ export class DreamEngine {
   // ==========================================================================
 
   /**
-   * Get the RVCOW branch manager, if branching is enabled.
+   * @deprecated #1060: branching is ignored; always null.
    */
-  getBranchManager(): RVCOWBranchManager | null {
-    return this.branchManager;
+  getBranchManager(): null {
+    return null;
   }
 
   /**
-   * Register a listener for branch lifecycle events.
+   * @deprecated #1060: branching is ignored, so no branch event is emitted.
    */
   onBranchEvent(listener: (event: string, branch: Branch, detail?: ValidationResult) => void): void {
     this.branchEventListeners.push(listener);
-  }
-
-  private emitBranchEvent(event: string, branch: Branch, detail?: ValidationResult): void {
-    for (const listener of this.branchEventListeners) {
-      try {
-        listener(event, branch, detail);
-      } catch {
-        // Swallow listener errors
-      }
-    }
   }
 
   // ==========================================================================
@@ -1109,10 +1148,21 @@ export class DreamEngine {
    * Release resources (does NOT close the shared database)
    */
   async close(): Promise<void> {
-    // #1060: a dream still in flight is recorded as interrupted before the
-    // engine lets go of the database.
+    // #1060: stop a dream still in flight and record it as interrupted, then
+    // wait (briefly) for it to unwind before letting go of the database.
+    // A close counts as a cancel, so a caller running several dreams in a row
+    // (SpeculativeDreamer) stops instead of committing an earlier result.
+    this.closing = true;
+    this.cancelRequests++;
     this.interruptActiveDream?.();
     this.interruptActiveDream = null;
+    this.activeAbort?.abort();
+    const inFlight = this.activeDream?.done;
+    if (inFlight) {
+      let timer: NodeJS.Timeout | undefined;
+      await Promise.race([inFlight, new Promise((resolve) => { timer = setTimeout(resolve, 2000); })]);
+      clearTimeout(timer);
+    }
 
     if (this.graph) {
       await this.graph.close();
@@ -1121,7 +1171,6 @@ export class DreamEngine {
 
     this.db = null;
     this.persistence = null;
-    this.branchManager = null;
     this.initialized = false;
     this.currentCycle = null;
   }
