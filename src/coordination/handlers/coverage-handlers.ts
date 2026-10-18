@@ -269,13 +269,14 @@ export function registerCoverageHandlers(ctx: TaskHandlerContext): void {
     try {
       // #1126: collect coverage (which may run the tests) only inside the
       // project. A missing target keeps its own message below.
+      let targetPath = payload.target || process.cwd();
       if (payload.target && payload.target !== '.') {
         const confined = await requirePayloadPath('analyze-coverage', 'target', payload.target,
           { allowDirectory: true, allowMissing: true });
         if (!confined.success) return confined;
+        targetPath = confined.value;
       }
       const analyzer = ctx.getCoverageAnalyzer();
-      const targetPath = payload.target || process.cwd();
       const threshold = payload.threshold || 80;
 
       const { collected, ranTests, noData, projectRoot, notes, runStatus, testRun } = await collectCoverage(targetPath);

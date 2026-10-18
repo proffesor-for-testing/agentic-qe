@@ -29,18 +29,6 @@ import '../../../src/domains/security-compliance';
 import '../../../src/domains/code-intelligence';
 import '../../../src/domains/quality-assessment';
 
-// #1126: these tests drive handlers with repository paths while the test env
-// points AQE_PROJECT_ROOT at a temp dir; confinement is covered by its own tests.
-vi.mock('../../../src/shared/io/payload-path-guard.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../src/shared/io/payload-path-guard.js')>();
-  const { ok } = await import('../../../src/shared/types');
-  return {
-    ...actual,
-    requirePayloadFiles: async (_type: string, _field: string, value: unknown) => ok(value as string[]),
-    requirePayloadPath: async (_type: string, _field: string, value: unknown) => ok(value as string),
-  };
-});
-
 // ============================================================================
 // Mock Implementations
 // ============================================================================
@@ -215,6 +203,12 @@ describe('DomainTaskExecutor', () => {
     // Keep developer credentials and local router configuration from changing
     // their behavior or causing real provider calls.
     vi.stubEnv('AQE_LLM_ROUTER_DISABLED', '1');
+    // #1126: handlers read only paths inside the project root, so these tests
+    // run against a small fixture project rather than this repository.
+    await fs.mkdir(path.join(TEST_RESULTS_DIR, 'src'), { recursive: true });
+    await fs.writeFile(path.join(TEST_RESULTS_DIR, 'src', 'sample.ts'),
+      'export function add(a: number, b: number): number {\n  return a + b;\n}\n');
+    vi.stubEnv('AQE_PROJECT_ROOT', TEST_RESULTS_DIR);
     kernel = new MockQEKernel();
     await kernel.initialize();
     executor = createTaskExecutor(kernel, {
@@ -315,10 +309,8 @@ describe('DomainTaskExecutor', () => {
   });
 
   describe('coverage analysis execution', () => {
-    // #995: `target: 'src/'` resolves to THIS repository's root, so a real
-    // coverage run would execute the whole agentic-qe suite — including this
-    // file — from inside a unit test. Keep these tests hermetic: no test runner
-    // is spawned; the handler reads an existing report or labels an estimate.
+    // #995: keep these tests hermetic: no test runner is spawned; the handler
+    // reads an existing report or labels an estimate.
     let originalNoExec: string | undefined;
     beforeEach(() => {
       originalNoExec = process.env.AQE_COVERAGE_NO_EXEC;
@@ -331,7 +323,7 @@ describe('DomainTaskExecutor', () => {
 
     it('should execute coverage analysis task', async () => {
       const task = createTestTask('analyze-coverage', {
-        target: 'src/',
+        target: path.join(TEST_RESULTS_DIR, 'src'),
         detectGaps: true,
       });
 
@@ -370,7 +362,7 @@ describe('DomainTaskExecutor', () => {
 
     it('should save coverage results, emitting LCOV only when measured', async () => {
       const task = createTestTask('analyze-coverage', {
-        target: 'src/',
+        target: path.join(TEST_RESULTS_DIR, 'src'),
         detectGaps: true,
       });
 
@@ -397,7 +389,7 @@ describe('DomainTaskExecutor', () => {
   describe('security scan execution', () => {
     it('should execute security scan task', async () => {
       const task = createTestTask('scan-security', {
-        target: 'src/',
+        target: path.join(TEST_RESULTS_DIR, 'src'),
         sast: true,
         dast: false,
         compliance: ['owasp-top-10'],
@@ -420,7 +412,7 @@ describe('DomainTaskExecutor', () => {
 
     it('should save security results with SARIF', async () => {
       const task = createTestTask('scan-security', {
-        target: 'src/',
+        target: path.join(TEST_RESULTS_DIR, 'src'),
         sast: true,
       });
 
@@ -462,6 +454,8 @@ describe('DomainTaskExecutor', () => {
       const task = createTestTask('assess-quality', {
         target: TEST_RESULTS_DIR, runGate: false, threshold: 80, metrics: ['complexity'],
       });
+      // A root beneath the target puts the target outside it.
+      vi.stubEnv('AQE_PROJECT_ROOT', path.join(TEST_RESULTS_DIR, 'src'));
 
       const result = await executor.execute(task);
 
@@ -539,7 +533,7 @@ describe('DomainTaskExecutor', () => {
   describe('defect prediction execution', () => {
     it('should execute defect prediction task', async () => {
       const task = createTestTask('predict-defects', {
-        target: 'src/',
+        target: path.join(TEST_RESULTS_DIR, 'src'),
         minConfidence: 0.7,
       });
 
@@ -581,7 +575,8 @@ describe('DomainTaskExecutor', () => {
   describe('contract validation execution', () => {
     it('should execute contract validation task', async () => {
       const task = createTestTask('validate-contracts', {
-        contractPath: 'api/openapi.yaml',
+        // Missing on purpose: a missing contract still returns valid:false.
+        contractPath: path.join(TEST_RESULTS_DIR, 'api', 'openapi.yaml'),
         checkBreakingChanges: true,
       });
 
@@ -594,7 +589,7 @@ describe('DomainTaskExecutor', () => {
         valid: boolean;
         breakingChanges: string[];
       };
-      expect(data.valid).toBeDefined();
+      expect(data.valid).toBe(false);
     });
   });
 
@@ -863,6 +858,8 @@ describe('TaskExecutor integration', () => {
 
   beforeEach(async () => {
     vi.stubEnv('AQE_LLM_ROUTER_DISABLED', '1');
+    await fs.mkdir(TEST_DIR, { recursive: true });
+    vi.stubEnv('AQE_PROJECT_ROOT', TEST_DIR);
     kernel = new MockQEKernel();
     await kernel.initialize();
     executor = createTaskExecutor(kernel, {
@@ -947,19 +944,11 @@ describe('TaskExecutor integration', () => {
       createTestTask('predict-defects', { target: TEST_DIR }),
     ];
 
+    // #1021/#1096/#1126: every target must lie inside the AQE project root,
+    // which beforeEach sets to TEST_DIR.
     for (const task of testTasks) {
-      // #1021: an assess-quality target must lie inside the AQE project
-      // root; #1096: so must every path index-code reads. Make TEST_DIR the
-      // root for those tasks.
-      if (task.type === 'assess-quality' || task.type === 'index-code') {
-        vi.stubEnv('AQE_PROJECT_ROOT', TEST_DIR);
-      }
-      try {
-        const result = await executor.execute(task);
-        expect(result.success).toBe(true);
-      } finally {
-        vi.unstubAllEnvs();
-      }
+      const result = await executor.execute(task);
+      expect(result.success, `${task.type}: ${result.error}`).toBe(true);
     }
 
     // All results should be in index

@@ -33,13 +33,16 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
     };
 
     try {
-      // #1126: scan only a file or directory inside the project.
-      if (payload.target && payload.target !== '.') {
+      // #1126: read (SAST, manifests, dependencies) only a file or directory
+      // inside the project. A DAST-only scan reads no target path.
+      let targetPath = path.resolve(payload.target || process.cwd());
+      const readsTarget = payload.sast !== false || payload.dependencies === true;
+      if (payload.target && payload.target !== '.' && readsTarget) {
         const confined = await requirePayloadPath('scan-security', 'target', payload.target,
           { allowDirectory: true, allowMissing: true, maxBytes: MAX_PAYLOAD_FILE_BYTES });
         if (!confined.success) return confined;
+        targetPath = confined.value;
       }
-      const targetPath = path.resolve(payload.target || process.cwd());
       const sastRequested = payload.sast !== false;
       const discoveryResult = sastRequested ? await discoverSecurityFiles(targetPath) : undefined;
       const filesToScan = discoveryResult?.files ?? [];

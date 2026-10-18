@@ -163,7 +163,7 @@ export class DefectIntelligencePlugin extends BaseDomainPlugin {
         if (!confined.success) return confined;
 
         return this.coordinator.predictDefects({
-          files,
+          files: confined.value,
           threshold: threshold ?? 0.7,
         });
       }],
@@ -208,7 +208,7 @@ export class DefectIntelligencePlugin extends BaseDomainPlugin {
         if (!confined.success) return confined;
 
         return this.coordinator.analyzeRegressionRisk({
-          changeset: changedFiles,
+          changeset: confined.value,
           baseline: payload.commitHash as string | undefined,
         });
       }],

@@ -99,6 +99,7 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
         const field = payload.sourceFiles?.length ? 'sourceFiles' : 'filePath';
         const confined = await requirePayloadFiles('generate-tests', field, sourceFiles, { maxBytes: MAX_PAYLOAD_FILE_BYTES });
         if (!confined.success) return confined;
+        sourceFiles = confined.value;
       } else if (payload.sourceCode) {
         // Write temporary file for analysis if only source code provided
         // Use correct file extension based on language parameter
@@ -219,21 +220,24 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
     };
 
     try {
-      const testFiles = payload.testFiles || [];
+      const requestedFiles = payload.testFiles || [];
 
-      if (testFiles.length === 0) {
+      if (requestedFiles.length === 0) {
         return err(new TestRunnerExecutionError('No test files specified. Provide testFiles array with paths to test files.'));
       }
 
       // Validate test file paths before invoking a runner.
       const safePathPattern = /^[a-zA-Z0-9_./@-]+$/;
-      if (testFiles.some(file => !safePathPattern.test(file))) {
+      if (requestedFiles.some(file => !safePathPattern.test(file))) {
         return err(new TestRunnerExecutionError('Some test file paths contain invalid characters and were rejected. Provide concrete paths; expand glob patterns before calling.'));
       }
-      // #1126: a runner executes what it is given, so only files inside the
-      // project. A missing file is still reported by the runner.
-      const confined = await requirePayloadFiles('execute-tests', 'testFiles', testFiles, { allowMissing: true });
+      // #1126: a runner executes what it is given, so only files and
+      // directories (#909 Jest targets) inside the project, run as the real
+      // paths that were checked. A missing file is still reported by the runner.
+      const confined = await requirePayloadFiles('execute-tests', 'testFiles', requestedFiles,
+        { allowMissing: true, allowDirectory: true });
       if (!confined.success) return confined;
+      const testFiles = confined.value;
 
       // A caller-owned MCP task skips the Queen's plugin dispatch. Run through
       // that same domain API here: it owns persistence, measured quality evidence

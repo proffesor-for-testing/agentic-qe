@@ -239,9 +239,7 @@ export class QualityCriteriaTool extends MCPToolBase<QualityCriteriaParams, Qual
         const confined = await requirePayloadPath('quality-criteria', 'epicPath', epicPath,
           { allowMissing: true, maxBytes: MAX_PAYLOAD_FILE_BYTES });
         if (!confined.success) return { success: false, error: confined.error.message };
-      }
-      if (epicPath && existsSync(epicPath)) {
-        content = readFileSync(epicPath, 'utf-8');
+        if (existsSync(confined.value)) content = readFileSync(confined.value, 'utf-8');
       }
 
       if (!content && !epicPath) {

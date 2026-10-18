@@ -19,6 +19,29 @@ import {
 } from '../../../domains/coverage-analysis/services/coverage-parser';
 import { FileCoverage as DomainFileCoverage, CoverageSummary as DomainCoverageSummary } from '../../../domains/coverage-analysis/interfaces';
 import { toErrorMessage } from '../../../shared/error-utils.js';
+import { requirePayloadPath } from '../../../shared/io/payload-path-guard.js';
+
+/**
+ * #1126: a caller-named coverage report must be a regular file inside the
+ * project (never /dev/zero or /proc/self/environ), and a target a directory
+ * inside it. Returns the real paths to read, or an error naming the refusal.
+ */
+async function confineCoverageInputs(
+  tool: string,
+  target: string,
+  coverageFile: string | undefined,
+): Promise<{ target: string; coverageFile?: string } | { error: string }> {
+  let confinedTarget = target;
+  if (target !== '.') {
+    const t = await requirePayloadPath(tool, 'target', target, { allowDirectory: true, allowMissing: true });
+    if (!t.success) return { error: t.error.message };
+    confinedTarget = t.value;
+  }
+  if (coverageFile === undefined) return { target: confinedTarget };
+  const f = await requirePayloadPath(tool, 'coverageFile', coverageFile);
+  if (!f.success) return { error: f.error.message };
+  return { target: confinedTarget, coverageFile: f.value };
+}
 
 // ============================================================================
 // Types
@@ -220,8 +243,8 @@ export class CoverageAnalyzeTool extends MCPToolBase<CoverageAnalyzeParams, Cove
     context: MCPToolContext
   ): Promise<ToolResult<CoverageAnalyzeResult>> {
     const {
-      target = '.',
-      coverageFile,
+      target: requestedTarget = '.',
+      coverageFile: requestedCoverageFile,
       thresholds = { lines: 80, branches: 70, functions: 80, statements: 80 },
       includeRisk = false,
       includeRiskScoring = false,
@@ -231,6 +254,9 @@ export class CoverageAnalyzeTool extends MCPToolBase<CoverageAnalyzeParams, Cove
     } = params;
 
     const shouldIncludeRisk = includeRisk || includeRiskScoring;
+    const confined = await confineCoverageInputs('qe/coverage/analyze', requestedTarget, requestedCoverageFile);
+    if ('error' in confined) return { success: false, error: confined.error };
+    const { target, coverageFile } = confined;
 
     try {
       this.emitStream(context, {
@@ -483,14 +509,17 @@ export class CoverageGapsTool extends MCPToolBase<CoverageGapsParams, CoverageGa
     context: MCPToolContext
   ): Promise<ToolResult<CoverageGapsResult>> {
     const {
-      target = '.',
-      coverageFile,
+      target: requestedTarget = '.',
+      coverageFile: requestedCoverageFile,
       minRisk = 0.3,
       limit = 20,
       prioritization = 'complexity',
       coverageFormat,
       language,
     } = params;
+    const confined = await confineCoverageInputs('qe/coverage/gaps', requestedTarget, requestedCoverageFile);
+    if ('error' in confined) return { success: false, error: confined.error };
+    const { target, coverageFile } = confined;
 
     try {
       this.emitStream(context, {

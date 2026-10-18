@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { QualityGateTool } from '../../../../src/mcp/tools/quality-assessment/gate.js';
 import type { MCPToolContext, ToolLogger } from '../../../../src/mcp/tools/base.js';
@@ -7,6 +8,11 @@ import {
   createVerificationReachManifest,
 } from '../../../../src/validation/verification-reach.js';
 
+
+// #1126: a caller-named anchorPath must lie inside the project root; these
+// tests use the anchor in this checkout. The tool writes no store.
+beforeEach(() => { vi.stubEnv('AQE_PROJECT_ROOT', realpathSync(process.cwd())); });
+afterEach(() => { vi.unstubAllEnvs(); });
 describe('QualityGateTool diagnostics', () => {
   it('should_acceptRevisionBoundReachManifest_throughSharedMcpPath', async () => {
     const tool = new QualityGateTool();

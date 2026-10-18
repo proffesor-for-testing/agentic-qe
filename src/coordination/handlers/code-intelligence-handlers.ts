@@ -9,7 +9,7 @@ import * as fs from 'fs/promises';
 import { randomUUID } from 'node:crypto';
 import { prunePredictionHistory } from '../../domains/defect-intelligence/prediction-history.js';
 import * as path from 'path';
-import { ok, err } from '../../shared/types';
+import { ok, err, type Result } from '../../shared/types';
 import { toError } from '../../shared/error-utils.js';
 import type { TaskHandlerContext } from './handler-types';
 import { discoverSourceFiles } from './handler-utils';
@@ -62,7 +62,7 @@ async function collectProjectMetricsForTarget(
 }
 
 /** #1126: a caller-named target must be a file or directory inside the project. */
-async function confineTarget(taskType: string, target: string | undefined) {
+async function confineTarget(taskType: string, target: string | undefined): Promise<Result<string | undefined, Error>> {
   if (!target || target === '.') return ok(undefined);
   return requirePayloadPath(taskType, 'target', target, { allowDirectory: true, allowMissing: true });
 }
@@ -83,7 +83,7 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
       const confined = await confineTarget('index-code', payload.target);
       if (!confined.success) return confined;
       const kg = ctx.getKnowledgeGraph();
-      const targetPath = payload.target || process.cwd();
+      const targetPath = confined.value ?? (payload.target || process.cwd());
       const startTime = Date.now();
 
       // Discover files to index
@@ -187,7 +187,7 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
     try {
       const confined = await confineTarget('predict-defects', payload.target);
       if (!confined.success) return confined;
-      const targetPath = path.resolve(payload.target || process.cwd());
+      const targetPath = confined.value ?? path.resolve(payload.target || process.cwd());
       const minConfidence = payload.minConfidence || 0.5;
 
       // Discover actual source files in the target directory

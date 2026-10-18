@@ -22,12 +22,13 @@ export function registerRequirementsHandlers(ctx: TaskHandlerContext): void {
 
     try {
       // #1126: list requirement files only inside the project.
+      let targetPath = process.cwd();
       if (payload.requirementsPath) {
         const confined = await requirePayloadPath('validate-requirements', 'requirementsPath', payload.requirementsPath,
           { allowDirectory: true, allowMissing: true });
         if (!confined.success) return confined;
+        targetPath = confined.value;
       }
-      const targetPath = payload.requirementsPath || process.cwd();
       // Look for requirements files (markdown, feature files, etc.)
       const reqFiles = await discoverSourceFiles(targetPath, {
         includeTests: false,
@@ -79,14 +80,15 @@ export function registerRequirementsHandlers(ctx: TaskHandlerContext): void {
       }
 
       // #1126: read only a regular file inside the project, within the size
-      // limit; the result reports its line count and whether it parses.
+      // limit; the result reports its line count and whether it parses. A
+      // missing file keeps its valid:false result below.
       const confined = await requirePayloadPath('validate-contracts', 'contractPath', payload.contractPath,
-        { maxBytes: MAX_PAYLOAD_FILE_BYTES });
+        { allowMissing: true, maxBytes: MAX_PAYLOAD_FILE_BYTES });
       if (!confined.success) return confined;
 
       // Check if the contract file exists
       try {
-        const content = await fs.readFile(payload.contractPath, 'utf-8');
+        const content = await fs.readFile(confined.value, 'utf-8');
         const isJson = payload.contractPath.endsWith('.json');
         const isYaml = payload.contractPath.endsWith('.yaml') || payload.contractPath.endsWith('.yml');
 

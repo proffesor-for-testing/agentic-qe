@@ -2,7 +2,8 @@
  * #1027 review N5 — `execute-tests` (MCP test_execute_parallel) collects no
  * coverage on this path, so it must say so (null) instead of a hardcoded 0%.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { realpathSync } from 'node:fs';
 
 const report = JSON.stringify({ numTotalTests: 2, numPassedTests: 2, numFailedTests: 0, testResults: [{ assertionResults: [] }] });
 
@@ -18,17 +19,12 @@ import { registerTestExecutionHandlers } from '../../../../src/coordination/hand
 import '../../../../src/mcp/handlers/domain-handlers';
 import { testExecuteConfig } from '../../../../src/mcp/handlers/domain-handler-configs';
 
-// #1126: these tests drive handlers with repository paths while the test env
-// points AQE_PROJECT_ROOT at a temp dir; confinement is covered by its own tests.
-vi.mock('../../../../src/shared/io/payload-path-guard.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../../src/shared/io/payload-path-guard.js')>();
-  const { ok } = await import('../../../../src/shared/types');
-  return {
-    ...actual,
-    requirePayloadFiles: async (_type: string, _field: string, value: unknown) => ok(value as string[]),
-    requirePayloadPath: async (_type: string, _field: string, value: unknown) => ok(value as string),
-  };
-});
+// #1126: the handler runs only test paths inside the project root, passed on
+// as the real paths it checked. These handlers touch no store, so the root is
+// this checkout.
+const ROOT = realpathSync(process.cwd());
+beforeEach(() => { vi.stubEnv('AQE_PROJECT_ROOT', ROOT); });
+afterEach(() => { vi.unstubAllEnvs(); });
 
 describe('#1027 N5 — test execution reports unmeasured coverage as null', () => {
   it('the execute-tests handler returns coverage: null, not 0', async () => {

@@ -18,6 +18,11 @@ import { createInterface } from 'node:readline';
 const bundle = resolve('dist/mcp/bundle.js');
 const SECRET = 'hunter2_outside_secret';
 
+// In CI a missing bundle is a failure, never a silent skip.
+it.runIf(!!process.env.CI)('has a built MCP bundle to test (#1126)', () => {
+  expect(existsSync(bundle), `${bundle} is missing: run npm run build first`).toBe(true);
+});
+
 describe.skipIf(!existsSync(bundle) && !process.env.CI)('MCP handlers read only project paths (#1126)', () => {
   let child: ChildProcessWithoutNullStreams;
   let root: string;
@@ -69,6 +74,14 @@ describe.skipIf(!existsSync(bundle) && !process.env.CI)('MCP handlers read only 
     writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'aqe-1126', version: '1.0.0', type: 'module' }));
     writeFileSync(join(root, 'src/ok.ts'), 'export function add(a: number, b: number) {\n  return a + b;\n}\n');
     symlinkSync(outsideFile(), join(root, 'src/link-out.ts'));
+    // Review of #1162: the kernel follows src/l before applying `..`, so
+    // src/l/../secret.ts opens <outside>/secret.ts, not the decoy beside it.
+    mkdirSync(join(outside, 'a'));
+    symlinkSync(join(outside, 'a'), join(root, 'src/l'));
+    writeFileSync(join(root, 'src/secret.ts'), 'export const decoy = 1;\n');
+    symlinkSync('/dev/shm', join(root, 'src/devl'));
+    writeFileSync(join(outside, 'lcov.info'), `SF:${outsideFile()}\nDA:1,0\nend_of_record\n`);
+    writeFileSync(join(outside, 'package.json'), JSON.stringify({ name: 'OUTSIDE_PKG_SECRET' }));
     const home = join(root, '.home');
     mkdirSync(home);
     child = spawn(process.execPath, [bundle], {
@@ -117,6 +130,8 @@ describe.skipIf(!existsSync(bundle) && !process.env.CI)('MCP handlers read only 
     ['a .. path', () => `../${outside.split('/').pop()}/secret.ts`],
     ['/etc/hostname', () => '/etc/hostname'],
     ['/proc/self/environ', () => '/proc/self/environ'],
+    ['.. after a symlinked directory', () => 'src/l/../secret.ts'],
+    ['/dev/zero through a symlinked directory', () => 'src/devl/../zero'],
   ];
 
   describe('task_submit', () => {
@@ -134,6 +149,20 @@ describe.skipIf(!existsSync(bundle) && !process.env.CI)('MCP handlers read only 
         expect(JSON.stringify(settled), label).not.toContain(SECRET);
       }
     }, 300000);
+
+    it.each([
+      ['analyze-regression-risk', 'defect-intelligence', (p: string) => ({ changedFiles: [p] })],
+      ['execute-tests', 'test-execution', (p: string) => ({ testFiles: [p] })],
+    ])('%s refuses a missing name reached as <dir-symlink>/../<name>', async (type, domain, payload) => {
+      const settled = await submit(type, domain, payload('src/l/../new.ts'));
+      expect(settled.status).toBe('failed');
+      expect(settled.error).toContain('src/l/../new.ts (not-found)');
+    }, 120000);
+
+    it('execute-tests accepts a test directory inside the project (#909)', async () => {
+      const settled = await submit('execute-tests', 'test-execution', { testFiles: ['src'] });
+      expect(settled.error ?? '').not.toContain('Invalid execute-tests payload');
+    }, 120000);
 
     it('generate-tests still reads a project file', async () => {
       const settled = await submit('generate-tests', 'test-generation', { sourceFiles: ['src/ok.ts'], aiEnhancement: false });
@@ -162,13 +191,17 @@ describe.skipIf(!existsSync(bundle) && !process.env.CI)('MCP handlers read only 
       ['code_index', (p: string) => ({ target: p })],
       ['validation_pipeline', (p: string) => ({ filePath: p })],
       ['qe/requirements/quality-criteria', (p: string) => ({ action: 'analyze', assessmentName: 'probe', epicPath: p })],
+      ['qe/coverage/gaps (coverageFile)', (p: string) => ({ coverageFile: p })],
+      ['qe/coverage/gaps (target)', (p: string) => ({ target: p })],
+      ['qe/code/c4', (p: string) => ({ action: 'generate', projectPath: p })],
+      ['qe/quality/gate', (p: string) => ({ checklistId: 'x', artifact: 'x', anchorPath: p })],
     ])('%s refuses outside files and directories without reading or listing them', async (tool, args) => {
       for (const [label, requested] of [...refusedPaths, ['an outside directory', () => outside] as [string, () => string]]) {
-        const result = await call(tool, args(requested()));
+        const result = await call(tool.replace(/ \(.*\)$/, ''), args(requested()));
         expect(result.success, `${label}: ${JSON.stringify(result)}`).toBe(false);
         expect(result.error, label).toContain(`${requested()} (outside-project-root)`);
         // The outside directory's file name and content never appear.
-        expect(JSON.stringify(result).replaceAll(requested(), ''), label).not.toMatch(/secret\.ts|hunter2/);
+        expect(JSON.stringify(result).replaceAll(requested(), ''), label).not.toMatch(/secret\.ts|hunter2|OUTSIDE_PKG_SECRET/);
       }
     }, 300000);
 

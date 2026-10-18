@@ -33,6 +33,10 @@ describe('payload path guard (#1126)', () => {
     fs.symlinkSync(path.join(outside, 'secret.ts'), path.join(project, 'src', 'leak.ts'));
     fs.symlinkSync(outside, path.join(project, 'out-dir'));
     fs.symlinkSync(path.join(outside, 'gone.ts'), path.join(project, 'src', 'dangling.ts'));
+    fs.mkdirSync(path.join(outside, 'a'));
+    fs.symlinkSync(path.join(outside, 'a'), path.join(project, 'src', 'l'));
+    // A decoy inside the project with the name the `..` path collapses to.
+    fs.writeFileSync(path.join(project, 'src', 'secret.ts'), 'export const decoy = 1;\n');
   });
 
   afterEach(() => {
@@ -98,6 +102,43 @@ describe('payload path guard (#1126)', () => {
     });
   });
 
+  describe('`..` after a symlinked directory (review of #1162)', () => {
+    // The kernel follows src/l before applying `..`, so src/l/../secret.ts
+    // opens <outside>/secret.ts even though path.resolve() says src/secret.ts.
+    it('refuses an existing file reached as <dir-symlink>/../<name>', async () => {
+      const result = await confinePayloadPaths(['src/l/../secret.ts'], opts());
+
+      expect(result.accepted).toEqual([]);
+      expect(result.skipped).toEqual([{ path: 'src/l/../secret.ts', reason: 'outside-project-root' }]);
+    });
+
+    it('refuses a missing name reached as <dir-symlink>/../<name> with allowMissing', async () => {
+      const result = await confinePayloadPaths(['src/l/../new.ts'], opts({ allowMissing: true }));
+
+      expect(result.accepted).toEqual([]);
+      expect(result.skipped).toEqual([{ path: 'src/l/../new.ts', reason: 'not-found' }]);
+    });
+
+    it('returns the real path it checked, never the caller string', async () => {
+      const result = await requirePayloadFiles('t', 'f', ['src/./ok.ts', 'src/new.ts'], opts({ allowMissing: true }));
+
+      expect(result).toEqual({ success: true, value: ['src/ok.ts', 'src/new.ts'] });
+    });
+
+    it('still accepts an in-project `..` that does not cross a symlink', async () => {
+      const result = await requirePayloadPath('t', 'f', 'src/../src/ok.ts', opts());
+
+      expect(result).toEqual({ success: true, value: 'src/ok.ts' });
+    });
+
+    it('returns an absolute request as its absolute real path, through an in-project symlink', async () => {
+      fs.symlinkSync('ok.ts', path.join(project, 'src', 'alias.ts'));
+      const result = await requirePayloadPath('t', 'f', path.join(project, 'src', 'alias.ts'), opts());
+
+      expect(result).toEqual({ success: true, value: path.join(project, 'src', 'ok.ts') });
+    });
+  });
+
   describe('special files and the project root', () => {
     it.skipIf(process.platform === 'win32')('refuses a FIFO inside the project without opening it', async () => {
       execFileSync('mkfifo', [path.join(project, 'src', 'pipe.ts')]);
@@ -154,10 +195,10 @@ describe('payload path guard (#1126)', () => {
   });
 
   describe('requirePayloadPath', () => {
-    it('returns the path resolved against basePath', async () => {
+    it('returns a relative target relative to basePath', async () => {
       const result = await requirePayloadPath('scan-security', 'target', 'src', opts({ allowDirectory: true }));
 
-      expect(result).toEqual({ success: true, value: path.join(project, 'src') });
+      expect(result).toEqual({ success: true, value: 'src' });
     });
 
     it('refuses an outside directory without listing it', async () => {

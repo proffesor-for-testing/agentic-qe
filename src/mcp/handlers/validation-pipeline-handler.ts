@@ -6,7 +6,6 @@
  */
 
 import { readFileSync, existsSync } from 'fs';
-import { resolve } from 'path';
 import type { ToolResult } from '../types.js';
 import { runPipeline, formatPipelineReport } from '../../validation/pipeline.js';
 import { createRequirementsPipeline, REQUIREMENTS_VALIDATION_STEPS } from '../../validation/steps/requirements.js';
@@ -83,11 +82,11 @@ export async function handleValidationPipeline(
   if (params.content) {
     content = params.content;
   } else if (params.filePath) {
-    const absPath = resolve(process.cwd(), params.filePath);
     // #1126: read only a regular file inside the project, within the size limit.
     const confined = await requirePayloadPath('validation_pipeline', 'filePath', params.filePath,
       { allowMissing: true, maxBytes: MAX_PAYLOAD_FILE_BYTES });
     if (!confined.success) return { success: false, error: confined.error.message };
+    const absPath = confined.value;
     if (!existsSync(absPath)) {
       return {
         success: false,
