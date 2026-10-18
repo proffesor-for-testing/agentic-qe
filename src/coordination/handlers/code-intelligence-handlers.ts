@@ -9,13 +9,14 @@ import * as fs from 'fs/promises';
 import { randomUUID } from 'node:crypto';
 import { prunePredictionHistory } from '../../domains/defect-intelligence/prediction-history.js';
 import * as path from 'path';
-import { ok, err } from '../../shared/types';
+import { ok, err, type Result } from '../../shared/types';
 import { toError } from '../../shared/error-utils.js';
 import type { TaskHandlerContext } from './handler-types';
 import { discoverSourceFiles } from './handler-utils';
 import { resolveProjectRootFromPaths } from '../../domains/code-intelligence/project-root-resolver.js';
 import { nothingIndexedError } from '../../domains/code-intelligence/index-path-guard.js';
 import { createLogger } from '../../logging/logger-factory.js';
+import { requirePayloadPath } from '../../shared/io/payload-path-guard.js';
 
 const logger = createLogger('CodeIntelligenceHandlers');
 
@@ -60,6 +61,12 @@ async function collectProjectMetricsForTarget(
   }
 }
 
+/** #1126: a caller-named target must be a file or directory inside the project. */
+async function confineTarget(taskType: string, target: string | undefined): Promise<Result<string | undefined, Error>> {
+  if (!target || target === '.') return ok(undefined);
+  return requirePayloadPath(taskType, 'target', target, { allowDirectory: true, allowMissing: true });
+}
+
 export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void {
   // Register code indexing handler - REAL IMPLEMENTATION
   ctx.registerHandler('index-code', async (task) => {
@@ -71,8 +78,12 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
     };
 
     try {
+      // #1126: refuse an outside target before listing it, so the error
+      // cannot name the files in an outside directory.
+      const confined = await confineTarget('index-code', payload.target);
+      if (!confined.success) return confined;
       const kg = ctx.getKnowledgeGraph();
-      const targetPath = payload.target || process.cwd();
+      const targetPath = confined.value ?? (payload.target || process.cwd());
       const startTime = Date.now();
 
       // Discover files to index
@@ -174,7 +185,9 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
     };
 
     try {
-      const targetPath = path.resolve(payload.target || process.cwd());
+      const confined = await confineTarget('predict-defects', payload.target);
+      if (!confined.success) return confined;
+      const targetPath = confined.value ?? path.resolve(payload.target || process.cwd());
       const minConfidence = payload.minConfidence || 0.5;
 
       // Discover actual source files in the target directory

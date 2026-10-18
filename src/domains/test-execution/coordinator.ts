@@ -340,17 +340,7 @@ export class TestExecutionCoordinator
         timeout,
       });
 
-      // Handle retries if requested and there were failures
-      if (request.retryCount && request.retryCount > 0 && result.success && result.value.failed > 0) {
-        const failedTestIds = result.value.failedTests.map(t => t.testId);
-        await this.retry({
-          runId: result.value.runId,
-          failedTests: failedTestIds,
-          maxRetries: request.retryCount,
-          backoff: 'exponential',
-        });
-      }
-
+      if (result.success) await this.retryFailures(result.value, request.retryCount);
       return result;
     }
 
@@ -361,18 +351,38 @@ export class TestExecutionCoordinator
       timeout,
     });
 
-    // Handle retries if requested and there were failures
-    if (request.retryCount && request.retryCount > 0 && result.success && result.value.failed > 0) {
-      const failedTestIds = result.value.failedTests.map(t => t.testId);
-      await this.retry({
-        runId: result.value.runId,
-        failedTests: failedTestIds,
-        maxRetries: request.retryCount,
-        backoff: 'exponential',
-      });
-    }
-
+    if (result.success) await this.retryFailures(result.value, request.retryCount);
     return result;
+  }
+
+  /**
+   * Retry a run's failed tests when retries were requested, and attach what
+   * the retries did to the run (#1130). The run's own counts are unchanged.
+   */
+  private async retryFailures(run: TestRunResult, retryCount: number | undefined): Promise<void> {
+    if (!retryCount || retryCount <= 0) return;
+    if (run.failed === 0) {
+      run.retries = { totalRetries: 0, nowPassing: 0, stillFailing: 0, tests: [] };
+      return;
+    }
+    const retried = await this.retry({
+      runId: run.runId,
+      failedTests: run.failedTests.map(t => t.testId),
+      maxRetries: retryCount,
+      backoff: 'exponential',
+    });
+    if (!retried.success) return;
+    const byId = new Map(run.failedTests.map(t => [t.testId, t]));
+    run.retries = {
+      totalRetries: retried.value.retried,
+      nowPassing: retried.value.nowPassing,
+      stillFailing: retried.value.stillFailing,
+      tests: (retried.value.tests ?? []).map(({ testId, ...outcome }) => ({
+        name: byId.get(testId)?.testName ?? testId,
+        file: byId.get(testId)?.file ?? '',
+        ...outcome,
+      })),
+    };
   }
 
   /**

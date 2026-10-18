@@ -577,11 +577,14 @@ export const testExecuteConfig: DomainHandlerConfig<TestExecuteParams, TestExecu
     if (loadBalance !== null) workerStats.loadBalance = loadBalance;
     else markUnmeasured('workerStats.loadBalance', noWorkerData);
 
+    // #1130: retryStats is this run's retry outcome as the domain measured
+    // it, in one shape. The metrics collector's retry counters cover every
+    // task in the process, not this run, so they are not reported here.
     let retryStats: Record<string, unknown> | undefined;
-    if (MetricsCollector.getRecordedTaskCount() > 0) {
-      retryStats = { ...MetricsCollector.getRetryStats() };
+    if (data.retries && typeof data.retries === 'object') {
+      retryStats = { ...(data.retries as Record<string, unknown>) };
     } else {
-      markUnmeasured('retryStats', noWorkerData);
+      markUnmeasured('retryStats', 'The run reported no retry outcome: no retries were requested, or the retry step failed.');
     }
 
     // No `learning` block: the run's experience is recorded asynchronously by

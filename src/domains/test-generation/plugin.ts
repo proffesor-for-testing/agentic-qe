@@ -10,6 +10,7 @@ import {
   AgentCoordinator,
 } from '../../kernel/interfaces';
 import { BaseDomainPlugin, TaskHandler } from '../domain-interface';
+import { MAX_PAYLOAD_FILE_BYTES, requirePayloadFiles } from '../../shared/io/payload-path-guard.js';
 import {
   TestGenerationAPI,
   GenerateTestsRequest,
@@ -142,13 +143,17 @@ export class TestGenerationPlugin extends BaseDomainPlugin {
           return err(new Error('Coordinator not initialized'));
         }
 
-        const sourceFiles = payload.sourceFiles as string[] | undefined;
         const testType = payload.testType as 'unit' | 'integration' | 'e2e' | undefined;
         const framework = payload.framework as 'jest' | 'vitest' | 'mocha' | 'pytest' | 'node-test' | undefined;
 
-        if (!sourceFiles || sourceFiles.length === 0) {
+        if (!Array.isArray(payload.sourceFiles) || payload.sourceFiles.length === 0) {
           return err(new Error('Invalid generate-tests payload: missing sourceFiles'));
         }
+        // #1126: the generator reads each file whole, so only project files.
+        const confined = await requirePayloadFiles('generate-tests', 'sourceFiles', payload.sourceFiles,
+          { maxBytes: MAX_PAYLOAD_FILE_BYTES });
+        if (!confined.success) return confined;
+        const sourceFiles = confined.value;
 
         const request: GenerateTestsRequest = {
           sourceFiles,

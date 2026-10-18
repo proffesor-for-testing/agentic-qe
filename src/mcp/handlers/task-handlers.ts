@@ -935,6 +935,15 @@ function inferDomainFromDescription(description: string): string {
 /**
  * Infer task type from description
  */
+// #1130: chaos named as the activity of a test run. The lookaheads keep a
+// path segment or file name (resilience tests/unit/…, src/fault-injection/…,
+// fault-injection.ts) from counting, and "fault injector" names a component.
+const CHAOS_ACTIVITY = new RegExp([
+  String.raw`\b(?:chaos|resilience)\s+(?:\w+\s+)?(?:tests?|testing|experiments?)\b(?![./\w])`,
+  String.raw`\bfault[\s-]?inject(?:ion|ing)\b(?![./\w])`,
+  String.raw`\binject(?:s|ing)?\s+(?:\w+\s+)?faults?\b(?![./\w])`,
+].join('|'));
+
 function inferTaskType(description: string): TaskType {
   const lower = description.toLowerCase();
 
@@ -945,7 +954,10 @@ function inferTaskType(description: string): TaskType {
     lower.includes('run tests') ||
     lower.includes('execute tests')
   ) {
-    return 'execute-tests';
+    // #1130: "run chaos resilience testing" names a chaos run, not a test run.
+    // Only a run whose activity is chaos counts; every other description keeps
+    // the order below, where chaos wording is the last resort.
+    return CHAOS_ACTIVITY.test(lower) ? 'run-chaos' : 'execute-tests';
   }
   // Then check generation
   if (lower.includes('generate test') || lower.includes('create test') || lower.includes('write test')) {

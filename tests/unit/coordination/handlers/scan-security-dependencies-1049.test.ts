@@ -9,7 +9,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { registerSecurityHandlers } from '../../../../src/coordination/handlers/security-handlers';
@@ -20,6 +20,11 @@ import { DependencyScanner } from '../../../../src/domains/security-compliance/s
 import { OSVClient } from '../../../../src/shared/security/osv-client';
 import type { TaskHandlerContext } from '../../../../src/coordination/handlers/handler-types';
 import type { MemoryBackend } from '../../../../src/kernel/interfaces';
+
+// #1126: the handlers read only targets inside the project root, and these
+// fixtures live in the OS temp dir.
+beforeAll(() => { vi.stubEnv('AQE_PROJECT_ROOT', realpathSync(tmpdir())); });
+afterAll(() => { vi.unstubAllEnvs(); });
 
 type Handler = (req: IncomingMessage, body: string, res: ServerResponse) => void;
 

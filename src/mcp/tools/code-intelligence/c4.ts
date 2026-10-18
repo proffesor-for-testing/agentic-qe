@@ -18,6 +18,7 @@ import { createKnowledgeGraphRelationshipResolver } from '../../../domains/code-
 import { InMemoryEventBus } from '../../../kernel/event-bus';
 import type { C4Diagrams, C4ConfidenceAssessment } from '../../../shared/c4-model';
 import { toErrorMessage } from '../../../shared/error-utils.js';
+import { requirePayloadPath } from '../../../shared/io/payload-path-guard.js';
 
 // ============================================================================
 // Types
@@ -109,7 +110,15 @@ export class CodeC4Tool extends MCPToolBase<CodeC4Params, CodeC4Result> {
   }
 
   async execute(params: CodeC4Params, context: MCPToolContext): Promise<ToolResult<CodeC4Result>> {
-    const { action, projectPath = '.', level = 'all', query, limit = 10 } = params;
+    const { action, projectPath: requestedPath = '.', level = 'all', query, limit = 10 } = params;
+    // #1126: analyse (and report package names from) only a directory inside
+    // the project.
+    let projectPath = requestedPath;
+    if (requestedPath !== '.') {
+      const confined = await requirePayloadPath('qe/code/c4', 'projectPath', requestedPath, { allowDirectory: true });
+      if (!confined.success) return { success: false, error: confined.error.message };
+      projectPath = confined.value;
+    }
 
     try {
       if (this.isAborted(context)) {

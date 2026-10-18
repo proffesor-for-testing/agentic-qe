@@ -107,6 +107,8 @@ describe('queued task that completes before dispatch (#1070)', () => {
     expect(ctx.tasks.get(waiting.id)?.status).toBe('running');
     expect(ctx.runningTaskCounter).toBe(1);
     expect(ctx.requestAgentSpawn).toHaveBeenCalledTimes(1);
+    // #1130: the spawned agent is marked as scoped to this task.
+    expect(ctx.requestAgentSpawn).toHaveBeenCalledWith('code-intelligence', expect.any(String), expect.any(Array), waiting.id);
     expect(queuedCount(ctx)).toBe(0);
   });
 

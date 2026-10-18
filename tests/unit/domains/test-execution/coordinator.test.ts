@@ -282,6 +282,71 @@ describe('TestExecutionCoordinator', () => {
         );
       });
 
+      // #1130: the retry outcome is reported with the run instead of discarded.
+      it('should attach what the requested retries did to the run', async () => {
+        const failedTests = [
+          { testId: 'a', testName: 'suite > a', file: '/p/a.test.ts', error: 'boom', duration: 1 },
+          { testId: 'b', testName: 'b', file: '/p/b.test.ts', error: 'boom', duration: 1 },
+        ];
+        vi.spyOn(coordinator, 'executeParallel').mockResolvedValue({
+          success: true,
+          value: { runId: 'r', status: 'failed', total: 3, passed: 1, failed: 2, skipped: 0, duration: 1, failedTests },
+        });
+        const retry = vi.spyOn(coordinator, 'retry').mockResolvedValue({
+          success: true,
+          value: {
+            originalFailed: 2, retried: 1, nowPassing: 1, stillFailing: 1, flakyDetected: ['a'], unmatched: ['b'],
+            tests: [{ testId: 'a', attempts: 1, passed: true }, { testId: 'b', attempts: 0, passed: false, unmatched: true }],
+          },
+        });
+
+        const result = await coordinator.runTests({ testFiles: ['a.test.ts', 'b.test.ts'], retryCount: 3 });
+
+        expect(retry).toHaveBeenCalledWith(expect.objectContaining({ runId: 'r', failedTests: ['a', 'b'], maxRetries: 3 }));
+        expect(result.success && result.value).toMatchObject({
+          failed: 2,
+          retries: {
+            totalRetries: 1, nowPassing: 1, stillFailing: 1,
+            tests: [
+              { name: 'suite > a', file: '/p/a.test.ts', attempts: 1, passed: true },
+              { name: 'b', file: '/p/b.test.ts', attempts: 0, passed: false, unmatched: true },
+            ],
+          },
+        });
+      });
+
+      it('should attach no retry outcome when the retry step itself fails', async () => {
+        vi.spyOn(coordinator, 'executeParallel').mockResolvedValue({
+          success: true,
+          value: {
+            runId: 'r', status: 'failed', total: 1, passed: 0, failed: 1, skipped: 0, duration: 1,
+            failedTests: [{ testId: 'a', testName: 'a', file: '/p/a.test.ts', error: 'boom', duration: 1 }],
+          },
+        });
+        vi.spyOn(coordinator, 'retry').mockResolvedValue({ success: false, error: new Error('runner crashed') });
+
+        const result = await coordinator.runTests({ testFiles: ['a.test.ts', 'b.test.ts'], retryCount: 3 });
+
+        // No fabricated outcome: test_execute_parallel then lists retryStats as unmeasured.
+        expect(result.success && result.value).toMatchObject({ failed: 1 });
+        expect(result.success && result.value).not.toHaveProperty('retries');
+      });
+
+      it('should report zero retries when retries were requested but nothing failed', async () => {
+        vi.spyOn(coordinator, 'executeParallel').mockImplementation(async () => ({
+          success: true,
+          value: { runId: 'r', status: 'passed', total: 1, passed: 1, failed: 0, skipped: 0, duration: 1, failedTests: [] },
+        }));
+        const retry = vi.spyOn(coordinator, 'retry');
+
+        const requested = await coordinator.runTests({ testFiles: ['a.test.ts', 'b.test.ts'], retryCount: 2 });
+        const notRequested = await coordinator.runTests({ testFiles: ['a.test.ts', 'b.test.ts'] });
+
+        expect(retry).not.toHaveBeenCalled();
+        expect(requested.success && requested.value.retries).toEqual({ totalRetries: 0, nowPassing: 0, stillFailing: 0, tests: [] });
+        expect(notRequested.success && notRequested.value).not.toHaveProperty('retries');
+      });
+
       it('should use sequential execution when parallel is false', async () => {
         const result = await coordinator.runTests({
           testFiles: ['test1.test.ts', 'test2.test.ts'],

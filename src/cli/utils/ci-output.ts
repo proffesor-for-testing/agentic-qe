@@ -100,6 +100,8 @@ export interface TestRunSummary {
   skipped: number;
   duration: number;
   tests?: TestResult[];
+  /** #1130: what the retries of failed tests did, when retries were requested. */
+  retries?: { totalRetries: number; nowPassing: number; stillFailing: number; tests: Array<{ unmatched?: boolean }> };
 }
 
 export interface CoverageResult {

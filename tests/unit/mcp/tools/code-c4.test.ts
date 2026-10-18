@@ -6,7 +6,7 @@
  * confidence the CLI's coordinator path produces (CLAUDE.md MCP-CLI parity rule).
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -34,8 +34,12 @@ const ctx = (memory: ReturnType<typeof createMockMemory>): MCPToolContext => ({
   requestId: 'test', startTime: Date.now(), memory,
 });
 
-beforeEach(() => { tmp = makeFixture(); });
-afterEach(() => { fs.rmSync(tmp, { recursive: true, force: true }); });
+beforeEach(() => {
+  tmp = makeFixture();
+  // #1126: projectPath must lie inside the project root.
+  vi.stubEnv('AQE_PROJECT_ROOT', tmp);
+});
+afterEach(() => { vi.unstubAllEnvs(); fs.rmSync(tmp, { recursive: true, force: true }); });
 
 describe('qe/code/c4 MCP tool', () => {
   it('should_be_named_and_domain_scoped', () => {

@@ -608,7 +608,7 @@ export class QueenCoordinator implements IQueenCoordinator {
   }
 
   async requestAgentSpawn(
-    domain: DomainName, type: string, capabilities: string[],
+    domain: DomainName, type: string, capabilities: string[], taskId?: string,
   ): Promise<Result<string, Error>> {
     if (!this.agentCoordinator.canSpawn()) {
       return err(new Error('Maximum concurrent agents reached (15)'));
@@ -667,7 +667,10 @@ export class QueenCoordinator implements IQueenCoordinator {
         }
       }
 
-      await this.publishEvent('AgentSpawned', { agentId: result.value, domain, type, capabilities });
+      // #1130: taskId marks an agent that lives only as long as its task.
+      await this.publishEvent('AgentSpawned', {
+        agentId: result.value, domain, type, capabilities, ...(taskId ? { taskId } : {}),
+      });
     }
 
     return result;
@@ -995,7 +998,7 @@ export class QueenCoordinator implements IQueenCoordinator {
       get traceCollector() { return self.traceCollector; },
       taskTraceContexts: self.taskTraceContexts,
       get coExecutionRepo() { return self.coExecutionRepo; },
-      requestAgentSpawn: (d, t, c) => self.requestAgentSpawn(d, t, c),
+      requestAgentSpawn: (d, t, c, id) => self.requestAgentSpawn(d, t, c, id),
       publishEvent: (t, p) => self.publishEvent(t, p),
       getDomainLoad: (d) => self.getDomainLoad(d),
       getDomainHealth: (d) => self.getDomainHealth(d),
