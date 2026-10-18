@@ -8,6 +8,8 @@
  * @module adapters/a2ui/data/json-pointer-resolver
  */
 
+import { setOwn } from '../../../shared/utils/safe-record.js';
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -234,7 +236,9 @@ export function resolvePointerWithInfo<T = unknown>(
     } else {
       // Object access
       const obj = current as Record<string, unknown>;
-      if (!(segment in obj)) {
+      // #1136: own properties only; `/constructor` or `/__proto__` does not
+      // resolve to an inherited member.
+      if (!Object.hasOwn(obj, segment)) {
         return { found: false, value: undefined };
       }
 
@@ -325,9 +329,11 @@ export function setAtPointer(
       current = current[index];
     } else {
       const obj = current as Record<string, unknown>;
-      if (!(segment in obj)) {
+      // #1136: own properties only, and created as own data properties, so
+      // `/__proto__/x` cannot walk into and write Object.prototype.
+      if (!Object.hasOwn(obj, segment)) {
         // Auto-create intermediate objects
-        obj[segment] = {};
+        setOwn(obj, segment, {});
       }
       current = obj[segment];
     }
@@ -368,7 +374,7 @@ export function setAtPointer(
       current[index] = value;
     }
   } else {
-    (current as Record<string, unknown>)[lastSegment] = value;
+    setOwn(current as Record<string, unknown>, lastSegment, value);
   }
 }
 
@@ -408,7 +414,7 @@ export function deleteAtPointer(data: unknown, pointer: string): boolean {
     return true;
   } else {
     const obj = parent as Record<string, unknown>;
-    if (!(lastSegment in obj)) {
+    if (!Object.hasOwn(obj, lastSegment)) {
       return false;
     }
     delete obj[lastSegment];

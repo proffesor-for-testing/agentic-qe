@@ -285,8 +285,9 @@ class Parser {
     let value: unknown = this.context;
     const name = this.advance().value as string;
 
-    // Get initial value from context
-    if (typeof value === 'object' && value !== null && name in value) {
+    // Get initial value from context. #1136: own properties only, so an
+    // identifier such as `constructor` does not read an inherited member.
+    if (typeof value === 'object' && value !== null && Object.hasOwn(value, name)) {
       value = (value as Record<string, unknown>)[name];
     } else {
       value = undefined;
@@ -297,7 +298,7 @@ class Parser {
       this.advance(); // consume dot
       const prop = this.expect('IDENTIFIER').value as string;
 
-      if (value !== null && value !== undefined && typeof value === 'object') {
+      if (value !== null && value !== undefined && typeof value === 'object' && Object.hasOwn(value, prop)) {
         value = (value as Record<string, unknown>)[prop];
       } else {
         value = undefined;

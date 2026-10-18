@@ -414,7 +414,8 @@ export class SchemaValidatorService implements ISchemaValidationService {
 
     // Check required properties
     for (const prop of required) {
-      if (!(prop in value)) {
+      // #1136: own properties only; an inherited `constructor` is not present.
+      if (!Object.hasOwn(value, prop)) {
         errors.push({
           path: path ? `${path}.${prop}` : prop,
           keyword: 'required',
@@ -428,7 +429,7 @@ export class SchemaValidatorService implements ISchemaValidationService {
     for (const [prop, propValue] of Object.entries(value)) {
       const propPath = path ? `${path}.${prop}` : prop;
 
-      if (prop in properties) {
+      if (Object.hasOwn(properties, prop)) {
         this.validateValue(propValue, properties[prop], propPath, errors, depth + 1);
       } else if (this.config.strictMode && additionalProperties === false) {
         errors.push({
@@ -786,8 +787,10 @@ export class SchemaValidatorService implements ISchemaValidationService {
     const newRequired = new Set((newSchema.required as string[]) || []);
 
     // Check for removed properties
+    // #1136: own properties only, so a property named `constructor` or
+    // `toString` is compared like any other.
     for (const prop of Object.keys(oldProps)) {
-      if (!(prop in newProps)) {
+      if (!Object.hasOwn(newProps, prop)) {
         const propPath = path ? `${path}.${prop}` : prop;
         removals.push(propPath);
       }
@@ -795,7 +798,7 @@ export class SchemaValidatorService implements ISchemaValidationService {
 
     // Check for added properties
     for (const prop of Object.keys(newProps)) {
-      if (!(prop in oldProps)) {
+      if (!Object.hasOwn(oldProps, prop)) {
         const propPath = path ? `${path}.${prop}` : prop;
         additions.push(propPath);
 
@@ -824,7 +827,7 @@ export class SchemaValidatorService implements ISchemaValidationService {
     // Check for required changes
     const newRequiredArray = Array.from(newRequired);
     for (const prop of newRequiredArray) {
-      if (!oldRequired.has(prop) && prop in oldProps) {
+      if (!oldRequired.has(prop) && Object.hasOwn(oldProps, prop)) {
         const propPath = path ? `${path}.${prop}` : prop;
         modifications.push({
           path: propPath,

@@ -259,7 +259,8 @@ export class ODataService {
 
       // Validate required parameters
       for (const param of funcImport.parameters) {
-        if (!param.nullable && !(param.name in parameters)) {
+        // #1136: own properties only; an inherited `constructor` is not a parameter.
+        if (!param.nullable && !Object.hasOwn(parameters, param.name)) {
           errors.push({
             type: 'metadata',
             path: `${functionName}/${param.name}`,

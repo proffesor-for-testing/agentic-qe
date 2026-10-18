@@ -8,6 +8,8 @@
  * @see docs/adr/adr-048-agent-naming-conventions.md
  */
 
+import { getOwn } from '../shared/utils/safe-record.js';
+
 /**
  * Agent mapping entry with domain information.
  */
@@ -148,7 +150,8 @@ export const v2AgentMapping: Record<string, string> = Object.fromEntries(
  * ```
  */
 export function resolveAgentName(name: string): string {
-  return v2AgentMapping[name] ?? name;
+  // #1136: own entries only; `constructor` is not a V2 agent name.
+  return getOwn(v2AgentMapping, name) ?? name;
 }
 
 /**
@@ -168,7 +171,7 @@ export function resolveAgentName(name: string): string {
  * ```
  */
 export function isDeprecatedAgent(name: string): boolean {
-  return name in v2AgentMapping;
+  return Object.hasOwn(v2AgentMapping, name);
 }
 
 /**
@@ -193,7 +196,7 @@ export function isDeprecatedAgent(name: string): boolean {
  * ```
  */
 export function getDeprecationWarning(v2Name: string): string {
-  const v3Name = v2AgentMapping[v2Name];
+  const v3Name = getOwn(v2AgentMapping, v2Name);
 
   if (!v3Name) {
     return '';
@@ -239,7 +242,7 @@ export const v3Agents: readonly string[] = [
  */
 export function getAgentDomain(agentName: string): string | null {
   // Check V2 mapping
-  const v2Entry = v2AgentMappingWithDomain[agentName];
+  const v2Entry = getOwn(v2AgentMappingWithDomain, agentName);
   if (v2Entry) {
     return v2Entry.domain;
   }
@@ -305,7 +308,7 @@ export function generateMigrationReport(usedAgents: string[]): MigrationReport {
   const unknown: string[] = [];
 
   for (const agent of usedAgents) {
-    const v2Entry = v2AgentMappingWithDomain[agent];
+    const v2Entry = getOwn(v2AgentMappingWithDomain, agent);
     if (v2Entry) {
       needsMigration.push({
         v2Name: agent,

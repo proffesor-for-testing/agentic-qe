@@ -375,7 +375,8 @@ export function validateToolDefinition(tool: ToolDefinition): string[] {
     const params = tool.parameters as { properties?: Record<string, unknown> };
     const props = params.properties || {};
     for (const req of tool.required) {
-      if (!(req in props)) {
+      // #1136: own properties only.
+      if (!Object.hasOwn(props, req)) {
         errors.push(`Required parameter '${req}' not found in properties`);
       }
     }

@@ -10,6 +10,7 @@
 import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
 import type { JsonPatchOperation } from '../../ag-ui/index.js';
+import { getOwn, setOwn } from '../../../shared/utils/safe-record.js';
 import {
   SurfaceGenerator,
   createSurfaceGenerator,
@@ -639,7 +640,8 @@ export class SurfaceStateBridge extends EventEmitter {
       if (typeof current !== 'object') {
         return undefined;
       }
-      current = (current as Record<string, unknown>)[part];
+      // #1136: own properties only.
+      current = getOwn(current as Record<string, unknown>, part);
     }
 
     return current;
@@ -657,15 +659,17 @@ export class SurfaceStateBridge extends EventEmitter {
     const parts = path.split('/').filter(Boolean);
     let current: Record<string, unknown> = obj;
 
+    // #1136: own properties only, created as own data properties, so
+    // `/__proto__/x` cannot walk into and write Object.prototype.
     for (let i = 0; i < parts.length - 1; i++) {
       const part = parts[i];
-      if (!(part in current) || typeof current[part] !== 'object' || current[part] === null) {
-        current[part] = {};
+      if (!Object.hasOwn(current, part) || typeof current[part] !== 'object' || current[part] === null) {
+        setOwn(current, part, {});
       }
       current = current[part] as Record<string, unknown>;
     }
 
-    current[parts[parts.length - 1]] = value;
+    setOwn(current, parts[parts.length - 1], value);
   }
 
   /**
@@ -681,7 +685,7 @@ export class SurfaceStateBridge extends EventEmitter {
 
     for (let i = 0; i < parts.length - 1; i++) {
       const part = parts[i];
-      if (!(part in current) || typeof current[part] !== 'object') {
+      if (!Object.hasOwn(current, part) || typeof current[part] !== 'object') {
         return;
       }
       current = current[part] as Record<string, unknown>;

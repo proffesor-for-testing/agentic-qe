@@ -420,7 +420,8 @@ export const DEFAULT_CATEGORY_CAPABILITIES: Record<AgentCategory, AgentCapabilit
  */
 export function getAgentRoutingCategory(agentType: string): AgentCategory {
   // Direct lookup first
-  if (agentType in AGENT_CATEGORY_MAP) {
+  // #1136: own entries only; `constructor` is not an agent type.
+  if (Object.hasOwn(AGENT_CATEGORY_MAP, agentType)) {
     return AGENT_CATEGORY_MAP[agentType];
   }
 
