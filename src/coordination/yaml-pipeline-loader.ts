@@ -9,6 +9,7 @@
 import * as fs from 'node:fs/promises';
 import { parse as parseYaml } from 'yaml';
 import { Result, ok, err, DomainName, ALL_DOMAINS } from '../shared/types/index.js';
+import { getOwn } from '../shared/utils/safe-record.js';
 import type {
   WorkflowDefinition, WorkflowStepDefinition, WorkflowTrigger,
   StepCondition, ConditionOperator, StepExecutionMode,
@@ -476,8 +477,10 @@ export class YamlPipelineLoader {
     vars: Record<string, unknown>,
     path: string,
   ): unknown {
+    // #1136: own properties only, so ${constructor} or ${x.toString} does
+    // not expand to an inherited Object.prototype member.
     // Try direct key first (covers flat keys like "coverageGoal")
-    if (path in vars) return vars[path];
+    if (Object.hasOwn(vars, path)) return vars[path];
 
     // Try dot-path traversal
     const parts = path.split('.');
@@ -486,7 +489,7 @@ export class YamlPipelineLoader {
       if (current === null || current === undefined || typeof current !== 'object') {
         return undefined;
       }
-      current = (current as Record<string, unknown>)[part];
+      current = getOwn(current as Record<string, unknown>, part);
     }
     return current;
   }

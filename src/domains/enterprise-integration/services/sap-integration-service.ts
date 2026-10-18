@@ -364,7 +364,8 @@ export class SapIntegrationService {
     const errors: string[] = [];
 
     for (const param of expectedParams) {
-      if (!(param in exportValues)) {
+      // #1136: own properties only; an inherited `constructor` is not a parameter.
+      if (!Object.hasOwn(exportValues, param)) {
         errors.push(`Expected export parameter '${param}' not found in response`);
       }
     }
@@ -379,7 +380,7 @@ export class SapIntegrationService {
     const errors: string[] = [];
 
     for (const param of expectedParams) {
-      if (!(param in tableData)) {
+      if (!Object.hasOwn(tableData, param)) {
         errors.push(`Expected table parameter '${param}' not found in response`);
       }
     }

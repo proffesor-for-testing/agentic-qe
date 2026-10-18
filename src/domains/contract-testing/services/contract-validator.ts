@@ -986,7 +986,8 @@ Provide:
     // Validate variables against operation variable definitions
     if (variables && operationInfo.variableDefinitions) {
       for (const [varName, varDef] of Object.entries(operationInfo.variableDefinitions)) {
-        if (varDef.required && !(varName in variables)) {
+        // #1136: own properties only; an inherited `constructor` is not a variable.
+        if (varDef.required && !Object.hasOwn(variables, varName)) {
           errors.push({
             path: `variables.${varName}`,
             keyword: 'required',
@@ -994,7 +995,7 @@ Provide:
             params: { variable: varName },
           });
         }
-        if (varName in variables) {
+        if (Object.hasOwn(variables, varName)) {
           this.validateGraphQLVariableType(variables[varName], varDef.type, `variables.${varName}`, errors);
         }
       }
@@ -1483,7 +1484,8 @@ Provide:
 
       // Check required properties
       for (const prop of required) {
-        if (!(prop in dataObj)) {
+        // #1136: own properties only; an inherited `constructor` is not present.
+        if (!Object.hasOwn(dataObj, prop)) {
           errors.push({
             path: path ? `${path}.${prop}` : prop,
             keyword: 'required',
@@ -1495,7 +1497,7 @@ Provide:
 
       // Validate each property
       for (const [prop, propSchema] of Object.entries(properties)) {
-        if (prop in dataObj) {
+        if (Object.hasOwn(dataObj, prop)) {
           this.basicTypeValidation(
             dataObj[prop],
             propSchema as Record<string, unknown>,
