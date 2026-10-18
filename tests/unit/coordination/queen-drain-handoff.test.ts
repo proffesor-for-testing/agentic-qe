@@ -92,10 +92,13 @@ function setQueued(ctx: Ctx, t: QueenTask): void {
   enqueueTask(ctx.taskQueue, ctx.domainQueues, t);
 }
 
+/** Let a drain started without awaiting it (#1140) run to its end. */
+const drained = () => new Promise<void>(resolve => setImmediate(resolve));
+
 /** What submitTask does for a task admitted below capacity. */
-async function submitDirect(ctx: Ctx, t: QueenTask): Promise<void> {
+async function submitDirect(ctx: Ctx, t: QueenTask) {
   ctx.runningTaskCounter++;
-  await assignTask(asCtx(ctx), t);
+  return assignTask(asCtx(ctx), t);
 }
 
 describe('a slot freed while a drain is running reaches the queue (#1127)', () => {
@@ -194,6 +197,7 @@ describe('a slot freed while a drain is running reaches the queue (#1127)', () =
     setQueued(ctx, task('coverage', 'analyze-coverage', 'coverage-analysis'));
 
     await submitDirect(ctx, task('y', 'scan-security', 'security-compliance'));
+    await drained();
 
     expect(queued.every(t => ctx.tasks.get(t.id)?.status === 'failed')).toBe(true);
     expect(ctx.tasksFailed).toBe(3001);
@@ -253,33 +257,104 @@ describe('a drain started by a released slot (#1127 review)', () => {
   // drain that starts dispatches an unrelated queued task whose plugin throws.
   // That error reached the refused submitter, whose catch decremented again.
   it('does not pass a drain error to the caller whose task released the slot', async () => {
-    const { ctx, security, coverage } = createContext(2);
+    const { ctx, security } = createContext(2);
     security.executeTask.mockImplementationOnce(async () => ({ success: false, error: new Error('refused') }) as never);
-    coverage.executeTask.mockImplementationOnce(async () => { throw new Error('plugin crashed'); });
+    ctx.requestAgentSpawn
+      .mockImplementationOnce(async () => ok('agent-1'))
+      .mockImplementationOnce(async () => { throw new Error('spawn crashed'); });
     setQueued(ctx, task('queued', 'analyze-coverage', 'coverage-analysis'));
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     ctx.runningTaskCounter++;
     const result = await assignTask(asCtx(ctx), task('refused', 'security-audit', 'security-compliance'));
+    await drained();
 
     expect(result).toMatchObject({ success: false, error: expect.objectContaining({ message: 'refused' }) });
     expect(ctx.runningTaskCounter).toBe(0);
-    expect(warn).toHaveBeenCalledWith('[Queen] Queue drain after a released slot failed:', 'plugin crashed');
+    expect(warn).toHaveBeenCalledWith('[Queen] Queue drain after a released slot failed:', 'spawn crashed');
     warn.mockRestore();
   });
 });
 
+describe('a dispatch failure is settled once (#1140)', () => {
+  // Review R3: a plugin that reported the failure through onComplete and then
+  // returned err was settled twice: two QueenTaskFailed, two releases.
+  it('settles a failure reported through onComplete and returned as err once', async () => {
+    const { ctx, security } = createContext(4);
+    ctx.runningTaskCounter = 1; // another task running elsewhere
+    security.executeTask.mockImplementationOnce((async (req: { taskId: string }, onComplete: (r: unknown) => Promise<void>) => {
+      await onComplete({ taskId: req.taskId, success: false, error: 'x', duration: 1 });
+      return { success: false, error: new Error('x') };
+    }) as never);
+
+    await submitDirect(ctx, task('s', 'security-audit', 'security-compliance'));
+
+    expect(ctx.publishEvent.mock.calls.filter(([type]) => type === 'TaskFailed')).toHaveLength(1);
+    expect(ctx.tasksFailed).toBe(1);
+    expect(ctx.runningTaskCounter).toBe(1);
+  });
+
+  // Comment on #1140: a throw left the task running on a released slot.
+  it('settles a task whose plugin throws from executeTask as failed, once', async () => {
+    const { ctx, coverage } = createContext(4);
+    coverage.executeTask.mockImplementationOnce(async () => { throw new Error('plugin crashed'); });
+
+    const result = await submitDirect(ctx, task('t', 'analyze-coverage', 'coverage-analysis'));
+
+    expect(result).toMatchObject({ success: false, error: expect.objectContaining({ message: 'plugin crashed' }) });
+    expect(ctx.tasks.get('t')).toMatchObject({ status: 'failed', error: 'plugin crashed' });
+    expect(ctx.publishEvent.mock.calls.filter(([type]) => type === 'TaskFailed')).toHaveLength(1);
+    expect(ctx.tasksFailed).toBe(1);
+    expect(ctx.runningTaskCounter).toBe(0);
+  });
+
+  it('fails a queued task whose plugin throws and moves on to the next one', async () => {
+    const { ctx, coverage } = createContext(1);
+    coverage.executeTask.mockImplementationOnce(async () => { throw new Error('plugin crashed'); });
+    setQueued(ctx, task('first', 'analyze-coverage', 'coverage-analysis'));
+    setQueued(ctx, task('second', 'analyze-coverage', 'coverage-analysis'));
+
+    await processQueue(asCtx(ctx));
+
+    expect(ctx.tasks.get('first')).toMatchObject({ status: 'failed', error: 'plugin crashed' });
+    expect(ctx.tasks.get('second')?.status).toBe('running');
+    expect(ctx.runningTaskCounter).toBe(1);
+  });
+
+  // A refused submission returned only after the drain its released slot
+  // started had finished dispatching other tasks.
+  it('returns a refused submission before the queue drain it starts has finished', async () => {
+    const { ctx, security, hold, release } = createContext(1);
+    security.executeTask.mockImplementationOnce(async () => ({ success: false, error: new Error('refused') }) as never);
+    setQueued(ctx, task('waiting', 'analyze-coverage', 'coverage-analysis'));
+
+    ctx.requestAgentSpawn.mockImplementationOnce(async () => ok('agent-1')); // the refused task's own spawn
+    hold(); // the drain's agent spawn for the waiting task stays pending
+    const result = await submitDirect(ctx, task('refused', 'security-audit', 'security-compliance'));
+
+    expect(result).toMatchObject({ success: false });
+    expect(ctx.tasks.get('waiting')?.status).toBe('queued');
+    release();
+    await drained();
+    expect(ctx.tasks.get('waiting')?.status).toBe('running');
+    expect(ctx.runningTaskCounter).toBe(1);
+  });
+});
+
 describe('work stealing checks for a handler and takes a slot (#1124)', () => {
-  async function steal(ctx: Ctx, idle: DomainName, busy: DomainName) {
+  const steal = (ctx: Ctx, idle: DomainName, busy: DomainName) => stealTo(ctx, [idle], busy);
+
+  async function stealTo(ctx: Ctx, idle: DomainName[], busy: DomainName) {
     const { dispatchStolenTask, canDomainExecuteTask } = await import('../../../src/coordination/queen-task-management.js');
     const wsCtx: QueenWorkStealingContext = {
       config: { workStealing: { stealBatchSize: 3 } } as QueenWorkStealingContext['config'],
       domainQueues: ctx.domainQueues,
       auditLogger: ctx.auditLogger as unknown as QueenWorkStealingContext['auditLogger'],
       tasksStolen: 0,
-      getIdleDomains: () => [idle],
+      getIdleDomains: () => [...idle],
       getBusyDomains: () => [busy],
       getDomainLoad: () => 0,
+      availableSlots: () => ctx.config.maxConcurrentTasks - ctx.runningTaskCounter,
       canExecuteInDomain: (d, t) => canDomainExecuteTask(ctx.domainPlugins, d, t),
       removeFromQueues: (t) => {
         for (const q of [...ctx.taskQueue.values(), ...ctx.domainQueues.values()]) {
@@ -319,21 +394,35 @@ describe('work stealing checks for a handler and takes a slot (#1124)', () => {
     expect(ctx.runningTaskCounter).toBe(1);
   });
 
-  // Unchanged: stealing still starts a task when every slot is taken. The
-  // counter now shows it, so the queue waits until it is back under the limit.
-  it('counts a task stolen at capacity, and the queue waits until a slot frees', async () => {
+  // #1140 (review R5): stealing started a task even when every slot was
+  // taken, so the counter ended above maxConcurrentTasks.
+  it('does not steal when every slot is taken', async () => {
     const { ctx, security } = createContext(1);
     security.canHandleTask = (type: string) => type === 'ideation-assessment';
     ctx.runningTaskCounter = 1;
     setQueued(ctx, task('idea', 'ideation-assessment', 'coverage-analysis'));
-    setQueued(ctx, task('waiting', 'analyze-coverage', 'coverage-analysis'));
 
-    await steal(ctx, 'security-compliance', 'coverage-analysis');
-    await processQueue(asCtx(ctx));
+    const stolen = await steal(ctx, 'security-compliance', 'coverage-analysis');
 
-    expect(ctx.tasks.get('idea')?.status).toBe('running');
-    expect(ctx.tasks.get('waiting')?.status).toBe('queued');
+    expect(stolen).toBe(0);
+    expect(ctx.tasks.get('idea')?.status).toBe('queued');
+    expect(ctx.runningTaskCounter).toBe(1);
+    expect(security.executeTask).not.toHaveBeenCalled();
+  });
+
+  it('steals no more tasks than there are free slots', async () => {
+    const { ctx, security } = createContext(2);
+    security.canHandleTask = (type: string) => type === 'ideation-assessment';
+    ctx.domainPlugins.set('requirements-validation', plugin(['ideation-assessment']) as unknown as DomainPlugin);
+    ctx.runningTaskCounter = 1;
+    setQueued(ctx, task('idea-1', 'ideation-assessment', 'coverage-analysis'));
+    setQueued(ctx, task('idea-2', 'ideation-assessment', 'coverage-analysis'));
+
+    const stolen = await stealTo(ctx, ['security-compliance', 'requirements-validation'], 'coverage-analysis');
+
+    expect(stolen).toBe(1);
     expect(ctx.runningTaskCounter).toBe(2);
+    expect(ctx.tasks.get('idea-2')?.status).toBe('queued');
   });
 
   it('fails a stolen task that cannot be assigned, and does not count or announce it as stolen', async () => {
