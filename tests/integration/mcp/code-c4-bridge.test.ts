@@ -7,7 +7,7 @@
  * in-process tool class).
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -21,11 +21,13 @@ interface CapturedEntry {
 let tmp: string;
 beforeEach(() => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'c4-bridge-'));
+  // #1126: qe/code/c4 analyses only a projectPath inside the project root.
+  vi.stubEnv('AQE_PROJECT_ROOT', tmp);
   fs.writeFileSync(path.join(tmp, 'package.json'), JSON.stringify({ name: 'svc', dependencies: { pg: '^8.0.0' } }));
   fs.mkdirSync(path.join(tmp, 'src', 'services'), { recursive: true });
   fs.writeFileSync(path.join(tmp, 'src', 'services', 'a.ts'), 'export class A {}\n');
 });
-afterEach(() => fs.rmSync(tmp, { recursive: true, force: true }));
+afterEach(() => { vi.unstubAllEnvs(); fs.rmSync(tmp, { recursive: true, force: true }); });
 
 describe('qe/code/c4 served via the QE tool bridge', () => {
   it('should_register_qe_code_c4_with_a_definition_and_handler', async () => {

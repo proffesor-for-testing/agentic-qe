@@ -91,7 +91,9 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
       let tempPath: string | undefined;
       if (payload.sourceFiles && payload.sourceFiles.length > 0) {
         sourceFiles = payload.sourceFiles;
-      } else if (payload.filePath) {
+      } else if (payload.filePath && !payload.sourceCode) {
+        // With sourceCode, filePath is only the import target written into the
+        // generated tests (tool contract); it is neither read nor required.
         sourceFiles = [payload.filePath];
       }
       if (sourceFiles.length > 0) {

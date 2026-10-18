@@ -59,9 +59,11 @@ describe('MCP code indexing confinement (#1096)', () => {
   it('code_index fails when its target is a symlink out of the project', async () => {
     const result = await call('code_index', { target: 'src/leak.ts', saveResults: false });
 
+    // #1126: the target is refused before anything under it is listed or read.
     expect(result.success, JSON.stringify(result)).toBe(false);
-    expect(result.error).toContain('Nothing was indexed');
-    expect(result.error).toContain('outside-project-root');
+    expect(result.error).toContain('Invalid index-code payload');
+    expect(result.error).toContain('src/leak.ts (outside-project-root)');
+    expect(JSON.stringify(result)).not.toMatch(/secret\.ts|SECRET_TOKEN_1096/);
   }, 30000);
 
   it('code_index on a directory with no source files reports 0 files, not a fabricated count', async () => {
