@@ -8,7 +8,6 @@ import type { DomainName } from '../shared/types';
 import { toErrorMessage } from '../shared/error-utils.js';
 import type { TaskAuditLogger } from './services';
 import type { QueenTask, QueenConfig } from './queen-types.js';
-import { canDomainHandleTask } from './queen-task-management.js';
 
 // ============================================================================
 // Context interface for work stealing
@@ -26,6 +25,8 @@ export interface QueenWorkStealingContext {
   getIdleDomains(): DomainName[];
   getBusyDomains(): DomainName[];
   getDomainLoad(domain: DomainName): number;
+  /** #1124: the domain is configured for the task and its plugin can execute it */
+  canExecuteInDomain(domain: DomainName, task: QueenTask): boolean;
   removeFromQueues(task: QueenTask): void;
   assignTaskToDomain(task: QueenTask, domain: DomainName): Promise<void>;
   publishEvent(type: string, payload: Record<string, unknown>): Promise<void>;
@@ -58,7 +59,7 @@ export async function triggerWorkStealing(ctx: QueenWorkStealingContext): Promis
     const stealCount = Math.min(queue.length, ctx.config.workStealing.stealBatchSize);
 
     for (let i = 0; i < stealCount && idleDomains.length > 0; i++) {
-      const task = queue.find(t => canDomainHandleTask(idleDomains[0], t));
+      const task = queue.find(t => ctx.canExecuteInDomain(idleDomains[0], t));
 
       if (task) {
         const stealerDomain = idleDomains.shift()!;

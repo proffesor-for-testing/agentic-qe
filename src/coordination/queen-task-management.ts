@@ -183,43 +183,51 @@ export async function processQueue(ctx: QueenTaskContext): Promise<void> {
   // here instead of starting a nested drain (one stack frame per failed task).
   drainDepth.set(ctx.tasks, (drainDepth.get(ctx.tasks) ?? 0) + 1);
   try {
-    for (const priority of ['p0', 'p1', 'p2', 'p3'] as Priority[]) {
-      const queue = ctx.taskQueue.get(priority);
-      if (!queue || queue.length === 0) continue;
+    // #1127: a slot released elsewhere while this drain awaits marks it dirty,
+    // so it scans again from p0 rather than leaving the slot unused.
+    do {
+      drainDirty.delete(ctx.tasks);
+      for (const priority of ['p0', 'p1', 'p2', 'p3'] as Priority[]) {
+        const queue = ctx.taskQueue.get(priority);
+        if (!queue || queue.length === 0) continue;
 
-      let task = shiftDispatchableTask(ctx, queue);
-      while (task) {
-        removeFromQueues(ctx.taskQueue, ctx.domainQueues, task);
+        let task = shiftDispatchableTask(ctx, queue);
+        while (task) {
+          removeFromQueues(ctx.taskQueue, ctx.domainQueues, task);
 
-        // CC-002 FIX: Increment counter before assigning queued task
-        ctx.runningTaskCounter++;
+          // CC-002 FIX: Increment counter before assigning queued task
+          ctx.runningTaskCounter++;
 
-        let assigned: Result<string, Error>;
-        try {
-          assigned = await assignTask(ctx, task);
-        } catch (error) {
-          ctx.runningTaskCounter = Math.max(0, ctx.runningTaskCounter - 1);
-          throw error;
+          let assigned: Result<string, Error>;
+          try {
+            assigned = await assignTask(ctx, task);
+          } catch (error) {
+            ctx.runningTaskCounter = Math.max(0, ctx.runningTaskCounter - 1);
+            throw error;
+          }
+          // #1081: a queued task that cannot be assigned (no healthy domain, open
+          // breaker) has no caller waiting on the result. Fail it with the reason
+          // rather than leave it queued forever on a held slot.
+          if (!assigned.success && (ctx.tasks.get(task.id)?.status ?? 'queued') === 'queued') {
+            await settleFailedBeforeRun(ctx, task, undefined, assigned.error.message);
+          }
+
+          if (ctx.runningTaskCounter >= ctx.config.maxConcurrentTasks) {
+            return;
+          }
+          // #1127: fill every free slot, whether this task started, failed
+          // before running or was cancelled while it was being assigned.
+          task = shiftDispatchableTask(ctx, queue);
         }
-        // #1081: a queued task that cannot be assigned (no healthy domain, open
-        // breaker) has no caller waiting on the result. Fail it with the reason
-        // rather than leave it queued forever on a held slot.
-        if (!assigned.success && (ctx.tasks.get(task.id)?.status ?? 'queued') === 'queued') {
-          settleFailedBeforeRun(ctx, task, undefined, assigned.error.message);
-        }
-
-        if (ctx.runningTaskCounter >= ctx.config.maxConcurrentTasks) {
-          return;
-        }
-        // A task that failed without starting gave its slot back; let the
-        // next task of this priority have it.
-        task = ctx.tasks.get(task.id)?.status === 'failed' ? shiftDispatchableTask(ctx, queue) : undefined;
       }
-    }
+    } while (drainDirty.has(ctx.tasks) && ctx.runningTaskCounter < ctx.config.maxConcurrentTasks);
   } finally {
     const depth = (drainDepth.get(ctx.tasks) ?? 1) - 1;
     if (depth > 0) drainDepth.set(ctx.tasks, depth);
-    else drainDepth.delete(ctx.tasks);
+    else {
+      drainDepth.delete(ctx.tasks);
+      drainDirty.delete(ctx.tasks);
+    }
   }
 }
 
@@ -228,6 +236,19 @@ export async function processQueue(ctx: QueenTaskContext): Promise<void> {
  * object is rebuilt for every call).
  */
 const drainDepth = new WeakMap<Map<string, TaskExecution>, number>();
+
+/** #1127: Queens with a slot released while a drain was running. */
+const drainDirty = new WeakSet<Map<string, TaskExecution>>();
+
+/**
+ * Give back the slot a task held and hand it to the queue: a running drain
+ * picks it up on its next scan, otherwise a new drain starts.
+ */
+async function releaseSlot(ctx: QueenTaskContext): Promise<void> {
+  ctx.runningTaskCounter = Math.max(0, ctx.runningTaskCounter - 1);
+  if (drainDepth.has(ctx.tasks)) drainDirty.add(ctx.tasks);
+  else await processQueue(ctx);
+}
 
 /**
  * Take the next task that is still waiting to run. A queued task can reach a
@@ -403,7 +424,7 @@ export async function assignTaskToDomain(
   // Do not recreate it as running or dispatch its plugin afterward.
   if (ctx.tasks.get(task.id)?.status === 'cancelled') {
     if (spawnResult.success) await ctx.agentCoordinator.stop(spawnResult.value);
-    ctx.runningTaskCounter = Math.max(0, ctx.runningTaskCounter - 1);
+    await releaseSlot(ctx);
     return ok(task.id);
   }
 
@@ -474,10 +495,11 @@ export async function assignTaskToDomain(
           error: execResult.error.message,
           completedAt: new Date(),
         });
-        ctx.runningTaskCounter = Math.max(0, ctx.runningTaskCounter - 1);
         ctx.tasksFailed++;
 
         ctx.auditLogger.logFail(task.id, agentIds[0], execResult.error.message);
+        await ctx.publishEvent('TaskFailed', { taskId: task.id, domain, error: execResult.error.message });
+        await releaseSlot(ctx);
 
         return err(execResult.error);
       }
@@ -499,26 +521,26 @@ async function failUnexecutableTask(
   domain: DomainName,
   reason: string,
 ): Promise<Result<string, Error>> {
-  settleFailedBeforeRun(ctx, task, domain, reason);
-
   const traceCtx = ctx.taskTraceContexts.get(task.id);
   if (ctx.traceCollector && traceCtx) {
     ctx.traceCollector.failSpan(traceCtx.spanId, reason);
     ctx.taskTraceContexts.delete(task.id);
   }
 
-  // Inside a drain, the drain itself hands the freed slot on.
-  if (!drainDepth.has(ctx.tasks)) await processQueue(ctx);
+  await settleFailedBeforeRun(ctx, task, domain, reason);
   return ok(task.id);
 }
 
-/** Mark a task that never started as failed and release the slot it held. */
-function settleFailedBeforeRun(
+/**
+ * Mark a task that never started as failed, publish QueenTaskFailed (#1124)
+ * and hand the slot it held to the queue.
+ */
+async function settleFailedBeforeRun(
   ctx: QueenTaskContext,
   task: QueenTask,
   domain: DomainName | undefined,
   reason: string,
-): void {
+): Promise<void> {
   ctx.tasks.set(task.id, {
     taskId: task.id,
     task,
@@ -529,9 +551,33 @@ function settleFailedBeforeRun(
     error: reason,
     completedAt: new Date(),
   });
-  ctx.runningTaskCounter = Math.max(0, ctx.runningTaskCounter - 1);
   ctx.tasksFailed++;
   ctx.auditLogger.logFail(task.id, undefined, reason);
+  await ctx.publishEvent('TaskFailed', { taskId: task.id, domain, error: reason });
+  await releaseSlot(ctx);
+}
+
+/**
+ * Work stealing: dispatch a queued task to another domain. It takes a slot
+ * like any dispatched task, so its settle leaves the counter balanced, and it
+ * is failed with the reason if it cannot be assigned (#1124).
+ */
+export async function dispatchStolenTask(
+  ctx: QueenTaskContext,
+  task: QueenTask,
+  domain: DomainName,
+): Promise<void> {
+  ctx.runningTaskCounter++;
+  let assigned: Result<string, Error>;
+  try {
+    assigned = await assignTaskToDomain(ctx, task, domain);
+  } catch (error) {
+    ctx.runningTaskCounter = Math.max(0, ctx.runningTaskCounter - 1);
+    throw error;
+  }
+  if (!assigned.success && (ctx.tasks.get(task.id)?.status ?? 'queued') === 'queued') {
+    await settleFailedBeforeRun(ctx, task, domain, assigned.error.message);
+  }
 }
 
 // ============================================================================
@@ -619,4 +665,18 @@ async function handleTaskCompletionCallback(
 export function canDomainHandleTask(domain: DomainName, task: QueenTask): boolean {
   const compatibleDomains = getTaskDomains(task.type);
   return compatibleDomains.includes(domain);
+}
+
+/**
+ * #1124: whether a task can run in a domain, i.e. the domain is configured for
+ * its type and, for a Queen-owned task, the domain's plugin has a handler.
+ */
+export function canDomainExecuteTask(
+  domainPlugins: ReadonlyMap<DomainName, DomainPlugin> | undefined,
+  domain: DomainName,
+  task: QueenTask,
+): boolean {
+  if (!canDomainHandleTask(domain, task)) return false;
+  if (task.executionOwner === 'caller' || !domainPlugins) return true;
+  return findDomainsWithoutHandler(domainPlugins, task.type, [domain]).length === 0;
 }

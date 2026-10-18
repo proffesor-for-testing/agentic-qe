@@ -128,7 +128,7 @@ import { subscribeToEvents, computeDomainHealthFromAgents } from './queen-event-
 import { findDomainsWithoutHandler, describeMissingHandler } from './task-executability.js';
 import {
   enqueueTask, removeFromQueues, getQueuePosition, processQueue,
-  listTasks as listTasksImpl, assignTask, assignTaskToDomain,
+  listTasks as listTasksImpl, assignTask, dispatchStolenTask, canDomainExecuteTask,
 } from './queen-task-management.js';
 import type { QueenTaskContext } from './queen-task-management.js';
 import { triggerWorkStealing as triggerWorkStealingImpl, startWorkStealingTimer } from './queen-work-stealing.js';
@@ -460,7 +460,8 @@ export class QueenCoordinator implements IQueenCoordinator {
       // Assign task to domain
       const assignResult = await assignTask(this.createTaskContext(), task);
       if (!assignResult.success) {
-        this.runningTaskCounter--;
+        // A task its plugin refused was already failed and gave its slot back.
+        if (this.tasks.get(taskId)?.status !== 'failed') this.runningTaskCounter--;
         return assignResult;
       }
 
@@ -1008,8 +1009,9 @@ export class QueenCoordinator implements IQueenCoordinator {
       getIdleDomains: () => self.getIdleDomains(),
       getBusyDomains: () => self.getBusyDomains(),
       getDomainLoad: (d) => self.getDomainLoad(d),
+      canExecuteInDomain: (d, t) => canDomainExecuteTask(self.domainPlugins, d, t),
       removeFromQueues: (t) => removeFromQueues(self.taskQueue, self.domainQueues, t),
-      assignTaskToDomain: (t, d) => assignTaskToDomain(self.createTaskContext(), t, d).then(() => {}),
+      assignTaskToDomain: (t, d) => dispatchStolenTask(self.createTaskContext(), t, d),
       publishEvent: (t, p) => self.publishEvent(t, p),
     };
   }
