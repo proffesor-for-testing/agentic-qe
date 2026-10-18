@@ -11,7 +11,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import type { Database as DatabaseType } from 'better-sqlite3';
+import Database, { type Database as DatabaseType } from 'better-sqlite3';
 import {
   createDreamEngine,
   DreamAlreadyRunningError,
@@ -25,6 +25,7 @@ import {
   getUnifiedPersistence,
 } from '../../../../src/kernel/unified-persistence.js';
 import type { WitnessChain } from '../../../../src/audit/witness-chain.js';
+import { closeRegisteredStores } from '../../../../src/kernel/process-lifecycle.js';
 
 const DIR = path.join(os.tmpdir(), `aqe-dream-1060-${process.pid}`);
 const DB_PATH = path.join(DIR, 'memory.db');
@@ -112,6 +113,51 @@ describe('#1060 DreamEngine cancellation', () => {
     }]);
     expect(count('dream_insights')).toBe(0);
     expect(activations()).toEqual(before);
+  });
+});
+
+describe('#1060 close or shutdown right after dream() (no await in between)', () => {
+  const INTERRUPTED = {
+    status: 'interrupted',
+    error: 'Interrupted: engine closed or process shut down during the dream cycle',
+  };
+
+  it('close() called immediately after dream() stops it at once and records it interrupted', async () => {
+    const before = activations();
+    const dreaming = engine.dream(3000);
+    const outcome = dreaming.then(() => 'completed', (error: Error) => error.message);
+
+    const closedAt = Date.now();
+    await engine.close();
+    const closeMs = Date.now() - closedAt;
+    const settled = await outcome;
+    const settleMs = Date.now() - closedAt;
+
+    // The review repro: close() waited its full 2 s and the loop ran 3 s.
+    expect(closeMs).toBeLessThan(1000);
+    expect(settleMs).toBeLessThan(1000);
+    expect(settled).toBe('Dream cycle cancelled');
+    expect(cycles()).toEqual([INTERRUPTED]);
+    expect(count('dream_insights')).toBe(0);
+    expect(activations()).toEqual(before);
+  });
+
+  it('a shutdown immediately after dream() records the cycle interrupted before the database closes', async () => {
+    const dreaming = engine.dream(3000);
+    const outcome = dreaming.then(() => 'completed', (error: Error) => error.message);
+
+    const shutdownAt = Date.now();
+    closeRegisteredStores(); // what MCP stdin EOF / SIGTERM runs; closes the shared DB too
+    expect(await outcome).not.toBe('completed');
+    expect(Date.now() - shutdownAt).toBeLessThan(1000);
+
+    const reopened = new Database(DB_PATH, { readonly: true });
+    try {
+      expect(reopened.prepare('SELECT status, error FROM dream_cycles').all()).toEqual([INTERRUPTED]);
+      expect((reopened.prepare('SELECT COUNT(*) AS n FROM dream_insights').get() as { n: number }).n).toBe(0);
+    } finally {
+      reopened.close();
+    }
   });
 });
 
@@ -208,6 +254,57 @@ describe('#1060 SpeculativeDreamer on a real engine', () => {
     } finally {
       clearInterval(watch);
     }
+  });
+});
+
+describe('#1060 SpeculativeDreamer cancellation', () => {
+  it('after cancelDream() runs no further strategy and commits nothing', async () => {
+    const before = activations();
+    const dreamer = new SpeculativeDreamer(engine);
+    const dreamSpy = vi.spyOn(engine, 'dream');
+    const running = dreamer.dream(
+      [
+        { name: 'a', activationConfig: { spreadFactor: 0.5 } },
+        { name: 'b', activationConfig: { spreadFactor: 0.6 } },
+        { name: 'c', activationConfig: { spreadFactor: 0.7 } },
+      ],
+      { durationMs: 1000 },
+    );
+    // Review repro: cancel during strategy b, after a completed.
+    await sleep(1300);
+    await engine.cancelDream();
+    const result = await running;
+
+    expect(result.cancelled).toBe(true);
+    expect(result.winner).toBeNull();
+    expect(result.strategies.map((s) => s.strategy.name)).toEqual(['a', 'b']);
+    expect(dreamSpy).toHaveBeenCalledTimes(2);
+    expect(count('dream_cycles')).toBe(0);
+    expect(count('dream_insights')).toBe(0);
+    expect(activations()).toEqual(before);
+  });
+
+  it('a cancel between strategies also stops the run', async () => {
+    const dreamer = new SpeculativeDreamer(engine);
+    const realDream = engine.dream.bind(engine);
+    vi.spyOn(engine, 'dream').mockImplementation(async (...args) => {
+      const result = await realDream(...args);
+      await engine.cancelDream(); // lands after strategy a finished, before b starts
+      return result;
+    });
+
+    const result = await dreamer.dream(
+      [
+        { name: 'a', activationConfig: { spreadFactor: 0.5 } },
+        { name: 'b', activationConfig: { spreadFactor: 0.6 } },
+      ],
+      { durationMs: 200 },
+    );
+
+    expect(result.cancelled).toBe(true);
+    expect(result.winner).toBeNull();
+    expect(result.strategies.map((s) => s.strategy.name)).toEqual(['a']);
+    expect(count('dream_cycles')).toBe(0);
   });
 });
 
