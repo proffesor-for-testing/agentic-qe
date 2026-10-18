@@ -32,7 +32,9 @@ describe('literal retry names', () => {
       expect(arg).toBeDefined();
       const pattern = new RegExp(arg!.slice(flag.length));
       expect(pattern.test(name)).toBe(true);
-      expect(pattern.test(`suite ${name} suffix`)).toBe(true);
+      // #1141: anchored to the one test, whichever separator the runner uses.
+      expect(pattern.test(name.replace(' ', ' > '))).toBe(true);
+      expect(pattern.test(`suite ${name} suffix`)).toBe(false);
       expect(pattern.test('case.i aab x 2')).toBe(false);
       expect(pattern.test('another test')).toBe(false);
     } finally {
