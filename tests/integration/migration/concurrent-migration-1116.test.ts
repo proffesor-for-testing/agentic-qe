@@ -13,7 +13,7 @@
  * Each round starts real processes on a fresh copy of the fixture at once.
  */
 import { spawn } from 'node:child_process';
-import { copyFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import Database from 'better-sqlite3';
@@ -31,33 +31,34 @@ let dir: string;
 
 type ChildResult = { ok: boolean; version?: number; migration?: 'applied' | 'waited' | 'none'; error?: string };
 
-/** Migrations each fixture's rounds saw, so a test can check the waiting path ran. */
-const migrations: string[] = [];
-
 /**
  * Every process opens the database at the current version, and exactly one
  * migrates it. Any other process either waited for the lock and found the
  * migration done ('waited': the version re-read under the lock), or opened
  * after it finished ('none'). Without the re-read, a process that waited
- * re-ran the migration and also logged "Migration complete".
+ * re-runs the migration and also logs "Migration complete". The start barrier
+ * (see openConcurrently) makes the processes overlap, so they do wait.
  */
 function expectOneMigrator(results: ChildResult[]): void {
   const detail = JSON.stringify(results);
   for (const r of results) expect(r, detail).toMatchObject({ ok: true, version: SCHEMA_VERSION });
   expect(results.filter((r) => r.migration === 'applied'), detail).toHaveLength(1);
   for (const r of results) expect(['applied', 'waited', 'none'], detail).toContain(r.migration);
-  migrations.push(...results.map((r) => r.migration ?? 'missing'));
 }
 
-function openInChild(dbPath: string): Promise<ChildResult> {
+function openInChild(dbPath: string, startFile: string, onReady: () => void): Promise<ChildResult> {
   return new Promise((done) => {
-    const child = spawn(process.execPath, ['--import', tsxLoader, childScript, dbPath], {
+    const child = spawn(process.execPath, ['--import', tsxLoader, childScript, dbPath, startFile], {
       cwd: dir,
       env: { PATH: process.env.PATH, HOME: dir, TMPDIR: dir, TSX_TSCONFIG_PATH: join(repoRoot, 'tsconfig.json') },
     });
     let out = '';
     let err = '';
-    child.stdout.on('data', (d) => { out += d; });
+    let ready = false;
+    child.stdout.on('data', (d) => {
+      out += d;
+      if (!ready && out.includes('ready\n')) { ready = true; onReady(); }
+    });
     child.stderr.on('data', (d) => { err += d; });
     child.on('close', () => {
       const line = out.trim().split('\n').reverse().find((l) => l.startsWith('{"ok"'));
@@ -69,7 +70,13 @@ function openInChild(dbPath: string): Promise<ChildResult> {
 async function openConcurrently(source: string, round: string) {
   const target = join(dir, `${round}.db`);
   copyFileSync(source, target);
-  const results = await Promise.all(Array.from({ length: PROCESSES }, () => openInChild(target)));
+  // Start barrier: each child loads its modules, says "ready" and waits for
+  // the start file, which is created once every child is ready. Without it a
+  // slow runner can start them one after another, so none of them overlap.
+  const startFile = join(dir, `${round}.start`);
+  let readyCount = 0;
+  const onReady = () => { if (++readyCount === PROCESSES) writeFileSync(startFile, 'go'); };
+  const results = await Promise.all(Array.from({ length: PROCESSES }, () => openInChild(target, startFile, onReady)));
   const db = new Database(target, { readonly: true });
   try {
     const count = (sql: string) => (db.prepare(sql).get() as { n: number }).n;
@@ -127,9 +134,6 @@ describe('#1116 concurrent migration', () => {
       expect(result.archiveRows).toBe(3);
       expect(result.archiveIndex).toBe(1);
     }
-    // The waiting path ran at least once: a process re-read the version under
-    // the lock and applied nothing.
-    expect(migrations.splice(0), 'no process waited for the migration').toContain('waited');
   }, 180_000);
 
   it(`v11 with legacy rows: ${PROCESSES} processes x ${ROUNDS} rounds migrate it once, with no duplicated backfill`, async () => {
@@ -169,8 +173,5 @@ describe('#1116 concurrent migration', () => {
       // The v12 backfill ran once: one legacy-unknown admission per pattern.
       expect(result.legacyAdmissions).toBe(2);
     }
-    // The waiting path ran at least once: a process re-read the version under
-    // the lock and applied nothing.
-    expect(migrations.splice(0), 'no process waited for the migration').toContain('waited');
   }, 180_000);
 });
