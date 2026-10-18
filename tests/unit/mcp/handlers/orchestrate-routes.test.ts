@@ -41,12 +41,6 @@ describe('routeInferredTask (#1125)', () => {
     });
   });
 
-  it('routes learning optimization to optimize-strategies, which needs no input', async () => {
-    expect(await routeInferredTask('optimize-learning', { task: 'optimize learning' })).toEqual({
-      kind: 'route', type: 'optimize-strategies', domain: 'learning-optimization', payload: {},
-    });
-  });
-
   it.each([
     ['scan-security', 'Pass filePaths with the source files to scan'],
     ['assess-quality', 'Pass filePaths with the source files to assess'],
@@ -71,6 +65,7 @@ describe('routeInferredTask (#1125)', () => {
     ['validate-contracts', 'Use contract_validate'],
     ['validate-requirements', 'Use requirements_validate'],
     ['test-accessibility', 'Use accessibility_test'],
+    ['optimize-learning', 'Use task_submit with type optimize-strategies'],
   ] as const)('refuses %s, whose input a description cannot supply', async (type, hint) => {
     const route = await routeInferredTask(type, { task: 'test https://example.com', filePaths: [file] });
     expect(route).toEqual({

@@ -251,6 +251,7 @@ describe('SecurityCompliancePlugin', () => {
     // task_orchestrate, fleet run) carries plain path strings.
     it('should scan plain path strings for sast-scan', async () => {
       const dir = mkdtempSync(join(tmpdir(), 'aqe-sast-strings-'));
+      vi.stubEnv('AQE_PROJECT_ROOT', dir); // only files inside the project are scanned
       try {
         const file = join(dir, 'unsafe.js');
         writeFileSync(file, 'export function run(input) {\n  return eval(input);\n}\n');
@@ -262,7 +263,29 @@ describe('SecurityCompliancePlugin', () => {
         expect(result.success, result.error).toBe(true);
         const scan = result.data as { vulnerabilities: Array<{ title: string; location: { file: string } }> };
         expect(scan.vulnerabilities.some(v => v.title.includes('eval()') && v.location.file === file)).toBe(true);
-      } finally { rmSync(dir, { recursive: true, force: true }); }
+      } finally { vi.unstubAllEnvs(); rmSync(dir, { recursive: true, force: true }); }
+    });
+
+    it('should refuse a file outside the project without scanning it', async () => {
+      const project = mkdtempSync(join(tmpdir(), 'aqe-sast-project-'));
+      const outside = mkdtempSync(join(tmpdir(), 'aqe-sast-outside-'));
+      vi.stubEnv('AQE_PROJECT_ROOT', project);
+      try {
+        const file = join(outside, 'secret.js');
+        writeFileSync(file, 'const password = "s3cret";\n');
+        const { callback, waitForResult } = createMockCallback();
+
+        expectSuccess(await plugin.executeTask(createMockTaskRequest('sast-scan', { files: [file] }), callback));
+
+        const result = await waitForResult();
+        expect(result.success).toBe(false);
+        expect(result.error).toContain(`${file} (outside-project-root)`);
+        expect(JSON.stringify(result)).not.toContain('s3cret');
+      } finally {
+        vi.unstubAllEnvs();
+        rmSync(project, { recursive: true, force: true });
+        rmSync(outside, { recursive: true, force: true });
+      }
     });
 
     it('should reject an empty path string for sast-scan', async () => {

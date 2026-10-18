@@ -20,6 +20,7 @@ import { integrateCodeIntelligence, type FleetIntegrationResult } from '../../in
 import { runFleetInitWizard, type FleetWizardResult } from '../wizards/fleet-wizard.js';
 import { FleetProgressManager, createTimedSpinner } from '../utils/progress.js';
 import { FLEET_OPERATIONS, planFleetOperation, type FleetOperation } from '../utils/fleet-operation.js';
+import { reportFleetVerdict } from '../utils/fleet-result.js';
 import type { QEKernel } from '../../kernel/interfaces.js';
 import { type OutputFormat, writeOutput, toJSON } from '../utils/ci-output.js';
 
@@ -369,7 +370,7 @@ export function createFleetCommand(
                 if (!task) throw new Error(`Task status unavailable: ${taskResult.value}`);
                 if (task.status === 'completed') {
                   progress.completeAgent(op.id, true);
-                  return { id: op.id, success: true };
+                  return { id: op.id, success: true, result: task.result };
                 }
                 if (task.status === 'failed' || task.status === 'cancelled') {
                   throw new Error(task.error || `Task ${task.status}`);
@@ -380,7 +381,7 @@ export function createFleetCommand(
             } catch (error) {
               console.error(chalk.red(`   ${op.name}: ${error instanceof Error ? error.message : String(error)}`));
               progress.completeAgent(op.id, false);
-              return { id: op.id, success: false };
+              return { id: op.id, success: false, result: undefined };
             }
           })
         );
@@ -393,13 +394,16 @@ export function createFleetCommand(
         console.log(chalk.blue('\n Operation Summary:'));
         console.log(chalk.gray(`   Operation: ${operation}`));
         console.log(chalk.gray(`   Target: ${options.target}`));
-        console.log(chalk.green(`   Successful: ${successful}`));
+        console.log(chalk.gray(`   Completed: ${successful}`));
         if (failed > 0) {
           console.log(chalk.red(`   Failed: ${failed}`));
         }
+
+        // #1125 review: a completed task is not a passed check.
+        const passed = reportFleetVerdict(operation as FleetOperation, results);
         console.log('');
 
-        await cleanupAndExit(failed > 0 ? 1 : 0);
+        await cleanupAndExit(passed ? 0 : 1);
 
       } catch (error) {
         console.error(chalk.red('\n Fleet operation failed:'), error);

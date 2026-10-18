@@ -77,8 +77,11 @@ export async function routeInferredTask(type: TaskType, request: OrchestrateRequ
         'Lighthouse), and the domain task handler cannot guarantee one. Use accessibility_test with the page URL.');
 
     case 'optimize-learning':
-      // The handler takes no input: it optimizes the strategies learned so far.
-      return { kind: 'route', type: 'optimize-strategies', domain: 'learning-optimization', payload: {} };
+      // optimize-strategies overwrites the stored learned strategies
+      // (persist: true). Words like "improve" or "optimize" in a description
+      // must not change learning data as a side effect.
+      return needs(type, 'learning optimization overwrites the stored learned strategies, so it is not run from ' +
+        'a description. Use task_submit with type optimize-strategies in domain learning-optimization.');
 
     case 'run-chaos':
       return needs(type, 'a chaos run needs an experiment, or a fault type and target, which a description ' +

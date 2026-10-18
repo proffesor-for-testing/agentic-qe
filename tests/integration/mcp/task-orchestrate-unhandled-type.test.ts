@@ -10,8 +10,8 @@
  * fleet ends with nothing running or pending.
  *
  * #1125: inferred types whose domain runs a concrete handler (sast-scan,
- * analyze-quality, optimize-strategies) are routed there with input from the
- * request; the others are refused with the input they need.
+ * analyze-quality) are routed there with input from the request; the others
+ * are refused with the input they need.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
@@ -30,6 +30,8 @@ const NEEDS_INPUT = [
   ['validate the api contract', 'validate-contracts', 'Use contract_validate'],
   ['validate requirements for login', 'validate-requirements', 'Use requirements_validate'],
   ['test accessibility of https://example.com', 'test-accessibility', 'Use accessibility_test'],
+  // #1125 review: a vague description must not overwrite learned strategies.
+  ['improve the login page performance', 'optimize-learning', 'Use task_submit with type optimize-strategies'],
 ] as const;
 
 describe.skipIf(!existsSync(bundle) && !process.env.CI)('MCP task_orchestrate leaves no task running that nothing executes (#1081)', () => {
@@ -136,7 +138,6 @@ describe.skipIf(!existsSync(bundle) && !process.env.CI)('MCP task_orchestrate le
   it.each([
     ['scan for security vulnerabilities', { filePaths: ['src/unsafe.js'] }, 'scan-security', 'sast-scan'],
     ['assess code quality', { filePaths: ['src/math.js'] }, 'assess-quality', 'analyze-quality'],
-    ['optimize learning strategies', {}, 'optimize-learning', 'optimize-strategies'],
   ])('routes "%s" to a real handler that completes', async (task, extra, inferredType, type) => {
     const submitted = await call('task_orchestrate', { task, ...extra });
     expect(submitted.success, JSON.stringify(submitted)).toBe(true);

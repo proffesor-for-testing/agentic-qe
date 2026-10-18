@@ -11,6 +11,7 @@ import type {
 } from '../../kernel/interfaces.js';
 import { BaseDomainPlugin, TaskHandler } from '../domain-interface.js';
 import { FilePath } from '../../shared/value-objects/index.js';
+import { confineSastFiles, MAX_SAST_FILE_BYTES } from './sast-path-guard.js';
 import type {
   SecurityAuditOptions,
   SecurityAuditReport,
@@ -212,8 +213,18 @@ export class SecurityCompliancePlugin extends BaseDomainPlugin {
         if (requested.some(f => typeof f === 'string' ? f.trim() === '' : !(f instanceof FilePath))) {
           return err(new Error('Invalid sast-scan payload: files must be non-empty file paths'));
         }
-        const files = requested.map(f => typeof f === 'string' ? FilePath.create(f) : f);
-        return this.securityScanner.scanFiles(files);
+        // Every file must be a regular file inside the project, within the
+        // size limit; otherwise nothing is read.
+        const { accepted, skipped } = await confineSastFiles(
+          requested.map(f => typeof f === 'string' ? f : f.value),
+        );
+        if (skipped.length > 0) {
+          return err(new Error(
+            `Invalid sast-scan payload: these files cannot be scanned: ${skipped.map(s => `${s.path} (${s.reason})`).join(', ')}. ` +
+            `Pass regular files inside the project, at most ${MAX_SAST_FILE_BYTES / (1024 * 1024)} MB each.`,
+          ));
+        }
+        return this.securityScanner.scanFiles(accepted.map(f => FilePath.create(f)));
       }],
 
       ['dast-scan', async (payload): Promise<Result<unknown, Error>> => {

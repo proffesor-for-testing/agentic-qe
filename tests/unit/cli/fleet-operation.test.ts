@@ -58,6 +58,13 @@ describe('planFleetOperation (#1125)', () => {
     expect(plan).toEqual({ success: false, error: expect.stringContaining('that the SAST scanner covers (.ts .tsx .js .jsx .mjs .cjs)') });
   });
 
+  it('scan: refuses a target with a file over the SAST size limit, naming it', async () => {
+    write('src/a.js', 'eval(x);');
+    write('src/bundle.js', `// ${'x'.repeat(3 * 1024 * 1024)}`);
+    const plan = await planFleetOperation('scan', join(root, 'src'));
+    expect(plan).toEqual({ success: false, error: expect.stringContaining(`over the 2 MB SAST limit (${join(root, 'src/bundle.js')})`) });
+  });
+
   it('analyze: refuses a project without a coverage report instead of estimating one', async () => {
     write('src/math.js', 'export const add = (a, b) => a + b;');
     const plan = await planFleetOperation('analyze', join(root, 'src'));
@@ -74,7 +81,7 @@ describe('planFleetOperation (#1125)', () => {
 
     expect(plan.success, JSON.stringify(plan)).toBe(true);
     if (!plan.success) return;
-    expect(plan.task).toMatchObject({ domain: 'coverage-analysis', type: 'analyze-coverage' });
+    expect(plan.task).toMatchObject({ domain: 'coverage-analysis', type: 'analyze-coverage', payload: { threshold: 80 } });
     const coverageData = plan.task.payload.coverageData as { files: Array<{ path: string }>; summary: { line: number } };
     expect(coverageData.files.map(f => f.path)).toEqual([join(root, 'src/math.js')]);
     expect(coverageData.summary.line).toBe(75);

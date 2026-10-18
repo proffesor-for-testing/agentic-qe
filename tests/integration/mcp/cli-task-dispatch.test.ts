@@ -34,19 +34,37 @@ describe.skipIf(!existsSync(cli) && !process.env.CI)('built CLI domain dispatch'
     } finally { rmSync(root, { recursive: true, force: true }); }
   }, 35000);
 
-  // #1125: `fleet run scan` used to submit scan-security, which no handler runs.
-  it('runs fleet run scan through the security-compliance sast-scan handler', () => {
+  // #1125: `fleet run scan` used to submit scan-security, which no handler
+  // runs. It now runs sast-scan, and a completed scan is judged on what it
+  // found: a critical finding is listed and fails the run (review of #1144).
+  function fleetScan(source: string) {
     const root = mkdtempSync(join(tmpdir(), 'aqe-fleet-scan-'));
     try {
       mkdirSync(join(root, 'src'));
-      writeFileSync(join(root, 'src/unsafe.js'), 'export function run(input) {\n  return eval(input);\n}\n');
-      const result = spawnSync(process.execPath, [cli, 'fleet', 'run', 'scan', '--target', 'src', '--parallel', '1'], {
+      writeFileSync(join(root, 'src/app.js'), source);
+      return spawnSync(process.execPath, [cli, 'fleet', 'run', 'scan', '--target', 'src', '--parallel', '1'], {
         cwd: root, encoding: 'utf8', timeout: 30000, maxBuffer: 5 * 1024 * 1024,
         env: { ...process.env, AQE_PROJECT_ROOT: root, AQE_MEMORY_BACKEND: 'memory', AQE_SESSION_CACHE: 'off' },
       });
-      expect(result.error).toBeUndefined();
-      expect(result.status, result.stderr).toBe(0);
-      expect(result.stdout).toContain('Successful: 1');
     } finally { rmSync(root, { recursive: true, force: true }); }
+  }
+
+  it('lists a critical finding from fleet run scan and fails the run', () => {
+    const result = fleetScan('export function run(input) {\n  return eval(input);\n}\n');
+    expect(result.error).toBeUndefined();
+    expect(result.stdout).toContain('Completed: 1');
+    expect(result.stdout).toMatch(/Findings: critical [1-9]/);
+    expect(result.stdout).toMatch(/\[critical\] Code Injection via eval\(\) @ .*src\/app\.js:2/);
+    expect(result.stdout).toContain('Verdict: FAILED');
+    expect(result.status).toBe(1);
+  }, 35000);
+
+  it('passes fleet run scan on a file without findings', () => {
+    const result = fleetScan('export const add = (a, b) => a + b;\n');
+    expect(result.error).toBeUndefined();
+    expect(result.stdout).toContain('Findings: critical 0, high 0, medium 0, low 0');
+    expect(result.stdout).toContain('Files scanned: 1 (evidence: complete)');
+    expect(result.stdout).toContain('Verdict: PASSED');
+    expect(result.status, result.stdout + result.stderr).toBe(0);
   }, 35000);
 });
