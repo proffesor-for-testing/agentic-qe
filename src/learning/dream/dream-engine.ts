@@ -392,6 +392,8 @@ export class DreamEngine {
   private cancelled = false;
   /** #1060: how many times cancelDream() was called (see cancelCount). */
   private cancelRequests = 0;
+  /** #1060: set by close() until the engine is initialized again. */
+  private closing = false;
   private branchEventListeners: Array<(event: string, branch: Branch, detail?: ValidationResult) => void> = [];
 
   /** Optional witness chain for audit trail of dream decisions (ADR-070) */
@@ -454,6 +456,7 @@ export class DreamEngine {
       }
 
       this.initialized = true;
+      this.closing = false;
       console.log(`[DreamEngine] Initialized: ${this.persistence.getDbPath()}`);
     } catch (error) {
       throw new Error(
@@ -537,6 +540,7 @@ export class DreamEngine {
    */
   async dream(durationMs?: number, options: DreamRunOptions = {}): Promise<DreamCycleResult> {
     this.ensureInitialized();
+    if (this.closing) throw new Error('Dream engine is closing; no new dream is started');
     // #1060: one dream at a time per engine; a second request is refused.
     if (this.activeDream) throw new DreamAlreadyRunningError(this.activeDream.cycleId);
 
@@ -681,6 +685,9 @@ export class DreamEngine {
    */
   commitDreamResult(result: DreamCycleResult): number {
     this.ensureInitialized();
+    if (this.closing) {
+      throw new Error('Dream engine is closing; nothing is committed');
+    }
     if (!result.pending) {
       throw new Error('Dream result has nothing pending to commit (it was already committed)');
     }
@@ -1143,6 +1150,10 @@ export class DreamEngine {
   async close(): Promise<void> {
     // #1060: stop a dream still in flight and record it as interrupted, then
     // wait (briefly) for it to unwind before letting go of the database.
+    // A close counts as a cancel, so a caller running several dreams in a row
+    // (SpeculativeDreamer) stops instead of committing an earlier result.
+    this.closing = true;
+    this.cancelRequests++;
     this.interruptActiveDream?.();
     this.interruptActiveDream = null;
     this.activeAbort?.abort();
