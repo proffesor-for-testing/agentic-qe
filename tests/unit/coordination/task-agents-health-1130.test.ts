@@ -142,3 +142,58 @@ describe('MinCut health of the fleet leaves task-scoped agents out (#1130)', () 
     await bridge.dispose();
   });
 });
+
+// #1130 review: pruning must never hide an outage.
+describe('a failed agent keeps the fleet degraded (#1130)', () => {
+  it('a crashed long-lived agent keeps its vertex, raises an issue and keeps the fleet degraded', async () => {
+    const coordinator = new DefaultAgentCoordinator();
+    const { bridge, announce } = bridgeWithEvents(coordinator);
+    await bridge.initialize();
+    const agentId = await spawnAgent(coordinator);
+    await announce(agentId);
+    expect(bridge.extendQueenHealth(base).status).toBe('degraded');
+
+    coordinator.markFailed(agentId);
+    const health = bridge.extendQueenHealth(base);
+
+    // Review repro: this used to turn `healthy` with 0 issues.
+    expect(health.status).toBe('degraded');
+    expect(health.issues.map(issue => issue.message)).toContain(`Agent ${agentId} (booster) failed`);
+    expect(bridge.getGraph().hasVertex(`agent:${agentId}`)).toBe(true);
+    await bridge.dispose();
+  });
+
+  it('a crashed task agent degrades the fleet although task agents are left out of the MinCut reading', async () => {
+    const coordinator = new DefaultAgentCoordinator();
+    const { bridge, announce } = bridgeWithEvents(coordinator);
+    await bridge.initialize();
+    const agentId = await spawnAgent(coordinator);
+    await announce(agentId, 'task-1');
+    expect(bridge.extendQueenHealth(base).status).toBe('healthy');
+
+    coordinator.markFailed(agentId);
+    const health = bridge.extendQueenHealth(base);
+
+    expect(health.status).toBe('degraded');
+    expect(health.issues.map(issue => issue.message)).toContain(`Agent ${agentId} (booster) failed`);
+    await bridge.dispose();
+  });
+});
+
+describe('agents already running when the bridge initializes (#1130)', () => {
+  it('are pruned once they complete, like agents spawned later', async () => {
+    const coordinator = new DefaultAgentCoordinator();
+    const agentId = await spawnAgent(coordinator);
+    const { bridge } = bridgeWithEvents(coordinator);
+    await bridge.initialize(); // builds the graph from the coordinator's agents
+    expect(bridge.getGraph().hasVertex(`agent:${agentId}`)).toBe(true);
+    expect(bridge.extendQueenHealth(base).status).toBe('degraded');
+
+    await coordinator.stop(agentId);
+    const health = bridge.extendQueenHealth(base);
+
+    expect(bridge.getGraph().hasVertex(`agent:${agentId}`)).toBe(false);
+    expect(health.status).toBe('healthy');
+    await bridge.dispose();
+  });
+});

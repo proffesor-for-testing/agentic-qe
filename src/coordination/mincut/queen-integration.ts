@@ -110,7 +110,10 @@ export class QueenMinCutBridge {
   private readonly persistence: MinCutPersistence;
 
   private eventSubscriptions: Array<() => void> = [];
-  /** Agents added from QueenAgentSpawned, pruned once they stop running (#1130). */
+  /**
+   * Agents with a vertex in the graph, from QueenAgentSpawned or from the
+   * coordinator when the graph was built. Pruned once they complete (#1130).
+   */
   private readonly spawnedAgentIds = new Set<string>();
   /** The subset spawned for a single task (#1130). */
   private readonly taskAgentIds = new Set<string>();
@@ -226,6 +229,8 @@ export class QueenMinCutBridge {
     // Add agent vertices
     for (const agent of agents) {
       this.addAgentVertex(agent);
+      // #1130: tracked so a completed agent is pruned like a spawned one
+      this.spawnedAgentIds.add(agent.id);
     }
 
     // Add edges based on coordination patterns
@@ -543,19 +548,37 @@ export class QueenMinCutBridge {
   /**
    * #1130: nothing publishes QueenAgentTerminated, so a finished task agent
    * stayed in the topology and kept the fleet degraded after its run. Drop the
-   * vertex of every spawned agent the coordinator no longer reports running.
+   * vertex of every tracked agent that completed normally or that the
+   * coordinator no longer lists. A failed agent keeps its vertex (see
+   * failedAgentIssues), so a crash never makes the fleet look healthier.
+   * Returns the tracked agents that failed.
    */
-  private pruneStoppedAgents(): void {
-    if (this.spawnedAgentIds.size === 0) return;
-    const running = new Set(this.agentCoordinator.listAgents()
-      .filter(agent => agent.status === 'running' || agent.status === 'queued')
-      .map(agent => agent.id));
+  private pruneCompletedAgents(): AgentInfo[] {
+    if (this.spawnedAgentIds.size === 0) return [];
+    const byId = new Map(this.agentCoordinator.listAgents().map(agent => [agent.id, agent]));
+    const failed: AgentInfo[] = [];
     for (const agentId of this.spawnedAgentIds) {
-      if (running.has(agentId)) continue;
+      const agent = byId.get(agentId);
+      if (agent?.status === 'failed') {
+        failed.push(agent);
+        continue;
+      }
+      if (agent && agent.status !== 'completed') continue;
       this.graph.removeVertex(`agent:${agentId}`);
       this.spawnedAgentIds.delete(agentId);
       this.taskAgentIds.delete(agentId);
     }
+    return failed;
+  }
+
+  /** #1130: one issue per failed agent, task-scoped or long-lived. */
+  private failedAgentIssues(failed: AgentInfo[]): HealthIssue[] {
+    return failed.map(agent => ({
+      severity: 'high' as const,
+      message: `Agent ${agent.id} (${agent.type}) failed`,
+      timestamp: new Date(),
+      domain: agent.domain,
+    }));
   }
 
   private isTaskAgentVertex(vertexId: string): boolean {
@@ -591,7 +614,7 @@ export class QueenMinCutBridge {
       return baseHealth;
     }
 
-    this.pruneStoppedAgents();
+    const failedAgents = this.pruneCompletedAgents();
     const minCutHealth = this.getFleetMinCutHealth();
     // #1130: with only task-scoped agents the fleet topology is idle, and the
     // raw alerts describe those agents, not the fleet.
@@ -600,7 +623,7 @@ export class QueenMinCutBridge {
     // Issue #205 fix: Only degrade status for actual critical issues
     // 'idle' status is normal for fresh installs - don't degrade health
     let status = baseHealth.status;
-    if (minCutHealth.fleetStatus === 'critical' && status === 'healthy') {
+    if ((minCutHealth.fleetStatus === 'critical' || failedAgents.length > 0) && status === 'healthy') {
       status = 'degraded';
     }
     // Note: 'idle' status does NOT trigger degradation - it's expected for fresh systems
@@ -608,7 +631,7 @@ export class QueenMinCutBridge {
     return {
       ...baseHealth,
       status,
-      issues: [...baseHealth.issues, ...minCutIssues],
+      issues: [...baseHealth.issues, ...this.failedAgentIssues(failedAgents), ...minCutIssues],
       minCut: minCutHealth,
     };
   }

@@ -516,6 +516,42 @@ describe('Task Handlers', () => {
       expect(result.error).toContain('Use chaos_test');
     }, 30000);
 
+    // #1130 review: chaos counts only as an activity. A task that merely names a
+    // resilience module, a chaos-monkey service or fault-injection.ts keeps the
+    // type it had before. The type is read from the submitted task, or from the
+    // "inferred '<type>'" refusal when the type needs input the call lacks.
+    const inferredType = (result: Awaited<ReturnType<typeof handleTaskOrchestrate>>) =>
+      result.success ? result.data!.type : /inferred '([\w-]+)'/.exec(result.error ?? '')?.[1];
+
+    it.each([
+      ['Run the tests in tests/resilience/retry.test.ts', 'execute-tests'],
+      ['Generate tests for the resilience module', 'generate-tests'],
+      ['Analyze coverage of the resilience package', 'analyze-coverage'],
+      ['Scan the chaos-monkey service for security vulnerabilities', 'scan-security'],
+      ['Assess code quality of the resilience layer', 'assess-quality'],
+      ['Predict defects in fault-injection.ts', 'predict-defects'],
+      ['Validate requirements for resilience stories', 'validate-requirements'],
+    ])('should keep the type of a task that only mentions chaos wording: %s', async (task, type) => {
+      const result = await handleTaskOrchestrate({ task });
+
+      expect(inferredType(result), JSON.stringify(result)).toBe(type);
+    }, 30000);
+
+    it.each([
+      'Run chaos resilience testing with fault injection',
+      'Run chaos testing on the payment service',
+      'Run resilience tests against the api gateway',
+      'Start a chaos experiment on the checkout flow',
+      'Perform fault injection on the database',
+      'Inject faults into the order service',
+    ])('should infer a chaos run from chaos as an activity: %s', async (task) => {
+      const result = await handleTaskOrchestrate({ task });
+
+      expect(result.success).toBe(false);
+      expect(inferredType(result)).toBe('run-chaos');
+      expect(result.error).toContain('Use chaos_test');
+    }, 30000);
+
     it('should still infer a test run when the description says default', async () => {
       const result = await handleTaskOrchestrate({
         task: 'Run the tests with the default config',

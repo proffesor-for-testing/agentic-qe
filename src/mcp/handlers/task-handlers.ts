@@ -935,11 +935,21 @@ function inferDomainFromDescription(description: string): string {
 /**
  * Infer task type from description
  */
+const CHAOS_ACTIVITY = new RegExp([
+  String.raw`\b(?:chaos|resilience)\s+(?:\w+\s+)?(?:tests?|testing|experiments?)\b`,
+  // fault injection / fault-injecting, but not a file name like fault-injection.ts
+  String.raw`\bfault[\s-]?inject\w*\b(?!\.\w)`,
+  String.raw`\binject(?:s|ing)?\s+(?:\w+\s+)?faults?\b`,
+].join('|'));
+
 function inferTaskType(description: string): TaskType {
   const lower = description.toLowerCase();
 
   // #1130: "run chaos resilience testing" names a chaos run, not a test run.
-  if (/\b(chaos|resilience|fault.?inject\w*)\b/.test(lower)) {
+  // Only chaos as an activity counts here: "chaos/resilience [word] test(ing)/
+  // experiment" or fault injection. A task that merely names a resilience
+  // module, a chaos-monkey service or fault-injection.ts keeps its own type.
+  if (CHAOS_ACTIVITY.test(lower)) {
     return 'run-chaos';
   }
   // Check execution first (more specific patterns)

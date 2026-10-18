@@ -78,9 +78,10 @@ describe('#1110 test_execute_parallel output', () => {
     const result = map({});
 
     expect(result.workerStats).toMatchObject({ workersUsed: 1, efficiency: 1, loadBalance: 1 });
-    expect(result.retryStats).toEqual({ totalRetries: 0, successfulRetries: 0, maxRetriesReached: 0 });
+    // #1130: the collector's retry counters are process-wide, not this run's.
+    expect(result.retryStats).toBeUndefined();
     expect(result.summary).toMatchObject({ parallelEfficiency: 1 });
-    expect(result.unmeasured).toEqual(['results', 'workerStats.avgExecutionTime', 'summary.avgDuration']);
+    expect(result.unmeasured).toEqual(['results', 'workerStats.avgExecutionTime', 'summary.avgDuration', 'retryStats']);
   });
   // #1130: retries ran but no worker task was recorded, so retryStats used to be unmeasured.
   it('reports the retries the domain ran as retryStats', () => {
