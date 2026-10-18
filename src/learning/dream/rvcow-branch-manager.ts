@@ -19,7 +19,9 @@
  * process-wide shared connection, foreground writes made in the meantime
  * (memory_store and other acknowledged writes) join the savepoint and are
  * rolled back by a discard, or lost if the connection closes before
- * RELEASE. DreamEngine therefore defaults `enableBranching` to false.
+ * RELEASE. Since #1060 neither DreamEngine nor SpeculativeDreamer branches:
+ * a dream is computed in memory and committed in one short transaction
+ * (dream-commit.ts).
  *
  * @module learning/dream/rvcow-branch-manager
  */

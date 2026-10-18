@@ -1,28 +1,28 @@
 /**
- * SpeculativeDreamer - Parallel Dream Strategies with Branch Selection
- * ADR-069: RVCOW Dream Cycle Branching
+ * SpeculativeDreamer - Competing Dream Strategies, Best One Committed
+ * ADR-069 (reworked for #1060)
  *
- * Runs 2-3 dream strategies in parallel RVCOW branches, each with
- * different parameters (decay rates, spread factors, noise levels).
- * After all strategies complete, compares validation scores and merges
- * the best-performing branch. All other branches are discarded.
+ * Runs 2-3 dream strategies, each with different parameters (decay rates,
+ * spread factors, noise levels), scores their results and commits only the
+ * best one. All others are dropped.
  *
  * This implements the "adversarial dream" concept from the Six Thinking
  * Hats analysis, where diverse strategies compete and the best wins.
  *
+ * #1060: each strategy runs as `DreamEngine.dream(…, { commit: false })`,
+ * which computes the dream in memory and writes nothing. The winner is then
+ * written with `DreamEngine.commitDreamResult()`, the same single synchronous
+ * transaction a normal dream commits with. No SAVEPOINT is held across an
+ * `await`, so foreground writes on the shared connection are never rolled
+ * back with a losing strategy. (Before #1060 each strategy ran inside an RVCOW
+ * savepoint on the shared connection, and the winner was re-executed.)
+ *
  * @module learning/dream/speculative-dreamer
  */
 
-import type { Database as DatabaseType } from 'better-sqlite3';
 import type { ActivationConfig } from './spreading-activation.js';
-import {
-  RVCOWBranchManager,
-  type Branch,
-  type QualityBaseline,
-  type ValidationResult,
-  type ValidationThresholds,
-  DEFAULT_VALIDATION_THRESHOLDS,
-} from './rvcow-branch-manager.js';
+import type { DreamEngine, DreamCycleResult } from './dream-engine.js';
+import { toErrorMessage } from '../../shared/error-utils.js';
 
 // ============================================================================
 // Types
@@ -43,19 +43,22 @@ export interface DreamStrategy {
 }
 
 /**
- * Result of a single speculative dream branch.
+ * Result of a single speculative dream strategy.
  */
 export interface StrategyResult {
   /** The strategy that was executed */
   strategy: DreamStrategy;
 
-  /** The branch used */
-  branch: Branch;
+  /** The strategy's dream result (null if the dream failed) */
+  result: DreamCycleResult | null;
 
-  /** Validation result against baseline */
-  validation: ValidationResult;
+  /** Score used to pick the winner (higher is better; -Infinity on failure) */
+  score: number;
 
-  /** Whether this strategy was selected as the winner */
+  /** Why the dream failed, if it did */
+  error?: string;
+
+  /** Whether this strategy was selected and committed */
   selected: boolean;
 
   /** Execution duration in milliseconds */
@@ -69,21 +72,21 @@ export interface SpeculativeDreamResult {
   /** All strategy results, including winner and losers */
   strategies: StrategyResult[];
 
-  /** The winning strategy (or null if all failed validation) */
+  /** The committed strategy (or null if every strategy failed) */
   winner: StrategyResult | null;
 
   /** Total wall-clock time */
   totalDurationMs: number;
+
+  /** How long the winner's commit transaction took, in ms */
+  commitDurationMs?: number;
 }
 
-/**
- * Callback that executes a dream cycle with the given activation config.
- * The implementation should use the provided config overrides when running
- * spreading activation. It returns the number of insights generated.
- */
-export type DreamExecutor = (
-  activationConfigOverrides: Partial<ActivationConfig>,
-) => Promise<number>;
+/** Options for SpeculativeDreamer.dream(). */
+export interface SpeculativeDreamOptions {
+  /** Duration of each strategy's dream (default: the engine's maxDurationMs) */
+  durationMs?: number;
+}
 
 // ============================================================================
 // Built-in Strategies
@@ -130,70 +133,33 @@ export const BUILT_IN_STRATEGIES: DreamStrategy[] = [
 // ============================================================================
 
 /**
- * Runs multiple dream strategies in separate RVCOW branches and selects the best.
+ * Runs multiple dream strategies against one DreamEngine and commits the best.
  *
- * Because SQLite savepoints are sequential (not truly parallel), strategies
- * are executed one at a time but each in its own savepoint. The branch manager
- * ensures that failed strategies leave no trace in the database.
- *
- * WARNING (#1060): a SAVEPOINT covers every write on its connection, not just
- * the dream's. Use an isolated connection, or keep the branch open only
- * across synchronous work. If it stays open across `await`s on the
- * process-wide shared connection, foreground writes made in the meantime
- * (memory_store and other acknowledged writes) join the savepoint and are
- * rolled back by a discard, or lost if the connection closes before
- * RELEASE. DreamEngine therefore defaults `enableBranching` to false.
+ * Strategies run one at a time (an engine runs one dream at a time). Each
+ * computes its dream in memory without writing; only the winner is committed.
  *
  * @example
  * ```typescript
- * const dreamer = new SpeculativeDreamer(db);
- * const result = await dreamer.dream(
- *   BUILT_IN_STRATEGIES,
- *   async (configOverrides) => {
- *     // Run dream with configOverrides applied
- *     return insightCount;
- *   }
- * );
+ * const dreamer = new SpeculativeDreamer(engine);
+ * const result = await dreamer.dream(BUILT_IN_STRATEGIES, { durationMs: 5000 });
  * if (result.winner) {
  *   console.log(`Best strategy: ${result.winner.strategy.name}`);
  * }
  * ```
  */
 export class SpeculativeDreamer {
-  private readonly branchManager: RVCOWBranchManager;
-
-  constructor(
-    private readonly db: DatabaseType,
-    thresholds?: ValidationThresholds,
-  ) {
-    this.branchManager = new RVCOWBranchManager(db, thresholds ?? DEFAULT_VALIDATION_THRESHOLDS);
-  }
+  constructor(private readonly engine: DreamEngine) {}
 
   /**
-   * Run multiple dream strategies sequentially in separate RVCOW branches,
-   * then merge the best-performing one and discard the rest.
+   * Run each strategy without committing, then commit the best-scoring one.
    *
-   * Strategy execution flow:
-   * 1. Capture baseline before any strategy runs
-   * 2. For each strategy:
-   *    a. Create branch (SAVEPOINT)
-   *    b. Execute dream with strategy params
-   *    c. Validate branch against baseline
-   *    d. Discard branch (ROLLBACK) -- we keep results in memory only
-   * 3. Replay the winning strategy in a final branch and merge it
-   *
-   * Note: Because we must discard each branch before starting the next
-   * (SQLite savepoint semantics), the winning strategy is re-executed
-   * in step 3. This is acceptable because dream cycles are deterministic
-   * given the same input state and parameters.
-   *
-   * @param strategies - 2-3 strategies to compete
-   * @param executor - Callback that runs the dream with given config
+   * @param strategies - 1-5 strategies to compete
+   * @param options - Per-strategy dream duration
    * @returns Result with winner and all strategy details
    */
   async dream(
     strategies: DreamStrategy[],
-    executor: DreamExecutor,
+    options: SpeculativeDreamOptions = {},
   ): Promise<SpeculativeDreamResult> {
     if (strategies.length < 1) {
       throw new Error('At least one strategy is required');
@@ -203,40 +169,23 @@ export class SpeculativeDreamer {
     }
 
     const totalStart = Date.now();
-    const baseline = this.branchManager.captureBaseline();
     const results: StrategyResult[] = [];
-
-    // Execute each strategy in its own branch, collect validation results
     for (const strategy of strategies) {
-      const result = await this.executeStrategy(strategy, baseline, executor);
-      results.push(result);
+      results.push(await this.executeStrategy(strategy, options.durationMs));
     }
 
-    // Find the best passing strategy
-    const passingResults = results.filter(r => r.validation.passed);
     let winner: StrategyResult | null = null;
+    for (const candidate of results) {
+      if (candidate.result && (!winner || candidate.score > winner.score)) winner = candidate;
+    }
 
-    if (passingResults.length > 0) {
-      // Score strategies: prefer higher confidence delta, then more patterns
-      winner = passingResults.reduce((best, current) => {
-        const bestScore = this.scoreValidation(best.validation);
-        const currentScore = this.scoreValidation(current.validation);
-        return currentScore > bestScore ? current : best;
-      });
-
-      // Re-execute the winning strategy and merge it
-      const finalBranch = this.branchManager.createBranch(
-        `dream-final-${winner.strategy.name}-${Date.now()}`
-      );
-
+    let commitDurationMs: number | undefined;
+    if (winner?.result) {
       try {
-        await executor(winner.strategy.activationConfig);
-        this.branchManager.mergeBranch(finalBranch);
+        commitDurationMs = this.engine.commitDreamResult(winner.result);
         winner.selected = true;
-      } catch {
-        // If re-execution fails, discard and report no winner
-        this.branchManager.discardBranch(finalBranch);
-        winner.selected = false;
+      } catch (error) {
+        winner.error = toErrorMessage(error);
         winner = null;
       }
     }
@@ -245,62 +194,38 @@ export class SpeculativeDreamer {
       strategies: results,
       winner,
       totalDurationMs: Date.now() - totalStart,
+      commitDurationMs,
     };
-  }
-
-  /**
-   * Get the underlying branch manager (for event subscription).
-   */
-  getBranchManager(): RVCOWBranchManager {
-    return this.branchManager;
   }
 
   // --------------------------------------------------------------------------
   // Private Helpers
   // --------------------------------------------------------------------------
 
-  /**
-   * Execute a single strategy in a branch, validate, then discard.
-   * We discard because we need to try all strategies from the same baseline.
-   */
+  /** Run one strategy without committing anything. */
   private async executeStrategy(
     strategy: DreamStrategy,
-    baseline: QualityBaseline,
-    executor: DreamExecutor,
+    durationMs: number | undefined,
   ): Promise<StrategyResult> {
-    const branchName = `dream-spec-${strategy.name}-${Date.now()}`;
-    const branch = this.branchManager.createBranch(branchName);
     const start = Date.now();
-
     try {
-      await executor(strategy.activationConfig);
-      const validation = this.branchManager.validateBranch(branch, baseline);
-
-      // Discard so next strategy starts from same baseline
-      this.branchManager.discardBranch(branch);
-
+      const result = await this.engine.dream(durationMs, {
+        activationConfig: strategy.activationConfig,
+        commit: false,
+      });
       return {
         strategy,
-        branch,
-        validation,
+        result,
+        score: this.scoreResult(result),
         selected: false,
         durationMs: Date.now() - start,
       };
-    } catch {
-      // Dream execution failed -- discard and mark as failed
-      this.branchManager.discardBranch(branch);
-
+    } catch (error) {
       return {
         strategy,
-        branch,
-        validation: {
-          passed: false,
-          reason: 'Dream execution threw an error',
-          patternCountDelta: 0,
-          avgConfidenceDelta: 0,
-          highConfidenceLost: 0,
-          postDreamMetrics: baseline,
-        },
+        result: null,
+        score: Number.NEGATIVE_INFINITY,
+        error: toErrorMessage(error),
         selected: false,
         durationMs: Date.now() - start,
       };
@@ -308,16 +233,14 @@ export class SpeculativeDreamer {
   }
 
   /**
-   * Score a validation result for comparison.
-   * Higher score = better dream result.
+   * Score a strategy's dream. Higher = better: insights weighted by their
+   * confidence and novelty, then the novel associations found.
    */
-  private scoreValidation(v: ValidationResult): number {
-    // Weighted scoring: confidence improvement matters most,
-    // then pattern growth, penalize high-confidence loss
-    return (
-      v.avgConfidenceDelta * 100 +
-      v.patternCountDelta * 0.1 -
-      v.highConfidenceLost * 5
+  private scoreResult(result: DreamCycleResult): number {
+    const insightScore = result.insights.reduce(
+      (sum, insight) => sum + insight.confidenceScore * insight.noveltyScore,
+      0,
     );
+    return insightScore + result.cycle.associationsFound * 0.01;
   }
 }

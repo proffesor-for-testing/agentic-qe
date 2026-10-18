@@ -136,8 +136,19 @@ export {
   type DreamConfig,
   type DreamCycleResult as EngineResult,
   type ApplyInsightResult,
+  type DreamRunOptions,
+  DreamAlreadyRunningError,
   DEFAULT_DREAM_CONFIG,
 } from './dream-engine.js';
+
+// #1060: compute-then-commit of a dream cycle
+export {
+  commitDream,
+  markAbandonedCycles,
+  ABANDONED_CYCLE_GRACE_MS,
+  type ComputedDream,
+  type DreamCommitResult,
+} from './dream-commit.js';
 
 // ============================================================================
 // DreamScheduler
@@ -177,7 +188,7 @@ export {
   type DreamStrategy,
   type StrategyResult,
   type SpeculativeDreamResult,
-  type DreamExecutor,
+  type SpeculativeDreamOptions,
   BUILT_IN_STRATEGIES,
 } from './speculative-dreamer.js';
 

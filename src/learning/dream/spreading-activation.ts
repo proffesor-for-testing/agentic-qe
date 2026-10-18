@@ -333,9 +333,10 @@ export class SpreadingActivation {
    * - Novel associations are discovered from unexpected co-activations
    *
    * @param durationMs - How long to dream in milliseconds
+   * @param signal - #1060: stops the dream early (engine closed, shutdown)
    * @returns Activation result from the dream cycle
    */
-  async dream(durationMs: number): Promise<ActivationResult> {
+  async dream(durationMs: number, signal?: AbortSignal): Promise<ActivationResult> {
     const startTime = Date.now();
     const allNovelAssociations: Array<{
       source: string;
@@ -362,7 +363,7 @@ export class SpreadingActivation {
     // Dream loop with strict time enforcement
     const deadlineMs = startTime + durationMs;
 
-    while (Date.now() < deadlineMs) {
+    while (Date.now() < deadlineMs && !signal?.aborted) {
       // Randomly select a concept to activate
       const randomIndex = secureRandomInt(0, allConcepts.length);
       const randomNode = allConcepts[randomIndex];
@@ -395,10 +396,10 @@ export class SpreadingActivation {
       }
 
       // Check deadline again before sleeping
-      if (Date.now() >= deadlineMs) break;
+      if (Date.now() >= deadlineMs || signal?.aborted) break;
 
       // Small delay to prevent CPU spike
-      await this.sleep(50 + secureRandom() * 50);
+      await this.sleep(50 + secureRandom() * 50, signal);
     }
 
     // Deduplicate and sort novel associations
@@ -748,8 +749,16 @@ export class SpreadingActivation {
   /**
    * Helper to sleep for a duration
    */
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+  private sleep(ms: number, signal?: AbortSignal): Promise<void> {
+    return new Promise((resolve) => {
+      const timer = setTimeout(done, ms);
+      function done(): void {
+        clearTimeout(timer);
+        signal?.removeEventListener('abort', done);
+        resolve();
+      }
+      signal?.addEventListener('abort', done, { once: true });
+    });
   }
 }
 
