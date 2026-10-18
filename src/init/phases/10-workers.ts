@@ -190,15 +190,21 @@ if (existsSync(pidFile) && isRegularOrAbsent(pidFile)) {
 }
 
 // #1116: honour AQE_WORKERS_ENABLED, from the environment or else the project's
-// .claude/settings.json env (where \`aqe init --no-database\` writes it), the
-// same falsy values as the MCP server. Disabled means nothing is spawned.
+// .claude/settings.local.json or settings.json env (where \`aqe init
+// --no-database\` writes it; the local file wins, as in Claude Code), the same
+// falsy values as the MCP server. A JSON boolean counts as its string.
+// Disabled means nothing is spawned.
 function workersEnabledSetting() {
   if (process.env.AQE_WORKERS_ENABLED !== undefined) return process.env.AQE_WORKERS_ENABLED;
-  try {
-    const settings = JSON.parse(readFileSync(join(projectRoot, '.claude', 'settings.json'), 'utf-8'));
-    const value = settings && settings.env && settings.env.AQE_WORKERS_ENABLED;
-    return typeof value === 'string' ? value : undefined;
-  } catch { return undefined; }
+  for (const file of ['settings.local.json', 'settings.json']) {
+    try {
+      const settings = JSON.parse(readFileSync(join(projectRoot, '.claude', file), 'utf-8'));
+      const value = settings && settings.env && settings.env.AQE_WORKERS_ENABLED;
+      if (typeof value === 'string') return value;
+      if (typeof value === 'boolean') return String(value);
+    } catch { /* missing or unreadable: try the next file */ }
+  }
+  return undefined;
 }
 const workersSetting = workersEnabledSetting();
 if (workersSetting !== undefined && ['false', '0', 'off', 'no'].includes(workersSetting.trim().toLowerCase())) {
@@ -267,9 +273,18 @@ child.stdout.on('data', d => appendFileSync(logFile, d));
 child.stderr.on('data', d => appendFileSync(logFile, d));
 let exited = null;
 child.on('exit', (code, signal) => { exited = { code, signal }; });
+// #1116: a command that cannot be started (no npx on PATH: spawn ENOENT) emits
+// 'error' instead of 'exit'; without a handler the script crashed and left
+// "undefined" in daemon.pid.
+child.on('error', (error) => {
+  try { fs.unlinkSync(pidFile); } catch {}
+  appendFileSync(logFile, '[' + ts + '] Daemon could not be started: ' + error.message + '\\n');
+  console.error('AQE v3 Worker Daemon not started: ' + error.message + '; see ' + logFile);
+  process.exit(1);
+});
 child.unref();
 
-writeFileSync(pidFile, String(child.pid));
+if (child.pid !== undefined) writeFileSync(pidFile, String(child.pid));
 // #1116: say "started" only if the server is still running a moment later.
 setTimeout(() => {
   if (exited) {

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
 import { getUnifiedMemory, resetUnifiedMemory } from '../../../src/kernel/unified-memory.js';
+import { SCHEMA_VERSION } from '../../../src/kernel/unified-memory-schemas.js';
 
 function sha256(path: string): string {
   return createHash('sha256').update(readFileSync(path)).digest('hex');
@@ -52,7 +53,7 @@ describe('v11 to current learning evidence migration on a disposable copy', () =
     const db = manager.getDatabase();
     expect(db.pragma('integrity_check', { simple: true })).toBe('ok');
     expect(db.pragma('foreign_key_check')).toEqual([]);
-    expect((db.prepare('SELECT version FROM schema_version WHERE id=1').get() as { version: number }).version).toBe(13);
+    expect((db.prepare('SELECT version FROM schema_version WHERE id=1').get() as { version: number }).version).toBe(SCHEMA_VERSION);
     expect((db.prepare('SELECT COUNT(*) count FROM qe_patterns').get() as { count: number }).count).toBe(2);
     expect((db.prepare('SELECT COUNT(*) count FROM qe_trajectories').get() as { count: number }).count).toBe(1);
     expect((db.prepare("SELECT COUNT(*) count FROM learning_evidence_admissions WHERE disposition='legacy-unknown'").get() as { count: number }).count).toBe(2);

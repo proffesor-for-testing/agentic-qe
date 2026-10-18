@@ -184,6 +184,54 @@ describe('#1116 generated start-daemon.cjs reports what happened', () => {
     expect(existsSync(join(tmp, 'spawned.json'))).toBe(false);
   });
 
+  it('honours a JSON boolean false in .claude/settings.json', async () => {
+    const { projectRoot, workers } = await generate();
+    mkdirSync(join(projectRoot, '.claude'), { recursive: true });
+    writeFileSync(join(projectRoot, '.claude', 'settings.json'), JSON.stringify({ env: { AQE_WORKERS_ENABLED: false } }));
+
+    const result = run(workers, {});
+
+    expect(result.code).toBe(0);
+    expect(result.out).toContain('not started: background workers are disabled (AQE_WORKERS_ENABLED=false)');
+    expect(existsSync(join(tmp, 'spawned.json'))).toBe(false);
+  });
+
+  it('reads .claude/settings.local.json, which wins over settings.json', async () => {
+    const { projectRoot, workers } = await generate();
+    mkdirSync(join(projectRoot, '.claude'), { recursive: true });
+    writeFileSync(join(projectRoot, '.claude', 'settings.json'), JSON.stringify({ env: { AQE_WORKERS_ENABLED: 'true' } }));
+    writeFileSync(join(projectRoot, '.claude', 'settings.local.json'), JSON.stringify({ env: { AQE_WORKERS_ENABLED: 'off' } }));
+
+    const result = run(workers, {});
+
+    expect(result.out).toContain('not started: background workers are disabled (AQE_WORKERS_ENABLED=off)');
+    expect(existsSync(join(tmp, 'spawned.json'))).toBe(false);
+  });
+
+  it('exits 1 and writes no pid file when the server command cannot be spawned (no npx on PATH)', async () => {
+    const { workers } = await generate();
+    const emptyBin = join(tmp, 'empty-bin');
+    mkdirSync(emptyBin);
+
+    // The real spawn: no bundle in the fixture, so the script falls back to npx.
+    let code = 0;
+    let out = '';
+    try {
+      out = execFileSync(process.execPath, [join(workers, 'start-daemon.cjs')], {
+        env: { PATH: emptyBin }, stdio: ['ignore', 'pipe', 'pipe'],
+      }).toString();
+    } catch (error) {
+      const e = error as { status: number; stdout: Buffer; stderr: Buffer };
+      code = e.status;
+      out = `${e.stdout}${e.stderr}`;
+    }
+
+    expect(code).toBe(1);
+    expect(out).toContain('AQE v3 Worker Daemon not started: spawn');
+    expect(out).not.toContain('Unhandled');
+    expect(existsSync(join(workers, 'daemon.pid'))).toBe(false);
+  });
+
   it('says not started, exits 1 and removes the pid file when the server exits right away', async () => {
     const { workers } = await generate();
     const result = run(workers, {}, 100);
