@@ -53,7 +53,7 @@ describe('retry runner argv (#909)', () => {
     const command = (handler() as unknown as CommandBuilder).buildTestCommand(runner, '-dash.test.ts', '-x', cwd);
     try {
       const flag = runner === 'mocha' ? '--grep=' : '--testNamePattern=';
-      expect(command.args).toContain(`${flag}-x`);
+      expect(command.args).toContain(`${flag}^-x$`);
       expect(command.args).not.toContain('-t');
       expect(command.args).not.toContain('--grep');
       // Every value we supply is either a --flag=value or does not start with '-'.

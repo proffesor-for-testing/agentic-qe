@@ -251,6 +251,7 @@ export class RetryHandlerService implements IRetryHandler {
       const nowPassing: string[] = [];
       const stillFailing: string[] = [];
       const flakyDetected: string[] = [];
+      const unmatched: string[] = [];
 
       for (const test of failedTests) {
         const result = await this.retryTest(
@@ -275,6 +276,7 @@ export class RetryHandlerService implements IRetryHandler {
         } else {
           stillFailing.push(test.testId);
           stats.failed++;
+          if (result.unmatched) unmatched.push(test.testId);
         }
 
         // Record retry history
@@ -282,6 +284,7 @@ export class RetryHandlerService implements IRetryHandler {
       }
 
       stats.flakyDetected = flakyDetected;
+      stats.unmatched = unmatched;
       stats.endTime = Date.now();
       this.runStats.set(runId, stats);
 
@@ -297,6 +300,7 @@ export class RetryHandlerService implements IRetryHandler {
         nowPassing: nowPassing.length,
         stillFailing: stillFailing.length,
         flakyDetected,
+        unmatched,
       };
 
       return ok(retryResult);
@@ -417,10 +421,18 @@ export class RetryHandlerService implements IRetryHandler {
         onRetry(test.testId, attempts + 1);
       }
 
-      attempts++;
-
       // Execute test (simulated - in real implementation, would run actual test)
       const result = await this.executeTest(test);
+
+      // #1141: a filter that selected no test reran nothing. Report that
+      // instead of counting it as a retry, and stop: another attempt would
+      // select nothing again.
+      if (result.unmatched) {
+        logger.warn(`Retry of "${test.testName}" matched no test in ${test.file}; nothing was rerun.`);
+        return { testId: test.testId, passed: false, attempts, finalError: lastError, unmatched: true };
+      }
+
+      attempts++;
 
       if (result.passed) {
         return {
@@ -442,7 +454,7 @@ export class RetryHandlerService implements IRetryHandler {
     };
   }
 
-  private async executeTest(test: FailedTest): Promise<{ passed: boolean; error?: string }> {
+  private async executeTest(test: FailedTest): Promise<RetryRunOutcome> {
     // In simulation mode (for unit testing), use random behavior
     if (this.config.simulateForTesting) {
       const passOnRetry = secureRandom() < this.config.simulatedRetrySuccessRate;
@@ -459,7 +471,7 @@ export class RetryHandlerService implements IRetryHandler {
   /**
    * Execute a real test using the configured test runner
    */
-  private async executeRealTest(test: FailedTest): Promise<{ passed: boolean; error?: string }> {
+  private async executeRealTest(test: FailedTest): Promise<RetryRunOutcome> {
     const testFile = test.file;
     const testName = test.testName;
     const cwd = this.config.cwd ?? process.cwd();
@@ -602,7 +614,7 @@ export class RetryHandlerService implements IRetryHandler {
     cwd: string,
     report?: VitestJsonReport,
     targetFile?: string
-  ): Promise<{ passed: boolean; error?: string }> {
+  ): Promise<RetryRunOutcome> {
     return new Promise((resolve, reject) => {
       const timeout = this.config.testTimeout;
       let stdout = '';
@@ -689,7 +701,7 @@ export class RetryHandlerService implements IRetryHandler {
     stdout: string,
     stderr: string,
     targetFile?: string
-  ): { passed: boolean; error?: string } {
+  ): RetryRunOutcome {
     // A retry can clear a prior failure only when the report proves a test
     // actually passed. Empty/fully skipped selections can also exit zero.
     try {
@@ -699,12 +711,19 @@ export class RetryHandlerService implements IRetryHandler {
         const result = safeJsonParse(vitestMatch[0]);
         // Vitest's positional file filter uses prefix matching. A passing
         // sibling must not clear a failure in the requested file (#972).
-        const targetPassed = !targetFile || result.testResults?.some((file: {
+        const targetHas = (status: string): boolean => result.testResults?.some((file: {
           name?: string;
           assertionResults?: Array<{ status: string }>;
         }) => typeof file.name === 'string'
-          && sameTestFile(file.name, targetFile, this.config.cwd ?? process.cwd())
-          && file.assertionResults?.some(assertion => assertion.status === 'passed'));
+          && (!targetFile || sameTestFile(file.name, targetFile, this.config.cwd ?? process.cwd()))
+          && file.assertionResults?.some(assertion => assertion.status === status)) === true;
+        const targetPassed = !targetFile || targetHas('passed');
+        const nothingRan = targetFile
+          ? Array.isArray(result.testResults) && !targetPassed && !targetHas('failed')
+          : result.numPassedTests === 0;
+        if (nothingRan && result.numFailedTests === 0 && result.numFailedTestSuites === 0) {
+          return UNMATCHED;
+        }
         if (exitCode === 0 && result.success !== false
           && result.numFailedTests === 0 && result.numFailedTestSuites === 0
           && Number.isFinite(result.numPassedTests) && result.numPassedTests > 0
@@ -729,6 +748,10 @@ export class RetryHandlerService implements IRetryHandler {
       const jestMatch = stdout.match(/\{[\s\S]*"numFailedTests"[\s\S]*\}/);
       if (jestMatch) {
         const result = safeJsonParse(jestMatch[0]);
+        if (result.numPassedTests === 0 && result.numFailedTests === 0
+          && result.numFailedTestSuites === 0) {
+          return UNMATCHED;
+        }
         if (exitCode === 0 && result.success !== false
           && result.numFailedTests === 0 && result.numFailedTestSuites === 0
           && Number.isFinite(result.numPassedTests) && result.numPassedTests > 0) {
@@ -748,6 +771,7 @@ export class RetryHandlerService implements IRetryHandler {
       const mochaMatch = stdout.match(/\{[\s\S]*"stats"[\s\S]*"failures"[\s\S]*\}/);
       if (mochaMatch) {
         const result = safeJsonParse(mochaMatch[0]);
+        if (result.stats?.passes === 0 && result.stats?.failures === 0) return UNMATCHED;
         if (exitCode === 0 && result.stats?.failures === 0
           && Number.isFinite(result.stats?.passes) && result.stats.passes > 0) {
           return { passed: true };
@@ -819,6 +843,7 @@ export class RetryHandlerService implements IRetryHandler {
       attempts: result.attempts,
       passed: result.passed,
       error: result.finalError,
+      ...(result.unmatched ? { unmatched: true } : {}),
       timestamp: new Date(),
     });
 
@@ -882,6 +907,8 @@ interface RetryRecord {
   attempts: number;
   passed: boolean;
   error?: string;
+  /** The retry filter selected no test, so nothing was rerun (#1141). */
+  unmatched?: boolean;
   timestamp: Date;
 }
 
@@ -890,7 +917,21 @@ interface RetryTestResult {
   passed: boolean;
   attempts: number;
   finalError?: string;
+  unmatched?: boolean;
 }
+
+/** One retry run. `unmatched`: the runner reported that no test ran. */
+interface RetryRunOutcome {
+  passed: boolean;
+  error?: string;
+  unmatched?: boolean;
+}
+
+const UNMATCHED: RetryRunOutcome = {
+  passed: false,
+  unmatched: true,
+  error: 'The retry filter matched no test, so nothing was rerun.',
+};
 
 interface RunRetryStats {
   runId: string;
@@ -898,6 +939,7 @@ interface RunRetryStats {
   successful: number;
   failed: number;
   flakyDetected: string[];
+  unmatched?: string[];
   startTime: number;
   endTime?: number;
 }
