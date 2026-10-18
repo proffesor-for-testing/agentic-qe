@@ -28,8 +28,8 @@ import { secureRandom, secureRandomInt } from '../../../shared/utils/crypto-rand
 import { writeTestRunEvidence } from '../../quality-assessment/quality-evidence.js';
 import { istanbulLineHits } from '../../../coordination/handlers/handler-utils.js';
 import { fileCoverageKey } from '../../coverage-analysis/collected-metrics.js';
-import { mergeTestCases, redactFailedTests, testCasesFromRunnerReport } from './runner-test-cases.js';
-import { getTestRunnerExecutionError, TestRunnerExecutionError } from '../../../shared/test-runner-verdict.js';
+import { mergeTestCases, redactFailedTests, redactFailureText, testCasesFromRunnerReport } from './runner-test-cases.js';
+import { capDiagnostics, getTestRunnerExecutionError, TestRunnerExecutionError } from '../../../shared/test-runner-verdict.js';
 import { createVitestJsonReport, type VitestJsonReport } from '../../../shared/vitest-json-report.js';
 import { jestExactPathPattern, runnerFilePath } from '../../../shared/test-runner-args.js';
 import { getClaudeModelForTier } from '../../../shared/llm/model-registry.js';
@@ -377,7 +377,7 @@ export class TestExecutorService implements ITestExecutionService {
 
     try {
       const failureSummary = failures.slice(0, 5).map(f =>
-        `- ${f.testName}: ${f.error?.substring(0, 200) || 'Unknown error'}`
+        `- ${f.testName}: ${f.error ? redactFailureText(f.error).substring(0, 200) : 'Unknown error'}`
       ).join('\n');
 
       const response = await this.llmRouter!.chat({
@@ -771,7 +771,7 @@ Provide:
     } catch (error) {
       return err(new Error(
         `Failed to parse test output for ${file}: ${toErrorMessage(error)}\n` +
-        `stdout: ${stdout.slice(0, 500)}\nstderr: ${stderr.slice(0, 500)}`
+        `stdout: ${capDiagnostics(stdout, 500)}\nstderr: ${capDiagnostics(stderr, 500)}`
       ));
     }
   }
@@ -1080,7 +1080,7 @@ Provide:
       for (const indicator of errorMessages) {
         if (combinedOutput.includes(indicator)) {
           return err(new Error(
-            `Test execution failed for ${file} (exit code ${exitCode}):\n${combinedOutput.slice(0, 1000)}`
+            `Test execution failed for ${file} (exit code ${exitCode}):\n${capDiagnostics(combinedOutput, 1000)}`
           ));
         }
       }
@@ -1098,7 +1098,7 @@ Provide:
     // Could not parse output - return error with details
     return err(new Error(
       `Unable to parse test results for ${file}. Exit code: ${exitCode}\n` +
-      `Output: ${combinedOutput.slice(0, 500)}`
+      `Output: ${capDiagnostics(combinedOutput, 500)}`
     ));
   }
 

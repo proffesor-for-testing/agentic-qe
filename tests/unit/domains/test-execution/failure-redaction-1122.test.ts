@@ -10,7 +10,9 @@ import { join } from 'node:path';
 import { TestExecutorService } from '../../../../src/domains/test-execution/services/test-executor.js';
 import { redactFailedTests, testCasesFromRunnerReport } from '../../../../src/domains/test-execution/services/runner-test-cases.js';
 import { registerTestExecutionHandlers } from '../../../../src/coordination/handlers/test-execution-handlers.js';
-import { getTestRunnerExecutionError, TestRunnerExecutionError } from '../../../../src/shared/test-runner-verdict.js';
+import { RetryHandlerService } from '../../../../src/domains/test-execution/services/retry-handler.js';
+import { FlakyDetectorService } from '../../../../src/domains/test-execution/services/flaky-detector.js';
+import { capDiagnostics, getTestRunnerExecutionError, TestRunnerExecutionError } from '../../../../src/shared/test-runner-verdict.js';
 import type { InstanceTaskHandler, TaskHandlerContext } from '../../../../src/coordination/handlers/handler-types.js';
 import type { QueenTask } from '../../../../src/coordination/queen-coordinator.js';
 
@@ -141,5 +143,71 @@ describe('#1122 failure text redaction', () => {
     expect(error?.message).toContain('reported zero tests');
     expect(error?.message).not.toContain('abcdefghijklmnop');
     expect(error?.message).not.toContain('user:pass');
+  });
+
+  it('the retry handler stores a redacted error in retry-history for a test that still fails', async () => {
+    // A top-level test, so the retry's name filter selects it.
+    runnerExits(JSON.stringify({
+      success: false, numTotalTests: 1, numPassedTests: 0, numFailedTests: 1,
+      testResults: [{ name: file, status: 'failed', assertionResults: [
+        { status: 'failed', fullName: 'connects', failureMessages: [`Error: retry refused ${SECRET_URL}`] },
+      ] }],
+    }), 1);
+    const set = vi.fn(async () => undefined);
+    const retry = new RetryHandlerService({ set, get: vi.fn(async () => undefined) } as never,
+      { testRunner: 'vitest', cwd: fixture });
+
+    const result = await retry.executeWithRetry({ runId: 'r1', maxRetries: 2, backoff: 'constant', baseDelay: 0,
+      failedTests: [{ testId: 't1', testName: 'connects', file, error: `Error: first run ${SECRET_URL}`, duration: 1 }] });
+
+    expect(result.success).toBe(true);
+    expect(spawn).toHaveBeenCalledTimes(2);
+    const history = set.mock.calls.find(([key]) => key === 'retry-history:t1');
+    expect(history).toBeDefined();
+    expect((history![1] as Array<{ error?: string }>)[0].error).toContain('Error: retry refused <REDACTED:');
+    expect(leaks(set.mock.calls)).toBe(false);
+  });
+
+  it('the flaky detector stores redacted failure text in test-history', async () => {
+    const set = vi.fn(async () => undefined);
+    const detector = new FlakyDetectorService({ set, get: vi.fn(async () => undefined) } as never);
+
+    await detector.recordExecution('t1', { runId: 'r1', passed: false, duration: 1,
+      error: `Error: ${SECRET_URL}`, timestamp: new Date(), context: { parallelRuns: 1, workerIndex: 0 } } as never);
+
+    expect(set).toHaveBeenCalledWith('test-history:t1', expect.anything(), expect.anything());
+    expect(leaks(set.mock.calls)).toBe(false);
+  });
+
+  it.each([3980, 3981, 3982])('redacts before cutting runner output when a secret straddles the 4000-character cut (offset %i)', offset => {
+    const output = 'x'.repeat(offset) + SECRET_URL;
+
+    const error = getTestRunnerExecutionError('vitest', 'a.test.ts', 1, { passed: 0, failed: 0, skipped: 0 }, output);
+
+    // Cut first, the tail would be 'postgres://user:pas…' with no '@', which no pattern matches.
+    expect(output.slice(0, 4000)).toMatch(/user:pa/);
+    expect(error?.message).not.toContain('user:pa');
+    expect(capDiagnostics(output)).not.toContain('user:pa');
+    expect(capDiagnostics(output, 500)).toBe('x'.repeat(500));
+  });
+
+  it('the Queen handler redacts a runner start failure before cutting it', async () => {
+    spawn.mockImplementation(() => {
+      const stream = () => Object.assign(new EventEmitter(), { setEncoding() { return this; } });
+      const proc = Object.assign(new EventEmitter(), { stdout: stream(), stderr: stream(), kill: vi.fn(() => true) });
+      queueMicrotask(() => {
+        proc.stderr.emit('data', 'y'.repeat(3963) + SECRET_URL);
+        proc.emit('error', Object.assign(new Error('spawn npx ENOENT'), { code: 'ENOENT' }));
+        proc.emit('close', null, null);
+      });
+      return proc;
+    });
+
+    const result = await queenHandler()({ payload: { testFiles: [file] } } as QueenTask);
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.message).toContain('could not complete');
+    expect(result.error.message).not.toContain('user:pa');
   });
 });

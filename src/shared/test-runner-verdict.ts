@@ -29,6 +29,14 @@ interface RunnerReport {
 }
 
 /**
+ * Runner output quoted in an error, redacted before it is cut so a secret
+ * that straddles the cut cannot survive half-matched (#1122).
+ */
+export function capDiagnostics(text: string, maxLength = 4000): string {
+  return redactLogText(text, Number.POSITIVE_INFINITY).slice(0, maxLength);
+}
+
+/**
  * Preserve ordinary assertion failures, but reject incomplete/failed execution
  * that assertion counts cannot represent. Process status is authoritative even
  * when a runner emits success=true (for example, Vitest unhandled rejections).
@@ -65,9 +73,9 @@ export function getTestRunnerExecutionError(
   const diagnostics = [
     ...suiteErrors.map(suite => suite.message).filter(Boolean),
     output.trim(),
-  ].filter(Boolean).join('\n').slice(0, 4000);
+  ].filter(Boolean).join('\n');
   return new TestRunnerExecutionError(
     `${runner} ${reason} for ${files} (exit code ${exitCode ?? 'unknown'}).` +
-    (diagnostics ? `\n${diagnostics}` : ''),
+    (diagnostics ? `\n${capDiagnostics(diagnostics)}` : ''),
   );
 }

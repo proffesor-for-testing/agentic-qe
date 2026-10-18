@@ -22,6 +22,7 @@ import { getTestRunnerExecutionError } from '../../../shared/test-runner-verdict
 import { createVitestJsonReport, needsVitestJsonReportFile } from '../../../shared/vitest-json-report.js';
 import { isJestCommand, jestExactPathPattern, runnerFilePath } from '../../../shared/test-runner-args.js';
 import { secureRandom } from '../../../shared/utils/crypto-random.js';
+import { redactFailureText } from './runner-test-cases.js';
 
 // ============================================================================
 // Configuration
@@ -314,7 +315,8 @@ export class FlakyDetectorService implements IFlakyTestDetector {
   async recordExecution(testId: string, result: TestExecutionRecord): Promise<void> {
     // Add to in-memory history
     const history = this.testHistory.get(testId) ?? [];
-    history.push(result);
+    // #1122: test-history is persisted, so failure text is stored redacted.
+    history.push(result.error ? { ...result, error: redactFailureText(result.error) } : result);
 
     // Keep only last 100 executions
     if (history.length > 100) {
@@ -594,7 +596,7 @@ export class FlakyDetectorService implements IFlakyTestDetector {
                 runId,
                 passed: code === 0,
                 duration,
-                error: code !== 0 ? stderr || `Exit code: ${code}` : undefined,
+                error: code !== 0 ? redactFailureText(stderr || `Exit code: ${code}`) : undefined,
                 timestamp: new Date(),
                 context: {
                   parallelRuns: 1,
@@ -623,7 +625,7 @@ export class FlakyDetectorService implements IFlakyTestDetector {
               duration,
               error:
                 code !== 0
-                  ? stderr || `Exit code: ${code}, Parse error: ${parseError}`
+                  ? redactFailureText(stderr || `Exit code: ${code}, Parse error: ${parseError}`)
                   : undefined,
               timestamp: new Date(),
               context: {
@@ -773,8 +775,8 @@ export class FlakyDetectorService implements IFlakyTestDetector {
           passed: test.status === 'passed',
           duration: test.duration || 0,
           error:
-            test.status === 'failed'
-              ? test.failureMessages?.join('\n')
+            test.status === 'failed' && test.failureMessages
+              ? redactFailureText(test.failureMessages.join('\n'))
               : undefined,
           timestamp: new Date(),
           context: {
@@ -811,8 +813,8 @@ export class FlakyDetectorService implements IFlakyTestDetector {
           passed: assertion.status === 'passed',
           duration: assertion.duration || 0,
           error:
-            assertion.status === 'failed'
-              ? assertion.failureMessages?.join('\n')
+            assertion.status === 'failed' && assertion.failureMessages
+              ? redactFailureText(assertion.failureMessages.join('\n'))
               : undefined,
           timestamp: new Date(),
           context: {
