@@ -189,6 +189,29 @@ if (existsSync(pidFile) && isRegularOrAbsent(pidFile)) {
   try { process.kill(pid, 0); console.log('Daemon already running (PID: ' + pid + ')'); process.exit(0); } catch {}
 }
 
+// #1116: honour AQE_WORKERS_ENABLED, from the environment or else the project's
+// .claude/settings.local.json or settings.json env (where \`aqe init
+// --no-database\` writes it; the local file wins, as in Claude Code), the same
+// falsy values as the MCP server. A JSON boolean counts as its string.
+// Disabled means nothing is spawned.
+function workersEnabledSetting() {
+  if (process.env.AQE_WORKERS_ENABLED !== undefined) return process.env.AQE_WORKERS_ENABLED;
+  for (const file of ['settings.local.json', 'settings.json']) {
+    try {
+      const settings = JSON.parse(readFileSync(join(projectRoot, '.claude', file), 'utf-8'));
+      const value = settings && settings.env && settings.env.AQE_WORKERS_ENABLED;
+      if (typeof value === 'string') return value;
+      if (typeof value === 'boolean') return String(value);
+    } catch { /* missing or unreadable: try the next file */ }
+  }
+  return undefined;
+}
+const workersSetting = workersEnabledSetting();
+if (workersSetting !== undefined && ['false', '0', 'off', 'no'].includes(workersSetting.trim().toLowerCase())) {
+  console.log('AQE v3 Worker Daemon not started: background workers are disabled (AQE_WORKERS_ENABLED=' + workersSetting + ')');
+  process.exit(0);
+}
+
 const ts = new Date().toISOString();
 appendFileSync(logFile, '[' + ts + '] Starting AQE v3 Worker Daemon...\\n');
 
@@ -244,17 +267,38 @@ if (binCandidate && binCandidate.endsWith('bundle.js')) {
 appendFileSync(logFile, '[' + ts + '] Using: ' + mcpCmd + ' ' + mcpArgs.join(' ') + '\\n');
 
 // #1066: keep a user's AQE_WORKERS_ENABLED (for example false) instead of forcing it on.
-const env = { ...process.env, AQE_STORAGE_PATH: '.agentic-qe', AQE_LEARNING_ENABLED: 'true', AQE_WORKERS_ENABLED: process.env.AQE_WORKERS_ENABLED ?? 'true', AQE_HTTP_PORT: '0' };
+const env = { ...process.env, AQE_STORAGE_PATH: '.agentic-qe', AQE_LEARNING_ENABLED: 'true', AQE_WORKERS_ENABLED: workersSetting ?? 'true', AQE_HTTP_PORT: '0' };
 const child = spawn(mcpCmd, mcpArgs, { cwd: projectRoot, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
 child.stdout.on('data', d => appendFileSync(logFile, d));
 child.stderr.on('data', d => appendFileSync(logFile, d));
+let exited = null;
+child.on('exit', (code, signal) => { exited = { code, signal }; });
+// #1116: a command that cannot be started (no npx on PATH: spawn ENOENT) emits
+// 'error' instead of 'exit'; without a handler the script crashed and left
+// "undefined" in daemon.pid.
+child.on('error', (error) => {
+  try { fs.unlinkSync(pidFile); } catch {}
+  appendFileSync(logFile, '[' + ts + '] Daemon could not be started: ' + error.message + '\\n');
+  console.error('AQE v3 Worker Daemon not started: ' + error.message + '; see ' + logFile);
+  process.exit(1);
+});
 child.unref();
 
-writeFileSync(pidFile, String(child.pid));
-appendFileSync(logFile, '[' + ts + '] Daemon started with PID: ' + child.pid + '\\n');
-console.log('AQE v3 Worker Daemon started (PID: ' + child.pid + ')');
-console.log('Log file: ' + logFile);
-console.log('To stop: node ' + join(workersDir, 'stop-daemon.cjs'));
+if (child.pid !== undefined) writeFileSync(pidFile, String(child.pid));
+// #1116: say "started" only if the server is still running a moment later.
+setTimeout(() => {
+  if (exited) {
+    try { fs.unlinkSync(pidFile); } catch {}
+    appendFileSync(logFile, '[' + ts + '] Daemon exited right away (code ' + exited.code + ', signal ' + exited.signal + ')\\n');
+    console.error('AQE v3 Worker Daemon not started: the MCP server exited right away (code ' + exited.code + '); see ' + logFile);
+    process.exitCode = 1;
+    return;
+  }
+  appendFileSync(logFile, '[' + ts + '] Daemon started with PID: ' + child.pid + '\\n');
+  console.log('AQE v3 Worker Daemon started (PID: ' + child.pid + ')');
+  console.log('Log file: ' + logFile);
+  console.log('To stop: node ' + join(workersDir, 'stop-daemon.cjs'));
+}, 3000);
 `;
     writeFileIfChanged(daemonScriptPath, daemonScript);
 

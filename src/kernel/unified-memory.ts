@@ -64,6 +64,7 @@ import {
   FEEDBACK_SCHEMA,
   HYPERGRAPH_SCHEMA,
   PATTERN_NULLS_SCHEMA,
+  DREAM_INSIGHTS_ARCHIVE_SCHEMA,
   STATS_TABLES,
 } from './unified-memory-schemas.js';
 import { ensurePatternFtsInSync } from './pattern-fts-self-heal.js';
@@ -528,12 +529,24 @@ export class UnifiedMemoryManager {
       'SELECT version FROM schema_version WHERE id = 1'
     ).get() as { version: number } | undefined;
 
-    const currentVersion = versionRow?.version ?? 0;
+    const observedVersion = versionRow?.version ?? 0;
 
-    if (currentVersion < SCHEMA_VERSION) {
-      console.log(`[UnifiedMemory] Migrating from v${currentVersion} to v${SCHEMA_VERSION}`);
+    if (observedVersion < SCHEMA_VERSION) {
+      console.log(`[UnifiedMemory] Migrating from v${observedVersion} to v${SCHEMA_VERSION}`);
 
-      const migrate = this.db.transaction(() => {
+      // #1116: IMMEDIATE takes the write lock before the first statement, so a
+      // concurrent opener waits on busy_timeout instead of failing with
+      // SQLITE_BUSY when a deferred read transaction has to upgrade (CREATE
+      // INDEX after a CREATE TABLE IF NOT EXISTS that only read). The version is
+      // read again under that lock: a process that waited applies only what the
+      // first one left, instead of re-running steps from a stale version.
+      const migrate = this.db.transaction((): number => {
+        const lockedRow = this.db!.prepare(
+          'SELECT version FROM schema_version WHERE id = 1'
+        ).get() as { version: number } | undefined;
+        const currentVersion = lockedRow?.version ?? 0;
+        if (currentVersion >= SCHEMA_VERSION) return currentVersion;
+
         if (currentVersion < 1) this.db!.exec(KV_STORE_SCHEMA);
         if (currentVersion < 2) this.db!.exec(VECTORS_SCHEMA);
         if (currentVersion < 3) {
@@ -560,15 +573,22 @@ export class UnifiedMemoryManager {
         if (currentVersion < 11) this.migrateToV11GoapExecutionSteps();
         if (currentVersion < 12) applyLearningEvidenceMigration(this.db!);
         if (currentVersion < 13) this.migrateToV13EmbeddingSpace();
+        // #1116: additive; a table an earlier sweep created lazily is kept with its rows.
+        if (currentVersion < 14) this.db!.exec(DREAM_INSIGHTS_ARCHIVE_SCHEMA);
 
         this.db!.prepare(`
           INSERT OR REPLACE INTO schema_version (id, version, migrated_at)
           VALUES (1, ?, datetime('now'))
         `).run(SCHEMA_VERSION);
+        return currentVersion;
       });
 
-      migrate();
-      console.log(`[UnifiedMemory] Migration complete`);
+      const migratedFrom = migrate.immediate();
+      if (migratedFrom >= SCHEMA_VERSION) {
+        console.log(`[UnifiedMemory] Another process completed the migration to v${SCHEMA_VERSION}`);
+      } else {
+        console.log(`[UnifiedMemory] Migration complete`);
+      }
     }
   }
 

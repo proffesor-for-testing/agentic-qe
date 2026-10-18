@@ -189,7 +189,7 @@ describe('#1066 dream_insights sweep archives before deleting (real SQLite)', ()
   it('copies every removed row, with its content, to the archive table', () => {
     const result = pruneStaleDreamInsights(db, { retentionDays: 30 });
 
-    expect(result).toEqual({ pruned: 2, archived: 2 });
+    expect(result).toEqual({ pruned: 2, archived: 2, skippedNullId: 0 });
     expect(ids('dream_insights')).toEqual(['old-applied', 'recent-unapplied']);
     expect(ids(DREAM_INSIGHTS_ARCHIVE_TABLE)).toEqual(['old-unapplied-1', 'old-unapplied-2']);
     const row = db
@@ -200,7 +200,7 @@ describe('#1066 dream_insights sweep archives before deleting (real SQLite)', ()
   });
 
   it('does not create the archive table when nothing qualifies', () => {
-    expect(pruneStaleDreamInsights(db, { retentionDays: 365 })).toEqual({ pruned: 0, archived: 0 });
+    expect(pruneStaleDreamInsights(db, { retentionDays: 365 })).toEqual({ pruned: 0, archived: 0, skippedNullId: 0 });
     const table = db
       .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?")
       .get(DREAM_INSIGHTS_ARCHIVE_TABLE);
@@ -225,14 +225,14 @@ describe('#1066 dream_insights sweep archives before deleting (real SQLite)', ()
   });
 
   it('keeps both archived copies when the same insight is swept twice', () => {
-    expect(pruneStaleDreamInsights(db, { retentionDays: 30 })).toEqual({ pruned: 2, archived: 2 });
+    expect(pruneStaleDreamInsights(db, { retentionDays: 30 })).toEqual({ pruned: 2, archived: 2, skippedNullId: 0 });
     // The insight comes back (for example from a brain import) with new content.
     db.prepare(
       `INSERT INTO dream_insights (id, cycle_id, insight_type, source_concepts, description, applied, created_at)
        VALUES ('old-unapplied-1', 'c1', 'analogy', '[]', 'second version', 0, datetime('now', '-60 days'))`,
     ).run();
 
-    expect(pruneStaleDreamInsights(db, { retentionDays: 30 })).toEqual({ pruned: 1, archived: 1 });
+    expect(pruneStaleDreamInsights(db, { retentionDays: 30 })).toEqual({ pruned: 1, archived: 1, skippedNullId: 0 });
     const copies = db
       .prepare(`SELECT description FROM ${DREAM_INSIGHTS_ARCHIVE_TABLE} WHERE id = 'old-unapplied-1' ORDER BY archive_id`)
       .all() as Array<{ description: string }>;
@@ -265,7 +265,7 @@ describe('#1066 dream_insights sweep archives before deleting (real SQLite)', ()
     const result = pruneStaleDreamInsights(db, { retentionDays: 30 });
     await exited;
 
-    expect(result).toEqual({ pruned: 3, archived: 3 });
+    expect(result).toEqual({ pruned: 3, archived: 3, skippedNullId: 0 });
     expect(ids('dream_insights')).toEqual(['old-applied', 'recent-unapplied']);
     expect(ids(DREAM_INSIGHTS_ARCHIVE_TABLE)).toEqual(['from-writer', 'old-unapplied-1', 'old-unapplied-2']);
   }, 20_000);
@@ -279,7 +279,7 @@ describe('#1066 dream_insights sweep archives before deleting (real SQLite)', ()
       ALTER TABLE legacy RENAME TO dream_insights;
     `);
 
-    expect(pruneStaleDreamInsights(db, { retentionDays: 30 })).toEqual({ pruned: 2, archived: 2 });
+    expect(pruneStaleDreamInsights(db, { retentionDays: 30 })).toEqual({ pruned: 2, archived: 2, skippedNullId: 0 });
     expect(ids(DREAM_INSIGHTS_ARCHIVE_TABLE)).toEqual(['old-unapplied-1', 'old-unapplied-2']);
   });
 });
@@ -349,7 +349,9 @@ describe('#1066 generated start-daemon.cjs keeps the user\'s AQE_WORKERS_ENABLED
   it('does not force AQE_WORKERS_ENABLED=true over the caller\'s environment', async () => {
     const { readFileSync } = await import('node:fs');
     const source = readFileSync(join(__dirname, '../../../src/init/phases/10-workers.ts'), 'utf-8');
-    expect(source).toContain("AQE_WORKERS_ENABLED: process.env.AQE_WORKERS_ENABLED ?? 'true'");
+    // #1116: the setting is read from the environment, else .claude/settings.json.
+    expect(source).toContain("if (process.env.AQE_WORKERS_ENABLED !== undefined) return process.env.AQE_WORKERS_ENABLED;");
+    expect(source).toContain("AQE_WORKERS_ENABLED: workersSetting ?? 'true'");
     expect(source).not.toContain("AQE_WORKERS_ENABLED: 'true', AQE_HTTP_PORT");
   });
 });

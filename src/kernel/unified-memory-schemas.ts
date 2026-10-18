@@ -8,15 +8,16 @@
 import { HYPERGRAPH_SCHEMA } from '../migrations/20260120_add_hypergraph_tables.js';
 import { PATTERN_NULLS_SCHEMA } from '../migrations/20260611_add_pattern_nulls_table.js';
 import { LEARNING_EVIDENCE_SCHEMA } from '../migrations/20260830_add_learning_evidence_tables.js';
+import { DREAM_INSIGHTS_ARCHIVE_SCHEMA } from '../migrations/20261018_add_dream_insights_archive.js';
 
 // Re-export for convenience
-export { HYPERGRAPH_SCHEMA, PATTERN_NULLS_SCHEMA, LEARNING_EVIDENCE_SCHEMA };
+export { HYPERGRAPH_SCHEMA, PATTERN_NULLS_SCHEMA, LEARNING_EVIDENCE_SCHEMA, DREAM_INSIGHTS_ARCHIVE_SCHEMA };
 
 // ============================================================================
 // Schema Version for Migrations
 // ============================================================================
 
-export const SCHEMA_VERSION = 13; // v12: learning evidence; v13: embedding-space provenance (#633)
+export const SCHEMA_VERSION = 14; // v12: learning evidence; v13: embedding-space provenance (#633); v14: dream_insights_archive (#1116)
 
 export const SCHEMA_VERSION_TABLE = `
   CREATE TABLE IF NOT EXISTS schema_version (

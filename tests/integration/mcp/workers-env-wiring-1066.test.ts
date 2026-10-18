@@ -87,7 +87,8 @@ describe.skipIf(SKIP)('#1066 worker switches over the built entry points', () =>
     const output = run.output();
     expect(output).toContain('[AQE] Shutting down');
     expect(output).toContain('[MCP] Background workers disabled (AQE_WORKERS_ENABLED=false)');
-    expect(output).not.toContain('[MCP] Background workers started');
+    // #1116: covers both "starting" and "started"; the start log changed wording.
+    expect(output).not.toContain('[MCP] Background workers start');
     expect(output).not.toContain('[MCP] Quality daemon started');
     expect(output).not.toContain('unknown worker id');
   }, 90_000);
@@ -98,7 +99,7 @@ describe.skipIf(SKIP)('#1066 worker switches over the built entry points', () =>
     await waitFor(run, (o) => o.includes('[MCP] Quality daemon started'), 60_000);
 
     const output = run.output();
-    expect(output).toContain('[MCP] Background workers started (10 workers');
+    expect(output).toContain('[MCP] Background workers starting (10 workers');
     expect(output).not.toContain('unknown worker id');
   }, 90_000);
 
