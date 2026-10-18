@@ -30,6 +30,7 @@ import {
 import { toError } from '../../../shared/error-utils.js';
 import { readActivePatterns } from '../active-patterns.js';
 import { isMeasuredPattern, partitionByRewardSource } from '../reward-source.js';
+import { copyPatternToArchive, removeArchivedPattern } from '../pattern-archive.js';
 import {
   QEFlashAttention,
   createQEFlashAttention,
@@ -531,12 +532,35 @@ Provide:
         rewardSource: patterns.every(isMeasuredPattern) ? 'measured' : 'assigned',
       };
 
-      // Store consolidated pattern
-      await this.storePattern(consolidatedPattern);
-
-      // Archive old patterns
+      // #1106: all or nothing. Every source pattern's archive copy is written
+      // and read back first; then the consolidated pattern is stored and read
+      // back; only then are the source patterns removed from the active set.
+      // If any step fails, no source pattern is deleted.
+      const archivedAt = new Date();
+      let notCopied = 0;
       for (const pattern of patterns) {
-        await this.archivePattern(pattern.id);
+        if (await copyPatternToArchive(this.memory, pattern, archivedAt) !== 'copied') notCopied++;
+      }
+      if (notCopied > 0) {
+        return err(new Error(
+          `${notCopied} of ${patterns.length} source patterns could not be archived (archive copy not verified); ` +
+          'nothing was merged and every source pattern was left active'
+        ));
+      }
+
+      await this.storePattern(consolidatedPattern);
+      const stored = await this.memory.get<{ id?: unknown }>(
+        `learning:pattern:${consolidatedPattern.id}`,
+        LEARNING_NS
+      );
+      if (!stored || stored.id !== consolidatedPattern.id) {
+        return err(new Error(
+          'Consolidated pattern could not be read back; nothing was merged and every source pattern was left active'
+        ));
+      }
+
+      for (const pattern of patterns) {
+        await removeArchivedPattern(this.memory, pattern);
       }
 
       return ok(consolidatedPattern);
@@ -913,18 +937,6 @@ Provide:
       namespace: 'learning-optimization',
       persist: true,
     });
-  }
-
-  private async archivePattern(patternId: string): Promise<void> {
-    const key = `learning:pattern:${patternId}`;
-    const pattern = await this.memory.get<LearnedPattern>(key, LEARNING_NS);
-    if (pattern) {
-      await this.memory.set(`learning:pattern:archived:${patternId}`, pattern, {
-        namespace: 'learning-optimization',
-        persist: true,
-      });
-      await this.memory.delete(key, LEARNING_NS);
-    }
   }
 
   private async updatePatternUsage(patternId: string): Promise<void> {

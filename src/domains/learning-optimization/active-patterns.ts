@@ -7,8 +7,8 @@
  * - `learning:pattern:creation:<id>`: creation provenance written by
  *   `LearningCoordinatorService.recordPatternCreation()` (no `context`)
  * - `learning:pattern:archived:<id>`: archived patterns written by
- *   `LearningCoordinatorService.archivePattern()` and the
- *   learning-consolidation protocol (full pattern shape)
+ *   `archiveSelectedPattern()` (pattern-archive.ts) for the merge path and
+ *   the learning-consolidation protocol (full pattern shape)
  *
  * Every reader of active patterns must go through this module so that
  * provenance and archives are excluded before `get()`, and so that those rows
