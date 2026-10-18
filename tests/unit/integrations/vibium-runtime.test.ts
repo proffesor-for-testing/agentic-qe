@@ -6,7 +6,11 @@ const seam = vi.hoisted(() => ({
   },
 }));
 vi.mock('node:module', () => ({ createRequire: () => Object.assign(() => seam.runtime, { resolve: seam.resolve }) }));
-vi.mock('node:child_process', () => ({ execFileSync: seam.execute }));
+vi.mock('node:child_process', () => ({
+  execFile: (file: string, args: string[], options: unknown, done: (error: unknown, stdout?: string) => void) => {
+    try { done(null, seam.execute(file, args, options)); } catch (error) { done(error); }
+  },
+}));
 vi.mock('vibium', () => seam.runtime);
 import { isVibiumReady, loadVibium, npmInvocation } from '../../../src/integrations/vibium/runtime.js';
 
@@ -48,36 +52,36 @@ describe('Optional modern Vibium runtime contract', () => {
     seam.runtime.default = { browser: {} };
     await expect(loadVibium()).rejects.toThrow(/Unsupported Vibium API.*aqe init --browser-engine/);
   });
-  it('checks the exact library payload, not a different PATH CLI', () => {
-    expect(isVibiumReady()).toBe(true);
+  it('checks the exact library payload, not a different PATH CLI', async () => {
+    expect(await isVibiumReady()).toBe(true);
     expect(seam.execute).toHaveBeenCalledWith(process.execPath,
-      ['/project/node_modules/vibium/bin/cli.js', 'is-installed'], { timeout: 5000, stdio: 'ignore' });
+      ['/project/node_modules/vibium/bin/cli.js', 'is-installed'], { encoding: 'utf8', timeout: 5000 });
   });
-  it('reports a missing payload without starting an installation', () => {
+  it('reports a missing payload without starting an installation', async () => {
     seam.execute.mockImplementation(() => { throw new Error('payload missing'); });
-    expect(isVibiumReady()).toBe(false);
+    expect(await isVibiumReady()).toBe(false);
     expect(seam.execute.mock.calls).toHaveLength(1);
     expect(seam.execute.mock.calls[0][1]).toEqual(expect.arrayContaining(['is-installed']));
   });
-  it('finds project-local opt-in installation for a global AQE executable', () => {
+  it('finds project-local opt-in installation for a global AQE executable', async () => {
     seam.resolve.mockImplementationOnce(() => { throw new Error('not alongside AQE'); });
-    expect(isVibiumReady()).toBe(true);
+    expect(await isVibiumReady()).toBe(true);
     expect(seam.resolve).toHaveBeenCalledTimes(2);
     expect(seam.execute).toHaveBeenCalledTimes(1);
   });
-  it('resolves explicit global setup with npm root and probes that payload', () => {
+  it('resolves explicit global setup with npm root and probes that payload', async () => {
     seam.resolve.mockImplementationOnce(() => { throw new Error('missing'); })
       .mockImplementationOnce(() => { throw new Error('missing'); })
       .mockReturnValue('/global/node_modules/vibium/dist/index.js');
     seam.execute.mockReturnValueOnce('/global/node_modules\n');
-    expect(isVibiumReady()).toBe(true);
+    expect(await isVibiumReady()).toBe(true);
     expect(seam.resolve).toHaveBeenLastCalledWith('/global/node_modules/vibium');
     expect(seam.execute.mock.calls[1][1]).toEqual(['/global/node_modules/vibium/bin/cli.js', 'is-installed']);
   });
-  it('reports unavailable when no opt-in installation exists', () => {
+  it('reports unavailable when no opt-in installation exists', async () => {
     seam.resolve.mockImplementation(() => { throw new Error('missing'); });
     seam.execute.mockReturnValue('/global/node_modules');
-    expect(isVibiumReady()).toBe(false);
+    expect(await isVibiumReady()).toBe(false);
     expect(seam.execute.mock.calls.every(call => call[1].join(' ') === 'root -g')).toBe(true);
   });
 

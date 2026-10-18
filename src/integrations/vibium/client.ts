@@ -205,7 +205,7 @@ export class VibiumClientImpl implements VibiumClient {
     try {
       // Check if Vibium package is available
       const browser = await getVibiumBrowser();
-      this._available = browser !== null && isVibiumReady();
+      this._available = browser !== null && await isVibiumReady();
       return this._available;
     } catch {
       this._available = false;
@@ -295,7 +295,7 @@ export class VibiumClientImpl implements VibiumClient {
       // Launch REAL browser using Vibium
       const headless = options?.headless ?? this.config.headless;
 
-      if (!isVibiumReady()) {
+      if (!(await isVibiumReady())) {
         throw new VibiumUnavailableError(`Vibium browser payload unavailable; run ${VIBIUM_SETUP}`);
       }
       const instance = await browser.start({ headless });

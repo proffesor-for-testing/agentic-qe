@@ -3,8 +3,7 @@
  * Manages multiple isolated browser sessions for parallel testing
  */
 
-import { execSync } from 'child_process';
-import { AgentBrowserCommandExecutor, CommandResult } from './command-executor';
+import { AgentBrowserCommandExecutor, CommandResult, runAgentBrowser } from './command-executor';
 
 // Session information
 export interface BrowserSessionInfo {
@@ -68,7 +67,7 @@ export class AgentBrowserSessionManager {
 
     // Navigate to initial URL if provided
     if (options?.initialUrl) {
-      const result = executor.open(options.initialUrl);
+      const result = await executor.open(options.initialUrl);
       if (result.success) {
         session.currentUrl = options.initialUrl;
         session.status = 'active';
@@ -129,12 +128,11 @@ export class AgentBrowserSessionManager {
   /**
    * List active session names from CLI
    */
-  listCliSessions(): string[] {
+  async listCliSessions(): Promise<string[]> {
     try {
-      const output = execSync('npx agent-browser session list', {
-        encoding: 'utf-8',
-        timeout: 5000,
-      });
+      const result = await runAgentBrowser(['session', 'list'], 5000);
+      if (result.error || result.status !== 0) return [];
+      const output = result.stdout;
 
       // Parse output like:
       // Active sessions:
@@ -171,7 +169,7 @@ export class AgentBrowserSessionManager {
 
     // Terminate the daemon entirely (not just close browser)
     // This is CRITICAL to prevent memory leaks - the daemon persists otherwise!
-    const result = session.executor.terminateDaemon();
+    const result = await session.executor.terminateDaemon();
 
     if (result.success) {
       session.status = 'closed';

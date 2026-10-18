@@ -2,8 +2,11 @@
  * Git Source - Recent commit context for target files
  */
 
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import type { ContextSource, ContextRequest, ContextFragment } from './types.js';
+
+const execFileAsync = promisify(execFile);
 
 export class GitContextSource implements ContextSource {
   id = 'git';
@@ -21,10 +24,12 @@ export class GitContextSource implements ContextSource {
         // filePaths can originate from MCP tool arguments. Pass each path as
         // one argv element; interpolating it into a shell command would allow
         // command execution via quotes or shell metacharacters.
-        const log = execFileSync(
+        // Async so a slow git cannot stall the MCP server's event loop (#1115).
+        const { stdout } = await execFileAsync(
           'git', ['log', '--oneline', '-5', '--', file],
-          { cwd: this.cwd ?? process.cwd(), encoding: 'utf-8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] },
-        ).trim();
+          { cwd: this.cwd ?? process.cwd(), encoding: 'utf-8', timeout: 5000 },
+        );
+        const log = stdout.trim();
 
         if (log) {
           const content = `Recent commits for ${file}:\n${log}`;

@@ -477,10 +477,10 @@ describe('Code Intelligence Coordinator ↔ MetricCollector Wiring', () => {
       expect(typeof tests.source).toBe('string');
     });
 
-    it('service provides tool availability information', { timeout: 60000 }, () => {
+    it('service provides tool availability information', { timeout: 60000 }, async () => {
       const collector = createMetricCollector();
 
-      const tools = collector.checkTools();
+      const tools = await collector.checkTools();
 
       // Should return array of tool availability
       expect(Array.isArray(tools)).toBe(true);

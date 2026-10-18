@@ -12,7 +12,6 @@
  * @see docs/plans/AQE_V3_IMPROVEMENTS_PLAN.md - Phase 5, RM-002
  */
 
-import { spawnSync } from 'child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 import { join, extname } from 'path';
 import { AQE_CLAUDE_DIR, AQE_STATE_DIR, findAqeClaudeDirs } from '../../../../shared/aqe-managed-dirs.js';
@@ -23,6 +22,7 @@ import {
   DEFAULT_METRIC_CONFIG,
 } from './interfaces.js';
 import { safeJsonParse } from '@shared/safe-json.js';
+import { runTestRunnerProcess } from '../../../../shared/test-runner-process.js';
 
 // ============================================================================
 // Main LOC Counting Function
@@ -61,36 +61,12 @@ export async function countLOC(
 /**
  * Check which LOC counting tools are available
  */
-export function checkLOCTools(): ToolAvailability[] {
-  const tools: ToolAvailability[] = [];
-
-  // Check cloc
-  try {
-    const result = spawnSync('cloc', ['--version'], { encoding: 'utf-8', timeout: 5000 });
-    if (result.status === 0) {
-      const version = result.stdout.trim().split('\n')[0];
-      tools.push({ name: 'cloc', available: true, version });
-    } else {
-      tools.push({ name: 'cloc', available: false });
-    }
-  } catch {
-    tools.push({ name: 'cloc', available: false });
-  }
-
-  // Check tokei
-  try {
-    const result = spawnSync('tokei', ['--version'], { encoding: 'utf-8', timeout: 5000 });
-    if (result.status === 0) {
-      const version = result.stdout.trim();
-      tools.push({ name: 'tokei', available: true, version });
-    } else {
-      tools.push({ name: 'tokei', available: false });
-    }
-  } catch {
-    tools.push({ name: 'tokei', available: false });
-  }
-
-  return tools;
+export async function checkLOCTools(): Promise<ToolAvailability[]> {
+  return Promise.all(['cloc', 'tokei'].map(async (name): Promise<ToolAvailability> => {
+    const result = await runTestRunnerProcess(name, ['--version'], { cwd: process.cwd(), timeout: 5000 });
+    if (result.error || result.status !== 0) return { name, available: false };
+    return { name, available: true, version: result.stdout.trim().split('\n')[0] };
+  }));
 }
 
 /**
@@ -153,8 +129,8 @@ async function tryClocCount(
     if (notMatch) args.push(`--not-match-f=${notMatch}`);
     args.push(projectPath);
 
-    const result = spawnSync('cloc', args, {
-      encoding: 'utf-8',
+    const result = await runTestRunnerProcess('cloc', args, {
+      cwd: process.cwd(),
       timeout: config.timeout,
       maxBuffer: 10 * 1024 * 1024, // 10MB buffer (reduced for memory safety)
     });
@@ -226,9 +202,8 @@ async function tryTokeiCount(
     }
     args.push('.');
 
-    const result = spawnSync('tokei', args, {
+    const result = await runTestRunnerProcess('tokei', args, {
       cwd: projectPath,
-      encoding: 'utf-8',
       timeout: config.timeout,
       maxBuffer: 10 * 1024 * 1024, // 10MB buffer (reduced for memory safety)
     });

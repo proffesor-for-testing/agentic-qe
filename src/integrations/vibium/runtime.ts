@@ -1,6 +1,6 @@
 /** Resolve the opt-in Vibium runtime for both local and global AQE installs. */
 import { createRequire } from 'node:module';
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { npmCliInvocation } from '../../shared/npm-cli-invocation.js';
@@ -8,6 +8,15 @@ import { npmCliInvocation } from '../../shared/npm-cli-invocation.js';
 export const VIBIUM_SETUP = 'aqe init --browser-engine (or npm install vibium@^26.8.21)';
 type Runtime = typeof import('vibium');
 const requireFromHere = createRequire(import.meta.url);
+
+/** Async probe (#1115): a slow npm or Vibium CLI must not block the MCP server. */
+function execFileText(file: string, args: string[]): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile(file, args, { encoding: 'utf8', timeout: 5000 }, (error, stdout) => {
+      if (error) reject(error); else resolve(String(stdout));
+    });
+  });
+}
 
 /**
  * How to run npm without a shell. On Windows `npm` is an `npm.cmd` shim, which
@@ -24,7 +33,7 @@ export function npmInvocation(
 }
 
 /** Never install or download anything while probing availability. */
-function resolveRuntime(): string {
+async function resolveRuntime(): Promise<string> {
   try {
     return requireFromHere.resolve('vibium');
   } catch {
@@ -34,9 +43,7 @@ function resolveRuntime(): string {
     // A global CLI installation is not on Node's normal module search path.
     // npm root is read-only and honors the same npm prefix as explicit setup.
     const [npmBin, npmPrefixArgs] = npmInvocation();
-    const root = execFileSync(npmBin, [...npmPrefixArgs, 'root', '-g'], {
-      encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'],
-    }).trim();
+    const root = (await execFileText(npmBin, [...npmPrefixArgs, 'root', '-g'])).trim();
     return requireFromHere.resolve(join(root, 'vibium'));
   }
 }
@@ -67,7 +74,7 @@ export async function loadVibium(): Promise<Runtime> {
         (error as NodeJS.ErrnoException).code !== 'MODULE_NOT_FOUND') throw error;
     let entry: string;
     try {
-      entry = resolveRuntime();
+      entry = await resolveRuntime();
     } catch (cause) {
       throw new Error(`Vibium is not installed; run ${VIBIUM_SETUP}`, { cause });
     }
@@ -84,12 +91,10 @@ export async function loadVibium(): Promise<Runtime> {
 }
 
 /** Check the payload belonging to the resolved library, not a different PATH CLI. */
-export function isVibiumReady(): boolean {
+export async function isVibiumReady(): Promise<boolean> {
   try {
-    const cli = join(dirname(resolveRuntime()), '..', 'bin', 'cli.js');
-    execFileSync(process.execPath, [cli, 'is-installed'], {
-      timeout: 5000, stdio: 'ignore',
-    });
+    const cli = join(dirname(await resolveRuntime()), '..', 'bin', 'cli.js');
+    await execFileText(process.execPath, [cli, 'is-installed']);
     return true;
   } catch {
     return false;
