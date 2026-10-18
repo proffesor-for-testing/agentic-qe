@@ -17,9 +17,8 @@ import { ToolResult } from '../../types.js';
 import {
   DreamEngine,
   createDreamEngine,
-  type DreamConfig,
 } from '../../../learning/dream/index.js';
-import type { DreamCycleResult } from '../../../learning/dream/dream-engine.js';
+import { DreamAlreadyRunningError, type DreamCycleResult } from '../../../learning/dream/dream-engine.js';
 import type { DreamInsight } from '../../../learning/dream/insight-generator.js';
 import type { DreamCycle } from '../../../learning/dream/types.js';
 import { createQEReasoningBank } from '../../../learning/qe-reasoning-bank.js';
@@ -76,6 +75,8 @@ export interface DreamResultSummary {
     nodesActivated: number;
   };
   patternsCreated: number;
+  /** #1060: how long the dream's single commit transaction held the write lock, in ms */
+  commitDurationMs?: number;
 }
 
 export interface InsightSummary {
@@ -172,43 +173,34 @@ export class DreamCycleTool extends MCPToolBase<DreamCycleParams, DreamCycleTool
   };
 
   private engine: DreamEngine | null = null;
-  private engineConfig: Partial<DreamConfig> | null = null;
+  /** #1060: the one in-flight engine creation, so concurrent calls share it. */
+  private enginePending: Promise<DreamEngine> | null = null;
 
   /**
    * Get or create the DreamEngine instance.
    *
-   * If config differs from the cached engine's config, the engine is
-   * recreated to respect the new configuration. This prevents the bug
-   * where subsequent calls with different durationMs/minPatterns were ignored.
+   * #1060: one engine for the tool's lifetime. Duration and the minimum
+   * concept count are passed per call to dream(), so a call with different
+   * values no longer closes and recreates the engine (which interrupted a
+   * dream still running on it).
    */
-  private async getEngine(config?: Partial<DreamConfig>): Promise<DreamEngine> {
-    // Check if we need to recreate due to config change
-    const configChanged = this.engine && config && !this.configsEqual(this.engineConfig, config);
-
-    if (configChanged && this.engine) {
-      await this.engine.close().catch(() => {});
-      this.engine = null;
-      this.engineConfig = null;
+  private async getEngine(): Promise<DreamEngine> {
+    if (this.engine) return this.engine;
+    if (!this.enginePending) {
+      const create = async (): Promise<DreamEngine> => {
+        const engine = createDreamEngine();
+        await engine.initialize();
+        // A reset while initializing dropped this engine; don't resurrect it.
+        if (this.enginePending === pending) this.engine = engine;
+        else engine.close().catch(() => {});
+        return engine;
+      };
+      const pending: Promise<DreamEngine> = create();
+      this.enginePending = pending;
+      const settle = (): void => { if (this.enginePending === pending) this.enginePending = null; };
+      pending.then(settle, settle);
     }
-
-    if (!this.engine) {
-      this.engine = createDreamEngine(config);
-      this.engineConfig = config || null;
-      await this.engine.initialize();
-    }
-    return this.engine;
-  }
-
-  /**
-   * Compare two configs for equality (shallow comparison of relevant fields)
-   */
-  private configsEqual(a: Partial<DreamConfig> | null, b: Partial<DreamConfig> | null): boolean {
-    if (a === b) return true;
-    if (!a || !b) return false;
-    return (
-      a.maxDurationMs === b.maxDurationMs &&
-      a.minConceptsRequired === b.minConceptsRequired
-    );
+    return this.enginePending;
   }
 
   /**
@@ -320,10 +312,12 @@ export class DreamCycleTool extends MCPToolBase<DreamCycleParams, DreamCycleTool
 
     this.logger.info(`Starting dream cycle (${durationMs}ms, min: ${minPatterns} patterns)`);
 
-    const engine = await this.getEngine({
-      maxDurationMs: durationMs,
-      minConceptsRequired: minPatterns,
-    });
+    const engine = await this.getEngine();
+    // #1060: a concurrent dream is refused with a clear error, not queued.
+    const running = engine.getCurrentCycle();
+    if (running) {
+      throw new DreamAlreadyRunningError(running.id);
+    }
 
     // Load patterns from ReasoningBank if requested
     if (loadFromRB) {
@@ -332,7 +326,7 @@ export class DreamCycleTool extends MCPToolBase<DreamCycleParams, DreamCycleTool
     }
 
     // Run the dream cycle
-    const result: DreamCycleResult = await engine.dream(durationMs);
+    const result: DreamCycleResult = await engine.dream(durationMs, { minConceptsRequired: minPatterns });
 
     const dreamResult: DreamResultSummary = {
       cycleId: result.cycle.id,
@@ -343,6 +337,7 @@ export class DreamCycleTool extends MCPToolBase<DreamCycleParams, DreamCycleTool
       insightsGenerated: result.cycle.insightsGenerated,
       activationStats: result.activationStats,
       patternsCreated: result.patternsCreated,
+      commitDurationMs: result.commitDurationMs,
     };
 
     const insights: InsightSummary[] = result.insights.map((i: DreamInsight) => ({
@@ -557,6 +552,7 @@ export class DreamCycleTool extends MCPToolBase<DreamCycleParams, DreamCycleTool
    * Reset instance cache (for fleet dispose)
    */
   override resetInstanceCache(): void {
+    this.enginePending = null;
     if (this.engine) {
       this.engine.close().catch(console.error);
       this.engine = null;
