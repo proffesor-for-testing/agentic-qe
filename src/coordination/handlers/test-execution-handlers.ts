@@ -10,7 +10,7 @@ import * as fs from 'fs/promises';
 import { ok, err } from '../../shared/types';
 import { toError } from '../../shared/error-utils.js';
 import type { TaskHandlerContext } from './handler-types';
-import { getTestRunnerExecutionError, TestRunnerExecutionError } from '../../shared/test-runner-verdict.js';
+import { capDiagnostics, getTestRunnerExecutionError, TestRunnerExecutionError } from '../../shared/test-runner-verdict.js';
 import { createVitestJsonReport } from '../../shared/vitest-json-report.js';
 import { jestExactPathPattern, runnerFilePath } from '../../shared/test-runner-args.js';
 import { testCasesFromRunnerReport } from '../../domains/test-execution/services/runner-test-cases.js';
@@ -268,7 +268,7 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
       }
       const diagnostics = [execution.error?.message, execution.signal && `Terminated by ${execution.signal}`, execution.stderr, output].filter(Boolean).join('\n');
       if (execution.error) {
-        return err(new TestRunnerExecutionError(`${runner} could not complete: ${diagnostics.slice(0, 4000)}`));
+        return err(new TestRunnerExecutionError(`${runner} could not complete: ${capDiagnostics(diagnostics)}`));
       }
 
       try {
@@ -299,7 +299,7 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
       }
 
       return err(new TestRunnerExecutionError(
-        `Could not parse ${runner} results (exit code ${execution.status ?? 'unknown'}):\n${diagnostics.slice(0, 4000)}`
+        `Could not parse ${runner} results (exit code ${execution.status ?? 'unknown'}):\n${capDiagnostics(diagnostics)}`
       ));
     } catch (error) {
       return err(toError(error));

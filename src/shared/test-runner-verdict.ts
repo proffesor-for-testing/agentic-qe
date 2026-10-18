@@ -1,7 +1,12 @@
-/** A runner or suite error is not an assertion result. */
+import { redactLogText } from '../logging/redaction.js';
+
+/**
+ * A runner or suite error is not an assertion result. Its message carries
+ * runner output and is returned over MCP, so it is redacted (#1122).
+ */
 export class TestRunnerExecutionError extends Error {
   constructor(message: string) {
-    super(message);
+    super(redactLogText(message, Number.POSITIVE_INFINITY));
     this.name = 'TestRunnerExecutionError';
   }
 }
@@ -21,6 +26,14 @@ interface RunnerReport {
     message?: string;
     assertionResults?: Array<{ status?: string }>;
   }>;
+}
+
+/**
+ * Runner output quoted in an error, redacted before it is cut so a secret
+ * that straddles the cut cannot survive half-matched (#1122).
+ */
+export function capDiagnostics(text: string, maxLength = 4000): string {
+  return redactLogText(text, Number.POSITIVE_INFINITY).slice(0, maxLength);
 }
 
 /**
@@ -60,9 +73,9 @@ export function getTestRunnerExecutionError(
   const diagnostics = [
     ...suiteErrors.map(suite => suite.message).filter(Boolean),
     output.trim(),
-  ].filter(Boolean).join('\n').slice(0, 4000);
+  ].filter(Boolean).join('\n');
   return new TestRunnerExecutionError(
     `${runner} ${reason} for ${files} (exit code ${exitCode ?? 'unknown'}).` +
-    (diagnostics ? `\n${diagnostics}` : ''),
+    (diagnostics ? `\n${capDiagnostics(diagnostics)}` : ''),
   );
 }
