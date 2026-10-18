@@ -28,7 +28,7 @@ import { secureRandom, secureRandomInt } from '../../../shared/utils/crypto-rand
 import { writeTestRunEvidence } from '../../quality-assessment/quality-evidence.js';
 import { istanbulLineHits } from '../../../coordination/handlers/handler-utils.js';
 import { fileCoverageKey } from '../../coverage-analysis/collected-metrics.js';
-import { mergeTestCases, testCasesFromRunnerReport } from './runner-test-cases.js';
+import { mergeTestCases, redactFailedTests, testCasesFromRunnerReport } from './runner-test-cases.js';
 import { getTestRunnerExecutionError, TestRunnerExecutionError } from '../../../shared/test-runner-verdict.js';
 import { createVitestJsonReport, type VitestJsonReport } from '../../../shared/vitest-json-report.js';
 import { jestExactPathPattern, runnerFilePath } from '../../../shared/test-runner-args.js';
@@ -161,7 +161,7 @@ export class TestExecutorService implements ITestExecutionService {
         failed: results.failed,
         skipped: results.skipped,
         duration,
-        failedTests: results.failedTests,
+        failedTests: redactFailedTests(results.failedTests),
         ...(results.testCases ? { testCases: results.testCases } : {}),
         coverage: results.coverage,
         fileCoverages: results.fileCoverages,
@@ -231,7 +231,7 @@ export class TestExecutorService implements ITestExecutionService {
         failed: aggregated.failed,
         skipped: aggregated.skipped,
         duration,
-        failedTests: aggregated.failedTests,
+        failedTests: redactFailedTests(aggregated.failedTests),
         ...(aggregated.testCases ? { testCases: aggregated.testCases } : {}),
         coverage: aggregated.coverage,
         fileCoverages: aggregated.fileCoverages,

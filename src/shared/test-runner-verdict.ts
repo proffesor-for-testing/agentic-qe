@@ -1,7 +1,12 @@
-/** A runner or suite error is not an assertion result. */
+import { redactLogText } from '../logging/redaction.js';
+
+/**
+ * A runner or suite error is not an assertion result. Its message carries
+ * runner output and is returned over MCP, so it is redacted (#1122).
+ */
 export class TestRunnerExecutionError extends Error {
   constructor(message: string) {
-    super(message);
+    super(redactLogText(message, Number.POSITIVE_INFINITY));
     this.name = 'TestRunnerExecutionError';
   }
 }
