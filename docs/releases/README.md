@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.15.10](v3.15.10.md) | 2026-10-19 | Project-confined paths; redacted failures; real fleet runs; safe dreams. |
 | [v3.15.9](v3.15.9.md) | 2026-10-17 | No stuck tasks; measured-only metrics; non-blocking test runs. |
 | [v3.15.8](v3.15.8.md) | 2026-10-16 | Dream-safe memory writes; workers off switch; no startup insight sweep. |
 | [v3.15.7](v3.15.7.md) | 2026-10-15 | Failed OSV lookups never read as clean; workers stop inventing data. |
