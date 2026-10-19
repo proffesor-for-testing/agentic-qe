@@ -2,6 +2,9 @@
 
 Newest first. One `## <version> — <date>` heading per version, then `feat:`, `fix:`, `breaking:` and `chore:` bullets. Since 3.15.0 the plugin version tracks the `agentic-qe` npm package version (see [ADR-0001](docs/adrs/0001-agentic-qe-fleet-contract.md)). Built from git history.
 
+## 3.15.10 — 2026-10-19
+- chore: MCP server pin and mod version move to `agentic-qe@3.15.10` (request paths confined to the project, redacted test failures, real handlers and verdicts for fleet runs, dream writes in one transaction, non-blocking git and metric tools, measured-only learning success rate; see the root CHANGELOG). No other plugin changes.
+
 ## 3.15.9 — 2026-10-17
 - chore: MCP server pin and mod version move to `agentic-qe@3.15.9` (no tasks stuck in `running`, measured-only test and learning metrics, non-blocking test runs, code indexing confined to the project; see the root CHANGELOG). No other plugin changes.
 
