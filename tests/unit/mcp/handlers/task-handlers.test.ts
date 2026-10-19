@@ -295,6 +295,17 @@ describe('Task Handlers', () => {
       });
     });
 
+    it.each(['bogus', '', 'P0', null, 0])(
+      'should reject invalid priority filter %j instead of returning an empty list',
+      async (priority) => {
+        const result = await handleTaskList({ priority: priority as never });
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain('Invalid priority');
+        expect(result.data).toBeUndefined();
+      }
+    );
+
     it('should filter tasks by priority', async () => {
       const result = await handleTaskList({ priority: 'p0' });
 

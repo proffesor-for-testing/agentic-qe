@@ -152,6 +152,12 @@ export async function handleTaskList(
     };
   }
 
+  // A priority outside the allowed set is an error, not an empty list.
+  // Parity with `aqe task list --priority`.
+  if (params.priority !== undefined && !isPriority(params.priority)) {
+    return { success: false, error: invalidPriorityMessage(params.priority) };
+  }
+
   const { queen } = getFleetState();
 
   try {
