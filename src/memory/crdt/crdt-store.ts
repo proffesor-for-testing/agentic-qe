@@ -27,7 +27,7 @@ import type {
   ORSetState,
 } from './types.js';
 
-import { createLWWRegister, createLWWRegisterFromState, isLWWRegisterState } from './lww-register.js';
+import { createLWWRegister, createLWWRegisterFromState } from './lww-register.js';
 import { createGCounter, createGCounterFromState } from './g-counter.js';
 import { createPNCounter, createPNCounterFromState } from './pn-counter.js';
 import { createORSet, createORSetFromState } from './or-set.js';
@@ -386,7 +386,7 @@ export function createCRDTStore(config: CRDTStoreConfig): CRDTStore {
       // Apply registers
       for (const [key, state] of Object.entries(incoming.registers)) {
         // One malformed peer entry must not block unrelated state from converging.
-        if (!isLWWRegisterState(state)) continue;
+        if (typeof state?.timestamp !== 'number' || !Number.isFinite(state.timestamp)) continue;
         if (!registers.has(key)) {
           registers.set(
             key,
@@ -525,7 +525,7 @@ export function createCRDTStore(config: CRDTStoreConfig): CRDTStore {
       // Apply delta similar to full state, but only for included keys
       if (delta.registers) {
         for (const [key, state] of Object.entries(delta.registers)) {
-          if (!isLWWRegisterState(state)) continue;
+          if (typeof state?.timestamp !== 'number' || !Number.isFinite(state.timestamp)) continue;
           if (!registers.has(key)) {
             registers.set(
               key,

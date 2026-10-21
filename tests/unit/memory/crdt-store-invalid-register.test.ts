@@ -15,7 +15,7 @@ describe('CRDT store replication with an invalid register (#1087)', () => {
         for (const existing of operation === 'restore' ? [false] : [false, true]) {
           it(`${operation} skips timestamp ${String(timestamp)} at position ${position}, existing=${existing}`, () => {
             const remote = createCRDTStore({ nodeId: 'remote' });
-            for (const key of ['a', 'b', 'c']) remote.setRegister(key, key.toUpperCase(), 10);
+            for (const key of ['a', 'b', 'c']) remote.setRegister(key, key.toUpperCase());
             remote.incrementGCounter('hits', 3);
             remote.incrementCounter('balance', 4);
             remote.decrementCounter('balance', 1);
@@ -30,7 +30,7 @@ describe('CRDT store replication with an invalid register (#1087)', () => {
             const local = operation === 'restore'
               ? createCRDTStoreFromState('local', JSON.parse(JSON.stringify(state)))
               : createCRDTStore({ nodeId: 'local' });
-            if (existing) local.setRegister('b', 'retained', 5);
+            if (existing) local.setRegister('b', 'retained');
             const events: CRDTChangeEvent[] = [];
             local.on('change', event => events.push(event));
             const apply = () => operation === 'delta' ? local.applyDelta(delta) : local.applyState(state);
@@ -56,4 +56,35 @@ describe('CRDT store replication with an invalid register (#1087)', () => {
       }
     }
   }
+});
+
+
+describe('cleared registers survive JSON replication (#1087)', () => {
+  for (const operation of ['state', 'delta'] as const) {
+    it(`${operation} propagates a clear over an older value without resurrecting it`, () => {
+      const receiver = createCRDTStore({ nodeId: 'receiver' });
+      receiver.getRegister('key').set('old', 10);
+      const sender = createCRDTStore({ nodeId: 'sender' });
+      sender.applyState(receiver.getState());
+      sender.setRegister('key', undefined);
+      const payload = JSON.parse(JSON.stringify(
+        operation === 'state' ? sender.getState() : sender.getDelta(0),
+      ));
+      // JSON omits undefined values, but the timestamp still carries the clear.
+      expect(payload.registers.key).not.toHaveProperty('value');
+      if (operation === 'state') receiver.applyState(payload);
+      else receiver.applyDelta(payload);
+      expect(receiver.getRegister('key').get()).toBeUndefined();
+      sender.applyState(JSON.parse(JSON.stringify(receiver.getState())));
+      expect(sender.getRegister('key').get()).toBeUndefined();
+    });
+  }
+
+  it('restores the presence of a cleared register after JSON persistence', () => {
+    const sender = createCRDTStore({ nodeId: 'sender' });
+    sender.setRegister('key', undefined);
+    const restored = createCRDTStoreFromState('restored', JSON.parse(JSON.stringify(sender.getState())));
+    expect(restored.hasRegister('key')).toBe(true);
+    expect(restored.getRegister('key').get()).toBeUndefined();
+  });
 });
