@@ -91,13 +91,16 @@ describe.skipIf(!existsSync(bundle) && !process.env.CI)('MCP handlers read only 
     writeFileSync(join(root, 'sub3/app.py'), 'print("ok")\n');
     writeFileSync(join(outside, 'requirements.txt'), 'python-jose==3.0.0\n');
     symlinkSync(join(outside, 'requirements.txt'), join(root, 'sub3/requirements.txt'));
+    // Review of #1179: the project-root coverage report, linked out.
+    mkdirSync(join(root, 'coverage'));
+    symlinkSync(join(outside, 'lcov.info'), join(root, 'coverage/lcov.info'));
     const home = join(root, '.home');
     mkdirSync(home);
     child = spawn(process.execPath, [bundle], {
       cwd: root,
       env: { ...process.env, HOME: home, AQE_PROJECT_ROOT: root, AQE_MEMORY_BACKEND: 'memory', AQE_HTTP_PORT: '0',
         AQE_SESSION_CACHE: 'off', AQE_LOOP_DETECTION_ENABLED: 'false', AQE_LLM_ROUTER_DISABLED: '1',
-        npm_config_offline: 'true', npm_config_yes: 'false' },
+        AQE_COVERAGE_NO_EXEC: '1', npm_config_offline: 'true', npm_config_yes: 'false' },
       stdio: 'pipe',
     });
     child.stderr.on('data', data => { stderr = (stderr + String(data)).slice(-20000); });
@@ -231,6 +234,12 @@ describe.skipIf(!existsSync(bundle) && !process.env.CI)('MCP handlers read only 
       expect(JSON.stringify(result)).not.toContain('Invalid string length');
       expect((await call('fleet_status', {})).success).toBe(true);
       expect(child.exitCode).toBeNull();
+    }, 120000);
+
+    it('coverage_analyze_sublinear does not read a project-root coverage report linked out of the project', async () => {
+      const result = await call('coverage_analyze_sublinear', { target: '.' });
+      const text = JSON.stringify(result);
+      expect(text).not.toContain(outside);
     }, 120000);
 
     it('security_scan_comprehensive does not read a dependency manifest linked out of the project', async () => {

@@ -6,6 +6,7 @@
  */
 
 import * as fs from 'fs/promises';
+import { readConfinedText } from '../../shared/io/confined-read.js';
 import * as path from 'path';
 import { isAqeManagedDir } from '../../shared/aqe-managed-dirs.js';
 import { safeJsonParse } from '../../shared/safe-json.js';
@@ -77,7 +78,8 @@ export async function loadCoverageData(targetPath: string): Promise<CoverageData
 
   for (const coveragePath of coverageLocations) {
     try {
-      const content = await fs.readFile(coveragePath, 'utf-8');
+      // #1161: a report linked out of the project, or to a device, is not read.
+      const content = await readConfinedText(coveragePath, { outsideRoot: 'allow' });
 
       if (coveragePath.endsWith('coverage-summary.json')) {
         return parseCoverageSummaryJson(content);

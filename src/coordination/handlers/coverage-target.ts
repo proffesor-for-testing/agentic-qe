@@ -20,6 +20,7 @@
  */
 
 import * as fs from 'fs';
+import { readConfinedText, readConfinedTextSync } from '../../shared/io/confined-read.js';
 import * as os from 'os';
 import * as path from 'path';
 import type { CoverageData, FileCoverage } from '../../domains/coverage-analysis/interfaces';
@@ -110,7 +111,7 @@ function packageCanUseRootRunner(pkgDir: string, rootDir: string): boolean {
 
 function readPackageJson(dir: string): Record<string, unknown> | null {
   try {
-    const parsed: unknown = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf-8'));
+    const parsed: unknown = JSON.parse(readConfinedTextSync(path.join(dir, 'package.json'), { outsideRoot: 'allow' }));
     return typeof parsed === 'object' && parsed !== null ? parsed as Record<string, unknown> : null;
   } catch {
     return null;
@@ -139,7 +140,7 @@ function readWorkspacePatterns(dir: string): string[] | null {
   // Only the block-list `packages:` form is read; the flow form gives no
   // patterns, so the root is not adopted (fails safe).
   try {
-    const yaml = fs.readFileSync(path.join(dir, 'pnpm-workspace.yaml'), 'utf-8');
+    const yaml = readConfinedTextSync(path.join(dir, 'pnpm-workspace.yaml'), { outsideRoot: 'allow' });
     isRoot = true;
     let inPackages = false;
     for (const raw of yaml.split(/\r?\n/)) {
@@ -325,7 +326,9 @@ export function isCoverageReportFile(filePath: string): boolean {
 export async function loadCoverageReportFile(filePath: string): Promise<CoverageData | null> {
   let content: string;
   try {
-    content = await fs.promises.readFile(filePath, 'utf-8');
+    // #1161: read from the validated descriptor, not the name checked earlier;
+    // a report linked out of the project, or to a device, is not read.
+    content = await readConfinedText(filePath, { outsideRoot: 'allow' });
   } catch {
     return null;
   }
