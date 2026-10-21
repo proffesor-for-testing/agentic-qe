@@ -5,7 +5,7 @@
 
 import { LoggerFactory } from '../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
-import * as fs from 'fs/promises';
+import { readConfinedText } from '../../../shared/io/confined-read.js';
 import * as path from 'path';
 import type {
   Vulnerability,
@@ -209,7 +209,7 @@ export async function performSASTScan(
       }
 
       try {
-        const content = await fs.readFile(filePath, 'utf-8');
+        const content = await readConfinedText(filePath, { outsideRoot: 'allow' }); // #1161
         const lines = content.split('\n');
         filesScanned++;
         linesScanned += lines.length;

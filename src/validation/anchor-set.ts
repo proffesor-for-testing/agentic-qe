@@ -80,7 +80,16 @@ export function computeContentHash(items: AnchorItem[]): string {
  * except through this loader.
  */
 export function loadAnchorSet(path: string): AnchorSet {
-  const raw = JSON.parse(fs.readFileSync(path, 'utf8')) as AnchorSet;
+  return parseAnchorSet(fs.readFileSync(path, 'utf8'), path);
+}
+
+/**
+ * Parse and verify an anchor set already read by the caller (#1161: the MCP
+ * gate reads a caller-named anchor through a confined read). `path` only
+ * labels error messages. Applies the same hash and non-empty checks.
+ */
+export function parseAnchorSet(text: string, path: string): AnchorSet {
+  const raw = JSON.parse(text) as AnchorSet;
   const recomputed = computeContentHash(raw.items);
   if (recomputed !== raw.contentHash) {
     throw new Error(

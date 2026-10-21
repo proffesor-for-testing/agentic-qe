@@ -8,7 +8,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import ts from 'typescript';
-import * as fs from 'fs';
+import { readConfinedTextSync } from '../../../shared/io/confined-read.js';
 import * as path from 'path';
 import { Result, ok, err } from '../../../shared/types';
 import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces';
@@ -155,7 +155,7 @@ export class PatternMatcherService implements IPatternMatchingService {
       // Read file content
       let content: string;
       try {
-        content = fs.readFileSync(filePath, 'utf-8');
+        content = readConfinedTextSync(filePath, { outsideRoot: 'allow' }); // #1161
       } catch {
         return err(new Error(`Cannot read file: ${filePath}`));
       }
@@ -979,7 +979,7 @@ export class PatternMatcherService implements IPatternMatchingService {
       // Read the file content
       let content: string;
       try {
-        content = fs.readFileSync(file, 'utf-8');
+        content = readConfinedTextSync(file, { outsideRoot: 'allow' }); // #1161
       } catch {
         // File doesn't exist or can't be read, return empty
         return patterns;
@@ -1442,7 +1442,7 @@ class TypeScriptASTParser {
     if (content) {
       this.sourceCode = content;
     } else {
-      this.sourceCode = fs.readFileSync(filePath, 'utf-8');
+      this.sourceCode = readConfinedTextSync(filePath, { outsideRoot: 'allow' }); // #1161
     }
 
     this.sourceFile = ts.createSourceFile(

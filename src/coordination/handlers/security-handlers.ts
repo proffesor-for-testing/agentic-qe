@@ -5,7 +5,6 @@
  * Covers: scan-security
  */
 
-import * as fs from 'fs/promises';
 import * as path from 'path';
 import { ok, err } from '../../shared/types';
 import { createHash } from 'node:crypto';
@@ -19,6 +18,7 @@ import type { SASTResult, DASTResult } from '../../domains/security-compliance/i
 import { runDependencyAdvisoryScan, type DependencyAdvisoryOutcome } from '../../domains/security-compliance/dependency-advisory-engine.js';
 import { MAX_PAYLOAD_FILE_BYTES, requirePayloadPath } from '../../shared/io/payload-path-guard.js';
 import { dropGenericEvalCoveredBySast, GENERIC_EVAL_EXEC_TITLE } from '../../domains/security-compliance/generic-finding-dedup.js';
+import { readConfinedFile } from '../../shared/io/confined-read.js';
 
 export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
   // Register security scan handler - REAL IMPLEMENTATION
@@ -75,7 +75,8 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
           continue;
         }
         try {
-          const source = await fs.readFile(filePath);
+          // #1161: validate the opened descriptor, not the name checked earlier.
+          const source = await readConfinedFile(filePath, { outsideRoot: 'allow' });
           const content = source.toString('utf-8');
           const lines = content.split('\n');
           fileEvidence.push({ path: filePath, engineId: 'generic-patterns', status: 'analyzed',
@@ -186,7 +187,8 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
       for (const manifest of sastRequested ? depManifests : []) {
         const manifestPath = path.join(targetPath, manifest);
         try {
-          const manifestSource = await fs.readFile(manifestPath);
+          // #1161: a manifest linked out of the project is not read.
+          const manifestSource = await readConfinedFile(manifestPath, { outsideRoot: 'allow' });
           const manifestContent = manifestSource.toString('utf-8');
           const manifestLines = manifestContent.split('\n').length;
           fileEvidence.push({ path: manifestPath, engineId: 'dependency-manifest-patterns', status: 'analyzed',

@@ -5,12 +5,12 @@
  * as an MCP tool that users can invoke directly.
  */
 
-import { readFileSync, existsSync } from 'fs';
 import type { ToolResult } from '../types.js';
 import { runPipeline, formatPipelineReport } from '../../validation/pipeline.js';
 import { createRequirementsPipeline, REQUIREMENTS_VALIDATION_STEPS } from '../../validation/steps/requirements.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
 import { MAX_PAYLOAD_FILE_BYTES, requirePayloadPath } from '../../shared/io/payload-path-guard.js';
+import { ConfinedReadError, readConfinedText } from '../../shared/io/confined-read.js';
 
 export interface ValidationPipelineParams {
   /** Path to the document to validate */
@@ -86,16 +86,16 @@ export async function handleValidationPipeline(
     const confined = await requirePayloadPath('validation_pipeline', 'filePath', params.filePath,
       { allowMissing: true, maxBytes: MAX_PAYLOAD_FILE_BYTES });
     if (!confined.success) return { success: false, error: confined.error.message };
-    const absPath = confined.value;
-    if (!existsSync(absPath)) {
-      return {
-        success: false,
-        error: `File not found: ${params.filePath}`,
-      };
-    }
+    // #1161: read from the validated descriptor, not the name checked above.
     try {
-      content = readFileSync(absPath, 'utf-8');
+      content = await readConfinedText(confined.value, { maxBytes: MAX_PAYLOAD_FILE_BYTES });
     } catch (readErr) {
+      if (readErr instanceof ConfinedReadError && readErr.reason === 'not-found') {
+        return {
+          success: false,
+          error: `File not found: ${params.filePath}`,
+        };
+      }
       return {
         success: false,
         error: `Failed to read file: ${toErrorMessage(readErr)}`,

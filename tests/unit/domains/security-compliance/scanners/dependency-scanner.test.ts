@@ -32,6 +32,16 @@ vi.mock('../../../../../src/shared/security/index.js', () => ({
   },
 }));
 
+// #1161: source reads go through the confined reader; route it to the fs mock.
+vi.mock('../../../../../src/shared/io/confined-read.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../../../src/shared/io/confined-read.js')>();
+  const fsp = await import('fs/promises');
+  return {
+    ...actual,
+    readConfinedFile: async (p: string) => Buffer.from(await fsp.readFile(p) as string | Buffer),
+    readConfinedText: async (p: string) => String(await fsp.readFile(p, 'utf-8')),
+  };
+});
 vi.mock('fs/promises', () => ({
   // No pnpm-workspace.yaml / lockfile in this mocked filesystem.
   stat: vi.fn().mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' })),

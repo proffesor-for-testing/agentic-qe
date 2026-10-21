@@ -11,7 +11,7 @@ import { generateBehaviorExamples } from './behavior-examples.js';
 import { validateBehaviorExamples } from './behavior-example-validation.js';
 import { LoggerFactory } from '../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
-import * as fs from 'fs';
+import { readConfinedTextSync } from '../../../shared/io/confined-read.js';
 import * as path from 'path';
 import ts from 'typescript';
 import { Result, ok, err } from '../../../shared/types';
@@ -603,7 +603,7 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
     let codeAnalysis: CodeAnalysis | null = null;
     let sourceContent = '';
     try {
-      sourceContent = fs.readFileSync(sourceFile, 'utf-8');
+      sourceContent = readConfinedTextSync(sourceFile, { outsideRoot: 'allow' }); // #1161
       codeAnalysis = await this.analyzeSourceCode(sourceContent, sourceFile);
     } catch {
       // File doesn't exist or can't be read - use stub generation

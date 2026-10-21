@@ -23,6 +23,9 @@
  */
 
 import * as fs from 'fs/promises';
+// #1161: manifests and lockfiles are read from a validated descriptor; one
+// linked out of the project, or to a device, is refused instead of read.
+import { readConfinedText } from '../../../../shared/io/confined-read.js';
 import * as path from 'path';
 import semver from 'semver';
 import { parse as parseYaml } from 'yaml';
@@ -80,7 +83,7 @@ export function declaredDependencies(manifest: Manifest): Record<string, string>
 }
 
 async function readManifest(file: string): Promise<Manifest> {
-  return safeJsonParse<Manifest>(await fs.readFile(file, 'utf-8'));
+  return safeJsonParse<Manifest>(await readConfinedText(file, { outsideRoot: 'allow' }));
 }
 
 async function exists(file: string): Promise<boolean> {
@@ -159,7 +162,7 @@ async function pnpmDeclaresPackages(file: string): Promise<boolean> {
   try {
     const st = await fs.stat(file); // follows a link; a dangling one throws
     if (!st.isFile() || st.size > MAX_PNPM_WORKSPACE_BYTES) return true;
-    const text = await fs.readFile(file, 'utf-8');
+    const text = await readConfinedText(file, { outsideRoot: 'allow', maxBytes: MAX_PNPM_WORKSPACE_BYTES });
     doc = parseYaml(text, { uniqueKeys: false, merge: true, maxAliasCount: 100 });
   } catch {
     return true;
@@ -242,7 +245,7 @@ export async function resolveDependencies(manifestPath: string): Promise<Depende
   if (found) {
     const member = path.relative(found.dir, realManifestDir).split(path.sep).join('/');
     try {
-      const parsed = parseLockfile(found.file, await fs.readFile(path.join(found.dir, found.file), 'utf-8'));
+      const parsed = parseLockfile(found.file, await readConfinedText(path.join(found.dir, found.file), { outsideRoot: 'allow' }));
       const rootManifest = member ? await readManifest(path.join(found.dir, 'package.json')).catch(() => ({} as Manifest)) : manifest;
       // A member scanned directly: the root lockfile covers it if it lists the
       // importer (npm/pnpm) or, for yarn, if the root declares workspaces.

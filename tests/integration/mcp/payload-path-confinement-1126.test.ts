@@ -82,6 +82,15 @@ describe.skipIf(!existsSync(bundle) && !process.env.CI)('MCP handlers read only 
     symlinkSync('/dev/shm', join(root, 'src/devl'));
     writeFileSync(join(outside, 'lcov.info'), `SF:${outsideFile()}\nDA:1,0\nend_of_record\n`);
     writeFileSync(join(outside, 'package.json'), JSON.stringify({ name: 'OUTSIDE_PKG_SECRET' }));
+    // #1161: fixed names read inside an accepted directory, linked out of it.
+    mkdirSync(join(root, 'sub'));
+    symlinkSync(join(outside, 'package.json'), join(root, 'sub/package.json'));
+    mkdirSync(join(root, 'sub2/coverage'), { recursive: true });
+    symlinkSync('/dev/zero', join(root, 'sub2/coverage/lcov.info'));
+    mkdirSync(join(root, 'sub3'));
+    writeFileSync(join(root, 'sub3/app.py'), 'print("ok")\n');
+    writeFileSync(join(outside, 'requirements.txt'), 'python-jose==3.0.0\n');
+    symlinkSync(join(outside, 'requirements.txt'), join(root, 'sub3/requirements.txt'));
     const home = join(root, '.home');
     mkdirSync(home);
     child = spawn(process.execPath, [bundle], {
@@ -208,6 +217,28 @@ describe.skipIf(!existsSync(bundle) && !process.env.CI)('MCP handlers read only 
     it('a refused path does not open the domain circuit breaker', async () => {
       const result = await call('security_scan_comprehensive', { target: 'src' });
       expect(result.success, JSON.stringify(result)).toBe(true);
+    }, 120000);
+  });
+
+  describe('fixed names inside an accepted directory (#1161)', () => {
+    it('qe/code/c4 does not read a package.json linked out of the project', async () => {
+      const result = await call('qe/code/c4', { action: 'generate', projectPath: 'sub' });
+      expect(JSON.stringify(result)).not.toContain('OUTSIDE_PKG_SECRET');
+    }, 120000);
+
+    it('qe/coverage/gaps does not read a coverage file linked to /dev/zero, and the server keeps running', async () => {
+      const result = await call('qe/coverage/gaps', { target: 'sub2' });
+      expect(JSON.stringify(result)).not.toContain('Invalid string length');
+      expect((await call('fleet_status', {})).success).toBe(true);
+      expect(child.exitCode).toBeNull();
+    }, 120000);
+
+    it('security_scan_comprehensive does not read a dependency manifest linked out of the project', async () => {
+      const result = await call('security_scan_comprehensive', { target: 'sub3' });
+      const text = JSON.stringify(result);
+      expect(result.success, text).toBe(true);
+      expect(text).not.toContain('python-jose');
+      expect(text).not.toContain('CVE-2024-33663');
     }, 120000);
   });
 });

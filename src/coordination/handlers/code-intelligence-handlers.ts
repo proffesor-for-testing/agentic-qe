@@ -5,7 +5,6 @@
  * Covers: index-code, predict-defects
  */
 
-import * as fs from 'fs/promises';
 import { randomUUID } from 'node:crypto';
 import { prunePredictionHistory } from '../../domains/defect-intelligence/prediction-history.js';
 import * as path from 'path';
@@ -17,6 +16,7 @@ import { resolveProjectRootFromPaths } from '../../domains/code-intelligence/pro
 import { nothingIndexedError } from '../../domains/code-intelligence/index-path-guard.js';
 import { createLogger } from '../../logging/logger-factory.js';
 import { requirePayloadPath } from '../../shared/io/payload-path-guard.js';
+import { readConfinedText } from '../../shared/io/confined-read.js';
 
 const logger = createLogger('CodeIntelligenceHandlers');
 
@@ -215,7 +215,8 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
       let filesSkipped = 0;
       for (const filePath of sourceFiles) {
         try {
-          const content = await fs.readFile(filePath, 'utf-8');
+          // #1161: validate the opened descriptor, not the name listed earlier.
+          const content = await readConfinedText(filePath, { outsideRoot: 'allow' });
           const lines = content.split('\n');
           const lineCount = lines.length;
 
