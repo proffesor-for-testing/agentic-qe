@@ -19,6 +19,29 @@ import type {
   VerificationOptions,
 } from '../interfaces';
 import { generateContentHash } from '../index';
+import { redactLogText } from '../../../logging/redaction.js';
+
+/** Output above this size is redacted in line-aligned pieces. */
+const REDACT_PIECE_CHARS = 256 * 1024;
+
+/**
+ * Redact command output of any size (#1150). redactLogText drops a string over
+ * its scan limit instead of scanning it, and maxBuffer lets output reach 1 MB,
+ * so long output is redacted in pieces cut at line ends; a credential on one
+ * line is never split between pieces (unless that line alone exceeds a piece).
+ */
+function redactOutput(raw: string): string {
+  if (raw.length <= REDACT_PIECE_CHARS) return redactLogText(raw, Number.POSITIVE_INFINITY);
+  const parts: string[] = [];
+  for (let start = 0; start < raw.length;) {
+    let end = Math.min(start + REDACT_PIECE_CHARS, raw.length);
+    const lineEnd = end < raw.length ? raw.lastIndexOf('\n', end) : -1;
+    if (lineEnd > start) end = lineEnd + 1;
+    parts.push(redactLogText(raw.slice(start, end), Number.POSITIVE_INFINITY));
+    start = end;
+  }
+  return parts.join('');
+}
 
 const execFileAsync = promisify(execFile);
 
@@ -477,9 +500,12 @@ export class OutputBasedVerifier {
   }
 
   /**
-   * Truncate output if it exceeds max size.
+   * Redact command output, then truncate it if it exceeds max size. #1150:
+   * redaction runs first, so a cut cannot leave a fragment of a secret that
+   * the redaction patterns no longer recognise.
    */
-  private truncateOutput(output: string): string {
+  private truncateOutput(raw: string): string {
+    const output = redactOutput(raw);
     if (output.length <= this.config.maxOutputSize) {
       return output;
     }

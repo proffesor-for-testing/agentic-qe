@@ -32,6 +32,9 @@ import * as path from 'path';
 import type { CoverageData } from '../../domains/coverage-analysis/interfaces';
 import { safeJsonParse } from '../../shared/safe-json.js';
 import { loadCoverageReportFile } from './coverage-target';
+import { STDERR_WINDOW_BYTES, summarizeStderr } from './coverage-stderr';
+
+export { summarizeStderr };
 
 export type JsRunnerName = 'vitest' | 'jest' | 'nyc';
 
@@ -74,7 +77,7 @@ export interface JsCoverageRun {
   numFailedTests?: number | null;
   numPendingTests?: number | null;
   numFailedTestSuites?: number | null;
-  /** The runner's first error line plus the last ~2 KB of its stderr, for diagnosing a crash. */
+  /** The runner's first error line plus the last ~2 KB of its stderr, redacted (#1150), for diagnosing a crash. */
   stderrTail: string;
 }
 
@@ -92,24 +95,6 @@ export function testRunStatus(run: JsCoverageRun): 'passed' | 'failed' {
 }
 
 const RESULTS_FILE = 'test-results.json';
-const STDERR_TAIL_BYTES = 2048;
-const STDERR_HEAD_BYTES = 4096;
-const STDERR_PREFIX_BYTES = 512;
-const ERROR_LINE_RE = /^.*(?:error|\[[A-Z][A-Z_]{2,}\]|ERR_[A-Z_]+).*$/im;
-
-/**
- * Summarise a runner's stderr for a caller: the FIRST error-looking line (or
- * the first ~512 bytes) plus the last ~2 KB (#995 review NB-C). A tail alone
- * loses the cause when a long stack follows it — a vitest config syntax error
- * prints `[PARSE_ERROR] …` first and then kilobytes of frames.
- */
-export function summarizeStderr(head: string, tail: string, totalBytes: number): string {
-  if (totalBytes <= STDERR_TAIL_BYTES) return tail.trim();
-  const errorLine = ERROR_LINE_RE.exec(head)?.[0]?.trim();
-  const prefix = (errorLine ?? head.slice(0, STDERR_PREFIX_BYTES)).trim();
-  if (prefix && tail.includes(prefix)) return tail.trim();
-  return `${prefix}\n…\n${tail.trim()}`;
-}
 
 // ============================================================================
 // Locating the runner
@@ -420,8 +405,9 @@ export async function runProcessTree(
     child.stderr?.on('data', (chunk: Buffer) => {
       const text = chunk.toString('utf-8');
       stderrBytes += chunk.length;
-      if (stderrHead.length < STDERR_HEAD_BYTES) stderrHead = (stderrHead + text).slice(0, STDERR_HEAD_BYTES);
-      stderrTail = (stderrTail + text).slice(-STDERR_TAIL_BYTES);
+      // #1150: raw windows only; summarizeStderr redacts them before slicing.
+      if (stderrHead.length < STDERR_WINDOW_BYTES) stderrHead = (stderrHead + text).slice(0, STDERR_WINDOW_BYTES);
+      stderrTail = (stderrTail + text).slice(-STDERR_WINDOW_BYTES);
     });
     // A grandchild holding the pipe open must not keep the host alive.
     child.stderr?.on('error', () => { /* ignore */ });

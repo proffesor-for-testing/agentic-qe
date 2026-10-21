@@ -76,3 +76,26 @@ describe('ClaudeCodeProvider metadata', () => {
     await expect(provider.embed('text')).rejects.toMatchObject({ code: 'MODEL_NOT_FOUND' });
   });
 });
+
+describe.skipIf(process.platform === 'win32')('ClaudeCodeProvider parse errors (#1150)', () => {
+  it('should_notLeakAPartialToken_when_theErrorExcerptCutsThroughIt', async () => {
+    const fs = await import('node:fs');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-1150-claude-'));
+    try {
+      // Non-JSON output whose 200-character excerpt ends inside a token.
+      const out = 'n'.repeat(189) + ' ghp_A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8 tail';
+      const bin = path.join(dir, 'fake-claude.sh');
+      fs.writeFileSync(bin, `#!/bin/sh\ncat > /dev/null\nprintf '%s' '${out}'\n`, { mode: 0o755 });
+      const provider = new ClaudeCodeProvider({ binaryPath: bin, timeoutMs: 10000 });
+
+      const error = await provider.generate('hello').then(() => null, (e: unknown) => e as Error);
+
+      expect(error?.message).toContain('Could not parse claude -p JSON output');
+      expect(error?.message).not.toContain('ghp_A1b2');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
