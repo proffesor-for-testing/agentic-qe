@@ -286,7 +286,7 @@ export class TrajectoryAdapter {
         if (!acc[type]) acc[type] = [];
         acc[type].push(t);
         return acc;
-      }, {} as Record<string, BrowserTrajectory[]>);
+      }, createSafeRecord<BrowserTrajectory[]>()); // #1157: workflow types are stored data
 
     // Extract common sequences within each workflow type
     for (const [workflowType, trajs] of Object.entries(successfulByType)) {

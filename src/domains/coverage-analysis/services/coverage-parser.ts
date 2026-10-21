@@ -1163,7 +1163,7 @@ export async function parseCoverage(
   // Language-based fallback: try the first format associated with the language
   if (language) {
     const langLower = language.toLowerCase();
-    const hints = LANGUAGE_FORMAT_HINTS[langLower];
+    const hints = Object.hasOwn(LANGUAGE_FORMAT_HINTS, langLower) ? LANGUAGE_FORMAT_HINTS[langLower] : undefined; // #1157
     if (hints && hints.length > 0) {
       try {
         return await parseCoverage(coveragePath, projectRoot, hints[0]);

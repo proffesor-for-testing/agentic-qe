@@ -598,7 +598,9 @@ export class TaskRouter extends EventEmitter {
     // Check capabilities
     if (request.requiredCapabilities) {
       for (const cap of request.requiredCapabilities) {
-        if (!agent.capabilities[cap]) {
+        // #1157: the capability name comes from the routing request; an
+        // inherited member such as `toString` is not a capability.
+        if (!Object.hasOwn(agent.capabilities, cap) || !agent.capabilities[cap]) {
           return false;
         }
       }

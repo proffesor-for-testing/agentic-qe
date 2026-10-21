@@ -1293,6 +1293,11 @@ export class PlanExecutor {
       if (current === null || current === undefined) {
         return undefined;
       }
+      // #1157: goal and condition keys can come from callers; an inherited
+      // member such as `constructor` is not part of the world state.
+      if (typeof current !== 'object' || !Object.hasOwn(current, part)) {
+        return undefined;
+      }
       current = (current as Record<string, unknown>)[part];
     }
 

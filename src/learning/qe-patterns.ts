@@ -458,7 +458,8 @@ export function applyPatternTemplate(
   let content = template.content;
 
   for (const variable of template.variables) {
-    const value = variables[variable.name] ?? variable.defaultValue;
+    // #1157: the variable name comes from a stored pattern; read own values only.
+    const value = (Object.hasOwn(variables, variable.name) ? variables[variable.name] : undefined) ?? variable.defaultValue;
 
     if (variable.required && value === undefined) {
       throw new Error(`Required variable ${variable.name} not provided`);

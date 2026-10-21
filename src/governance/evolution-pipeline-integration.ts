@@ -21,6 +21,7 @@ import { governanceFlags } from './feature-flags.js';
 import type { GovernanceFeatureFlags } from './feature-flags.js';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
 import { toErrorMessage } from '../shared/error-utils.js';
+import { createSafeRecord } from '../shared/utils/safe-record.js';
 
 /**
  * Lazily loaded EvolutionPipeline from @claude-flow/guidance.
@@ -1186,7 +1187,8 @@ export class EvolutionPipelineIntegration {
    * Group array by key function
    */
   private groupBy<T>(array: T[], keyFn: (item: T) => string): Record<string, T[]> {
-    const groups: Record<string, T[]> = {};
+    // #1157: keys come from recorded rule applications.
+    const groups = createSafeRecord<T[]>();
     for (const item of array) {
       const key = keyFn(item);
       if (!groups[key]) {

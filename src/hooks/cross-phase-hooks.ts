@@ -33,6 +33,7 @@ import {
   validateHookUrl,
   classifyHookExit,
 } from './security/index.js';
+import { createSafeRecord } from '../shared/utils/safe-record.js';
 
 // =============================================================================
 // Types
@@ -183,7 +184,8 @@ export class CrossPhaseHookExecutor {
     // IMP-07: Runtime kill-switch check
     if (process.env.AQE_HOOKS_DISABLED === 'true') return {};
 
-    const injectedSignals: Record<string, CrossPhaseSignal[]> = {};
+    // #1157: agent names come from the hooks YAML file.
+    const injectedSignals = createSafeRecord<CrossPhaseSignal[]>();
 
     const matchingHooks = this.filterManagedHooks(
       Object.entries(this.config.hooks).filter(

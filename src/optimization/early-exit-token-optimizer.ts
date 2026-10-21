@@ -14,6 +14,7 @@ import type {
 import type { QEPattern, QEDomain, QEPatternContext } from '../learning/qe-patterns.js';
 import { detectQEDomain } from '../learning/qe-patterns.js';
 import { toErrorMessage } from '../shared/error-utils.js';
+import { createSafeRecord } from '../shared/utils/safe-record.js';
 
 // ============================================================================
 // Configuration Types
@@ -696,7 +697,8 @@ export class EarlyExitTokenOptimizer {
     }
 
     // Calculate domain breakdown
-    const domainBreakdown: Record<string, { reuses: number; tokens: number }> = {};
+    // #1157: domains come from recorded requests.
+    const domainBreakdown = createSafeRecord<{ reuses: number; tokens: number }>();
 
     for (const reuse of this.reuseHistory) {
       const domain = reuse.domain ?? 'unknown';

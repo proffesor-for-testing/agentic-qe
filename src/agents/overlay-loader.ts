@@ -12,15 +12,28 @@ import { AgentOverlay, OverlayLoadResult, AppliedOverlay, validateOverlay } from
 const OVERRIDES_DIR = '.claude/agent-overrides';
 
 /**
+ * #1157: keys come from the overlay file. These would reach Object.prototype
+ * (or the Object constructor) through a plain object, so they are skipped.
+ */
+const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+/**
  * Parse YAML-like overlay files.
  * Uses a simple parser to avoid adding a yaml dependency.
  * Supports basic key-value pairs and nested objects.
  */
 function parseSimpleYaml(content: string): Record<string, unknown> {
   const result: Record<string, unknown> = {};
+  // An own section object for `name`; an inherited member never counts.
+  const sectionOf = (name: string): Record<string, unknown> => {
+    const existing = Object.hasOwn(result, name) ? result[name] : undefined;
+    if (existing !== null && typeof existing === 'object') return existing as Record<string, unknown>;
+    const fresh: Record<string, unknown> = {};
+    result[name] = fresh;
+    return fresh;
+  };
   const lines = content.split('\n');
   let currentSection: string | null = null;
-  let currentSubSection: string | null = null;
   let currentArray: string[] | null = null;
   let currentArrayKey: string | null = null;
 
@@ -44,14 +57,8 @@ function parseSimpleYaml(content: string): Record<string, unknown> {
 
     // Flush any pending array
     if (currentArray && currentArrayKey) {
-      if (currentSubSection && currentSection) {
-        const section = result[currentSection] as Record<string, unknown> || {};
-        section[currentArrayKey] = currentArray;
-        result[currentSection] = section;
-      } else if (currentSection) {
-        const section = result[currentSection] as Record<string, unknown> || {};
-        section[currentArrayKey] = currentArray;
-        result[currentSection] = section;
+      if (currentSection) {
+        sectionOf(currentSection)[currentArrayKey] = currentArray;
       }
       currentArray = null;
       currentArrayKey = null;
@@ -63,37 +70,37 @@ function parseSimpleYaml(content: string): Record<string, unknown> {
 
     const [, key, rawValue] = match;
     const value = rawValue.trim().replace(/^["']|["']$/g, '');
+    if (UNSAFE_KEYS.has(key)) {
+      // Skip the key, and a whole section under it.
+      if (indent === 0) {
+        currentSection = null;
+      }
+      continue;
+    }
 
     if (indent === 0) {
       // Top-level key
       if (value === '' || value === undefined) {
         currentSection = key;
-        currentSubSection = null;
-        if (!result[key]) result[key] = {};
+        sectionOf(key);
       } else {
         result[key] = parseValue(value);
         currentSection = null;
-        currentSubSection = null;
       }
     } else if (indent <= 4 && currentSection) {
       if (value === '' || value === undefined) {
         // Sub-section or array start
-        currentSubSection = key;
         currentArray = [];
         currentArrayKey = key;
       } else {
-        const section = result[currentSection] as Record<string, unknown> || {};
-        section[key] = parseValue(value);
-        result[currentSection] = section;
+        sectionOf(currentSection)[key] = parseValue(value);
       }
     }
   }
 
   // Flush final array
   if (currentArray && currentArrayKey && currentSection) {
-    const section = result[currentSection] as Record<string, unknown> || {};
-    section[currentArrayKey] = currentArray;
-    result[currentSection] = section;
+    sectionOf(currentSection)[currentArrayKey] = currentArray;
   }
 
   return result;

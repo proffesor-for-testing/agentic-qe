@@ -8,6 +8,7 @@
 
 import { isIP } from 'node:net';
 import { HttpClient } from '../http';
+import { getOwn } from '../utils/safe-record.js';
 import {
   OSVLookupError,
   advisoryAffectsVersion,
@@ -271,7 +272,9 @@ export class OSVClient {
       }
       // An `npm:<real>@<range>` alias is the registry package <real>.
       const packageName = kind.kind === 'alias' ? kind.name : name;
-      const locked = lockedVersions[name] !== undefined ? exactNpmVersion(lockedVersions[name]) : null;
+      // #1157: own entries only; a dependency named `constructor` has no lock entry.
+      const lockedSpec = getOwn(lockedVersions, name);
+      const locked = lockedSpec !== undefined ? exactNpmVersion(lockedSpec) : null;
       const version = locked ?? exactNpmVersion(kind.spec);
       if (version) queries.push({ name: packageName, ecosystem: 'npm', version });
       else unresolved.push({ name, ecosystem: 'npm', version: spec, reason: `version range "${spec}", no lockfile resolution` });

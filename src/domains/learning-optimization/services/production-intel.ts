@@ -17,6 +17,7 @@ import {
   TrendPoint,
   Milestone,
 } from '../interfaces.js';
+import { createSafeRecord } from '../../../shared/utils/safe-record.js';
 
 /**
  * Configuration for production intelligence
@@ -445,7 +446,8 @@ export class ProductionIntelService {
   }> {
     const timeRange = TimeRange.lastNDays(1);
     const metricsResult = await this.getMetricsHistory('*', timeRange, domain);
-    const metrics: Record<string, number> = {};
+    // #1157: metric names come from stored production metrics.
+    const metrics = createSafeRecord<number>();
 
     if (metricsResult.success) {
       for (const metric of metricsResult.value) {

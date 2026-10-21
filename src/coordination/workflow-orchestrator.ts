@@ -331,7 +331,19 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
   // ============================================================================
 
   isActionRegistered(domain: DomainName, action: string): boolean {
-    return !!this.actionRegistry[domain]?.[action];
+    return this.lookupAction(domain, action) !== undefined;
+  }
+
+  /**
+   * #1157: a registered action by domain and action name. Both names come from
+   * pipeline YAML, so only own registry entries count: `toString` or
+   * `constructor` is an unregistered action, not an Object.prototype member.
+   */
+  private lookupAction(domain: string, action: string): DomainAction | undefined {
+    const actions = Object.hasOwn(this.actionRegistry, domain)
+      ? this.actionRegistry[domain as DomainName]
+      : undefined;
+    return actions && Object.hasOwn(actions, action) ? actions[action] : undefined;
   }
 
   getRegisteredActions(domain: DomainName): string[] {
@@ -738,9 +750,9 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
     }
 
     // Fall back to registered domain actions
-    const domainActions = this.actionRegistry[step.domain];
-    if (domainActions?.[step.action]) {
-      const actionResult = await Promise.race([domainActions[step.action](input, context), timeoutPromise]);
+    const domainAction = this.lookupAction(step.domain, step.action);
+    if (domainAction) {
+      const actionResult = await Promise.race([domainAction(input, context), timeoutPromise]);
       if (!actionResult.success) throw actionResult.error;
       return actionResult.value;
     }
@@ -756,13 +768,13 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
     context: WorkflowContext
   ): Promise<void> {
     try {
-      const domainActions = this.actionRegistry[rollback.domain];
-      if (!domainActions?.[rollback.action]) {
+      const domainAction = this.lookupAction(rollback.domain, rollback.action);
+      if (!domainAction) {
         console.warn(`Rollback action '${rollback.action}' not registered for domain '${rollback.domain}'. Skipping rollback.`);
         return;
       }
 
-      const result = await domainActions[rollback.action](rollback.input || {}, context);
+      const result = await domainAction(rollback.input || {}, context);
       if (!result.success) console.error(`Rollback failed for ${rollback.domain}.${rollback.action}:`, result.error);
     } catch (error) {
       console.error(`Rollback failed for ${rollback.domain}.${rollback.action}:`, error);
@@ -801,8 +813,11 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
     let current: unknown = obj;
     for (const part of parts) {
       if (current === null || current === undefined) return undefined;
-      if (typeof current === 'object') current = (current as Record<string, unknown>)[part];
-      else return undefined;
+      // #1157: paths come from pipeline YAML (conditions, input/output
+      // mappings); an inherited member such as `constructor` is absent.
+      if (typeof current === 'object' && Object.hasOwn(current, part)) {
+        current = (current as Record<string, unknown>)[part];
+      } else return undefined;
     }
     return current;
   }

@@ -168,6 +168,9 @@ export function parseFrontmatter(markdown: string): AgentFrontmatter {
     if (keyValueMatch) {
       const [, indent, key, value] = keyValueMatch;
       const currentIndent = indent.length;
+      // #1157: keys come from agent markdown; skip ones that would re-prototype
+      // the result (and, for a top-level key, the nested block under it).
+      const unsafe = key === '__proto__' || key === 'constructor' || key === 'prototype';
 
       if (currentIndent === 0) {
         // Top-level key
@@ -175,17 +178,17 @@ export function parseFrontmatter(markdown: string): AgentFrontmatter {
           result[currentKey] = nestedObj;
           nestedObj = {};
         }
-        currentKey = key;
+        currentKey = unsafe ? '' : key;
         indentLevel = 0;
 
-        if (value.trim()) {
+        if (value.trim() && !unsafe) {
           // Clean up quoted values
           result[key] = value.replace(/^["']|["']$/g, '');
         }
       } else if (currentIndent > 0 && currentKey) {
         // Nested key
         indentLevel = currentIndent;
-        if (value.trim()) {
+        if (value.trim() && !unsafe) {
           nestedObj[key] = value.replace(/^["']|["']$/g, '');
         }
       }

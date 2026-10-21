@@ -83,7 +83,10 @@ export function resolveToolAnnotations(
   name: string,
   annotations?: ToolAnnotations
 ): ResolvedToolAnnotations {
-  const reviewedDisposition = BUILT_IN_TOOL_SAFETY_INVENTORY[name];
+  // #1157: own entries only; a tool named `constructor` is not in the inventory.
+  const reviewedDisposition = Object.hasOwn(BUILT_IN_TOOL_SAFETY_INVENTORY, name)
+    ? BUILT_IN_TOOL_SAFETY_INVENTORY[name]
+    : undefined;
   return Object.freeze({
     ...(reviewedDisposition?.annotations ?? CONSERVATIVE_TOOL_ANNOTATIONS),
     // Dynamic and plugin-supplied names cannot self-assert optimistic hints.

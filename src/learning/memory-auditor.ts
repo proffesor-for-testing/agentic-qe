@@ -64,6 +64,7 @@ import type { CoherenceService, CoherenceResult, CoherenceNode } from '../integr
 import type { QEPattern, QEDomain } from './qe-patterns.js';
 import type { EventBus } from '../kernel/interfaces.js';
 import { toErrorMessage } from '../shared/error-utils.js';
+import { createSafeRecord } from '../shared/utils/safe-record.js';
 
 const logger: Logger = LoggerFactory.create('MemoryAuditor');
 
@@ -435,7 +436,8 @@ export class MemoryCoherenceAuditor {
    * Group patterns by domain
    */
   private groupByDomain(patterns: QEPattern[]): Record<QEDomain, QEPattern[]> {
-    const groups: Partial<Record<QEDomain, QEPattern[]>> = {};
+    // #1157: domains come from stored pattern rows.
+    const groups = createSafeRecord<QEPattern[]>() as Partial<Record<QEDomain, QEPattern[]>>;
 
     for (const pattern of patterns) {
       const domain = pattern.qeDomain;
