@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import { QueenCoordinator } from '../../../src/coordination/queen-coordinator.js';
 import { assignTaskToDomain, canDomainHandleTask } from '../../../src/coordination/queen-task-management.js';
+import { resolveTaskDomains } from '../../../src/coordination/task-executability.js';
 import type {
   AgentCoordinator,
   DomainPlugin,
@@ -89,8 +90,51 @@ describe('QueenCoordinator.validateTaskExecutable (#1075)', () => {
     expect(result.error.message).toContain("Unknown task type 'no-such-type'");
   });
 
+  // #1170: a plugin task type with no TASK_DOMAIN_MAP entry is routed to the
+  // loaded domains that handle it, as task_submit sast-scan without targetDomains.
+  it('accepts an unmapped type that a loaded domain plugin executes, without a target domain', () => {
+    const withSast = queenWith([
+      ['code-intelligence', plugin(['index', 'search'])],
+      ['security-compliance', plugin(['security-audit', 'sast-scan'])],
+    ]);
+    expect(withSast.validateTaskExecutable('sast-scan' as never).success).toBe(true);
+  });
+
+  it('rejects an unmapped type that only a plugin without executeTask claims', () => {
+    const noExecutor = queenWith([['security-compliance', plugin(['sast-scan'], false)]]);
+    const result = noExecutor.validateTaskExecutable('sast-scan' as never);
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.message).toContain('no loaded domain handles it');
+  });
+
   it('accepts any configured type when the Queen has no domain plugins to check', () => {
     expect(queenWith().validateTaskExecutable('index-code').success).toBe(true);
+  });
+});
+
+// #1170: submitTask and validateTaskExecutable route through this resolver.
+describe('resolveTaskDomains (#1170)', () => {
+  const plugins = new Map<DomainName, DomainPlugin>([
+    ['code-intelligence', plugin(['index'])],
+    ['security-compliance', plugin(['security-audit', 'sast-scan'])],
+  ]);
+
+  it('keeps the caller target domains', () => {
+    expect(resolveTaskDomains('sast-scan', ['code-intelligence'], plugins)).toEqual(['code-intelligence']);
+  });
+
+  it('uses the configured domains of a mapped type', () => {
+    expect(resolveTaskDomains('analyze-coverage', [], plugins)).toEqual(['coverage-analysis']);
+  });
+
+  it('routes an unmapped type to the loaded domains whose plugin handles it', () => {
+    expect(resolveTaskDomains('sast-scan', [], plugins)).toEqual(['security-compliance']);
+  });
+
+  it('returns no domain for an unmapped type nothing handles, or without plugins', () => {
+    expect(resolveTaskDomains('no-such-type', [], plugins)).toEqual([]);
+    expect(resolveTaskDomains('sast-scan', [])).toEqual([]);
   });
 });
 
@@ -103,7 +147,7 @@ describe('task type lookups ignore Object.prototype keys', () => {
     expect(result.success).toBe(false);
     if (result.success) return;
     expect(result.error.message).toBe(
-      `Unknown task type '${type}': no domain is configured for it. Pass a target domain.`,
+      `Unknown task type '${type}': no domain is configured for it and no loaded domain handles it. Pass a target domain.`,
     );
   });
 

@@ -198,6 +198,11 @@ export interface ITestRunResult {
   fileCoverages?: IFileCoverageData[];
   /** #1130: what the requested retries of failed tests did. Absent when none were requested. */
   retries?: IRunRetrySummary;
+  /**
+   * #1170: tests that failed and then passed on a retry. They are counted in
+   * `passed`, not `failed`. Absent when no test passed on a retry.
+   */
+  flaky?: number;
 }
 
 /** #1130: the measured outcome of a run's retries, per failed test. */
@@ -216,8 +221,13 @@ export interface ITestCaseResult {
   status: 'passed' | 'failed' | 'skipped';
   /** Runner-reported duration in ms; omitted when the runner reported none. */
   duration?: number;
-  /** The runner's failure message for a failed test, when it reported one. */
+  /**
+   * The runner's failure message for a failed test, or for the failed first
+   * attempt of a flaky test, when it reported one.
+   */
   failureMessage?: string;
+  /** #1170: the test failed and then passed on a retry, so it is `passed`. */
+  flaky?: true;
 }
 
 export interface IFileCoverageData {

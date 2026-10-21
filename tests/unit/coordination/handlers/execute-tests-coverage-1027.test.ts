@@ -18,6 +18,7 @@ import { registerTestExecutionHandlers } from '../../../../src/coordination/hand
 // Load order as in production (domain-handlers → configs) to resolve the module cycle.
 import '../../../../src/mcp/handlers/domain-handlers';
 import { testExecuteConfig } from '../../../../src/mcp/handlers/domain-handler-configs';
+import { DEFAULT_TEST_RETRY_COUNT } from '../../../../src/domains/test-execution/services/retry-outcome';
 
 // #1126: the handler runs only test paths inside the project root, passed on
 // as the real paths it checked. These handlers touch no store, so the root is
@@ -49,7 +50,8 @@ describe('#1027 N5 — test execution reports unmeasured coverage as null', () =
 
   it('preserves an explicit zero retry count before dispatch to the domain', () => {
     expect(testExecuteConfig.mapToPayload({ testFiles: ['tests/a.test.ts'], retryCount: 0 } as never, undefined).retryCount).toBe(0);
-    expect(testExecuteConfig.mapToPayload({ testFiles: ['tests/a.test.ts'] } as never, undefined).retryCount).toBe(3);
+    // #1170: the default shared with `aqe test execute`.
+    expect(testExecuteConfig.mapToPayload({ testFiles: ['tests/a.test.ts'] } as never, undefined).retryCount).toBe(DEFAULT_TEST_RETRY_COUNT);
   });
 
   it('caller-owned execution delegates once to the evidence-recording domain API', async () => {

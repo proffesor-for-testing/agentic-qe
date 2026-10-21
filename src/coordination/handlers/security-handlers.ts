@@ -18,6 +18,7 @@ import type { SecurityScanEvidence, SecurityEngineEvidence, SecurityFileEvidence
 import type { SASTResult, DASTResult } from '../../domains/security-compliance/interfaces.js';
 import { runDependencyAdvisoryScan, type DependencyAdvisoryOutcome } from '../../domains/security-compliance/dependency-advisory-engine.js';
 import { MAX_PAYLOAD_FILE_BYTES, requirePayloadPath } from '../../shared/io/payload-path-guard.js';
+import { dropGenericEvalCoveredBySast, GENERIC_EVAL_EXEC_TITLE } from '../../domains/security-compliance/generic-finding-dedup.js';
 
 export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
   // Register security scan handler - REAL IMPLEMENTATION
@@ -63,6 +64,8 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
         title: string; severity: 'critical' | 'high' | 'medium' | 'low' | 'informational';
         location: { file: string; line: number }; description: string; category: string;
       }> = [];
+      // Generic eval/exec matches whose line calls eval() and not exec() (#1170).
+      const evalOnlyFindings = new Set<object>();
 
       // Run secret/CORS patterns on ALL files (not just otherFiles) to catch JS/TS secrets too
       for (const filePath of filesToScan) {
@@ -78,7 +81,8 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
           fileEvidence.push({ path: filePath, engineId: 'generic-patterns', status: 'analyzed',
             sourceDigest: createHash('sha256').update(source).digest('hex'),
             readLines: lines.length, analyzedLines: lines.length });
-          const relPath = path.relative(targetPath, filePath) || path.basename(filePath);
+          // #1170: report the scanned path, as SAST does, so a finding names the
+          // real file and the same line from both engines can be matched.
 
           // Pattern: Hardcoded secrets/keys
           // Fix #287: Use \w* around keywords to match SECRET_KEY, JWT_SECRET, API_TOKEN, etc.
@@ -97,7 +101,7 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
                 crossLangVulns.push({
                   title: pattern.title,
                   severity: pattern.severity,
-                  location: { file: relPath, line: i + 1 },
+                  location: { file: filePath, line: i + 1 },
                   description: `Potential hardcoded secret found at line ${i + 1}`,
                   category: 'sensitive-data',
                 });
@@ -113,7 +117,7 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
               crossLangVulns.push({
                 title: 'Potential SQL injection',
                 severity: 'high',
-                location: { file: relPath, line: i + 1 },
+                location: { file: filePath, line: i + 1 },
                 description: 'String interpolation in SQL query — use parameterized queries',
                 category: 'injection',
               });
@@ -135,7 +139,7 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
               crossLangVulns.push({
                 title: 'CORS wildcard origin',
                 severity: 'high',
-                location: { file: relPath, line: lines.findIndex(l => corsPattern.test(l)) + 1 },
+                location: { file: filePath, line: lines.findIndex(l => corsPattern.test(l)) + 1 },
                 description: 'CORS configured with wildcard (*) origin — restrict to specific domains',
                 category: 'security-misconfiguration',
               });
@@ -149,22 +153,25 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
             crossLangVulns.push({
               title: 'Debug mode enabled',
               severity: 'medium',
-              location: { file: relPath, line: lines.findIndex(l => /DEBUG\s*[=:]\s*(?:True|true|1)/i.test(l)) + 1 },
+              location: { file: filePath, line: lines.findIndex(l => /DEBUG\s*[=:]\s*(?:True|true|1)/i.test(l)) + 1 },
               description: 'Debug mode should be disabled in production',
               category: 'security-misconfiguration',
             });
           }
 
-          // Pattern: Eval/exec usage
+          // Pattern: Eval/exec usage, one finding per matching line (#1170)
           genericRules.set('eval-exec', /\b(?:eval|exec)\s*\(/i.toString());
-          if (/\b(?:eval|exec)\s*\(/i.test(content)) {
-            crossLangVulns.push({
-              title: 'Dangerous eval/exec usage',
-              severity: 'high',
-              location: { file: relPath, line: lines.findIndex(l => /\b(?:eval|exec)\s*\(/.test(l)) + 1 },
+          for (let i = 0; i < lines.length; i++) {
+            if (!/\b(?:eval|exec)\s*\(/i.test(lines[i])) continue;
+            const finding = {
+              title: GENERIC_EVAL_EXEC_TITLE,
+              severity: 'high' as const,
+              location: { file: filePath, line: i + 1 },
               description: 'eval/exec can lead to code injection — avoid using with user input',
               category: 'injection',
-            });
+            };
+            crossLangVulns.push(finding);
+            if (!/\bexec\s*\(/i.test(lines[i])) evalOnlyFindings.add(finding);
           }
         } catch (error) {
           const reason = `Source read failed: ${safeErrorCode(error)}`;
@@ -326,13 +333,18 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
         engine.id === 'patterns' && (engine.status === 'completed' || engine.status === 'partial') &&
         (engine.analyzedFiles ?? 0) > 0));
 
+      // #1170: a generic eval() match on a line SAST reported as CWE-95 is the
+      // same finding, so it is counted once, as SAST reported it.
+      const genericVulns = await dropGenericEvalCoveredBySast(
+        crossLangVulns, sastResult?.vulnerabilities ?? [], finding => evalOnlyFindings.has(finding));
+
       // Combine results from all scan sources - SAST, DAST, and cross-language patterns
       const crossLangSeverityCounts = {
-        critical: crossLangVulns.filter(v => v.severity === 'critical').length,
-        high: crossLangVulns.filter(v => v.severity === 'high').length,
-        medium: crossLangVulns.filter(v => v.severity === 'medium').length,
-        low: crossLangVulns.filter(v => v.severity === 'low').length,
-        informational: crossLangVulns.filter(v => v.severity === 'informational').length,
+        critical: genericVulns.filter(v => v.severity === 'critical').length,
+        high: genericVulns.filter(v => v.severity === 'high').length,
+        medium: genericVulns.filter(v => v.severity === 'medium').length,
+        low: genericVulns.filter(v => v.severity === 'low').length,
+        informational: genericVulns.filter(v => v.severity === 'informational').length,
       };
 
       const depVulns = dependencyScan?.vulnerabilities ?? [];
@@ -349,7 +361,7 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
       const allVulns = [
         ...(sastResult?.vulnerabilities || []),
         ...(dastResult?.vulnerabilities || []),
-        ...crossLangVulns,
+        ...genericVulns,
         ...depVulns,
       ];
 

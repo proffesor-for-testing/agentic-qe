@@ -57,6 +57,7 @@ import {
   type MeasuredFailure,
 } from '../../domains/quality-assessment/evidence-sufficiency.js';
 import { validateBehaviorExamples } from '../../domains/test-generation/services/behavior-example-validation.js';
+import { DEFAULT_TEST_RETRY_COUNT } from '../../domains/test-execution/services/retry-outcome.js';
 
 const SUPPORTED_LANGUAGES = Object.keys(DEFAULT_FRAMEWORKS) as SupportedLanguage[];
 
@@ -95,6 +96,8 @@ export interface TestExecuteResult {
   total: number;
   passed: number;
   failed: number;
+  /** #1170: tests that failed and then passed on a retry; counted in `passed`. */
+  flaky?: number;
   duration: number;
   /** Measured line coverage of the run, or null when none was collected (#1027 N5). */
   coverage?: number | null;
@@ -512,7 +515,8 @@ export const testExecuteConfig: DomainHandlerConfig<TestExecuteParams, TestExecu
     testSuites: params.testSuites || [],
     parallel: params.parallel !== false,
     parallelism: params.parallelism || 4,
-    retryCount: params.retryCount ?? 3,
+    // #1170: the same default as `aqe test execute`.
+    retryCount: params.retryCount ?? DEFAULT_TEST_RETRY_COUNT,
     timeout: params.timeout || 60000,
     collectCoverage: params.collectCoverage || false,
     reportFormat: params.reportFormat || 'json',
@@ -527,6 +531,8 @@ export const testExecuteConfig: DomainHandlerConfig<TestExecuteParams, TestExecu
     const total = (data.total as number) || 0;
     const passed = (data.passed as number) || 0;
     const failed = (data.failed as number) || 0;
+    // #1170: tests that passed on a retry; already counted in `passed`.
+    const flaky = typeof data.flaky === 'number' && data.flaky > 0 ? data.flaky : undefined;
     // #1027 N5: no measured coverage → null, never a hardcoded 0.
     const coverage = typeof data.coverage === 'number' && Number.isFinite(data.coverage) ? data.coverage : null;
 
@@ -541,7 +547,7 @@ export const testExecuteConfig: DomainHandlerConfig<TestExecuteParams, TestExecu
 
     // Per-test results come from the runner's own report, or are left out.
     const testCases = Array.isArray(data.testCases)
-      ? data.testCases as Array<{ name: string; file: string; status: string; duration?: number }>
+      ? data.testCases as Array<{ name: string; file: string; status: string; duration?: number; flaky?: true }>
       : undefined;
     const results = testCases?.map(testCase => ({ id: generateTestId(), ...testCase }));
     if (!results) {
@@ -599,6 +605,7 @@ export const testExecuteConfig: DomainHandlerConfig<TestExecuteParams, TestExecu
       summary: {
         totalTests: total,
         passRate: total > 0 ? (passed / total) * 100 : 0,
+        ...(flaky !== undefined ? { flaky } : {}),
         ...(avgTestDuration !== undefined ? { avgDuration: avgTestDuration } : {}),
         ...(efficiency !== null ? { parallelEfficiency: efficiency } : {}),
       },
@@ -609,6 +616,7 @@ export const testExecuteConfig: DomainHandlerConfig<TestExecuteParams, TestExecu
       total,
       passed,
       failed,
+      ...(flaky !== undefined ? { flaky } : {}),
       duration,
       coverage,
       savedFiles,

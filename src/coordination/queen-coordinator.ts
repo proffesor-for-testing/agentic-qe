@@ -125,7 +125,7 @@ import type {
 
 // Extracted modules
 import { subscribeToEvents, computeDomainHealthFromAgents } from './queen-event-handlers.js';
-import { findDomainsWithoutHandler, describeMissingHandler } from './task-executability.js';
+import { findDomainsWithoutHandler, resolveTaskDomains, describeMissingHandler } from './task-executability.js';
 import {
   enqueueTask, removeFromQueues, getQueuePosition, processQueue,
   listTasks as listTasksImpl, assignTask, dispatchStolenTask, canDomainExecuteTask,
@@ -390,9 +390,9 @@ export class QueenCoordinator implements IQueenCoordinator {
    * accept the type unchanged.
    */
   validateTaskExecutable(type: TaskType, targetDomains: readonly DomainName[] = []): Result<void, Error> {
-    const candidates = targetDomains.length > 0 ? targetDomains : getTaskDomains(type);
+    const candidates = resolveTaskDomains(type, targetDomains, this.domainPlugins);
     if (candidates.length === 0) {
-      return err(new Error(`Unknown task type '${type}': no domain is configured for it. Pass a target domain.`));
+      return err(new Error(`Unknown task type '${type}': no domain is configured for it and no loaded domain handles it. Pass a target domain.`));
     }
     if (!this.domainPlugins) return ok(undefined);
 
@@ -409,6 +409,11 @@ export class QueenCoordinator implements IQueenCoordinator {
     const taskId = `task_${uuidv4()}`;
     const task: QueenTask = {
       ...taskInput,
+      // #1170: a plugin task type with no configured domain (e.g. sast-scan)
+      // runs in the domains that handle it, so routing and queueing see them.
+      targetDomains: getTaskDomains(taskInput.type).length > 0
+        ? taskInput.targetDomains
+        : [...resolveTaskDomains(taskInput.type, taskInput.targetDomains, this.domainPlugins)],
       id: taskId,
       createdAt: new Date(),
       timeout: taskInput.timeout || this.config.defaultTaskTimeout,

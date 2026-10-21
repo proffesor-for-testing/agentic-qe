@@ -11,6 +11,7 @@ import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema } from '../ba
 import { ToolResult } from '../../types';
 import { toErrorMessage } from '../../../shared/error-utils.js';
 import { secureRandom, secureRandomFloat } from '../../../shared/utils/crypto-random.js';
+import { DEFAULT_TEST_RETRY_COUNT } from '../../../domains/test-execution/services/retry-outcome.js';
 
 // ============================================================================
 // Types
@@ -96,10 +97,8 @@ export class TestExecuteTool extends MCPToolBase<TestExecuteParams, TestExecuteR
       pattern,
       parallel = true,
       parallelism = 4,
-      retryCount = 3,
-      timeout = 60000,
+      retryCount = DEFAULT_TEST_RETRY_COUNT,
       collectCoverage = false,
-      reportFormat = 'json',
       failFast = false,
     } = params;
 
@@ -260,7 +259,7 @@ const TEST_EXECUTE_SCHEMA: MCPToolSchema = {
       description: 'Number of retries for failed tests',
       minimum: 0,
       maximum: 5,
-      default: 3,
+      default: DEFAULT_TEST_RETRY_COUNT,
     },
     timeout: {
       type: 'number',
