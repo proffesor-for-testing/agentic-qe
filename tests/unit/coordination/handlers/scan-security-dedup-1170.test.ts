@@ -132,8 +132,8 @@ describe('scan-security finding deduplication (#1170)', () => {
 });
 
 describe('dropGenericEvalCoveredBySast', () => {
-  const sast = [{ description: 'Code Injection via eval() [CWE-95]', location: { file: '/p/src/a.ts', line: 3 } }];
-  const evalFinding = (file: string, line: number) => ({ title: GENERIC_EVAL_EXEC_TITLE, location: { file, line } });
+  const sast = [{ severity: 'critical', description: 'Code Injection via eval() [CWE-95]', location: { file: '/p/src/a.ts', line: 3 } }];
+  const evalFinding = (file: string, line: number) => ({ title: GENERIC_EVAL_EXEC_TITLE, severity: 'high', location: { file, line } });
 
   it('drops an eval-only generic match on the same real file and line', async () => {
     expect(await dropGenericEvalCoveredBySast([evalFinding('/p/src/../src/a.ts', 3)], sast, () => true)).toEqual([]);
@@ -148,6 +148,18 @@ describe('dropGenericEvalCoveredBySast', () => {
     expect(await dropGenericEvalCoveredBySast(generic, sast, () => true)).toEqual(generic);
     const execLine = [evalFinding('/p/src/a.ts', 3)];
     expect(await dropGenericEvalCoveredBySast(execLine, sast, () => false)).toEqual(execLine);
+  });
+
+  it('keeps the generic match when the SAST CWE-95 finding on that line is lower severity', async () => {
+    const lower = [{ ...sast[0], severity: 'medium' }];
+    const generic = [evalFinding('/p/src/a.ts', 3)];
+    expect(await dropGenericEvalCoveredBySast(generic, lower, () => true)).toEqual(generic);
+  });
+
+  it('keeps the generic match when the SAST CWE-95 finding has no known severity', async () => {
+    const unknown = [{ description: sast[0].description, location: sast[0].location }];
+    const generic = [evalFinding('/p/src/a.ts', 3)];
+    expect(await dropGenericEvalCoveredBySast(generic, unknown, () => true)).toEqual(generic);
   });
 
   it('keeps the generic match when the SAST finding on that line is not CWE-95', async () => {

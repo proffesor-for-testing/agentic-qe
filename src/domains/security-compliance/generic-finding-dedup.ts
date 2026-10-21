@@ -18,10 +18,12 @@ export const GENERIC_EVAL_EXEC_TITLE = 'Dangerous eval/exec usage';
 
 interface LocatedFinding {
   title: string;
+  severity?: string;
   location: { file: string; line?: number };
 }
 
 interface SastFinding {
+  severity?: string;
   description?: string;
   references?: readonly string[];
   location: { file: string; line?: number };
@@ -32,6 +34,11 @@ function isEvalInjection(finding: SastFinding): boolean {
   return /\[CWE-95\]/.test(finding.description ?? '') ||
     (finding.references ?? []).some(ref => /\/definitions\/95\.html$/.test(ref));
 }
+
+const SEVERITY_RANK: Readonly<Record<string, number>> = {
+  informational: 0, low: 1, medium: 2, high: 3, critical: 4,
+};
+const rank = (severity: string | undefined): number => SEVERITY_RANK[severity ?? ''] ?? -1;
 
 async function realPathOf(file: string, cache: Map<string, string>): Promise<string> {
   const resolved = path.resolve(file);
@@ -45,7 +52,8 @@ async function realPathOf(file: string, cache: Map<string, string>): Promise<str
 
 /**
  * Generic findings without the eval/exec matches SAST already reported as
- * CWE-95 on the same real file and line. `isEvalOnly` says whether a generic
+ * CWE-95 on the same real file and line, at the same or a higher severity, so
+ * dropping one never lowers what the scan reports. `isEvalOnly` says whether a generic
  * eval/exec match is eval alone; a line that also calls exec() is kept,
  * since SAST's eval rule does not report the exec call.
  */
@@ -57,14 +65,18 @@ export async function dropGenericEvalCoveredBySast<T extends LocatedFinding>(
   const evalSast = sast.filter(isEvalInjection);
   if (evalSast.length === 0) return [...generic];
   const cache = new Map<string, string>();
-  const covered = new Set<string>();
+  // Highest SAST CWE-95 severity per real file and line.
+  const covered = new Map<string, number>();
   for (const finding of evalSast) {
-    covered.add(`${await realPathOf(finding.location.file, cache)}:${finding.location.line ?? 0}`);
+    const key = `${await realPathOf(finding.location.file, cache)}:${finding.location.line ?? 0}`;
+    covered.set(key, Math.max(covered.get(key) ?? -1, rank(finding.severity)));
   }
   const kept: T[] = [];
   for (const finding of generic) {
+    const key = `${await realPathOf(finding.location.file, cache)}:${finding.location.line ?? 0}`;
+    const sastRank = covered.get(key);
     const duplicate = finding.title === GENERIC_EVAL_EXEC_TITLE && isEvalOnly(finding) &&
-      covered.has(`${await realPathOf(finding.location.file, cache)}:${finding.location.line ?? 0}`);
+      sastRank !== undefined && sastRank >= rank(finding.severity);
     if (!duplicate) kept.push(finding);
   }
   return kept;
