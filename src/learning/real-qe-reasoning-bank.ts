@@ -151,6 +151,18 @@ export interface RealQEPatternSearchResult {
   canReuse: boolean;
 }
 
+/**
+ * #1022: how pattern search works in this process. Without an embedding
+ * runtime the bank stores patterns text-only (vectors pending, filled later by
+ * `aqe learning backfill-embeddings`) and searches by SQLite FTS text matching
+ * only. No similarity score is computed in that mode.
+ */
+export interface PatternSearchStatus {
+  mode: 'vector' | 'lexical-only';
+  /** Why vector search is unavailable (only for 'lexical-only'). */
+  reason?: string;
+}
+
 export interface RealQERoutingRequest {
   task: string;
   taskType?: 'test-generation' | 'analysis' | 'debugging' | 'optimization';
@@ -212,6 +224,8 @@ export interface RealQEReasoningBankStats {
   transformerAvailable: boolean;
   embeddingDimension: number;
   sqliteDbPath: string;
+  /** #1022: whether pattern search uses vectors, or text matching only */
+  patternSearch: PatternSearchStatus;
   /** ADR-061: Asymmetric learning metrics */
   asymmetricLearning?: {
     failurePenaltyRatio: string;
@@ -241,6 +255,8 @@ export class RealQEReasoningBank {
   private hnswIndex: HierarchicalNSW | null = null;
   private patternIdMap: Map<number, string> = new Map();
   private initialized = false;
+  /** #1022: set when no embedding runtime is available; null when vectors work. */
+  private embedderUnavailableReason: string | null = null;
 
   // Statistics tracking - using CircularBuffer for O(1) operations (ADR memory leak fix)
   private stats = {
@@ -342,14 +358,28 @@ export class RealQEReasoningBank {
     logger.info('SQLite persistence initialized');
 
     // Establish executable provenance before any persisted vectors enter ANN.
-    await computeRealEmbedding(EMBEDDING_SPACE_CANARY, this.qeConfig.embeddings);
+    // #1022: without an embedding runtime (no @huggingface/transformers and no
+    // AQE_EMBEDDER_ENDPOINT) run text-only instead of failing: no vector is
+    // computed, stored or searched (ADR-097: no hash-embedding fallback).
+    try {
+      await computeRealEmbedding(EMBEDDING_SPACE_CANARY, this.qeConfig.embeddings);
+    } catch (error) {
+      this.embedderUnavailableReason = toErrorMessage(error);
+      logger.warn(
+        'No embedding runtime: patterns are stored without vectors (pending ' +
+        '`aqe learning backfill-embeddings`) and searched by text matching only',
+        { reason: this.embedderUnavailableReason }
+      );
+    }
 
-    // Initialize HNSW index
-    await this.initializeHNSW();
-    logger.info('HNSW index initialized');
+    if (this.embedderUnavailableReason === null) {
+      // Initialize HNSW index
+      await this.initializeHNSW();
+      logger.info('HNSW index initialized');
 
-    // Load existing patterns into HNSW
-    await this.loadPatternsIntoHNSW();
+      // Load existing patterns into HNSW
+      await this.loadPatternsIntoHNSW();
+    }
 
     // Load foundational patterns ONLY if this is a brand-new database (no tables or genuinely empty).
     // CRITICAL: Do NOT overwrite existing data. If patterns were unexpectedly wiped,
@@ -372,6 +402,13 @@ export class RealQEReasoningBank {
     this.initialized = true;
     const initTime = performance.now() - startTime;
     logger.info('Fully initialized', { durationMs: Math.round(initTime) });
+  }
+
+  /** #1022: whether pattern search uses vectors or text matching only. */
+  getPatternSearchStatus(): PatternSearchStatus {
+    return this.embedderUnavailableReason === null
+      ? { mode: 'vector' }
+      : { mode: 'lexical-only', reason: this.embedderUnavailableReason };
   }
 
   /**
@@ -506,9 +543,12 @@ export class RealQEReasoningBank {
     // Require explicit initialization - don't auto-initialize to avoid memory issues
 
     try {
-      // Generate REAL embedding using transformer model
+      // Generate REAL embedding using transformer model. #1022: without an
+      // embedding runtime the pattern is stored text-only (vector pending).
       const textToEmbed = `${options.name} ${options.description || ''} ${options.context?.tags?.join(' ') || ''}`;
-      const embedding = await computeRealEmbedding(textToEmbed, this.qeConfig.embeddings);
+      const embedding = this.embedderUnavailableReason === null
+        ? await computeRealEmbedding(textToEmbed, this.qeConfig.embeddings)
+        : undefined;
 
       // Detect QE domain
       const qeDomain = detectQEDomain(textToEmbed) || 'test-generation';
@@ -582,7 +622,7 @@ export class RealQEReasoningBank {
       this.sqliteStore.storePattern(pattern, embedding);
 
       // Add to HNSW index
-      if (this.hnswIndex) {
+      if (this.hnswIndex && embedding) {
         const index = this.hnswIndex.getCurrentCount();
         this.hnswIndex.addPoint(embedding, index);
         this.patternIdMap.set(index, patternId);
@@ -624,45 +664,16 @@ export class RealQEReasoningBank {
     const startTime = performance.now();
 
     try {
-      if (!this.hnswIndex) {
-        return err(new Error('HNSW index not available'));
-      }
-
-      // Generate REAL embedding for query
-      const queryEmbedding = await computeRealEmbedding(query, this.qeConfig.embeddings);
-
-      // Search HNSW index
       const limit = options.limit || 10;
-      const results = this.hnswIndex.searchKnn(queryEmbedding, limit * 2); // Get extra for filtering
-
       const patterns: RealQEPatternSearchResult[] = [];
 
-      for (let i = 0; i < results.neighbors.length; i++) {
-        const hnswIndex = results.neighbors[i];
-        const distance = results.distances[i];
-        const similarity = 1 - distance; // Convert distance to similarity
-
-        if (options.minSimilarity !== undefined && similarity < options.minSimilarity) {
-          continue;
+      // #1022: without an embedding runtime only the lexical (FTS) branch
+      // below runs; its hits are labelled matchType 'lexical'.
+      if (this.embedderUnavailableReason === null) {
+        if (!this.hnswIndex) {
+          return err(new Error('HNSW index not available'));
         }
-
-        const patternId = this.patternIdMap.get(hnswIndex);
-        if (!patternId) continue;
-
-        const pattern = this.sqliteStore.getPattern(patternId);
-        if (!pattern) continue;
-
-        // Filter by domain if specified
-        if (options.domain && pattern.qeDomain !== options.domain) {
-          continue;
-        }
-
-        const reuse = DEFAULT_PATTERN_STORE_CONFIG.reuseOptimization;
-        const ageDays = (Date.now() - new Date(pattern.lastUsedAt).getTime()) / 86_400_000;
-        patterns.push({ pattern, similarity, score: similarity, matchType: 'vector',
-          canReuse: Boolean(pattern.reusable && similarity >= reuse.minSimilarityForReuse
-            && pattern.successRate >= reuse.minSuccessRateForReuse && ageDays <= reuse.maxAgeForReuse),
-        });
+        await this.collectVectorMatches(query, limit, options, patterns);
       }
 
       const existing = new Map(patterns.map(hit => [hit.pattern.id, hit]));
@@ -690,6 +701,48 @@ export class RealQEReasoningBank {
       return ok(patterns.slice(0, limit));
     } catch (error) {
       return err(toError(error));
+    }
+  }
+
+  /** Append HNSW vector matches for `query` to `patterns`. */
+  private async collectVectorMatches(
+    query: string,
+    limit: number,
+    options: { domain?: QEDomain; minSimilarity?: number },
+    patterns: RealQEPatternSearchResult[]
+  ): Promise<void> {
+    // Generate REAL embedding for query
+    const queryEmbedding = await computeRealEmbedding(query, this.qeConfig.embeddings);
+
+    // Search HNSW index
+    const results = this.hnswIndex!.searchKnn(queryEmbedding, limit * 2); // Get extra for filtering
+
+    for (let i = 0; i < results.neighbors.length; i++) {
+      const hnswIndex = results.neighbors[i];
+      const distance = results.distances[i];
+      const similarity = 1 - distance; // Convert distance to similarity
+
+      if (options.minSimilarity !== undefined && similarity < options.minSimilarity) {
+        continue;
+      }
+
+      const patternId = this.patternIdMap.get(hnswIndex);
+      if (!patternId) continue;
+
+      const pattern = this.sqliteStore.getPattern(patternId);
+      if (!pattern) continue;
+
+      // Filter by domain if specified
+      if (options.domain && pattern.qeDomain !== options.domain) {
+        continue;
+      }
+
+      const reuse = DEFAULT_PATTERN_STORE_CONFIG.reuseOptimization;
+      const ageDays = (Date.now() - new Date(pattern.lastUsedAt).getTime()) / 86_400_000;
+      patterns.push({ pattern, similarity, score: similarity, matchType: 'vector',
+        canReuse: Boolean(pattern.reusable && similarity >= reuse.minSimilarityForReuse
+          && pattern.successRate >= reuse.minSuccessRateForReuse && ageDays <= reuse.maxAgeForReuse),
+      });
     }
   }
 
@@ -982,6 +1035,7 @@ export class RealQEReasoningBank {
         : 0,
       embeddingCacheSize: 0, // Would need to track this in real-embeddings
       transformerAvailable: isTransformerAvailable(),
+      patternSearch: this.getPatternSearchStatus(),
       embeddingDimension: getEmbeddingDimension(),
       sqliteDbPath: this.qeConfig.sqlite.dbPath || '.agentic-qe/memory.db',
       // ADR-061: Asymmetric learning stats

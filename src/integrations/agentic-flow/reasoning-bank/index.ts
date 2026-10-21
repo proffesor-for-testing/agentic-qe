@@ -21,6 +21,7 @@ import {
   createRealQEReasoningBank,
   type RealQEReasoningBankConfig,
   type RealQEPatternSearchResult,
+  type PatternSearchStatus,
   type RealQERoutingRequest,
   type RealQERoutingResult,
   type LearningOutcome,
@@ -506,6 +507,12 @@ export class EnhancedReasoningBankAdapter {
   ): Promise<Result<RealQEPatternSearchResult[]>> {
     this.ensureInitialized();
     return this.reasoningBank!.searchQEPatterns(query, options);
+  }
+
+  /** #1022: whether pattern search uses vectors or text matching only. */
+  getPatternSearchStatus(): PatternSearchStatus {
+    this.ensureInitialized();
+    return this.reasoningBank!.getPatternSearchStatus();
   }
 
   /**

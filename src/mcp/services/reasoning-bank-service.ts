@@ -26,6 +26,7 @@ import {
   type RealQERoutingResult,
   type LearningOutcome,
   type RealQEReasoningBankStats,
+  type PatternSearchStatus,
   type RealQEPatternSearchResult,
 } from '../../learning/real-qe-reasoning-bank.js';
 import type { QEPattern, QEDomain } from '../../learning/qe-patterns.js';
@@ -719,6 +720,11 @@ export class ReasoningBankService {
       console.error('[ReasoningBankService] Search failed:', error);
       return [];
     }
+  }
+
+  /** #1022: whether pattern search uses vectors or text matching only. */
+  getPatternSearchStatus(): PatternSearchStatus {
+    return this.enhancedAdapter.getPatternSearchStatus();
   }
 
   /**

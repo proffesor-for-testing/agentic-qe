@@ -207,6 +207,7 @@ export class ExperienceReplay {
   private prepared: Map<string, Statement> = new Map();
   private initialized = false;
   private initializationPromise: Promise<void> | null = null;
+  private embedderUnavailableLogged = false;
 
   // Real HNSW index for O(log n) similarity search (150x-12,500x faster than linear scan)
   private hnswIndex: HNSWEmbeddingIndex;
@@ -584,7 +585,7 @@ export class ExperienceReplay {
 
     // Generate embedding for similarity search
     const embeddingText = `${task} ${strategy} ${keyActions.join(' ')}`;
-    const embedding = await computeRealEmbedding(embeddingText, this.config.embedding);
+    const embedding = (await this.embedOrNull(embeddingText)) ?? undefined;
 
     const id = uuidv4();
     const domain = trajectory.domain || 'test-generation';
@@ -663,6 +664,27 @@ export class ExperienceReplay {
     }
 
     return experience;
+  }
+
+  /**
+   * #1022: embed text, or return null when no embedding runtime is available.
+   * The experience is then stored without a vector (backfilled at a later
+   * start that has an embedder) and similarity search finds no matches.
+   */
+  private async embedOrNull(text: string): Promise<number[] | null> {
+    try {
+      return await computeRealEmbedding(text, this.config.embedding);
+    } catch (error) {
+      if (!this.embedderUnavailableLogged) {
+        this.embedderUnavailableLogged = true;
+        console.warn(
+          '[ExperienceReplay] No embedding runtime; experiences are stored without vectors ' +
+          'and similar-experience guidance is unavailable:',
+          error instanceof Error ? error.message : error
+        );
+      }
+      return null;
+    }
   }
 
   /**
@@ -783,7 +805,10 @@ export class ExperienceReplay {
     // Generate embedding for the task
     // ADR-099: scrub so query embeddings match the scrubbed stored embeddings
     task = scrubReasoningBlocks(task);
-    const taskEmbedding = await computeRealEmbedding(task, this.config.embedding);
+    const taskEmbedding = await this.embedOrNull(task);
+    if (!taskEmbedding) {
+      return [];
+    }
 
     // Create query embedding for HNSW search
     const queryEmbedding: IEmbedding = {
