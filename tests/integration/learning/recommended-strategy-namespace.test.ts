@@ -93,6 +93,59 @@ describe.each(['sqlite', 'memory'] as const)('stored strategy recommendations (%
     });
   });
 
+  describe.each([
+    ['latency', 'minimize'],
+    ['coverage', 'minimize'],
+  ] as const)('same-domain objective request (%s, %s)', (metric, direction) => {
+    it('returns default for an incompatible objective through the service', async () => {
+      const record = await optimize();
+      expect(record.objective).toMatchObject({ metric: 'coverage', direction: 'maximize' });
+      const requestContext = { tags: ['test-generation', metric], objective: { metric, direction } };
+      const result = await optimizer.recommendStrategy(requestContext);
+      expect(result.success).toBe(true);
+      expect(result.success && result.value.name).toBe('default-strategy');
+    });
+
+    it('returns default for an incompatible objective through the MCP fallback', async () => {
+      const record = await optimize();
+      expect(record.objective).toMatchObject({ metric: 'coverage', direction: 'maximize' });
+      const result = await new LearningOptimizeTool().invoke({
+        action: 'optimize', domain: 'test-generation', objective: { metric, direction },
+      }, { memory });
+      expect(result.success).toBe(true);
+      expect(result.data?.optimizeResult?.bestStrategy.name).toBe('default-strategy');
+    });
+  });
+
+  it('retains legacy direction-unspecified recommendations', async () => {
+    const record = await optimize();
+    const result = await optimizer.recommendStrategy(context);
+    expect(result.success && result.value).toEqual(record.optimizedStrategy);
+  });
+
+  it('recommends an explicitly matching objective', async () => {
+    const record = await optimize();
+    const result = await optimizer.recommendStrategy({ ...context, objective: { metric: 'coverage', direction: 'maximize' } });
+    expect(result.success && result.value).toEqual(record.optimizedStrategy);
+  });
+
+  it('refuses contradictory metric tags and explicit objective', async () => {
+    await optimize();
+    const result = await optimizer.recommendStrategy({ ...context, objective: { metric: 'latency', direction: 'minimize' } });
+    expect(result.success && result.value.name).toBe('default-strategy');
+  });
+
+  it('ignores a higher-scoring wrong-objective candidate', async () => {
+    const record = await optimize();
+    await memory.set('learning:strategy:optimized:wrong-objective', {
+      ...record, id: 'wrong-objective', objective: { ...record.objective, direction: 'minimize' },
+      confidence: 1, improvement: 10000,
+      optimizedStrategy: { ...record.optimizedStrategy, name: 'wrong-objective-high-score' },
+    }, NS);
+    const result = await optimizer.recommendStrategy({ ...context, objective: { metric: 'coverage', direction: 'maximize' } });
+    expect(result.success && result.value).toEqual(record.optimizedStrategy);
+  });
+
   it('rejects a higher-scoring other-domain candidate without hiding the eligible strategy', async () => {
     const record = await optimize();
     await memory.set('learning:strategy:optimized:foreign-domain', {

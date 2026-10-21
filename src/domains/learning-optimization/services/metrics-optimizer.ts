@@ -285,7 +285,15 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
         const optimized = await this.memory.get<OptimizedStrategy>(
           key, { namespace: 'learning-optimization' },
         );
-        if (optimized && context.tags.includes(optimized.domain) && optimized.confidence > 0.6) {
+        if (optimized
+          && context.tags.includes(optimized.domain)
+          && context.tags.includes(optimized.objective.metric)
+          && (!context.objective || (
+            context.tags.includes(context.objective.metric)
+            && optimized.objective.metric === context.objective.metric
+            && optimized.objective.direction === context.objective.direction
+          ))
+          && optimized.confidence > 0.6) {
           const contextScore = this.scoreContextMatch(optimized, context);
           const performanceScore = optimized.improvement * optimized.confidence;
           candidates.push({
