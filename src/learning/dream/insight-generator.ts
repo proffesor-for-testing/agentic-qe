@@ -19,6 +19,7 @@ import type {
   ConceptNode,
 } from './types.js';
 import type { ActivationResult } from './spreading-activation.js';
+import { getOwn, setOwn } from '../../shared/utils/safe-record.js';
 
 // ============================================================================
 // Types
@@ -498,10 +499,10 @@ export class InsightGenerator {
 
     for (const node of activeNodes) {
       const typeKey = node.conceptType ?? 'pattern';
-      if (!byType[typeKey]) {
-        byType[typeKey] = [];
-      }
-      byType[typeKey].push(node);
+      // #1157: concept types come from stored nodes; own buckets only.
+      const bucket = getOwn(byType, typeKey) ?? [];
+      setOwn(byType, typeKey, bucket);
+      bucket.push(node);
     }
 
     // Gap: Error without resolution

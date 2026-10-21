@@ -21,6 +21,8 @@ import { ConsensusEngineImpl } from '../../../src/coordination/consensus/consens
 import { SecurityScanTool } from '../../../src/mcp/tools/security-compliance/scan';
 import { GOAPPlanner } from '../../../src/planning/goap-planner';
 import { evaluateFilter, field } from '../../../src/integrations/ruvector/filter-adapter';
+import { TaskRouter } from '../../../src/adapters/a2a/tasks/task-router';
+import { InsightGenerator } from '../../../src/learning/dream/insight-generator';
 
 vi.mock('../../../src/mcp/tools/base', async (importOriginal) => {
   const original = await importOriginal<typeof import('../../../src/mcp/tools/base')>();
@@ -159,6 +161,21 @@ describe('prototype-chain keys (#1157)', () => {
     const result = { pattern: { id: 'p', qeDomain: 'test-generation' }, score: 1 } as never;
     expect(evaluateFilter(result, field('constructor.name', 'eq', 'Object'))).toBe(false);
     expect(evaluateFilter(result, field('qeDomain', 'eq', 'test-generation'))).toBe(true);
+  });
+
+  it.each(['toString', 'constructor', 'hasOwnProperty'])('A2A routing does not treat %s as a capability every agent has', (cap) => {
+    const router = new TaskRouter({} as never) as unknown as { meetsRequirements(a: unknown, r: unknown): boolean };
+    const agent = { capabilities: { streaming: true } };
+
+    expect(router.meetsRequirements(agent, { requiredCapabilities: [cap] })).toBe(false);
+    expect(router.meetsRequirements(agent, { requiredCapabilities: ['streaming'] })).toBe(true);
+  });
+
+  it.each(PROTO_KEYS)('dream gap detection groups a stored concept type %s without throwing', async (conceptType) => {
+    const graph = { getEdges: () => [], getConcept: () => undefined, getEdge: () => undefined };
+    const generator = new InsightGenerator(graph as never);
+
+    await expect(generator.detectGaps([{ id: 'n1', conceptType, content: 'x' } as never])).resolves.toBeInstanceOf(Array);
   });
 
   it('the security scan tool still reports a real vulnerable dependency next to one named constructor', async () => {
