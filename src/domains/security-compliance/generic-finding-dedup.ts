@@ -1,32 +1,37 @@
 /**
- * #1170: drop a generic-pattern finding that language-specific SAST already
- * reported for the same line.
+ * #1170: drop the generic eval/exec finding that language-specific SAST
+ * already reported as code injection on the same line.
  *
  * The scan-security task runs text patterns over every file and SAST over
  * JS/TS files, so one `eval()` was counted twice: once by SAST (critical,
- * CWE-95) and once by the generic eval/exec pattern (high). Two findings are
- * the same issue when they sit on the same line of the same real file and
- * SAST's category covers the generic one.
+ * CWE-95) and once by the generic eval/exec pattern (high). Only that pair is
+ * the same finding. Other generic rules (secrets, CORS, debug mode) can flag
+ * a different value or a higher severity on a line SAST also matched, so
+ * they are always kept.
  */
 
 import { realpath } from 'node:fs/promises';
 import * as path from 'node:path';
 
+/** Title of the generic-pattern eval/exec finding in the scan-security handler. */
+export const GENERIC_EVAL_EXEC_TITLE = 'Dangerous eval/exec usage';
+
 interface LocatedFinding {
-  category: string;
+  title: string;
   location: { file: string; line?: number };
 }
 
-/**
- * SAST categories that report what a generic-pattern category flags. SAST
- * files eval() and the Function constructor (CWE-95, code injection) under
- * `xss`, so `xss` also covers generic `injection`.
- */
-const COVERING_SAST_CATEGORIES: Readonly<Record<string, readonly string[]>> = {
-  injection: ['injection', 'xss'],
-  'sensitive-data': ['sensitive-data'],
-  'security-misconfiguration': ['security-misconfiguration'],
-};
+interface SastFinding {
+  description?: string;
+  references?: readonly string[];
+  location: { file: string; line?: number };
+}
+
+/** CWE-95 (eval injection): SAST's eval() and Function-constructor rules. */
+function isEvalInjection(finding: SastFinding): boolean {
+  return /\[CWE-95\]/.test(finding.description ?? '') ||
+    (finding.references ?? []).some(ref => /\/definitions\/95\.html$/.test(ref));
+}
 
 async function realPathOf(file: string, cache: Map<string, string>): Promise<string> {
   const resolved = path.resolve(file);
@@ -38,24 +43,29 @@ async function realPathOf(file: string, cache: Map<string, string>): Promise<str
   return real;
 }
 
-/** Generic findings without the ones a SAST finding already covers. */
-export async function dropGenericFindingsCoveredBySast<T extends LocatedFinding>(
+/**
+ * Generic findings without the eval/exec matches SAST already reported as
+ * CWE-95 on the same real file and line. `isEvalOnly` says whether a generic
+ * eval/exec match is eval alone; a line that also calls exec() is kept,
+ * since SAST's eval rule does not report the exec call.
+ */
+export async function dropGenericEvalCoveredBySast<T extends LocatedFinding>(
   generic: readonly T[],
-  sast: readonly LocatedFinding[],
+  sast: readonly SastFinding[],
+  isEvalOnly: (finding: T) => boolean,
 ): Promise<T[]> {
-  if (generic.length === 0 || sast.length === 0) return [...generic];
+  const evalSast = sast.filter(isEvalInjection);
+  if (evalSast.length === 0) return [...generic];
   const cache = new Map<string, string>();
   const covered = new Set<string>();
-  for (const finding of sast) {
-    const file = await realPathOf(finding.location.file, cache);
-    covered.add(`${file}:${finding.location.line ?? 0}:${finding.category}`);
+  for (const finding of evalSast) {
+    covered.add(`${await realPathOf(finding.location.file, cache)}:${finding.location.line ?? 0}`);
   }
   const kept: T[] = [];
   for (const finding of generic) {
-    const file = await realPathOf(finding.location.file, cache);
-    const line = finding.location.line ?? 0;
-    const categories = COVERING_SAST_CATEGORIES[finding.category] ?? [finding.category];
-    if (!categories.some(category => covered.has(`${file}:${line}:${category}`))) kept.push(finding);
+    const duplicate = finding.title === GENERIC_EVAL_EXEC_TITLE && isEvalOnly(finding) &&
+      covered.has(`${await realPathOf(finding.location.file, cache)}:${finding.location.line ?? 0}`);
+    if (!duplicate) kept.push(finding);
   }
   return kept;
 }

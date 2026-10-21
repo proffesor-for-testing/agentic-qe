@@ -18,7 +18,7 @@ import type { SecurityScanEvidence, SecurityEngineEvidence, SecurityFileEvidence
 import type { SASTResult, DASTResult } from '../../domains/security-compliance/interfaces.js';
 import { runDependencyAdvisoryScan, type DependencyAdvisoryOutcome } from '../../domains/security-compliance/dependency-advisory-engine.js';
 import { MAX_PAYLOAD_FILE_BYTES, requirePayloadPath } from '../../shared/io/payload-path-guard.js';
-import { dropGenericFindingsCoveredBySast } from '../../domains/security-compliance/generic-finding-dedup.js';
+import { dropGenericEvalCoveredBySast, GENERIC_EVAL_EXEC_TITLE } from '../../domains/security-compliance/generic-finding-dedup.js';
 
 export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
   // Register security scan handler - REAL IMPLEMENTATION
@@ -64,6 +64,8 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
         title: string; severity: 'critical' | 'high' | 'medium' | 'low' | 'informational';
         location: { file: string; line: number }; description: string; category: string;
       }> = [];
+      // Generic eval/exec matches whose line calls eval() and not exec() (#1170).
+      const evalOnlyFindings = new Set<object>();
 
       // Run secret/CORS patterns on ALL files (not just otherFiles) to catch JS/TS secrets too
       for (const filePath of filesToScan) {
@@ -157,16 +159,19 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
             });
           }
 
-          // Pattern: Eval/exec usage
+          // Pattern: Eval/exec usage, one finding per matching line (#1170)
           genericRules.set('eval-exec', /\b(?:eval|exec)\s*\(/i.toString());
-          if (/\b(?:eval|exec)\s*\(/i.test(content)) {
-            crossLangVulns.push({
-              title: 'Dangerous eval/exec usage',
-              severity: 'high',
-              location: { file: filePath, line: lines.findIndex(l => /\b(?:eval|exec)\s*\(/.test(l)) + 1 },
+          for (let i = 0; i < lines.length; i++) {
+            if (!/\b(?:eval|exec)\s*\(/i.test(lines[i])) continue;
+            const finding = {
+              title: GENERIC_EVAL_EXEC_TITLE,
+              severity: 'high' as const,
+              location: { file: filePath, line: i + 1 },
               description: 'eval/exec can lead to code injection — avoid using with user input',
               category: 'injection',
-            });
+            };
+            crossLangVulns.push(finding);
+            if (!/\bexec\s*\(/i.test(lines[i])) evalOnlyFindings.add(finding);
           }
         } catch (error) {
           const reason = `Source read failed: ${safeErrorCode(error)}`;
@@ -328,9 +333,10 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
         engine.id === 'patterns' && (engine.status === 'completed' || engine.status === 'partial') &&
         (engine.analyzedFiles ?? 0) > 0));
 
-      // #1170: a generic match on a line SAST already reported is the same
-      // finding, so it is counted once, as SAST reported it.
-      const genericVulns = await dropGenericFindingsCoveredBySast(crossLangVulns, sastResult?.vulnerabilities ?? []);
+      // #1170: a generic eval() match on a line SAST reported as CWE-95 is the
+      // same finding, so it is counted once, as SAST reported it.
+      const genericVulns = await dropGenericEvalCoveredBySast(
+        crossLangVulns, sastResult?.vulnerabilities ?? [], finding => evalOnlyFindings.has(finding));
 
       // Combine results from all scan sources - SAST, DAST, and cross-language patterns
       const crossLangSeverityCounts = {
