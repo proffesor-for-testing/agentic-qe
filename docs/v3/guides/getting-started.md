@@ -23,6 +23,14 @@ aqe --version
 aqe init
 ```
 
+**npm 12+:** dependency install scripts are blocked unless allowed, and AQE's SQLite store (`better-sqlite3`) needs its install script to fetch its native binary. Name the packages when you install:
+
+```bash
+npm install -g agentic-qe --allow-scripts=agentic-qe,better-sqlite3,hnswlib-node
+```
+
+Include `agentic-qe` in the command — npm's warning suggests `npm install -g --allow-scripts=...` without a package name, which installs the current directory instead. If `aqe init` reports that the `better-sqlite3` native module could not be loaded on an existing install, rebuild it with `npm rebuild -g better-sqlite3 --allow-scripts=better-sqlite3` (for a project-local install: `npm install-scripts approve better-sqlite3 && npm rebuild better-sqlite3`). `hnswlib-node` is optional; AQE runs without it.
+
 ## Quick Start
 
 ### 1. Generate Tests
