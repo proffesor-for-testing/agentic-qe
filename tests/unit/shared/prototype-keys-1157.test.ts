@@ -23,6 +23,8 @@ import { GOAPPlanner } from '../../../src/planning/goap-planner';
 import { evaluateFilter, field } from '../../../src/integrations/ruvector/filter-adapter';
 import { TaskRouter } from '../../../src/adapters/a2a/tasks/task-router';
 import { InsightGenerator } from '../../../src/learning/dream/insight-generator';
+import { parseFrontmatter } from '../../../src/adapters/a2a/agent-cards/generator';
+import { VerificationPhase } from '../../../src/init/phases/12-verification';
 
 vi.mock('../../../src/mcp/tools/base', async (importOriginal) => {
   const original = await importOriginal<typeof import('../../../src/mcp/tools/base')>();
@@ -176,6 +178,19 @@ describe('prototype-chain keys (#1157)', () => {
     const generator = new InsightGenerator(graph as never);
 
     await expect(generator.detectGaps([{ id: 'n1', conceptType, content: 'x' } as never])).resolves.toBeInstanceOf(Array);
+  });
+
+  it('agent frontmatter and init config parsers skip prototype keys and keep the rest', () => {
+    const front = parseFrontmatter('---\nname: qe-a\n__proto__:\n  polluted: yes\nconstructor:\n  polluted: yes\n---\nbody') as Record<string, unknown>;
+    expect(Object.getPrototypeOf(front)).toBe(Object.prototype);
+    expect(front.name).toBe('qe-a');
+    expect(Object.hasOwn(front, 'constructor')).toBe(false);
+
+    const config = (new VerificationPhase() as unknown as { parseYAML(y: string): Record<string, unknown> })
+      .parseYAML('version: "3"\n__proto__:\n  polluted: yes\nlearning:\n  enabled: true\n');
+    expect(Object.getPrototypeOf(config)).toBe(Object.prototype);
+    expect((config.learning as Record<string, unknown>).enabled).toBe(true);
+    expect((config as Record<string, unknown>).polluted).toBeUndefined();
   });
 
   it('the security scan tool still reports a real vulnerable dependency next to one named constructor', async () => {

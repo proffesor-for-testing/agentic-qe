@@ -371,7 +371,7 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
     let framework: TestFramework;
     if (params.framework) {
       framework = params.framework as TestFramework;
-      const fwLang = FRAMEWORK_TO_LANGUAGE[framework];
+      const fwLang = Object.hasOwn(FRAMEWORK_TO_LANGUAGE, framework) ? FRAMEWORK_TO_LANGUAGE[framework] : undefined; // #1157
       if (fwLang && fwLang !== language) {
         // typescript<->javascript is a soft compatibility — JS frameworks
         // can target both. Treat as same family.

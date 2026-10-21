@@ -19,6 +19,8 @@ import { openDatabase } from '../../shared/safe-db.js';
 
 /** The `# <ISO timestamp>` header line written by configToYAML(). */
 const CONFIG_TIMESTAMP_LINE = /^# \d{4}-\d{2}-\d{2}T[\d:.]+Z$/;
+/** #1157: config keys that would reach Object.prototype through a plain object. */
+const UNSAFE_YAML_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 export interface VerificationResult {
   verified: boolean;
@@ -214,8 +216,11 @@ export class VerificationPhase extends BasePhase<VerificationResult> {
         // Top-level key (no indentation)
         const topMatch = line.match(/^(\w+):\s*(.*)$/);
         if (topMatch) {
-          currentSection = topMatch[1];
+          // #1157: keys come from config.yaml; a `__proto__` section (and
+          // everything under it) is skipped instead of re-prototyping result.
+          currentSection = UNSAFE_YAML_KEYS.has(topMatch[1]) ? '' : topMatch[1];
           currentSubSection = '';
+          if (!currentSection) continue;
           const value = topMatch[2].trim();
 
           if (value && !value.startsWith('"')) {
@@ -232,10 +237,11 @@ export class VerificationPhase extends BasePhase<VerificationResult> {
         // Second-level key (2-space indent)
         const subMatch = line.match(/^ {2}(\w+):\s*(.*)$/);
         if (subMatch && currentSection) {
-          currentSubSection = subMatch[1];
+          currentSubSection = UNSAFE_YAML_KEYS.has(subMatch[1]) ? '' : subMatch[1];
+          if (!currentSubSection) continue;
           const value = subMatch[2].trim();
 
-          if (!result[currentSection]) {
+          if (!Object.hasOwn(result, currentSection) || !result[currentSection]) {
             result[currentSection] = {};
           }
 
@@ -253,9 +259,10 @@ export class VerificationPhase extends BasePhase<VerificationResult> {
         if (thirdMatch && currentSection && currentSubSection) {
           const key = thirdMatch[1];
           const value = thirdMatch[2].trim();
+          if (UNSAFE_YAML_KEYS.has(key)) continue;
 
           const section = result[currentSection] as Record<string, Record<string, unknown>>;
-          if (!section[currentSubSection]) {
+          if (!Object.hasOwn(section, currentSubSection) || !section[currentSubSection]) {
             section[currentSubSection] = {};
           }
           if (typeof section[currentSubSection] === 'object' && !Array.isArray(section[currentSubSection])) {
