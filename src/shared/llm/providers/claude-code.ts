@@ -32,6 +32,7 @@ import {
   createLLMError,
 } from '../interfaces';
 import { TokenMetricsCollector } from '../../../learning/token-tracker.js';
+import { redactLogText } from '../../../logging/redaction.js';
 
 export type { ClaudeCodeConfig };
 
@@ -163,7 +164,8 @@ export class ClaudeCodeProvider implements LLMProvider {
       data = JSON.parse(stdout) as ClaudeCodeResult;
     } catch {
       throw createLLMError(
-        `Could not parse claude -p JSON output: ${stdout.slice(0, 200)}`,
+        // #1150: redact, then cut, so a cut secret leaves no fragment behind.
+        `Could not parse claude -p JSON output: ${redactLogText(stdout, Number.POSITIVE_INFINITY).slice(0, 200)}`,
         'PROVIDER_UNAVAILABLE',
         { provider: 'claude-code', model, retryable: true }
       );

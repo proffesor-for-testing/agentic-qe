@@ -284,6 +284,57 @@ describe('OutputBasedVerifier', () => {
     });
   });
 
+  describe('output redaction (#1150)', () => {
+    it('stores command output as evidence only after redacting it', async () => {
+      // Arrange
+      const claim = makeClaim({ statement: 'Build completed successfully' });
+      const execError = Object.assign(new Error('Command failed'), {
+        stdout: 'connecting to postgres://admin:Sup3rS3cretPw@db.internal:5432/app',
+        stderr: 'Error: auth failed with token ghp_A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8\nBuild failed',
+        code: 1,
+      });
+      mockExecAsync.mockRejectedValue(execError);
+
+      // Act
+      const result = await verifier.verify(claim);
+
+      // Assert
+      const stored = JSON.stringify(result.counterEvidence);
+      expect(stored).toContain('Build failed');
+      expect(stored).not.toContain('Sup3rS3cretPw');
+      expect(stored).not.toContain('M3n4O5p6Q7r8');
+    });
+
+    it('never splits a credential on a line longer than one redaction piece', async () => {
+      // Arrange: a 300 KB single line with a token across the 256 KB mark.
+      const claim = makeClaim({ statement: 'Build completed successfully' });
+      const stderr = 'e'.repeat(256 * 1024 - 20) + ' ghp_A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8 ' + 'e'.repeat(50_000) + '\nBuild failed';
+      mockExecAsync.mockRejectedValue(Object.assign(new Error('Command failed'), { stdout: '', stderr, code: 1 }));
+
+      // Act
+      const result = await verifier.verify(claim);
+
+      // Assert
+      const stored = JSON.stringify(result.counterEvidence);
+      expect(stored).toContain('Build failed');
+      expect(stored).not.toContain('ghp_A1b2');
+      expect(stored).not.toContain('M3n4O5p6Q7r8');
+    });
+
+    it('redacts output longer than one redaction piece without dropping it', async () => {
+      // Arrange: ~1 MB of output (over redactLogText's scan limit), credential near the end.
+      const claim = makeClaim({ statement: 'Build completed successfully' });
+      const stdout = 'compiled line\n'.repeat(73_000) + 'password=Sup3rS3cretPw\nbuild successful\n';
+      mockExecAsync.mockResolvedValue({ stdout, stderr: '' });
+
+      // Act
+      const result = await verifier.verify(claim);
+
+      // Assert
+      expect(result.verified).toBe(true);
+    });
+  });
+
   describe('error handling', () => {
     it('should return safe error result when an unexpected error is thrown', async () => {
       // Arrange - throw error without stdout/stderr so it re-throws from executeCommand
