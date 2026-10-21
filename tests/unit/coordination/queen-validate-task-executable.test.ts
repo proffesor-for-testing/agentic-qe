@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import { QueenCoordinator } from '../../../src/coordination/queen-coordinator.js';
 import { assignTaskToDomain, canDomainHandleTask } from '../../../src/coordination/queen-task-management.js';
+import { resolveTaskDomains } from '../../../src/coordination/task-executability.js';
 import type {
   AgentCoordinator,
   DomainPlugin,
@@ -109,6 +110,31 @@ describe('QueenCoordinator.validateTaskExecutable (#1075)', () => {
 
   it('accepts any configured type when the Queen has no domain plugins to check', () => {
     expect(queenWith().validateTaskExecutable('index-code').success).toBe(true);
+  });
+});
+
+// #1170: submitTask and validateTaskExecutable route through this resolver.
+describe('resolveTaskDomains (#1170)', () => {
+  const plugins = new Map<DomainName, DomainPlugin>([
+    ['code-intelligence', plugin(['index'])],
+    ['security-compliance', plugin(['security-audit', 'sast-scan'])],
+  ]);
+
+  it('keeps the caller target domains', () => {
+    expect(resolveTaskDomains('sast-scan', ['code-intelligence'], plugins)).toEqual(['code-intelligence']);
+  });
+
+  it('uses the configured domains of a mapped type', () => {
+    expect(resolveTaskDomains('analyze-coverage', [], plugins)).toEqual(['coverage-analysis']);
+  });
+
+  it('routes an unmapped type to the loaded domains whose plugin handles it', () => {
+    expect(resolveTaskDomains('sast-scan', [], plugins)).toEqual(['security-compliance']);
+  });
+
+  it('returns no domain for an unmapped type nothing handles, or without plugins', () => {
+    expect(resolveTaskDomains('no-such-type', [], plugins)).toEqual([]);
+    expect(resolveTaskDomains('sast-scan', [])).toEqual([]);
   });
 });
 

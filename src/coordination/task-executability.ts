@@ -9,6 +9,7 @@
 
 import type { DomainName } from '../shared/types';
 import type { DomainPlugin } from '../kernel/interfaces';
+import { getTaskDomains } from './queen-types.js';
 
 /**
  * List the domains among `domains` that cannot execute `type`, each with the
@@ -47,6 +48,22 @@ export function findDomainsWithHandler(
     if (plugin.executeTask && plugin.canHandleTask?.(type)) domains.push(domain);
   }
   return domains;
+}
+
+/**
+ * The domains a task may run in: the caller's target domains, else the
+ * domains configured for its type, else (#1170) the loaded domains whose
+ * plugin handles the type.
+ */
+export function resolveTaskDomains(
+  type: string,
+  targetDomains: readonly DomainName[],
+  domainPlugins?: ReadonlyMap<DomainName, DomainPlugin>,
+): readonly DomainName[] {
+  if (targetDomains.length > 0) return targetDomains;
+  const configured = getTaskDomains(type);
+  if (configured.length > 0 || !domainPlugins) return configured;
+  return findDomainsWithHandler(domainPlugins, type);
 }
 
 export function describeMissingHandler(type: string, gaps: readonly string[]): string {
