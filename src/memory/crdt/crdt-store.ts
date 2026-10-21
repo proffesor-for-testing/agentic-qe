@@ -385,6 +385,8 @@ export function createCRDTStore(config: CRDTStoreConfig): CRDTStore {
     applyState(incoming: CRDTStoreState): void {
       // Apply registers
       for (const [key, state] of Object.entries(incoming.registers)) {
+        // One malformed peer entry must not block unrelated state from converging.
+        if (typeof state?.timestamp !== 'number' || !Number.isFinite(state.timestamp)) continue;
         if (!registers.has(key)) {
           registers.set(
             key,
@@ -523,6 +525,7 @@ export function createCRDTStore(config: CRDTStoreConfig): CRDTStore {
       // Apply delta similar to full state, but only for included keys
       if (delta.registers) {
         for (const [key, state] of Object.entries(delta.registers)) {
+          if (typeof state?.timestamp !== 'number' || !Number.isFinite(state.timestamp)) continue;
           if (!registers.has(key)) {
             registers.set(
               key,

@@ -10,6 +10,12 @@
 
 import type { LWWRegister, LWWRegisterState } from './types.js';
 
+function assertFiniteTimestamp(timestamp: number): void {
+  if (!Number.isFinite(timestamp)) {
+    throw new RangeError('LWW register timestamp must be a finite number');
+  }
+}
+
 // =============================================================================
 // LWW Register Implementation
 // =============================================================================
@@ -34,10 +40,12 @@ export function createLWWRegister<T>(
   initialValue?: T,
   initialTimestamp?: number
 ): LWWRegister<T> {
+  const timestamp = initialTimestamp ?? (initialValue !== undefined ? Date.now() : 0);
+  assertFiniteTimestamp(timestamp);
   // Internal state
   let state: LWWRegisterState<T> = {
     value: initialValue,
-    timestamp: initialTimestamp ?? (initialValue !== undefined ? Date.now() : 0),
+    timestamp,
     nodeId: initialValue !== undefined ? nodeId : '',
     version: initialValue !== undefined ? 1 : 0,
     lastUpdated: Date.now(),
@@ -67,6 +75,7 @@ export function createLWWRegister<T>(
 
     set(value: T, timestamp?: number): void {
       let ts = timestamp ?? Date.now();
+      assertFiniteTimestamp(ts);
       // Without an explicit timestamp the write means "now": a second write by
       // this node within one clock tick (or after a backwards clock step) must
       // still supersede its own earlier write, not tie with it and be dropped.
@@ -110,6 +119,8 @@ export function createLWWRegister<T>(
       // (0) would otherwise beat a real write at a negative timestamp.
       if (incoming.version === 0) return;
 
+      // NaN breaks total ordering; infinity would permanently outrank finite writes.
+      assertFiniteTimestamp(incoming.timestamp);
       // Only update if incoming timestamp wins
       if (
         state.version === 0 ||
@@ -174,7 +185,7 @@ export function isLWWRegisterState<T>(value: unknown): value is LWWRegisterState
 
   const state = value as Record<string, unknown>;
   return (
-    typeof state.timestamp === 'number' &&
+    typeof state.timestamp === 'number' && Number.isFinite(state.timestamp) &&
     typeof state.nodeId === 'string' &&
     typeof state.version === 'number' &&
     typeof state.lastUpdated === 'number' &&
