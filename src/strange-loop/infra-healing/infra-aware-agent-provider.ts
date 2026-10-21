@@ -100,7 +100,14 @@ export class InfraAwareAgentProvider implements AgentProvider {
    * Failing services get responsiveness=0, healthy services get 1.0.
    */
   private getInfraAgentHealth(agentId: string): AgentHealthMetrics {
-    const serviceName = agentId.replace(new RegExp(`^${this.prefix}`), '');
+    // The prefix is a literal, not a pattern: createInfraAgents() builds ids
+    // by concatenation and getAgentHealth() routes by startsWith(). Strip it
+    // the same way so a prefix containing regex metacharacters still recovers
+    // the real service name instead of silently reporting a down service as
+    // healthy (and so an unparseable prefix can't throw).
+    const serviceName = agentId.startsWith(this.prefix)
+      ? agentId.slice(this.prefix.length)
+      : agentId;
     const failingServices = this.observer.getFailingServices();
     const isFailing = failingServices.has(serviceName);
 
