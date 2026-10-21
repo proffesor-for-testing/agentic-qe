@@ -13,6 +13,7 @@ import { writeTestRunEvidence } from '../../domains/quality-assessment/quality-e
 import { validateBehaviorExamples } from '../../domains/test-generation/services/behavior-example-validation.js';
 import { findProjectRoot } from '../../kernel/project-root.js';
 import { writeGeneratedTestFile } from '../utils/generated-test-writer.js';
+import { DEFAULT_TEST_RETRY_COUNT } from '../../domains/test-execution/services/retry-outcome.js';
 
 export function createTestCommand(
   context: CLIContext,
@@ -202,7 +203,8 @@ export function createTestCommand(
             testFiles,
             framework: options.framework,
             parallel: true,
-            retryCount: 2,
+            // #1170: the same default as MCP test_execute_parallel.
+            retryCount: DEFAULT_TEST_RETRY_COUNT,
           });
 
           if (result.success && result.value) {
@@ -233,7 +235,8 @@ export function createTestCommand(
               console.log(chalk.green(`Test run complete`));
               console.log(`\n  Results:`);
               console.log(`    Total: ${chalk.white(total)}`);
-              console.log(`    Passed: ${chalk.green(run.passed)}`);
+              console.log(`    Passed: ${chalk.green(run.passed)}` +
+                (run.flaky ? ` (${chalk.yellow(run.flaky)} flaky: passed on a retry)` : ''));
               console.log(`    Failed: ${chalk.red(run.failed)}`);
               console.log(`    Skipped: ${chalk.yellow(run.skipped)}`);
               console.log(`    Duration: ${chalk.cyan(run.duration + 'ms')}`);

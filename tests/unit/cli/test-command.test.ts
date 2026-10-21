@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createTestGeneratorService } from '../../../src/domains/test-generation/services/test-generator';
 import { createTestCommand } from '../../../src/cli/commands/test.js';
 import type { CLIContext } from '../../../src/cli/handlers/interfaces.js';
+import { DEFAULT_TEST_RETRY_COUNT } from '../../../src/domains/test-execution/services/retry-outcome.js';
 
 // Tests below stub AQE_PROJECT_ROOT to their temp project; never leak it.
 afterEach(() => {
@@ -40,12 +41,39 @@ describe('test command', () => {
 
     expect(runTests).toHaveBeenCalledWith(expect.objectContaining({
       framework: 'node',
+      // #1170: the same retry default as MCP test_execute_parallel.
+      retryCount: DEFAULT_TEST_RETRY_COUNT,
     }));
     expect(context.kernel.memory.set).toHaveBeenCalledWith(
       'test-run:latest',
       expect.objectContaining({ passed: 1, failed: 0, skipped: 0 }),
       { namespace: 'test-execution', persist: true },
     );
+  });
+
+  // #1170: a test that passed on a retry is reported as passed and flaky.
+  it('prints the flaky count beside the passed tests', async () => {
+    const runTests = vi.fn().mockResolvedValue({
+      success: true,
+      value: { passed: 3, failed: 0, skipped: 0, duration: 1, flaky: 1 },
+    });
+    const context = {
+      kernel: {
+        getDomainAPIAsync: vi.fn().mockResolvedValue({ runTests }),
+        memory: { set: vi.fn().mockResolvedValue(undefined) },
+      },
+    } as unknown as CLIContext;
+    const command = createTestCommand(
+      context,
+      vi.fn() as unknown as (code: number) => Promise<never>,
+      vi.fn().mockResolvedValue(true)
+    );
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    await command.parseAsync(['execute', 'tests/unit/cli/commands.test.ts'], { from: 'user' });
+
+    const passedLine = log.mock.calls.map(call => String(call[0])).find(line => line.includes('Passed:'));
+    expect(passedLine).toMatch(/Passed: .*3.*1.* flaky: passed on a retry/);
   });
 
   it('exits unsuccessfully without publishing quality evidence when execution fails', async () => {

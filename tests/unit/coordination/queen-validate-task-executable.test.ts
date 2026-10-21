@@ -89,6 +89,24 @@ describe('QueenCoordinator.validateTaskExecutable (#1075)', () => {
     expect(result.error.message).toContain("Unknown task type 'no-such-type'");
   });
 
+  // #1170: a plugin task type with no TASK_DOMAIN_MAP entry is routed to the
+  // loaded domains that handle it, as task_submit sast-scan without targetDomains.
+  it('accepts an unmapped type that a loaded domain plugin executes, without a target domain', () => {
+    const withSast = queenWith([
+      ['code-intelligence', plugin(['index', 'search'])],
+      ['security-compliance', plugin(['security-audit', 'sast-scan'])],
+    ]);
+    expect(withSast.validateTaskExecutable('sast-scan' as never).success).toBe(true);
+  });
+
+  it('rejects an unmapped type that only a plugin without executeTask claims', () => {
+    const noExecutor = queenWith([['security-compliance', plugin(['sast-scan'], false)]]);
+    const result = noExecutor.validateTaskExecutable('sast-scan' as never);
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.message).toContain('no loaded domain handles it');
+  });
+
   it('accepts any configured type when the Queen has no domain plugins to check', () => {
     expect(queenWith().validateTaskExecutable('index-code').success).toBe(true);
   });
@@ -103,7 +121,7 @@ describe('task type lookups ignore Object.prototype keys', () => {
     expect(result.success).toBe(false);
     if (result.success) return;
     expect(result.error.message).toBe(
-      `Unknown task type '${type}': no domain is configured for it. Pass a target domain.`,
+      `Unknown task type '${type}': no domain is configured for it and no loaded domain handles it. Pass a target domain.`,
     );
   });
 

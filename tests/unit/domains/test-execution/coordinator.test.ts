@@ -303,8 +303,11 @@ describe('TestExecutionCoordinator', () => {
         const result = await coordinator.runTests({ testFiles: ['a.test.ts', 'b.test.ts'], retryCount: 3 });
 
         expect(retry).toHaveBeenCalledWith(expect.objectContaining({ runId: 'r', failedTests: ['a', 'b'], maxRetries: 3 }));
+        // #1170: the test that passed on a retry counts as passed and flaky.
         expect(result.success && result.value).toMatchObject({
-          failed: 2,
+          passed: 2,
+          failed: 1,
+          flaky: 1,
           retries: {
             totalRetries: 1, nowPassing: 1, stillFailing: 1,
             tests: [

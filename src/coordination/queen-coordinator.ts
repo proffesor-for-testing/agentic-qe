@@ -125,7 +125,7 @@ import type {
 
 // Extracted modules
 import { subscribeToEvents, computeDomainHealthFromAgents } from './queen-event-handlers.js';
-import { findDomainsWithoutHandler, describeMissingHandler } from './task-executability.js';
+import { findDomainsWithoutHandler, findDomainsWithHandler, describeMissingHandler } from './task-executability.js';
 import {
   enqueueTask, removeFromQueues, getQueuePosition, processQueue,
   listTasks as listTasksImpl, assignTask, dispatchStolenTask, canDomainExecuteTask,
@@ -390,15 +390,27 @@ export class QueenCoordinator implements IQueenCoordinator {
    * accept the type unchanged.
    */
   validateTaskExecutable(type: TaskType, targetDomains: readonly DomainName[] = []): Result<void, Error> {
-    const candidates = targetDomains.length > 0 ? targetDomains : getTaskDomains(type);
+    const candidates = this.resolveTaskDomains(type, targetDomains);
     if (candidates.length === 0) {
-      return err(new Error(`Unknown task type '${type}': no domain is configured for it. Pass a target domain.`));
+      return err(new Error(`Unknown task type '${type}': no domain is configured for it and no loaded domain handles it. Pass a target domain.`));
     }
     if (!this.domainPlugins) return ok(undefined);
 
     const gaps = findDomainsWithoutHandler(this.domainPlugins, type, candidates);
     if (gaps.length === 0) return ok(undefined);
     return err(new Error(describeMissingHandler(type, gaps)));
+  }
+
+  /**
+   * The domains a task may run in: the caller's target domains, else the
+   * domains configured for its type, else (#1170) the loaded domains whose
+   * plugin handles the type.
+   */
+  private resolveTaskDomains(type: string, targetDomains: readonly DomainName[]): readonly DomainName[] {
+    if (targetDomains.length > 0) return targetDomains;
+    const configured = getTaskDomains(type);
+    if (configured.length > 0 || !this.domainPlugins) return configured;
+    return findDomainsWithHandler(this.domainPlugins, type);
   }
 
   async submitTask(taskInput: Omit<QueenTask, 'id' | 'createdAt'>): Promise<Result<string, Error>> {
@@ -409,6 +421,11 @@ export class QueenCoordinator implements IQueenCoordinator {
     const taskId = `task_${uuidv4()}`;
     const task: QueenTask = {
       ...taskInput,
+      // #1170: a plugin task type with no configured domain (e.g. sast-scan)
+      // runs in the domains that handle it, so routing and queueing see them.
+      targetDomains: getTaskDomains(taskInput.type).length > 0
+        ? taskInput.targetDomains
+        : [...this.resolveTaskDomains(taskInput.type, taskInput.targetDomains)],
       id: taskId,
       createdAt: new Date(),
       timeout: taskInput.timeout || this.config.defaultTaskTimeout,

@@ -102,6 +102,8 @@ export interface TestRunSummary {
   tests?: TestResult[];
   /** #1130: what the retries of failed tests did, when retries were requested. */
   retries?: { totalRetries: number; nowPassing: number; stillFailing: number; tests: Array<{ unmatched?: boolean }> };
+  /** #1170: tests that failed and then passed on a retry; counted in `passed`. */
+  flaky?: number;
 }
 
 export interface CoverageResult {
@@ -490,6 +492,7 @@ export function testRunToMarkdown(summary: TestRunSummary): string {
   md += `|--------|-------|\n`;
   md += `| Total | ${total} |\n`;
   md += `| Passed | ${summary.passed} |\n`;
+  if (summary.flaky) md += `| Flaky (passed on a retry) | ${summary.flaky} |\n`;
   md += `| Failed | ${summary.failed} |\n`;
   md += `| Skipped | ${summary.skipped} |\n`;
   md += `\n**Result:** ${summary.failed === 0 ? '\u2705 All tests passed' : '\u274C Some tests failed'}\n`;

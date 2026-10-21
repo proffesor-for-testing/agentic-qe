@@ -30,6 +30,7 @@ import type { HybridRouter } from '../../shared/llm/router/hybrid-router.js';
 import { TestExecutorService, TestExecutorConfig } from './services/test-executor';
 import { FlakyDetectorService, FlakyDetectorConfig } from './services/flaky-detector';
 import { RetryHandlerService, RetryHandlerConfig } from './services/retry-handler';
+import { applyRetryOutcome } from './services/retry-outcome';
 import { TestPrioritizerService, TestPrioritizerConfig, type TestMetadata, type TestPrioritizationContext } from './services/test-prioritizer';
 import {
   E2ETestRunnerService,
@@ -357,7 +358,8 @@ export class TestExecutionCoordinator
 
   /**
    * Retry a run's failed tests when retries were requested, and attach what
-   * the retries did to the run (#1130). The run's own counts are unchanged.
+   * the retries did to the run (#1130). A test that passed on a retry counts
+   * as passed and flaky in the run's own counts (#1170).
    */
   private async retryFailures(run: TestRunResult, retryCount: number | undefined): Promise<void> {
     if (!retryCount || retryCount <= 0) return;
@@ -372,17 +374,7 @@ export class TestExecutionCoordinator
       backoff: 'exponential',
     });
     if (!retried.success) return;
-    const byId = new Map(run.failedTests.map(t => [t.testId, t]));
-    run.retries = {
-      totalRetries: retried.value.retried,
-      nowPassing: retried.value.nowPassing,
-      stillFailing: retried.value.stillFailing,
-      tests: (retried.value.tests ?? []).map(({ testId, ...outcome }) => ({
-        name: byId.get(testId)?.testName ?? testId,
-        file: byId.get(testId)?.file ?? '',
-        ...outcome,
-      })),
-    };
+    applyRetryOutcome(run, retried.value);
   }
 
   /**
@@ -1020,15 +1012,11 @@ export class TestExecutionCoordinator
     runId: string,
     testFiles: string[],
     result: TestRunResult,
-    prioritizationInfo: unknown
+    _prioritizationInfo: unknown
   ): Promise<void> {
     // Record each test execution for learning
     for (let i = 0; i < testFiles.length; i++) {
       const testId = this.generateTestId(testFiles[i]);
-      const info = prioritizationInfo as {
-        method: string;
-        averageConfidence: number;
-      } | undefined;
 
       // Find if this test failed (check if it's in failed tests)
       const failedTest = result.failedTests.find(t => t.file === testFiles[i]);

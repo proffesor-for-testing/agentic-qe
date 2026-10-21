@@ -33,6 +33,22 @@ export function findDomainsWithoutHandler(
   return gaps;
 }
 
+/**
+ * #1170: the loaded domains whose plugin executes `type`. A plugin task type
+ * such as `sast-scan` has no entry in TASK_DOMAIN_MAP, so a caller that names
+ * no target domain is routed to the domains that handle it.
+ */
+export function findDomainsWithHandler(
+  domainPlugins: ReadonlyMap<DomainName, DomainPlugin>,
+  type: string,
+): DomainName[] {
+  const domains: DomainName[] = [];
+  for (const [domain, plugin] of domainPlugins) {
+    if (plugin.executeTask && plugin.canHandleTask?.(type)) domains.push(domain);
+  }
+  return domains;
+}
+
 export function describeMissingHandler(type: string, gaps: readonly string[]): string {
   return `No handler for task type '${type}' in domain ${gaps.join('; ')}`;
 }
