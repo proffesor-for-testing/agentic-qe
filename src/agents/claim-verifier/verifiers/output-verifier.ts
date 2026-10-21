@@ -27,16 +27,20 @@ const REDACT_PIECE_CHARS = 256 * 1024;
 /**
  * Redact command output of any size (#1150). redactLogText drops a string over
  * its scan limit instead of scanning it, and maxBuffer lets output reach 1 MB,
- * so long output is redacted in pieces cut at line ends; a credential on one
- * line is never split between pieces (unless that line alone exceeds a piece).
+ * so long output is redacted in pieces cut at line ends, and a credential on
+ * one line is never split between pieces. A line longer than a piece stays
+ * whole; one over the scan limit is dropped by redactLogText, never cut.
  */
 function redactOutput(raw: string): string {
   if (raw.length <= REDACT_PIECE_CHARS) return redactLogText(raw, Number.POSITIVE_INFINITY);
   const parts: string[] = [];
   for (let start = 0; start < raw.length;) {
     let end = Math.min(start + REDACT_PIECE_CHARS, raw.length);
-    const lineEnd = end < raw.length ? raw.lastIndexOf('\n', end) : -1;
-    if (lineEnd > start) end = lineEnd + 1;
+    if (end < raw.length) {
+      const lineEnd = raw.lastIndexOf('\n', end - 1);
+      const next = raw.indexOf('\n', end);
+      end = lineEnd >= start ? lineEnd + 1 : next === -1 ? raw.length : next + 1;
+    }
     parts.push(redactLogText(raw.slice(start, end), Number.POSITIVE_INFINITY));
     start = end;
   }

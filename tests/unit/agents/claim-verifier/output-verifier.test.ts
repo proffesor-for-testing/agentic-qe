@@ -305,6 +305,22 @@ describe('OutputBasedVerifier', () => {
       expect(stored).not.toContain('M3n4O5p6Q7r8');
     });
 
+    it('never splits a credential on a line longer than one redaction piece', async () => {
+      // Arrange: a 300 KB single line with a token across the 256 KB mark.
+      const claim = makeClaim({ statement: 'Build completed successfully' });
+      const stderr = 'e'.repeat(256 * 1024 - 20) + ' ghp_A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8 ' + 'e'.repeat(50_000) + '\nBuild failed';
+      mockExecAsync.mockRejectedValue(Object.assign(new Error('Command failed'), { stdout: '', stderr, code: 1 }));
+
+      // Act
+      const result = await verifier.verify(claim);
+
+      // Assert
+      const stored = JSON.stringify(result.counterEvidence);
+      expect(stored).toContain('Build failed');
+      expect(stored).not.toContain('ghp_A1b2');
+      expect(stored).not.toContain('M3n4O5p6Q7r8');
+    });
+
     it('redacts output longer than one redaction piece without dropping it', async () => {
       // Arrange: ~1 MB of output (over redactLogText's scan limit), credential near the end.
       const claim = makeClaim({ statement: 'Build completed successfully' });

@@ -68,6 +68,20 @@ describe.skipIf(isWindows)('coverage runner stderr is redacted before it is slic
     expect(tail).not.toContain(TOKEN.slice(0, 10));
   });
 
+  it('keeps a private key cut by the 64 KB window edge out of the summary', async () => {
+    // A PEM key starts just before the tail window, so the window holds its
+    // body without the BEGIN line; ~62 KB of output follow it.
+    const body = Array.from({ length: 20 }, (_, i) => `MIIKEYBODYLINE${String(i).padStart(2, '0')}` + 'Q'.repeat(50)).join('\n');
+    const key = `-----BEGIN PRIVATE KEY-----\n${body}\n-----END PRIVATE KEY-----\n`;
+    const after = 'w'.repeat(64 * 1024 - 900) + '\nend\n';
+    const text = 'Error: boom\n' + 'p'.repeat(8000) + '\n' + key + after;
+    const tail = await stderrOf(`process.stderr.write(${JSON.stringify(text)}); process.exit(1);`);
+
+    expect(tail.startsWith('Error: boom')).toBe(true);
+    expect(tail).toMatch(/end$/);
+    expect(tail).not.toContain('MIIKEYBODYLINE');
+  });
+
   it('keeps the note that reaches provenance.notes free of the secret', async () => {
     const stderrTail = await stderrOf(`process.stderr.write(${JSON.stringify(`Error: ${URL} token=${TOKEN}\n`)}); process.exit(1);`);
     const note = describeRunFailure({
