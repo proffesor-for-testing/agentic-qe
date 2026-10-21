@@ -32,6 +32,15 @@ export interface FleetProgressOptions {
   format?: string;
 }
 
+/** Options for {@link FleetProgressManager.stop}. */
+export interface FleetProgressStopOptions {
+  /**
+   * The operation's verdict failed (#1168). The agents still completed, but
+   * the summary line must not call that a success.
+   */
+  verdictFailed?: boolean;
+}
+
 export interface SpinnerOptions {
   text: string;
   color?: 'cyan' | 'green' | 'yellow' | 'red' | 'blue' | 'magenta' | 'white';
@@ -47,6 +56,8 @@ export interface EtaEstimate {
 // ============================================================================
 // Fleet Progress Manager - Multi-bar progress for parallel agents
 // ============================================================================
+
+const FLEET_BAR_NAME = chalk.white('Fleet Progress'.padEnd(30));
 
 export class FleetProgressManager {
   private multiBar: MultiBar;
@@ -69,10 +80,12 @@ export class FleetProgressManager {
       ...options,
     };
 
-    // Custom format for multi-bar display (respects color config)
+    // Custom format for multi-bar display (respects color config).
+    // `{eta}` is a cli-progress built-in that overrides the payload, so the
+    // formatted ETA travels as `{etaText}` (#1168).
     const barColor = useColors ? chalk.cyan('{bar}') : '{bar}';
     const format = this.options.format ||
-      `{name} ${barColor} {percentage}% | {status} {eta}`;
+      `{name} ${barColor} {percentage}% | {status} {etaText}`;
 
     this.multiBar = new MultiBar({
       clearOnComplete: false,
@@ -88,17 +101,17 @@ export class FleetProgressManager {
   /**
    * Start the fleet progress display
    */
-  start(totalAgents: number): void {
+  start(_totalAgents: number): void {
     this.isActive = true;
     this.startTime = Date.now();
 
     // Create fleet-level progress bar
     console.log(chalk.blue(`\n${this.options.title}\n`));
 
-    this.fleetBar = this.multiBar.create(100, 0, {
-      name: chalk.white('Fleet Progress'.padEnd(30)),
+    this.fleetBar = this.createBar(0, {
+      name: FLEET_BAR_NAME,
       status: '',
-      eta: '',
+      etaText: '',
     });
   }
 
@@ -110,10 +123,10 @@ export class FleetProgressManager {
 
     this.agentStates.set(agent.id, agent);
 
-    const bar = this.multiBar.create(100, agent.progress, {
+    const bar = this.createBar(agent.progress, {
       name: chalk.gray(this.truncateName(agent.name, 30).padEnd(30)),
       status: this.getStatusIcon(agent.status),
-      eta: agent.eta ? this.formatEta(agent.eta) : '',
+      etaText: agent.eta ? this.formatEta(agent.eta) : '',
     });
 
     this.agentBars.set(agent.id, bar);
@@ -145,7 +158,7 @@ export class FleetProgressManager {
     bar.update(state.progress, {
       name: this.getAgentNameDisplay(state),
       status: this.getStatusIcon(state.status),
-      eta: state.eta ? this.formatEta(state.eta) : '',
+      etaText: state.eta ? this.formatEta(state.eta) : '',
     });
 
     this.updateFleetProgress();
@@ -168,7 +181,7 @@ export class FleetProgressManager {
     bar.update(state.progress, {
       name: this.getAgentNameDisplay(state),
       status: this.getStatusIcon(state.status),
-      eta: '',
+      etaText: '',
     });
 
     this.updateFleetProgress();
@@ -177,7 +190,7 @@ export class FleetProgressManager {
   /**
    * Stop the progress display
    */
-  stop(): void {
+  stop(options: FleetProgressStopOptions = {}): void {
     if (!this.isActive) return;
 
     this.isActive = false;
@@ -192,7 +205,9 @@ export class FleetProgressManager {
     const duration = Date.now() - this.startTime;
 
     console.log('');
-    if (failed === 0) {
+    if (failed === 0 && options.verdictFailed) {
+      console.log(chalk.yellow(`All ${completed}/${total} agents completed (${this.formatDuration(duration)})`));
+    } else if (failed === 0) {
       console.log(chalk.green(`All ${completed}/${total} agents completed successfully (${this.formatDuration(duration)})`));
     } else {
       console.log(chalk.yellow(`${completed}/${total} agents completed, ${failed} failed (${this.formatDuration(duration)})`));
@@ -214,9 +229,21 @@ export class FleetProgressManager {
     const running = agents.filter(a => a.status === 'running').length;
 
     this.fleetBar.update(avgProgress, {
+      name: FLEET_BAR_NAME,
       status: chalk.gray(`${completed}/${agents.length} complete, ${running} running`),
-      eta: this.options.showEta ? this.estimateFleetEta(agents) : '',
+      etaText: this.options.showEta ? this.estimateFleetEta(agents) : '',
     });
+  }
+
+  /**
+   * Create a bar and apply its payload. Without a TTY, cli-progress's
+   * MultiBar.create() returns before starting the bar, dropping the payload,
+   * so the final render printed a literal `{name}` (#1168).
+   */
+  private createBar(value: number, payload: Record<string, string>): SingleBar {
+    const bar = this.multiBar.create(100, value, payload);
+    bar.update(value, payload);
+    return bar;
   }
 
   private getAgentNameDisplay(agent: AgentProgress): string {
@@ -552,7 +579,7 @@ export function withSpinner<T>(
   text: string,
   operation: () => Promise<T>
 ): Promise<T> {
-  const { spinner, succeed, fail } = createTimedSpinner(text);
+  const { succeed, fail } = createTimedSpinner(text);
 
   return operation()
     .then((result) => {

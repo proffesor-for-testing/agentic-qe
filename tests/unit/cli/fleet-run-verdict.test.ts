@@ -161,6 +161,8 @@ describe('fleet run execution verdicts', () => {
     expect(console.log).toHaveBeenCalledWith(expect.stringContaining('[critical] Code Injection via eval() @ src/a.js:2'));
     expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Verdict: FAILED (1 critical and 0 high findings)'));
     expect(cleanup).toHaveBeenCalledWith(1);
+    // #1168: the completion line must not call a failed verdict a success.
+    expect(progress.stop).toHaveBeenCalledWith({ verdictFailed: true });
   });
 
   it('fails generated tests that failed the test quality gate', async () => {
@@ -178,6 +180,7 @@ describe('fleet run execution verdicts', () => {
     expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Quality gate: passed'));
     expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Verdict: PASSED'));
     expect(cleanup).toHaveBeenCalledWith(0);
+    expect(progress.stop).toHaveBeenCalledWith({ verdictFailed: false });
   });
 
   it('retains rejection and completion verdicts', async () => {
