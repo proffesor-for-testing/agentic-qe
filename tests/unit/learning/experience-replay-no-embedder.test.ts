@@ -11,6 +11,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const embeddingMocks = vi.hoisted(() => ({ available: false }));
 
+vi.mock('../../../src/kernel/unified-memory.js', () => ({
+  getUnifiedMemory: () => ({
+    initialize: async () => undefined,
+    getDatabase: () => ({ prepare: () => ({ all: () => [], run: () => undefined }) }),
+  }),
+}));
+
 vi.mock('../../../src/learning/real-embeddings.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../src/learning/real-embeddings.js')>();
   return {
@@ -24,6 +31,7 @@ vi.mock('../../../src/learning/real-embeddings.js', async (importOriginal) => {
 
 import { ExperienceReplay } from '../../../src/integrations/agentic-flow/reasoning-bank/experience-replay.js';
 import type { Trajectory } from '../../../src/integrations/agentic-flow/reasoning-bank/trajectory-tracker.js';
+import { resetRuVectorFeatureFlags, setRuVectorFeatureFlags } from '../../../src/integrations/ruvector/feature-flags.js';
 
 const TRAJECTORY = {
   id: 'traj-1',
@@ -47,7 +55,27 @@ function initializedReplay() {
 describe('ExperienceReplay without an embedding runtime (#1022)', () => {
   afterEach(() => {
     embeddingMocks.available = false;
+    resetRuVectorFeatureFlags();
     vi.restoreAllMocks();
+  });
+
+  it('gives no guidance from the reservoir buffer when the query cannot be embedded', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    setRuVectorFeatureFlags({ useReservoirReplay: true });
+    const replay = new ExperienceReplay({ autoPrune: false });
+    vi.spyOn(replay as never, 'ensureSchema').mockImplementation(() => undefined);
+    vi.spyOn(replay as never, 'prepareStatements').mockImplementation(() => undefined);
+    vi.spyOn(replay as never, 'loadEmbeddingIndex').mockResolvedValue(undefined);
+    await replay.initialize();
+    // A high-quality experience is admitted to the reservoir buffer.
+    await replay.storeExperience(TRAJECTORY, 'analyze then generate');
+
+    // An unrelated task: without a query embedding nothing measures relevance,
+    // so the reservoir must not supply guidance with a made-up similarity.
+    const guidance = await replay.getGuidance('audit the billing service for SQL injection');
+
+    expect(guidance).toBeNull();
   });
 
   it('stores the experience without a vector instead of throwing', async () => {

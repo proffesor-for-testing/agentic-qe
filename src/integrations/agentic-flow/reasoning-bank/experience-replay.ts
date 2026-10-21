@@ -700,6 +700,14 @@ export class ExperienceReplay {
   ): Promise<ExperienceGuidance | null> {
     this.ensureInitialized();
 
+    // #1022: the reservoir blend below picks experiences without looking at
+    // the query and gives them a coherence-derived similarity. Without an
+    // embedding of the query nothing measures relevance, so return no guidance
+    // rather than query-independent picks with a made-up similarity.
+    if (!(await this.embedOrNull(scrubReasoningBlocks(task)))) {
+      return null;
+    }
+
     // Find similar experiences via HNSW
     const similar = await this.findSimilarExperiences(task, domain);
 
