@@ -69,7 +69,8 @@ function collectMessages(error: unknown): string {
 
 function firstLine(message: string): string {
   // Drop the dangling "Tried:" that introduces the bindings package's path list.
-  return message.split('\n')[0].replace(/\s*Tried:\s*$/, '').trim();
+  const line = message.split('\n')[0].trim();
+  return line.endsWith('Tried:') ? line.slice(0, -'Tried:'.length).trimEnd() : line;
 }
 
 /**
