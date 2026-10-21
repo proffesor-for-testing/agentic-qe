@@ -22,6 +22,8 @@ import {
   type InitContext,
 } from './phase-interface.js';
 import { getAQEVersion } from '../types.js';
+import { toErrorMessage } from '../../shared/error-utils.js';
+import { isNativeModuleLoadFailure, withNativeModuleRemedy } from '../../shared/native-module-errors.js';
 
 export interface DatabaseResult {
   dbPath: string;
@@ -135,6 +137,14 @@ export class DatabasePhase extends BasePhase<DatabaseResult> {
         schemaVersion,
       };
     } catch (error) {
+      // A native-addon load failure (#1173) is not a disk/permission problem:
+      // report the cause and the install fix instead of the generic advice.
+      if (isNativeModuleLoadFailure(error)) {
+        throw new Error(
+          `SQLite persistence initialization FAILED: ${toErrorMessage(withNativeModuleRemedy(error))}`,
+          { cause: error },
+        );
+      }
       throw new Error(
         `SQLite persistence initialization FAILED: ${error}\n` +
         `Database path: ${dbPath}\n` +

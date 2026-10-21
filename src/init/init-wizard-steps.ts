@@ -14,6 +14,7 @@ import { createSkillsInstaller } from './skills-installer.js';
 import { createAgentsInstaller } from './agents-installer.js';
 import { createN8nInstaller } from './n8n-installer.js';
 import { toErrorMessage } from '../shared/error-utils.js';
+import { isNativeModuleLoadFailure, withNativeModuleRemedy } from '../shared/native-module-errors.js';
 import { openDatabase } from '../shared/safe-db.js';
 import { safeJsonParse } from '../shared/safe-json.js';
 
@@ -142,7 +143,7 @@ export async function initializePersistenceDatabase(projectRoot: string): Promis
   try {
     const mod = await import('better-sqlite3');
     Database = mod.default;
-  } catch (error) {
+  } catch {
     throw new Error(
       'SQLite persistence REQUIRED but better-sqlite3 is not installed.\n' +
       'Install it with: npm install better-sqlite3\n' +
@@ -198,6 +199,12 @@ export async function initializePersistenceDatabase(projectRoot: string): Promis
     console.log(`✓ SQLite persistence initialized: ${dbPath}`);
     return true;
   } catch (error) {
+    if (isNativeModuleLoadFailure(error)) {
+      throw new Error(
+        `SQLite persistence initialization FAILED: ${toErrorMessage(withNativeModuleRemedy(error))}`,
+        { cause: error },
+      );
+    }
     throw new Error(
       `SQLite persistence initialization FAILED: ${error}\n` +
       `Database path: ${dbPath}\n` +

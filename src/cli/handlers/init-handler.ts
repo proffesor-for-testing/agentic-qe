@@ -282,12 +282,7 @@ export class InitHandler implements ICommandHandler {
     }
 
     // Display step results
-    for (const step of result.steps) {
-      const statusIcon = step.status === 'success' ? '*' : step.status === 'error' ? 'x' : '!';
-      const statusColor = step.status === 'success' ? chalk.green : step.status === 'error' ? chalk.red : chalk.yellow;
-      console.log(statusColor(`  ${statusIcon} ${step.step} (${step.durationMs}ms)`));
-    }
-    console.log('');
+    printInitSteps(result.steps);
 
     // Claude Flow integration (after base init)
     let cfResult: ClaudeFlowSetupResult | undefined;
@@ -387,12 +382,7 @@ export class InitHandler implements ICommandHandler {
     const result = await orchestrator.initialize();
 
     // Display step results
-    for (const step of result.steps) {
-      const statusIcon = step.status === 'success' ? '*' : step.status === 'error' ? 'x' : '!';
-      const statusColor = step.status === 'success' ? chalk.green : step.status === 'error' ? chalk.red : chalk.yellow;
-      console.log(statusColor(`  ${statusIcon} ${step.step} (${step.durationMs}ms)`));
-    }
-    console.log('');
+    printInitSteps(result.steps);
 
     if (result.success) {
       console.log(chalk.green('  AQE v3 initialized successfully!\n'));
@@ -747,6 +737,40 @@ function isPeerInstalled(pkg: string): boolean {
     const code = (err as NodeJS.ErrnoException)?.code;
     return code === 'ERR_PACKAGE_PATH_NOT_EXPORTED';
   }
+}
+
+interface DisplayedInitStep {
+  step: string;
+  status: string;
+  message?: string;
+  durationMs: number;
+}
+
+/**
+ * Render init step results. A failed step's message is printed under it —
+ * previously only the step name was shown and the CLI then said "Check errors
+ * above" with no error anywhere on screen (#1173).
+ */
+export function formatInitStepLines(steps: readonly DisplayedInitStep[]): string[] {
+  const lines: string[] = [];
+  for (const step of steps) {
+    const statusIcon = step.status === 'success' ? '*' : step.status === 'error' ? 'x' : '!';
+    const statusColor = step.status === 'success' ? chalk.green : step.status === 'error' ? chalk.red : chalk.yellow;
+    lines.push(statusColor(`  ${statusIcon} ${step.step} (${step.durationMs}ms)`));
+    if (step.status === 'error' && step.message) {
+      for (const line of step.message.split('\n')) {
+        lines.push(chalk.red(`      ${line}`));
+      }
+    }
+  }
+  return lines;
+}
+
+function printInitSteps(steps: readonly DisplayedInitStep[]): void {
+  for (const line of formatInitStepLines(steps)) {
+    console.log(line);
+  }
+  console.log('');
 }
 
 function printOptionalPeerHints(): void {

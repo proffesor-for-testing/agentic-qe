@@ -177,6 +177,32 @@ describe('DatabasePhase', () => {
       expect(result.message).toContain('failed');
     });
 
+    it('should name the native-module cause and fix when better-sqlite3 cannot load (#1173)', async () => {
+      // What UnifiedMemory rethrows when npm 12 blocked better-sqlite3's install script.
+      vi.mocked(initializeUnifiedMemory).mockRejectedValueOnce(new Error(
+        'Failed to initialize UnifiedMemoryManager: Could not locate the bindings file. Tried:\n' +
+        ' → /usr/lib/node_modules/agentic-qe/node_modules/better-sqlite3/build/better_sqlite3.node',
+      ));
+      const result = await phase.execute(createMockContext());
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('better-sqlite3 native module could not be loaded');
+      expect(result.message).toContain(
+        'npm install -g agentic-qe --allow-scripts=agentic-qe,better-sqlite3,hnswlib-node',
+      );
+      expect(result.message).toContain('npm rebuild -g better-sqlite3 --allow-scripts=better-sqlite3');
+      expect(result.message).not.toContain('sufficient disk space');
+    });
+
+    it('should keep the disk/permission advice for non-native failures', async () => {
+      vi.mocked(initializeUnifiedMemory).mockRejectedValueOnce(new Error('SQLITE_FULL: database or disk is full'));
+      const result = await phase.execute(createMockContext());
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('sufficient disk space');
+      expect(result.message).not.toContain('--allow-scripts');
+    });
+
     it('should log database path and schema info', async () => {
       const logFn = vi.fn();
       const context = createMockContext({

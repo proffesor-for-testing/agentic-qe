@@ -12,6 +12,7 @@
 import Database, { type Database as DatabaseType } from 'better-sqlite3';
 import { basename } from 'node:path';
 import { attemptAutoRestore } from './db-recovery.js';
+import { withNativeModuleRemedy } from './native-module-errors.js';
 
 export interface SafeDbOptions {
   /** Open in read-only mode (default: false) */
@@ -83,10 +84,18 @@ export function openDatabase(dbPath: string, opts?: SafeDbOptions): DatabaseType
     journalOverride === 'DELETE' ||
     journalOverride === 'TRUNCATE';
 
-  const db = new Database(dbPath, {
-    readonly,
-    fileMustExist,
-  });
+  // better-sqlite3 loads its native addon lazily, on the first construction.
+  // A missing/mismatched binary (e.g. npm 12 blocked its install script, #1173)
+  // surfaces here; rethrow it with the cause and the fix command.
+  let db: DatabaseType;
+  try {
+    db = new Database(dbPath, {
+      readonly,
+      fileMustExist,
+    });
+  } catch (err) {
+    throw withNativeModuleRemedy(err);
+  }
 
   // Always set busy_timeout — even for readonly connections.
   // Without this, concurrent access gets SQLITE_BUSY immediately.
