@@ -28,6 +28,7 @@ import semver from 'semver';
 import { parse as parseYaml } from 'yaml';
 import { safeJsonParse } from '@shared/safe-json.js';
 import { classifyNpmSpec, exactNpmVersion } from '@shared/security/osv-lookup.js';
+import { createSafeRecord, getOwn, setOwn } from '@shared/utils/safe-record.js';
 import { LOCKFILES, parseLockfile, type LockIndex, type LockfileName } from './lockfile-versions.js';
 
 export interface ResolvedDependency {
@@ -70,10 +71,11 @@ type Manifest = { name?: unknown; workspaces?: unknown } & Partial<Record<'depen
 
 /** All declared dependencies of a manifest (later fields win, as npm resolves them). */
 export function declaredDependencies(manifest: Manifest): Record<string, string> {
-  const out: Record<string, string> = {};
+  // #1157: a dependency named `__proto__` is kept as an own entry, not dropped.
+  const out = createSafeRecord<string>();
   for (const field of ['peerDependencies', 'optionalDependencies', 'devDependencies', 'dependencies'] as const) {
     for (const [name, spec] of Object.entries(manifest[field] ?? {})) {
-      if (typeof spec === 'string') out[name] = spec;
+      if (typeof spec === 'string') setOwn(out, name, spec);
     }
   }
   return out;
@@ -220,7 +222,10 @@ export function resolveFromRecord(
     members: () => [],
     hasImporter: () => true,
     recordedSpec: () => null,
-    resolve: (_importer, name) => (lockedVersions[name] !== undefined ? { version: lockedVersions[name] } : undefined),
+    resolve: (_importer, name) => {
+      const version = getOwn(lockedVersions, name);
+      return version !== undefined ? { version } : undefined;
+    },
   };
   return Object.entries(dependencies).map(([name, spec]) => resolveOne(name, spec, '', index, new Set()));
 }

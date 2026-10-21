@@ -178,7 +178,8 @@ export class JSONReader implements DataReader<JSONRecord> {
 
     let current: unknown = data;
     for (const part of pathParts) {
-      if (current && typeof current === 'object' && part in (current as Record<string, unknown>)) {
+      // #1157: own keys only; `$.constructor` is not a path into the data.
+      if (current && typeof current === 'object' && Object.hasOwn(current, part)) {
         current = (current as Record<string, unknown>)[part];
       } else {
         return [];

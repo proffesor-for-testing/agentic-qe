@@ -13,6 +13,7 @@ import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getMemoryBac
 import { ToolResult } from '../../types';
 import { toErrorMessage } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
+import { getOwn } from '../../../shared/utils/safe-record.js';
 import {
   ALL_SECURITY_PATTERNS,
   SECRET_PATTERNS,
@@ -610,7 +611,8 @@ function checkKnownVulnerableDeps(
 ): Vulnerability[] {
   const vulns: Vulnerability[] = [];
   for (const [name, version] of Object.entries(deps)) {
-    const known = KNOWN_VULNERABLE_NPM[name];
+    // #1157: a dependency named `constructor` is a package, not a table entry.
+    const known = getOwn(KNOWN_VULNERABLE_NPM, name);
     if (known) {
       const cleanVersion = version.replace(/^[\^~>=<]+/, '');
       if (compareVersions(cleanVersion, known.maxSafe) < 0) {
@@ -666,7 +668,7 @@ function extractRequirementsTxtDeps(content: string): string[] {
 function checkKnownVulnerablePythonDeps(deps: string[], manifest: string): Vulnerability[] {
   const vulns: Vulnerability[] = [];
   for (const dep of deps) {
-    const known = KNOWN_VULNERABLE_PYTHON[dep];
+    const known = getOwn(KNOWN_VULNERABLE_PYTHON, dep);
     if (known) {
       vulns.push({
         id: `DEP-py-${dep}-${known.cve}`,

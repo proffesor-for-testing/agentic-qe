@@ -145,8 +145,8 @@ export function resolveFrameworkAlias(input: string): TestFramework | undefined 
   if (ALL_TEST_FRAMEWORKS.includes(lower as TestFramework)) {
     return lower as TestFramework;
   }
-  // Alias match
-  return FRAMEWORK_ALIASES[lower];
+  // Alias match. #1157: own entries only, so `constructor` is not an alias.
+  return Object.hasOwn(FRAMEWORK_ALIASES, lower) ? FRAMEWORK_ALIASES[lower] : undefined;
 }
 
 /**

@@ -11,6 +11,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 
 import type { AQEInitConfig } from './types.js';
+import { getOwn, setOwn } from '../shared/utils/safe-record.js';
 
 /**
  * Create a one-time `.backup` of an existing settings.json before AQE modifies
@@ -86,11 +87,13 @@ export function mergeHooksSmart(
   existingHooks: Record<string, unknown[]>,
   newAqeHooks: Record<string, unknown[]>,
 ): Record<string, unknown[]> {
+  // #1157: hook types come from the user's settings.json; read and write own
+  // entries only, so a type named `constructor` or `__proto__` is kept as-is.
   const merged: Record<string, unknown[]> = {};
 
   // Process hook types that have new AQE entries
   for (const [hookType, newEntries] of Object.entries(newAqeHooks)) {
-    const existing = existingHooks[hookType] || [];
+    const existing = getOwn(existingHooks, hookType) || [];
 
     // Keep only non-AQE entries from existing config
     const userEntries = Array.isArray(existing)
@@ -98,14 +101,14 @@ export function mergeHooksSmart(
       : [];
 
     // New AQE hooks go after user hooks (except PreToolUse guard which should be first)
-    merged[hookType] = [...newEntries, ...userEntries];
+    setOwn(merged, hookType, [...newEntries, ...userEntries]);
   }
 
   // Preserve hook types that are not in our new config (user's custom hook types)
   for (const [hookType, hookArray] of Object.entries(existingHooks)) {
-    if (!merged[hookType]) {
+    if (!Object.hasOwn(merged, hookType)) {
       // This hook type isn't one we manage — keep it as-is
-      merged[hookType] = hookArray;
+      setOwn(merged, hookType, hookArray);
     }
   }
 

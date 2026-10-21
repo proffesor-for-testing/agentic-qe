@@ -29,6 +29,7 @@ import {
 } from './model-provider';
 import { Result, ok, err, Severity } from '../../shared/types';
 import { toErrorMessage, toError } from '../../shared/error-utils.js';
+import { createSafeRecord } from '../../shared/utils/safe-record.js';
 import {
   ConsensusStrategyType,
   MajorityStrategy,
@@ -373,7 +374,8 @@ export class ConsensusEngineImpl implements ConsensusEngine {
       averageExecutionTime: 0,
       totalCost: 0,
       humanReviewCount: 0,
-      modelStats: {},
+      // #1157: keyed by provider model ids.
+      modelStats: createSafeRecord(),
     };
   }
 

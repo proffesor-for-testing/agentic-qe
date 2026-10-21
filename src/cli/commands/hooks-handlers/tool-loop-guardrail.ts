@@ -18,6 +18,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { createSafeRecord, getOwn, setOwn } from '../../../shared/utils/safe-record.js';
 
 export type ToolLoopVerdict = 'allow' | 'warn' | 'block';
 
@@ -83,7 +84,7 @@ export class ToolLoopGuardrail {
       return { verdict: 'allow', consecutiveFailures: 0, halfOpen: false };
     }
 
-    const entry = this.readState()[sig];
+    const entry = getOwn(this.readState(), sig);
     if (!entry || entry.consecutiveFailures < this.warnThreshold) {
       return { verdict: 'allow', consecutiveFailures: entry?.consecutiveFailures ?? 0, halfOpen: false };
     }
@@ -133,17 +134,17 @@ export class ToolLoopGuardrail {
       const state = this.readState();
 
       if (success) {
-        if (state[sig]) {
+        if (getOwn(state, sig)) {
           delete state[sig];
           this.writeState(state, now);
         }
         return;
       }
 
-      const entry = state[sig] ?? { consecutiveFailures: 0, lastFailureAt: now };
+      const entry = getOwn(state, sig) ?? { consecutiveFailures: 0, lastFailureAt: now };
       entry.consecutiveFailures += 1;
       entry.lastFailureAt = now;
-      state[sig] = entry;
+      setOwn(state, sig, entry);
       this.writeState(state, now);
     } catch {
       /* fail-open: guardrail must never break the hook */
@@ -159,9 +160,13 @@ export class ToolLoopGuardrail {
     try {
       const raw = fs.readFileSync(this.statePath, 'utf8');
       const parsed = JSON.parse(raw) as ToolLoopState;
-      return typeof parsed === 'object' && parsed !== null ? parsed : {};
+      // #1157: keys are command signatures (`__proto__` is a valid command
+      // string), so the state never inherits from Object.prototype.
+      return typeof parsed === 'object' && parsed !== null
+        ? Object.assign(createSafeRecord<BreakerEntry>(), parsed)
+        : createSafeRecord<BreakerEntry>();
     } catch {
-      return {}; // missing or corrupt sidecar → clean slate
+      return createSafeRecord<BreakerEntry>(); // missing or corrupt sidecar → clean slate
     }
   }
 

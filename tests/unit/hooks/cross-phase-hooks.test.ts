@@ -308,6 +308,32 @@ describe('CrossPhaseHookExecutor', () => {
   // Signal formatting
   // -------------------------------------------------------------------------
 
+  describe('onPhaseStart (#1157)', () => {
+    it('should inject signals into agents named after Object.prototype members', async () => {
+      // Arrange: agent names come from the hooks YAML file.
+      vi.mocked(existsSync).mockReturnValue(true);
+      vi.mocked(readFileSync).mockReturnValue('');
+      vi.mocked(parseYaml).mockReturnValue(
+        makeConfig({
+          hooks: {
+            'phase-start-hook': makeHook(
+              { event: 'phase-start', phase: 'testing' },
+              [{ type: 'query-signals', namespace: 'strategic', injectInto: ['constructor', 'toString', '__proto__', 'qe-a'] }]
+            ),
+          },
+        })
+      );
+      await executor.initialize();
+
+      // Act
+      const injected = await executor.onPhaseStart('testing');
+
+      // Assert
+      expect(Object.keys(injected).sort()).toEqual(['__proto__', 'constructor', 'qe-a', 'toString']);
+      expect(({} as Record<string, unknown>).push).toBeUndefined();
+    });
+  });
+
   describe('formatSignalsForInjection', () => {
     it('should return empty string for no signals', () => {
       // Arrange & Act

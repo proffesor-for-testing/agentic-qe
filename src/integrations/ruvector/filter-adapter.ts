@@ -105,7 +105,8 @@ function resolveField(result: PatternSearchResult, fieldPath: string): unknown {
 
     for (const part of parts) {
       if (current === null || current === undefined) break;
-      if (typeof current === 'object') {
+      // #1157: an inherited member such as `toString` is not a field.
+      if (typeof current === 'object' && Object.hasOwn(current, part)) {
         current = (current as Record<string, unknown>)[part];
       } else {
         current = undefined;

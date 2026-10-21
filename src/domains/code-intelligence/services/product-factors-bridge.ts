@@ -554,7 +554,9 @@ export class ProductFactorsBridgeService
       };
 
       for (const [depName] of Object.entries(allDeps)) {
-        const pattern = EXTERNAL_SYSTEM_PATTERNS[depName];
+        // #1157: dependency names come from package.json; a package named
+        // `constructor` is not a known external system.
+        const pattern = Object.hasOwn(EXTERNAL_SYSTEM_PATTERNS, depName) ? EXTERNAL_SYSTEM_PATTERNS[depName] : undefined;
         if (pattern) {
           systems.push({
             id: sanitizeId(depName),
