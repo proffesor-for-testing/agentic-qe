@@ -20,6 +20,7 @@
  */
 
 import * as fs from 'fs';
+import { readConfinedTextSync } from '../../shared/io/confined-read.js';
 import * as os from 'os';
 import * as path from 'path';
 import type { CoverageData, FileCoverage } from '../../domains/coverage-analysis/interfaces';
@@ -589,7 +590,8 @@ export function buildEstimatedCoverage(targetPath: string): CollectedCoverage | 
 
   const files: FileCoverage[] = sourceFiles.map(filePath => {
     let content = '';
-    try { content = fs.readFileSync(filePath, 'utf-8'); } catch { /* unreadable — treat as empty */ }
+    // #1161: a source file linked out of the project is treated as unreadable.
+    try { content = readConfinedTextSync(filePath, { outsideRoot: 'allow' }); } catch { /* unreadable — treat as empty */ }
 
     const ext = path.extname(filePath);
     const totalLines = countLines(content);

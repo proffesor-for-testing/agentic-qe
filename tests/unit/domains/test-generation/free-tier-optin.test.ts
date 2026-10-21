@@ -12,9 +12,10 @@ vi.mock('../../../../src/routing/free-tier/provider.js', async (orig) => {
   return { ...actual, freeTierChat: (...a: unknown[]) => chatMock(...a) };
 });
 const readFileMock = vi.fn<(...a: unknown[]) => Promise<string>>();
-vi.mock('node:fs/promises', async (orig) => {
-  const actual = await orig<typeof import('node:fs/promises')>();
-  return { ...actual, readFile: (...a: unknown[]) => readFileMock(...a) };
+// #1161: the coordinator reads the source through the confined reader.
+vi.mock('../../../../src/shared/io/confined-read.js', async (orig) => {
+  const actual = await orig<typeof import('../../../../src/shared/io/confined-read.js')>();
+  return { ...actual, readConfinedText: (...a: unknown[]) => readFileMock(...a) };
 });
 
 import { TestGenerationCoordinator, type CoordinatorConfig } from '../../../../src/domains/test-generation/coordinator';

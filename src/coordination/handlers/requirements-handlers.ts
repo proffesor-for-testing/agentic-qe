@@ -5,7 +5,7 @@
  * Covers: validate-requirements, validate-contracts
  */
 
-import * as fs from 'fs/promises';
+import { readConfinedText } from '../../shared/io/confined-read.js';
 import { ok, err } from '../../shared/types';
 import { toError, toErrorMessage } from '../../shared/error-utils.js';
 import type { TaskHandlerContext } from './handler-types';
@@ -88,7 +88,8 @@ export function registerRequirementsHandlers(ctx: TaskHandlerContext): void {
 
       // Check if the contract file exists
       try {
-        const content = await fs.readFile(confined.value, 'utf-8');
+        // #1161: read from the descriptor that was validated, not the name.
+        const content = await readConfinedText(confined.value, { maxBytes: MAX_PAYLOAD_FILE_BYTES });
         const isJson = payload.contractPath.endsWith('.json');
         const isYaml = payload.contractPath.endsWith('.yaml') || payload.contractPath.endsWith('.yml');
 

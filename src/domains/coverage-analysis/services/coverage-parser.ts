@@ -20,6 +20,16 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { safeJsonParse } from '../../../shared/safe-json.js';
+import { readConfinedText } from '../../../shared/io/confined-read.js';
+
+/**
+ * #1161: coverage reports are found under caller-named directories, so read
+ * them from a validated descriptor: a report linked out of the project, or to
+ * a device such as /dev/zero, is refused instead of read.
+ */
+function readCoverageFile(file: string): Promise<string> {
+  return readConfinedText(file, { outsideRoot: 'allow' });
+}
 
 // ============================================================================
 // Coverage Data Types
@@ -190,7 +200,7 @@ export async function parseLCOV(
   lcovPath: string,
   projectRoot?: string
 ): Promise<CoverageReport> {
-  const content = await fs.readFile(lcovPath, 'utf-8');
+  const content = await readCoverageFile(lcovPath);
   return parseLCOVContent(content, projectRoot || path.dirname(lcovPath));
 }
 
@@ -407,7 +417,7 @@ export async function parseJSONCoverage(
   jsonPath: string,
   projectRoot?: string
 ): Promise<CoverageReport> {
-  const content = await fs.readFile(jsonPath, 'utf-8');
+  const content = await readCoverageFile(jsonPath);
   const data = safeJsonParse(content);
   const root = projectRoot || path.dirname(jsonPath);
   const files = new Map<string, FileCoverageData>();
@@ -537,7 +547,7 @@ export async function parseJaCoCo(
   xmlPath: string,
   projectRoot?: string,
 ): Promise<CoverageReport> {
-  const content = await fs.readFile(xmlPath, 'utf-8');
+  const content = await readCoverageFile(xmlPath);
   return parseJaCoCoContent(content, projectRoot || path.dirname(xmlPath));
 }
 
@@ -661,7 +671,7 @@ export async function parseDotcover(
   xmlPath: string,
   projectRoot?: string,
 ): Promise<CoverageReport> {
-  const content = await fs.readFile(xmlPath, 'utf-8');
+  const content = await readCoverageFile(xmlPath);
   return parseDotcoverContent(content, projectRoot || path.dirname(xmlPath));
 }
 
@@ -768,7 +778,7 @@ export async function parseTarpaulin(
   filePath: string,
   projectRoot?: string,
 ): Promise<CoverageReport> {
-  const content = await fs.readFile(filePath, 'utf-8');
+  const content = await readCoverageFile(filePath);
   const root = projectRoot || path.dirname(filePath);
 
   // If it looks like LCOV, delegate
@@ -852,7 +862,7 @@ export async function parseGoCover(
   coverPath: string,
   projectRoot?: string,
 ): Promise<CoverageReport> {
-  const content = await fs.readFile(coverPath, 'utf-8');
+  const content = await readCoverageFile(coverPath);
   return parseGoCoverContent(content, projectRoot || path.dirname(coverPath));
 }
 
@@ -943,7 +953,7 @@ export async function parseKover(
   xmlPath: string,
   projectRoot?: string,
 ): Promise<CoverageReport> {
-  const content = await fs.readFile(xmlPath, 'utf-8');
+  const content = await readCoverageFile(xmlPath);
   const report = parseJaCoCoContent(content, projectRoot || path.dirname(xmlPath));
   report.format = 'kover';
   report.language = 'kotlin';
@@ -965,7 +975,7 @@ export async function parseXcresult(
   jsonPath: string,
   projectRoot?: string,
 ): Promise<CoverageReport> {
-  const content = await fs.readFile(jsonPath, 'utf-8');
+  const content = await readCoverageFile(jsonPath);
   return parseXcresultContent(content, projectRoot || path.dirname(jsonPath));
 }
 
@@ -1119,7 +1129,7 @@ export async function parseCoverage(
   }
 
   // Content-based detection
-  const content = await fs.readFile(coveragePath, 'utf-8');
+  const content = await readCoverageFile(coveragePath);
   const trimmed = content.trim();
 
   if (trimmed.startsWith('{')) {

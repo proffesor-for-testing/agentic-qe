@@ -4,7 +4,7 @@
  */
 
 import { LoggerFactory } from '../../../logging/index.js';
-import * as fs from 'fs/promises';
+import { readConfinedText } from '../../../shared/io/confined-read.js';
 import type { FilePath } from '../../../shared/value-objects/index.js';
 import type {
   DetectedSecret,
@@ -231,7 +231,7 @@ export async function scanFileForSecrets(file: FilePath): Promise<DetectedSecret
   const secrets: DetectedSecret[] = [];
 
   try {
-    const content = await fs.readFile(file.value, 'utf-8');
+    const content = await readConfinedText(file.value, { outsideRoot: 'allow' }); // #1161
     const lines = content.split('\n');
     const secretPatterns = getSecretPatterns();
 

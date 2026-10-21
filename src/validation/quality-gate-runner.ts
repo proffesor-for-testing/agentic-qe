@@ -18,7 +18,7 @@
  */
 
 import path from 'node:path';
-import { loadAnchorSet } from './anchor-set.js';
+import { loadAnchorSet, type AnchorSet } from './anchor-set.js';
 import {
   computeQualityVerdict,
   type Judge,
@@ -52,6 +52,11 @@ export interface QualityGateRequest {
   judge: Judge;
   /** Override the frozen anchor path (absolute, or relative to project root). */
   anchorPath?: string;
+  /**
+   * The anchor set, already read and verified by the caller (#1161). When
+   * given, it is used instead of reading `anchorPath`, which only labels errors.
+   */
+  anchor?: AnchorSet;
   /** Revision-bound failure-mode reach evidence. Omit only for legacy migration. */
   verificationManifest?: VerificationReachManifest;
 }
@@ -86,7 +91,7 @@ export interface ReachAwareQualityGateResult extends QualityVerdictResult {
  * every judgement outcome is returned as a three-valued reach-aware result.
  */
 export async function runQualityGate(req: QualityGateRequest): Promise<ReachAwareQualityGateResult> {
-  const checklist = loadChecklist(req.checklistId, req.anchorPath);
+  const checklist = loadChecklist(req.checklistId, req.anchorPath, req.anchor);
   if (
     req.verificationManifest
     && req.verificationManifest.artifact.digest !== computeVerificationArtifactDigest(req.artifact)
@@ -130,9 +135,9 @@ function combineVerdicts(
  * Load the pinned checklist for `checklistId` from the frozen anchor. Exposed so
  * callers (CLI/MCP) can list valid ids or pre-validate before building a judge.
  */
-export function loadChecklist(checklistId: string, anchorPath?: string): RequirementChecklist {
+export function loadChecklist(checklistId: string, anchorPath?: string, preloaded?: AnchorSet): RequirementChecklist {
   const resolved = resolveAnchorPath(anchorPath);
-  const anchor = loadAnchorSet(resolved); // throws on hash drift (ADR-117 §2)
+  const anchor = preloaded ?? loadAnchorSet(resolved); // throws on hash drift (ADR-117 §2)
   const item = anchor.items.find((it) => it.id === checklistId);
   if (!item) {
     const available = anchor.items.map((it) => it.id).join(', ');

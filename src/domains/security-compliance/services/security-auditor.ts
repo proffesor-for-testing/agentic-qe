@@ -13,6 +13,7 @@
 import { LoggerFactory } from '../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs/promises';
+import { readConfinedText } from '../../../shared/io/confined-read.js';
 import * as path from 'path';
 import { Result, ok, err } from '../../../shared/types/index.js';
 import type { MemoryBackend } from '../../../kernel/interfaces.js';
@@ -390,7 +391,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
 
     try {
       if (ecosystem === 'npm') {
-        const content = await fs.readFile(manifest, 'utf-8');
+        const content = await readConfinedText(manifest, { outsideRoot: 'allow' }); // #1161
         const packageJson: PackageJson = safeJsonParse(content);
         const allDeps: Record<string, string> = {
           ...packageJson.dependencies,
@@ -403,7 +404,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
           dependencies.push({ name, version: versionSpec, ecosystem: 'npm' });
         }
       } else if (ecosystem === 'pip') {
-        const content = await fs.readFile(manifest, 'utf-8');
+        const content = await readConfinedText(manifest, { outsideRoot: 'allow' }); // #1161
         const lines = content.split('\n');
 
         for (const line of lines) {

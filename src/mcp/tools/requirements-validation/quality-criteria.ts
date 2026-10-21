@@ -22,9 +22,9 @@ import {
   HTSM_CATEGORIES,
   NEVER_OMIT_CATEGORIES,
 } from '../../../domains/requirements-validation/index.js';
-import { existsSync, readFileSync } from 'fs';
 import { toErrorMessage } from '../../../shared/error-utils.js';
 import { MAX_PAYLOAD_FILE_BYTES, requirePayloadPath } from '../../../shared/io/payload-path-guard.js';
+import { ConfinedReadError, readConfinedText } from '../../../shared/io/confined-read.js';
 
 // ============================================================================
 // Types
@@ -239,7 +239,14 @@ export class QualityCriteriaTool extends MCPToolBase<QualityCriteriaParams, Qual
         const confined = await requirePayloadPath('quality-criteria', 'epicPath', epicPath,
           { allowMissing: true, maxBytes: MAX_PAYLOAD_FILE_BYTES });
         if (!confined.success) return { success: false, error: confined.error.message };
-        if (existsSync(confined.value)) content = readFileSync(confined.value, 'utf-8');
+        // #1161: read from the validated descriptor; a missing file stays empty.
+        try {
+          content = await readConfinedText(confined.value, { maxBytes: MAX_PAYLOAD_FILE_BYTES });
+        } catch (readErr) {
+          if (!(readErr instanceof ConfinedReadError) || readErr.reason !== 'not-found') {
+            return { success: false, error: toErrorMessage(readErr) };
+          }
+        }
       }
 
       if (!content && !epicPath) {

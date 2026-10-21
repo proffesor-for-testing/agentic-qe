@@ -15,6 +15,8 @@ import { ToolResult } from '../../types';
 import { toErrorMessage } from '../../../shared/error-utils.js';
 import { MAX_PAYLOAD_FILE_BYTES, requirePayloadPath } from '../../../shared/io/payload-path-guard.js';
 import { findProjectRoot } from '../../../kernel/project-root.js';
+import { readConfinedText } from '../../../shared/io/confined-read.js';
+import { parseAnchorSet, type AnchorSet } from '../../../validation/anchor-set.js';
 import { getLLMRouter } from '../base.js';
 import {
   runQualityGate,
@@ -71,11 +73,17 @@ export class QualityGateTool extends MCPToolBase<QualityGateParams, ReachAwareQu
       // #1126: a caller-named anchor must be a regular file inside the project
       // (relative paths resolve against the project root, as the runner does).
       let anchorPath: string | undefined;
+      let anchor: AnchorSet | undefined;
       if (params.anchorPath !== undefined) {
         const confined = await requirePayloadPath('qe/quality/gate', 'anchorPath', params.anchorPath,
           { basePath: findProjectRoot(), maxBytes: MAX_PAYLOAD_FILE_BYTES });
         if (!confined.success) return { success: false, error: confined.error.message };
         anchorPath = confined.value;
+        // #1161: the runner gets the anchor read from the validated descriptor,
+        // so a file swapped after the check is never read by name.
+        anchor = parseAnchorSet(
+          await readConfinedText(anchorPath, { maxBytes: MAX_PAYLOAD_FILE_BYTES }), params.anchorPath,
+        );
       }
 
       const router = await getLLMRouter(context);
@@ -95,6 +103,7 @@ export class QualityGateTool extends MCPToolBase<QualityGateParams, ReachAwareQu
         checklistId: params.checklistId,
         judge,
         anchorPath,
+        anchor,
         verificationManifest: params.verificationManifest,
       });
 

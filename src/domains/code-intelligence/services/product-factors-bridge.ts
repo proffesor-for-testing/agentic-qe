@@ -16,6 +16,7 @@ import { LoggerFactory } from '../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import * as path from 'path';
 import * as fs from 'fs/promises';
+import { readConfinedText } from '../../../shared/io/confined-read.js';
 import { Result, ok, err, DomainEvent } from '../../../shared/types';
 import { EventBus, MemoryBackend, Subscription } from '../../../kernel/interfaces';
 import {
@@ -516,7 +517,7 @@ export class ProductFactorsBridgeService
   ): Promise<C4ProjectInfo> {
     try {
       const packageJsonPath = path.join(projectPath, 'package.json');
-      const content = await fs.readFile(packageJsonPath, 'utf-8');
+      const content = await readConfinedText(packageJsonPath, { outsideRoot: 'allow' }); // #1161
       const pkg = safeJsonParse(content);
       return {
         name: pkg.name || 'Project',
@@ -545,7 +546,7 @@ export class ProductFactorsBridgeService
         return systems;
       }
 
-      const content = await fs.readFile(packageJsonPath, 'utf-8');
+      const content = await readConfinedText(packageJsonPath, { outsideRoot: 'allow' }); // #1161
       const pkg = safeJsonParse(content);
 
       const allDeps = {
@@ -909,7 +910,7 @@ export class ProductFactorsBridgeService
     // Simple hash based on package.json and file count
     try {
       const packageJsonPath = path.join(projectPath, 'package.json');
-      const content = await fs.readFile(packageJsonPath, 'utf-8');
+      const content = await readConfinedText(packageJsonPath, { outsideRoot: 'allow' }); // #1161
       return this.hashString(content);
     } catch {
       return this.hashString(projectPath + Date.now());

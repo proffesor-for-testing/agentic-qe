@@ -10,7 +10,7 @@
 
 import { LoggerFactory } from '../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
-import { readFile } from 'node:fs/promises';
+import { readConfinedText } from '../../shared/io/confined-read.js';
 import {
   Result,
   ok,
@@ -660,7 +660,7 @@ export class TestGenerationCoordinator
 
     let code = '';
     try {
-      code = await readFile(src, 'utf8');
+      code = await readConfinedText(src, { outsideRoot: 'allow' }); // #1161
     } catch {
       return null; // unreadable → fall back
     }

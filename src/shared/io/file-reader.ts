@@ -8,6 +8,7 @@ import * as path from 'node:path';
 import { Result, ok, err } from '../types';
 import { validatePath } from '../security/path-traversal-validator.js';
 import { safeJsonParse } from '../safe-json.js';
+import { ConfinedReadError, readConfinedText } from './confined-read.js';
 
 // ============================================================================
 // Types
@@ -107,24 +108,6 @@ function readError(error: unknown, absolutePath: string): FileReadError {
   }
 
   return new FileReadError(message, absolutePath, nodeError.code, nodeError);
-}
-
-/**
- * #1021 round 2b: where an OPEN descriptor really points. On Linux,
- * /proc/self/fd/N resolves to the opened file itself. Elsewhere, re-resolve
- * the path and accept it only if it is the same inode as the descriptor, so
- * a swap after the open is detected. Returns null when it cannot be proven.
- */
-async function openedLocation(fd: number, lexical: string, opened: import('node:fs').Stats): Promise<string | null> {
-  const sameFile = async (candidate: string): Promise<boolean> => {
-    const st = await fs.stat(candidate).catch(() => null);
-    return st !== null && st.dev === opened.dev && st.ino === opened.ino;
-  };
-  const viaProc = await fs.realpath(`/proc/self/fd/${fd}`).catch(() => null);
-  if (viaProc && path.isAbsolute(viaProc) && await sameFile(viaProc)) return viaProc;
-  const real = await fs.realpath(lexical).catch(() => null);
-  if (real && await sameFile(real)) return real;
-  return null;
 }
 
 /** True when `candidate` is `root` or lies beneath it (both absolute). */
@@ -419,12 +402,12 @@ export class FileReader {
   }
 
   /**
-   * #1021 round 2b: read an in-root path without a check-then-use race.
-   * The file is OPENED first and the open descriptor is verified — its real
-   * location (/proc/self/fd/N on Linux; otherwise the re-resolved realpath,
-   * which must be the same inode) must lie inside the root — and the content
-   * is read from that same descriptor. Swapping a symlink (file or directory
-   * component) between the check and the read can no longer redirect it.
+   * #1021 round 2b / #1161: read an in-root path without a check-then-use
+   * race. readConfinedText opens the path once and verifies the opened
+   * descriptor (a regular file whose real location lies inside the root) and
+   * reads from that same descriptor, so swapping a symlink (file or directory
+   * component) between a check and the read cannot redirect it, and a FIFO or
+   * device cannot hang or flood the read.
    */
   private async readContained(
     filePath: string,
@@ -432,26 +415,19 @@ export class FileReader {
     rootReal: string,
   ): Promise<Result<string, FileReadError | PathTraversalError>> {
     this.stats.totalReads++;
-    let handle: fs.FileHandle;
     try {
-      handle = await fs.open(lexical, 'r');
+      // The lexical root, so a path spelled under a symlinked root still
+      // counts as inside; the primitive resolves the root's realpath itself.
+      return ok(await readConfinedText(lexical, { projectRoot: this.projectRoot ?? rootReal }));
     } catch (error) {
-      return err(readError(error, lexical));
-    }
-    try {
-      const opened = await handle.stat();
-      const location = await openedLocation(handle.fd, lexical, opened);
-      if (!location || !isWithin(rootReal, location)) {
+      if (!(error instanceof ConfinedReadError)) return err(readError(error, lexical));
+      if (error.reason === 'outside-project-root') {
         return err(new PathTraversalError(filePath, ['Path resolves outside the project root'], 'critical'));
       }
-      if (!opened.isFile()) {
-        return err(new FileReadError('Path is a directory: ' + lexical, lexical, 'EISDIR'));
+      if (error.reason === 'not-a-file') {
+        return err(new FileReadError('Not a regular file: ' + lexical, lexical, error.code === 'NOT_A_FILE' ? 'EISDIR' : error.code));
       }
-      return ok(await handle.readFile('utf-8'));
-    } catch (error) {
-      return err(readError(error, lexical));
-    } finally {
-      await handle.close().catch(() => undefined);
+      return err(readError({ code: error.reason === 'not-found' ? 'ENOENT' : error.code }, lexical));
     }
   }
 

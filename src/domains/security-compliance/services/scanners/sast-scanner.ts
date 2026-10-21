@@ -32,6 +32,7 @@ import type {
 import { ALL_SECURITY_PATTERNS, BUILT_IN_RULE_SETS } from './security-patterns.js';
 import { toError } from '@shared/error-utils.js';
 import { safeJsonParse } from '@shared/safe-json.js';
+import { readConfinedFile } from '@shared/io/confined-read.js';
 import { CLAUDE_TIER_MODELS, DEFAULT_OPUS_MODEL } from '@shared/llm/model-registry.js';
 import {
   isSemgrepAvailable,
@@ -400,8 +401,9 @@ export class SASTScanner {
     let content: string;
     let sourceDigest: string;
     try {
-      const fs = await import('fs/promises');
-      const bytes = await fs.readFile(filePath);
+      // #1161: open once and validate the opened descriptor, so a file swapped
+      // after the sast-scan path check cannot redirect the read.
+      const bytes = await readConfinedFile(filePath, { outsideRoot: 'allow' });
       sourceDigest = createHash('sha256').update(bytes).digest('hex');
       content = bytes.toString('utf8');
     } catch (error) {
