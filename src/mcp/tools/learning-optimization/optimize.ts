@@ -529,6 +529,7 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
       // Not enough data - recommend default strategy
       const contextForRecommendation: PatternContext = {
         tags: [targetDomain, objective.metric],
+        objective: { metric: objective.metric, direction: objective.direction },
       };
       const recommendResult = await metricsOptimizer.recommendStrategy(contextForRecommendation);
       if (!recommendResult.success) throw recommendResult.error;
@@ -581,7 +582,6 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
     let sourcePatterns = 0;
     let transferredPatterns = 0;
     let adaptedPatterns = 0;
-    let totalRelevance = 0;
 
     if (queryResult.success) {
       sourcePatterns = queryResult.value.length;
@@ -595,7 +595,6 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
 
         if (transferResult.success) {
           transferredPatterns++;
-          totalRelevance += transferResult.value.relevanceScore;
 
           // Count as adapted if relevance changed significantly
           if (Math.abs(transferResult.value.relevanceScore - knowledge.relevanceScore) > 0.1) {

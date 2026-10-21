@@ -50,6 +50,8 @@ export interface PatternContext {
   readonly testType?: string;
   readonly codeContext?: string;
   readonly tags: string[];
+  /** Explicit strategy objective; absent means no requested direction. */
+  readonly objective?: Pick<OptimizationObjective, 'metric' | 'direction'>;
 }
 
 export interface PatternTemplate {
