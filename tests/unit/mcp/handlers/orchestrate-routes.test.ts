@@ -76,8 +76,69 @@ describe('routeInferredTask (#1125)', () => {
     });
   });
 
-  it.each(['generate-tests', 'execute-tests', 'analyze-coverage', 'predict-defects', 'index-code'] as TaskType[])(
+  it.each(['generate-tests', 'execute-tests', 'predict-defects', 'index-code'] as TaskType[])(
     'leaves %s, which has a handler of its own, as inferred', async (type) => {
       expect(await routeInferredTask(type, { task: 'x', filePaths: [file] })).toEqual({ kind: 'as-inferred' });
     });
+
+  // #1200: the coverage-analysis plugin needs coverageData, which a description
+  // never carries. The task runs the coverage tool's handler on one target.
+  describe('analyze-coverage (#1200)', () => {
+    const previousCwd = process.cwd();
+    const coverageRoute = (target: string) => ({
+      kind: 'route', type: 'analyze-coverage', domain: 'coverage-analysis', executionOwner: 'caller',
+      payload: { target, detectGaps: true },
+    });
+
+    beforeAll(() => {
+      mkdirSync(join(root, 'coverage'), { recursive: true });
+      process.chdir(root);
+    });
+
+    afterAll(() => {
+      process.chdir(previousCwd);
+    });
+
+    it('measures the single filePath', async () => {
+      expect(await routeInferredTask('analyze-coverage', { task: 'analyze coverage', filePaths: [file] }))
+        .toEqual(coverageRoute(file));
+    });
+
+    it('measures the path the description names when no filePaths are given', async () => {
+      expect(await routeInferredTask('analyze-coverage', { task: 'analyze coverage of src/a.js.' }))
+        .toEqual(coverageRoute('src/a.js'));
+      expect(await routeInferredTask('analyze-coverage', { task: 'analyze coverage for src' }))
+        .toEqual(coverageRoute('src'));
+    });
+
+    it('measures the project when neither names a path', async () => {
+      // "coverage" is a directory here, but it is the activity, not the target.
+      expect(await routeInferredTask('analyze-coverage', { task: 'analyze coverage for the project' }))
+        .toEqual(coverageRoute('.'));
+    });
+
+    it('prefers filePaths over a path in the description', async () => {
+      expect(await routeInferredTask('analyze-coverage', { task: 'analyze coverage for lib/b.ts', filePaths: [file] }))
+        .toEqual(coverageRoute(file));
+    });
+
+    it('keeps a named path that does not exist, so the handler reports it missing', async () => {
+      expect(await routeInferredTask('analyze-coverage', { task: 'analyze coverage of src/missing.ts' }))
+        .toEqual(coverageRoute('src/missing.ts'));
+    });
+
+    it('refuses more than one target, naming them', async () => {
+      const route = await routeInferredTask('analyze-coverage', { task: 'coverage', filePaths: [file, 'src'] });
+      expect(route).toEqual({ kind: 'needs-input', error: expect.stringContaining(`filePaths names 2 (${file}, src)`) });
+      expect(await routeInferredTask('analyze-coverage', { task: 'coverage of src/a.js and lib/b.ts' }))
+        .toEqual({ kind: 'needs-input', error: expect.stringContaining('the description names 2') });
+    });
+
+    it('refuses a target outside the project', async () => {
+      const route = await routeInferredTask('analyze-coverage', {
+        task: 'coverage', filePaths: [join(root, '..', 'outside.ts')],
+      });
+      expect(route).toEqual({ kind: 'needs-input', error: expect.stringContaining('outside') });
+    });
+  });
 });

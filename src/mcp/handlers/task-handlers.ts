@@ -37,6 +37,7 @@ import { toErrorMessage } from '../../shared/error-utils.js';
 import { ALL_DOMAINS, invalidPriorityMessage, isDomainName, isPriority, type Priority } from '../../shared/types/index.js';
 import { validateIndexPaths, validateIndexTaskPayload } from '../../domains/code-intelligence/index-path-guard.js';
 import { routeInferredTask } from './orchestrate-routes.js';
+import { getTaskExecutor } from './handler-factory.js';
 
 // ============================================================================
 // Task Type to Workflow Mapping (Issue #206)
@@ -560,6 +561,9 @@ export async function handleTaskOrchestrate(
     }
     const submitType = route.kind === 'route' ? route.type as TaskType : taskType;
     const targetDomains = route.kind === 'route' ? [route.domain] : [];
+    // #1200: a caller-owned task runs through the MCP task executor, as the
+    // domain's own tool does; the Queen does not dispatch it.
+    const callerExecutor = route.kind === 'route' && route.executionOwner === 'caller' ? getTaskExecutor() : null;
 
     // #1081: the type must have a domain handler. Otherwise the Queen can
     // only fail the task at dispatch, so reject it here with the reason.
@@ -596,6 +600,7 @@ export async function handleTaskOrchestrate(
 
     const result = await queen!.submitTask({
       type: submitType,
+      ...(callerExecutor ? { executionOwner: 'caller' as const } : {}),
       priority,
       targetDomains,
       payload: {
@@ -653,6 +658,15 @@ export async function handleTaskOrchestrate(
     // Issue N1: Trajectory auto-close is handled by subscribeTrajectoryEvents(),
     // which listens for TaskCompleted/TaskFailed on the event router.
     // No per-task polling needed.
+
+    // #1200: run a caller-owned task after its trajectory started, without
+    // waiting: the executor's TaskCompleted / TaskFailed settle it for task_status.
+    const execution = callerExecutor ? queen!.getTaskStatus(taskId) : undefined;
+    if (callerExecutor && execution) {
+      void callerExecutor.execute(execution.task).catch(error => {
+        console.error(`[TaskOrchestrate] Task ${taskId} failed to execute: ${toErrorMessage(error)}`);
+      });
+    }
 
     // Trajectory judge: opt-in LLM scoring of recent unscored trajectories.
     // Hook-created rows in qe_trajectories never receive feedback unless

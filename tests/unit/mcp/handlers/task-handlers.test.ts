@@ -4,6 +4,8 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import {
   handleTaskSubmit,
   handleTaskList,
@@ -25,6 +27,14 @@ import type {
   TaskStatusParams,
   TaskCancelParams,
 } from '../../../../src/mcp/types';
+
+// #1200: an orchestrated coverage task runs through the MCP task executor in
+// the background. Stub it so these tests never run the repository's suite.
+const executeCallerTask = vi.hoisted(() => vi.fn(async () => ({ success: true })));
+vi.mock('../../../../src/mcp/handlers/handler-factory', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../../src/mcp/handlers/handler-factory')>()),
+  getTaskExecutor: () => ({ execute: executeCallerTask }),
+}));
 
 // ============================================================================
 // Mock Queen Helper
@@ -1014,6 +1024,50 @@ describe('Task Handlers', () => {
       expect(result.success).toBe(true);
       expect(result.data!.type).toBe('generate-tests');
       // Task was submitted successfully — the domain plugin received sourceFiles
+    }, 30000);
+  });
+
+  // #1200: orchestrated coverage used to reach the coverage-analysis plugin
+  // without coverageData and fail. It now runs the handler of
+  // coverage_analyze_sublinear on the target it resolved.
+  describe('Issue #1200: orchestrated coverage runs the coverage tool handler', () => {
+    beforeEach(() => {
+      injectMockQueen();
+      executeCallerTask.mockClear();
+    });
+
+    it('submits a caller-owned task for the filePath and executes it', async () => {
+      const queen = getFleetState().queen!;
+      const submit = vi.spyOn(queen, 'submitTask');
+      // The test project root (AQE_PROJECT_ROOT) confines the target.
+      const target = join(process.env.AQE_PROJECT_ROOT!, 'src', 'a.ts');
+      mkdirSync(dirname(target), { recursive: true });
+      writeFileSync(target, 'export const a = 1;\n');
+
+      const result = await handleTaskOrchestrate({ task: 'analyze coverage for src', filePaths: [target] });
+
+      expect(result.success, JSON.stringify(result)).toBe(true);
+      expect(result.data!.type).toBe('analyze-coverage');
+      expect(submit).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'analyze-coverage',
+        executionOwner: 'caller',
+        targetDomains: ['coverage-analysis'],
+        payload: expect.objectContaining({ target, detectGaps: true }),
+      }));
+      expect(executeCallerTask).toHaveBeenCalledTimes(1);
+      expect(executeCallerTask).toHaveBeenCalledWith(expect.objectContaining({ type: 'analyze-coverage' }));
+    }, 30000);
+
+    it('refuses two targets without submitting anything', async () => {
+      const queen = getFleetState().queen!;
+      const submit = vi.spyOn(queen, 'submitTask');
+
+      const result = await handleTaskOrchestrate({ task: 'analyze coverage', filePaths: ['src', 'tests'] });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("task_orchestrate inferred 'analyze-coverage'");
+      expect(submit).not.toHaveBeenCalled();
+      expect(executeCallerTask).not.toHaveBeenCalled();
     }, 30000);
   });
 });
