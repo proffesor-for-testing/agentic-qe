@@ -28,6 +28,7 @@ import {
   endTaskTrajectory,
   type TaskOutcome,
 } from '../services/reasoning-bank-service';
+import type { ExperienceGuidance } from '../../integrations/agentic-flow/reasoning-bank/index.js';
 import type { ModelTier } from '../../integrations/agentic-flow';
 import type { QEDomain } from '../../learning/qe-patterns.js';
 import type { RealQEPatternSearchResult } from '../../learning/real-qe-reasoning-bank.js';
@@ -317,6 +318,18 @@ export interface TaskOrchestrateParams {
   };
 }
 
+/**
+ * #1022: how learned patterns informed task_orchestrate.
+ * - 'vector': embedding similarity plus text matching
+ * - 'lexical-only': no embedding runtime; text matching only, no similarity
+ *   scores, and experience guidance unavailable
+ * - 'unavailable': the ReasoningBank could not start; no learned guidance
+ */
+export interface OrchestrateLearningStatus {
+  patternSearch: 'vector' | 'lexical-only' | 'unavailable';
+  reason?: string;
+}
+
 export interface TaskOrchestrateResult {
   taskId: string;
   /** The task type submitted to the domain. */
@@ -338,6 +351,52 @@ export interface TaskOrchestrateResult {
     useAgentBooster: boolean;
     rationale: string;
     decisionTimeMs: number;
+  };
+  /** #1022: how learned patterns informed this orchestration */
+  learning: OrchestrateLearningStatus;
+}
+
+/**
+ * #1022: gather experience guidance and pattern hints for task_orchestrate.
+ * Learned guidance is optional: a missing embedder, or a ReasoningBank that
+ * cannot start, must not fail the orchestration. The returned status says
+ * which kind of matching produced the hints.
+ */
+async function getOrchestrateLearningContext(
+  task: string,
+  guidanceDomain: QEDomain | undefined,
+  patternDomain: QEDomain | undefined
+): Promise<{
+  experienceGuidance: ExperienceGuidance | null;
+  patternHintMatches: RealQEPatternSearchResult[];
+  learning: OrchestrateLearningStatus;
+}> {
+  let service: Awaited<ReturnType<typeof getReasoningBankService>>;
+  try {
+    service = await getReasoningBankService();
+  } catch (error) {
+    return {
+      experienceGuidance: null,
+      patternHintMatches: [],
+      learning: { patternSearch: 'unavailable', reason: toErrorMessage(error) },
+    };
+  }
+
+  const experienceGuidance = await service.getExperienceGuidance(task, guidanceDomain);
+
+  // Bring HNSW A (qe_patterns) into the routing decision alongside HNSW C
+  // (experienceGuidance). Without this, only past trajectories influenced
+  // routing — the catalog of consolidated long-term patterns was never
+  // consulted for new tasks. Fail-soft: empty array on error.
+  const patternHintMatches = await service
+    .searchPatternMatches(task, { limit: 5, domain: patternDomain })
+    .catch(() => [] as RealQEPatternSearchResult[]);
+
+  const status = service.getPatternSearchStatus();
+  return {
+    experienceGuidance,
+    patternHintMatches,
+    learning: { patternSearch: status.mode, ...(status.reason ? { reason: status.reason } : {}) },
   };
 }
 
@@ -386,22 +445,11 @@ export async function handleTaskOrchestrate(
     });
 
     // INTEGRATION FIX: Get ReasoningBank guidance for the task
-    const reasoningBankService = await getReasoningBankService();
-    const experienceGuidance = await reasoningBankService.getExperienceGuidance(
+    const { experienceGuidance, patternHintMatches, learning } = await getOrchestrateLearningContext(
       params.task,
-      params.context?.project as QEDomain | undefined
+      params.context?.project as QEDomain | undefined,
+      (params.context?.project as QEDomain | undefined) ?? (inferredDomain as QEDomain | undefined)
     );
-
-    // Bring HNSW A (qe_patterns) into the routing decision alongside HNSW C
-    // (experienceGuidance). Without this, only past trajectories influenced
-    // routing — the catalog of consolidated long-term patterns was never
-    // consulted for new tasks. Fail-soft: empty array on error.
-    const patternHintMatches = await reasoningBankService
-      .searchPatternMatches(params.task, {
-        limit: 5,
-        domain: (params.context?.project as QEDomain | undefined) ?? (inferredDomain as QEDomain | undefined),
-      })
-      .catch(() => [] as RealQEPatternSearchResult[]);
 
     // Parse task description to determine task type
     const taskType = inferTaskType(params.task);
@@ -484,6 +532,7 @@ export async function handleTaskOrchestrate(
             rationale: routingResult.decision.rationale,
             decisionTimeMs: routingResult.decision.metadata.decisionTimeMs,
           },
+          learning,
         },
       };
     }
@@ -581,10 +630,12 @@ export async function handleTaskOrchestrate(
 
     // INTEGRATION FIX: Start trajectory tracking for learning
     const taskId = result.value;
-    await startTaskTrajectory(taskId, params.task, {
-      agent: 'queen-coordinator',
-      domain: params.context?.project as QEDomain | undefined,
-    });
+    if (learning.patternSearch !== 'unavailable') {
+      await startTaskTrajectory(taskId, params.task, {
+        agent: 'queen-coordinator',
+        domain: params.context?.project as QEDomain | undefined,
+      });
+    }
 
     // Issue N1: Trajectory auto-close is handled by subscribeTrajectoryEvents(),
     // which listens for TaskCompleted/TaskFailed on the event router.
@@ -623,6 +674,7 @@ export async function handleTaskOrchestrate(
           rationale: routingResult.decision.rationale,
           decisionTimeMs: routingResult.decision.metadata.decisionTimeMs,
         },
+        learning,
       },
     };
   } catch (error) {
