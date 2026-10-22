@@ -743,6 +743,15 @@ run_one() {
     sleep "${daemon_liveness_wait_sec}"
 
     # Cleanup the daemon — best effort, since the gate continues regardless.
+    # #1158: the helper exits after ~3s and the MCP server it started keeps
+    # running (daemon mode), so stop the server through its pid file too.
+    local server_pid
+    server_pid=$(cat "${tmpdir}/.agentic-qe/workers/daemon.pid" 2>/dev/null || echo "")
+    node "${tmpdir}/.agentic-qe/workers/stop-daemon.cjs" >/dev/null 2>&1 || true
+    if [[ -n "${server_pid}" ]] && kill -0 "${server_pid}" 2>/dev/null; then
+      sleep 4 # the server's own shutdown watchdog is 3s
+      kill -KILL "${server_pid}" 2>/dev/null || true
+    fi
     if kill -0 "${daemon_pid}" 2>/dev/null; then
       kill -TERM "${daemon_pid}" 2>/dev/null || true
       sleep 2

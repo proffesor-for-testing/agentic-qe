@@ -202,6 +202,23 @@ two apart from the exit code alone.
 | `AQE_DISABLED_WORKERS` | empty | Comma-separated worker ids to skip, for example `learning-consolidation,security-scan`. Case does not matter. Unknown ids are reported on stderr when the workers start, and ignored. |
 | `AQE_DREAM_INSIGHTS_RETENTION_DAYS` | `30` | The `learning-consolidation` worker moves unapplied `dream_insights` rows older than this many days to `dream_insights_archive`. `0`, `off`, `false`, `no`, `disable`, `disabled`, `none` or `never` disables the sweep. An empty or whitespace-only value counts as unset, so the 30-day default applies. Any other value that is not a whole number from 1 to 36500 is rejected with a warning on stderr, and the sweep stays off. |
 
+#### Worker daemon (`start-daemon.cjs`)
+
+`.agentic-qe/workers/start-daemon.cjs`, written by `aqe init`, runs the MCP
+server in the background with no client attached, only to host the workers.
+It sets `AQE_MCP_DAEMON=1` for that process. The server writes its output to
+`.agentic-qe/workers/daemon.log` and logs a `Daemon heartbeat` line there every
+minute with the worker run counts. Stop it with
+`node .agentic-qe/workers/stop-daemon.cjs`, which sends SIGTERM.
+
+| Variable | Default | Effect |
+|----------|---------|--------|
+| `AQE_MCP_DAEMON` | unset | `1`, `true`, `yes` or `on`: daemon mode. The server keeps running when its stdin closes and stops only on SIGTERM or SIGINT. Without it, a stdio MCP server exits when its stdin closes, so it never outlives the client that started it (#513). The setting is honoured only when stdin is not a pipe or socket, which an MCP client always uses, so it has no effect on a server started by Claude Code or another client; the server logs a warning and keeps the normal behaviour. You do not need to set it yourself. |
+
+Scripts written by an older `aqe init` (3.15.11 and earlier) do not set
+`AQE_MCP_DAEMON`, and their daemon exits within seconds of starting. Re-run
+`aqe init` in the project to rewrite the script.
+
 Worker ids: `test-health`, `coverage-tracker`, `flaky-detector`,
 `security-scan`, `quality-gate`, `learning-consolidation`,
 `defect-predictor`, `regression-monitor`, `performance-baseline`,
