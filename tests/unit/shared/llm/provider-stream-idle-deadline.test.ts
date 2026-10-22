@@ -99,6 +99,73 @@ describe('stream response idle deadlines over native HTTP', () => {
     });
   });
 
+  // #962: the idle deadline measures network silence, not consumer pauses.
+  async function readSlowly(endpoint: string): Promise<{ chunks: string[]; failure: unknown }> {
+    const response = await fetchWithResponseDeadline(endpoint, {}, 200, () => new Error('owned deadline'), 'idle');
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    const chunks: string[] = [];
+    let failure: unknown;
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(decoder.decode(value));
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    } catch (error) { failure = error; }
+    return { chunks, failure };
+  }
+  const sse = Array.from({ length: 4 }, (_, i) => `data: e${i}\n\n`);
+
+  it('does not time out a slow consumer of a stream the network already finished', async () => {
+    await withEndpoint((response, schedule) => {
+      response.setHeader('content-type', 'text/event-stream');
+      sse.forEach((chunk, i) => schedule(10 * i, () => {
+        response.write(chunk);
+        if (i === sse.length - 1) response.end();
+      }));
+    }, async endpoint => {
+      expect(await readSlowly(endpoint)).toEqual({ chunks: sse, failure: undefined });
+    });
+  }, 10_000);
+
+  it('delivers received events to a slow consumer before timing out a silent network', async () => {
+    await withEndpoint((response, schedule) => {
+      response.setHeader('content-type', 'text/event-stream');
+      sse.forEach((chunk, i) => schedule(10 * i, () => response.write(chunk)));
+    }, async endpoint => {
+      const { chunks, failure } = await readSlowly(endpoint);
+      expect(chunks).toEqual(sse);
+      expect(failure).toMatchObject({ message: 'owned deadline' });
+    });
+  }, 10_000);
+
+  it('still bounds a consumer stalled behind a full read-ahead buffer', async () => {
+    const piece = 'x'.repeat(64 * 1024);
+    const pieces = 128; // 8 MiB, well beyond the 1 MiB read-ahead
+    await withEndpoint(response => {
+      response.setHeader('content-type', 'text/event-stream');
+      for (let i = 0; i < pieces; i++) response.write(piece);
+    }, async endpoint => {
+      const response = await fetchWithResponseDeadline(endpoint, {}, 200, () => new Error('owned deadline'), 'idle');
+      const reader = response.body!.getReader();
+      await new Promise(resolve => setTimeout(resolve, 500));
+      let received = 0;
+      let failure: unknown;
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          received += value.byteLength;
+        }
+      } catch (error) { failure = error; }
+      expect(failure).toMatchObject({ message: 'owned deadline' });
+      expect(received).toBeGreaterThan(0);
+      expect(received).toBeLessThan(piece.length * pieces);
+    });
+  });
+
   it('keeps the absolute budget for a non-streaming JSON body despite progress', async () => {
     await withEndpoint((response, schedule) => {
       response.setHeader('content-type', 'application/json');
