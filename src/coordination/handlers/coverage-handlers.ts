@@ -30,6 +30,7 @@ import {
   type CoverageEvaluation,
   type NoDataReason,
 } from './coverage-target';
+import { describeEvidence, type CoverageEvidence } from './coverage-evidence';
 import { randomUUID } from 'crypto';
 import * as path from 'path';
 import { describeRunFailure, runJsCoverage, testRunStatus } from './coverage-runner';
@@ -93,6 +94,8 @@ interface CollectResult {
   runStatus?: 'passed' | 'failed';
   /** The run's test counts, when the runner reported them (#1027 NB1). */
   testRun?: { runId: string; passed: number; failed: number; skipped: number };
+  /** #1154: unmeasured target files and report staleness. */
+  evidence?: CoverageEvidence;
 }
 
 function fromEvaluation(
@@ -101,7 +104,7 @@ function fromEvaluation(
   projectRoot: string
 ): CollectResult {
   return evaluation.status === 'measured'
-    ? { collected: instrumented(evaluation.files), ranTests, projectRoot }
+    ? { collected: instrumented(evaluation.files), ranTests, projectRoot, evidence: evaluation.evidence }
     : { collected: null, ranTests, noData: evaluation.reason, projectRoot };
 }
 
@@ -279,7 +282,7 @@ export function registerCoverageHandlers(ctx: TaskHandlerContext): void {
       const analyzer = ctx.getCoverageAnalyzer();
       const threshold = payload.threshold || 80;
 
-      const { collected, ranTests, noData, projectRoot, notes, runStatus, testRun } = await collectCoverage(targetPath);
+      const { collected, ranTests, noData, projectRoot, notes, runStatus, testRun, evidence } = await collectCoverage(targetPath);
 
       // #995 review N5: say so plainly instead of "no coverage data found".
       if (noData === 'target-missing') {
@@ -355,8 +358,15 @@ export function registerCoverageHandlers(ctx: TaskHandlerContext): void {
       const pct = (covered: number, total: number) =>
         total > 0 ? Math.round((covered / total) * 1000) / 10 : null;
 
+      // #1154: target files missing from the report, or a report older than the
+      // sources, leave the evidence insufficient: the figures stand for the
+      // measured files only, and the threshold is not met on them.
+      const evidenceReasons = describeEvidence(evidence, projectRoot ?? targetPath);
       const warnings = [...provenance.notes, ...(notes ?? [])];
       if (provenance.estimated) warnings.push(estimationGuidance(targetPath));
+      if (evidenceReasons.length > 0) {
+        warnings.push(`INSUFFICIENT EVIDENCE — the threshold is not met on this report: ${evidenceReasons.join('; ')}.`);
+      }
 
       // #569: the analyzer generates recommendations from the summary numbers.
       // When branch or function data was never collected, those numbers are 0
@@ -390,7 +400,12 @@ export function registerCoverageHandlers(ctx: TaskHandlerContext): void {
         })),
         gaps,
         // NB5: judged only on the metrics that were collected (shared with the CLI).
-        meetsThreshold: verdict.meetsThreshold,
+        meetsThreshold: verdict.meetsThreshold && evidenceReasons.length === 0,
+        ...(evidence ? {
+          evidenceStatus: evidence.status,
+          unmeasuredFiles: evidence.unmeasuredFiles,
+          ...(evidence.stale ? { staleReport: evidence.stale } : {}),
+        } : {}),
         delta: report.delta,
         recommendations,
         algorithm: 'sublinear-O(log n)',

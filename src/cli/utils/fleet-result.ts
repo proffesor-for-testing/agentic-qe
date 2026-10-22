@@ -8,7 +8,8 @@
  *   - test    fails when no test was generated or a generated test failed
  *             the test quality gate;
  *   - analyze fails when coverage over the collected metrics is below the
- *             threshold (an uncollected metric is not counted as 0%).
+ *             threshold (an uncollected metric is not counted as 0%), or when
+ *             the report leaves target files unmeasured or is stale (#1154).
  * A result without the expected shape fails rather than passing unread.
  */
 
@@ -121,12 +122,14 @@ export function summarizeFleetResult(operation: FleetOperation, result: unknown)
 
 /**
  * Print each distinct worker result once and the verdict over all workers.
- * Returns whether the operation passed.
+ * `insufficientEvidence` (from the operation's plan) fails the verdict whatever
+ * the workers returned. Returns whether the operation passed.
  */
 export function reportFleetVerdict(
   operation: FleetOperation,
   workers: ReadonlyArray<{ success: boolean; result: unknown }>,
   log: (line: string) => void = line => console.log(line),
+  insufficientEvidence: readonly string[] = [],
 ): boolean {
   const summaries = workers.filter(w => w.success).map(w => summarizeFleetResult(operation, w.result));
   const shown = new Set<string>();
@@ -138,8 +141,11 @@ export function reportFleetVerdict(
     for (const line of summary.lines) log(`   ${line}`);
   }
 
+  for (const reason of insufficientEvidence) log(chalk.yellow(`   Evidence: ${reason}`));
+
   const incomplete = workers.filter(w => !w.success).length;
   const reasons = [...new Set(summaries.flatMap(s => s.reasons))];
+  if (insufficientEvidence.length > 0) reasons.push('insufficient evidence: the coverage report is incomplete or stale for the target');
   if (incomplete > 0) reasons.unshift(`${incomplete} of ${workers.length} workers did not complete`);
   log('');
   log(reasons.length === 0

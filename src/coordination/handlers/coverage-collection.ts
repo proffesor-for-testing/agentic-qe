@@ -539,7 +539,8 @@ function withRecomputedSummary(files: FileCoverage[]): CoverageData {
   };
 }
 
-function walkSourceFiles(targetPath: string): string[] {
+/** Production source files under a directory (test, build and vendored directories skipped). */
+export function walkSourceFiles(targetPath: string): string[] {
   const found: string[] = [];
   // Classification is relative to the analysis root (see isTestPath).
   const rootDir = targetPath;

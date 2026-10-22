@@ -8,7 +8,10 @@
  *
  *   - measured   — an instrumented report covers the target: judged on the
  *                  metrics the report collected (an uncollected metric is null,
- *                  never 0%, and is left out of the threshold);
+ *                  never 0%, and is left out of the threshold). When target
+ *                  files are missing from the report, or the report is older
+ *                  than the sources, the evidence is insufficient (#1154): the
+ *                  threshold is not met and the exit code is 3;
  *   - unmeasured — the report has no entry for the target, the runner ran 0
  *                  tests, or only test files were reported: no figure, exit 3;
  *   - estimate   — no report exists, so the CLI shows a labelled STATIC
@@ -27,6 +30,7 @@ import {
   thresholdVerdict,
   type NoDataReason,
 } from '../../coordination/handlers/coverage-target.js';
+import { describeEvidence, type CoverageEvidence } from '../../coordination/handlers/coverage-evidence.js';
 
 /** `aqe coverage` exit code when no coverage measurement exists for the target (#995). */
 export const EXIT_UNMEASURED = 3;
@@ -36,7 +40,7 @@ export const MEASURED_METHOD = 'instrumented-report';
 export const ESTIMATE_METHOD = 'static-estimation';
 
 export type CliCoverage =
-  | { kind: 'data'; data: CoverageData; projectRoot?: string }
+  | { kind: 'data'; data: CoverageData; projectRoot?: string; evidence?: CoverageEvidence }
   | { kind: 'no-data'; reason: NoDataReason; message: string }
   | { kind: 'no-sources' };
 
@@ -64,8 +68,12 @@ export async function resolveCliCoverageData(
   if (existing.status === 'evaluated') {
     const { evaluation, projectRoot } = existing;
     if (evaluation.status === 'measured') {
-      const files = evaluation.files;
-      return { kind: 'data', data: { files, summary: summarizeCoverage(files), instrumented: true }, projectRoot };
+      const { files, evidence } = evaluation;
+      const data: CoverageData = {
+        files, summary: summarizeCoverage(files), instrumented: true,
+        ...(evidence.unmeasuredFiles.length > 0 ? { unmeasuredFiles: evidence.unmeasuredFiles } : {}),
+      };
+      return { kind: 'data', data, projectRoot, evidence };
     }
     return { kind: 'no-data', reason: evaluation.reason, message: describeNoData(evaluation.reason, targetPath, projectRoot) };
   }
@@ -124,6 +132,9 @@ export type CliCoverageOutcome =
       collected: { branch: boolean; function: boolean; statement: boolean };
       verdict: { overall: number; meetsThreshold: boolean };
       recommendations: string[];
+      /** #1154: why the report cannot support a verdict for the target; empty when it can. */
+      insufficientEvidence: string[];
+      evidence?: CoverageEvidence;
     };
 
 const isError = (reason: NoDataReason): boolean =>
@@ -177,12 +188,17 @@ export async function evaluateCliCoverage(
   // #995 review NB5: a metric the report never collected is null — not 0 —
   // and is left out of the threshold verdict (same rule as MCP).
   const collected = metricsCollected(data);
-  const verdict = thresholdVerdict(report.summary, threshold, collected);
+  const figures = thresholdVerdict(report.summary, threshold, collected);
+  // #1154: figures over part of the target, or from a stale report, never meet the threshold.
+  const insufficientEvidence = describeEvidence(resolved.evidence, resolved.projectRoot ?? targetPath);
+  const verdict = { ...figures, meetsThreshold: figures.meetsThreshold && insufficientEvidence.length === 0 };
   return {
     kind: 'measured',
     data,
     collected,
     verdict,
+    insufficientEvidence,
+    ...(resolved.evidence ? { evidence: resolved.evidence } : {}),
     summary: {
       ...report.summary,
       branch: collected.branch ? report.summary.branch : null,
@@ -190,17 +206,19 @@ export async function evaluateCliCoverage(
       statement: collected.statement ? report.summary.statement : null,
     },
     // NB-A: the shortfall advice comes from the same verdict (shared with MCP).
-    recommendations: reconcileRecommendations(report.recommendations ?? [], verdict, threshold, collected),
+    recommendations: reconcileRecommendations(report.recommendations ?? [], figures, threshold, collected),
   };
 }
 
 /**
  * Exit code: 0 meets (by more than 5%), 1 below / error, 2 within 5% above,
- * 3 UNMEASURED (not in the report, 0 tests, test-only report, or estimate only).
+ * 3 UNMEASURED (not in the report, 0 tests, test-only report, or estimate only)
+ * or insufficient evidence (target files missing from the report, stale report).
  */
 export function coverageExitCode(outcome: CliCoverageOutcome, threshold: number): number {
   switch (outcome.kind) {
     case 'measured': {
+      if (outcome.insufficientEvidence.length > 0) return EXIT_UNMEASURED;
       const { overall, meetsThreshold } = outcome.verdict;
       if (!meetsThreshold) return 1;
       return overall < threshold + 5 ? 2 : 0;
@@ -232,6 +250,10 @@ export function coverageJson(outcome: CliCoverageOutcome, threshold: number, tar
         functionDataCollected: outcome.collected.function,
         statementDataCollected: outcome.collected.statement,
         ...(outcome.data.unmeasuredFiles?.length ? { unmeasuredFiles: outcome.data.unmeasuredFiles } : {}),
+        ...(outcome.evidence ? { evidenceStatus: outcome.evidence.status } : {}),
+        ...(outcome.evidence?.stale ? { staleReport: outcome.evidence.stale } : {}),
+        ...(outcome.insufficientEvidence.length > 0
+          ? { warning: `INSUFFICIENT EVIDENCE: ${outcome.insufficientEvidence.join('; ')}` } : {}),
       };
     case 'estimate':
       return {

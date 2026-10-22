@@ -178,7 +178,11 @@ missing coverage evidence.`)
           console.log(`    Branches:   ${color(summary.branch)(fmt(summary.branch))}`);
           console.log(`    Functions:  ${color(summary.function)(fmt(summary.function))}`);
           console.log(`    Statements: ${color(summary.statement)(fmt(summary.statement))}`);
-          if (outcome.kind === 'measured') {
+          if (outcome.kind === 'measured' && outcome.insufficientEvidence.length > 0) {
+            // #1154: figures over part of the target, or from a stale report, are not a pass.
+            console.log(`\n    Threshold: ${chalk.red(`Not met (${threshold}%) — INSUFFICIENT EVIDENCE`)}`);
+            for (const reason of outcome.insufficientEvidence) console.log(chalk.yellow(`    - ${reason}`));
+          } else if (outcome.kind === 'measured') {
             console.log(`\n    Threshold: ${outcome.verdict.meetsThreshold ? chalk.green(`Met (${threshold}%)`) : chalk.red(`Not met (${threshold}%)`)}`);
           } else {
             console.log(`\n    Threshold: ${chalk.yellow(`not evaluated (${threshold}%) — UNMEASURED, estimate only`)}`);

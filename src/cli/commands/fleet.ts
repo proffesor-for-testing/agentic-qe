@@ -388,7 +388,7 @@ export function createFleetCommand(
 
         // #1168: a completed agent is not a passed check, so the completion
         // line only says "successfully" when the verdict passes.
-        const verdictPassed = reportFleetVerdict(operation as FleetOperation, results, () => {});
+        const verdictPassed = reportFleetVerdict(operation as FleetOperation, results, () => {}, plan.task.insufficientEvidence);
         progress.stop({ verdictFailed: !verdictPassed });
 
         const successful = results.filter(r => r.success).length;
@@ -403,7 +403,7 @@ export function createFleetCommand(
         }
 
         // #1125 review: a completed task is not a passed check.
-        const passed = reportFleetVerdict(operation as FleetOperation, results);
+        const passed = reportFleetVerdict(operation as FleetOperation, results, undefined, plan.task.insufficientEvidence);
         console.log('');
 
         await cleanupAndExit(passed ? 0 : 1);

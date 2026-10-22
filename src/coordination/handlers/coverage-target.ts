@@ -25,13 +25,14 @@ import * as os from 'os';
 import * as path from 'path';
 import type { CoverageData, FileCoverage } from '../../domains/coverage-analysis/interfaces';
 import {
-  loadCoverageData,
+  loadCoverageReport,
   parseCoberturaXml,
   parseCoverageJson,
   parseCoverageSummaryJson,
   parseLcovInfo,
 } from './handler-utils';
 import { isTestPath } from './coverage-collection';
+import { assessCoverageEvidence, type CoverageEvidence } from './coverage-evidence';
 import { findProjectRoot } from '../../kernel/project-root.js';
 
 // ============================================================================
@@ -423,7 +424,7 @@ export type NoDataReason =
   | 'no-tests-ran';
 
 export type CoverageEvaluation =
-  | { status: 'measured'; files: FileCoverage[] }
+  | { status: 'measured'; files: FileCoverage[]; evidence: CoverageEvidence }
   | { status: 'no-data'; reason: NoDataReason };
 
 /**
@@ -435,12 +436,17 @@ export type CoverageEvaluation =
  *   - the report has no entry under the target.
  * Hit counts are never used: a file listed with 0 hits is a measured 0%,
  * whether the report came from our run or from the user (#995 review B3).
+ *
+ * A measured result carries its evidence (#1154): the target's source files
+ * the report has no entry for (UNMEASURED), and whether the report at
+ * `reportPath` is older than the sources. Insufficient evidence keeps the
+ * figures for the measured files, but no caller may pass a verdict on it.
  */
 export function evaluateCoverageForTarget(
   report: CoverageData,
   projectRoot: string,
   target: string,
-  options: { numTotalTests?: number | null } = {}
+  options: { numTotalTests?: number | null; reportPath?: string; checkCompleteness?: boolean } = {}
 ): CoverageEvaluation {
   if (options.numTotalTests === 0) return { status: 'no-data', reason: 'no-tests-ran' };
 
@@ -452,7 +458,10 @@ export function evaluateCoverageForTarget(
   const production = scoped.filter(f => !isTestPath(f.path, projectRoot));
   if (production.length === 0) return { status: 'no-data', reason: 'test-only-report' };
 
-  return { status: 'measured', files: production };
+  const evidence = assessCoverageEvidence(report, production, projectRoot, target, {
+    reportPath: options.reportPath, checkCompleteness: options.checkCompleteness,
+  });
+  return { status: 'measured', files: production, evidence };
 }
 
 export type ExistingCoverage =
@@ -484,18 +493,19 @@ export async function resolveExistingCoverage(targetPath: string): Promise<Exist
     const projectRoot = findCoverageProjectRoot(reportDir)
       ?? (path.basename(reportDir) === 'coverage' ? path.dirname(reportDir) : reportDir);
     const report = await loadCoverageReportFile(target);
+    // The report itself is the target: judged whole, but still checked for staleness.
     const evaluation: CoverageEvaluation = report
-      ? evaluateCoverageForTarget(report, projectRoot, projectRoot)
+      ? evaluateCoverageForTarget(report, projectRoot, projectRoot, { reportPath: target, checkCompleteness: false })
       : { status: 'no-data', reason: 'unreadable-report' };
     return { status: 'evaluated', target, projectRoot, source: 'report-file', evaluation };
   }
 
   const projectRoot = findCoverageProjectRoot(target) ?? (stat.isDirectory() ? target : path.dirname(target));
-  const existing = await loadCoverageData(projectRoot);
+  const existing = await loadCoverageReport(projectRoot);
   if (!existing) return { status: 'no-report', target, projectRoot };
   return {
     status: 'evaluated', target, projectRoot, source: 'project-report',
-    evaluation: evaluateCoverageForTarget(existing, projectRoot, target),
+    evaluation: evaluateCoverageForTarget(existing.data, projectRoot, target, { reportPath: existing.path }),
   };
 }
 
