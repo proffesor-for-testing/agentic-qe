@@ -31,7 +31,9 @@ function interrupted(signal: OwnedSignal): void {
   removeHandlers();
   // Restore signal termination (including its exit status) instead of swallowing
   // Ctrl-C or converting a requested shutdown into a successful metrics result.
-  process.kill(process.pid, signal);
+  // An embedding host with its own listener already received this signal, so
+  // re-raising would deliver it twice; the host decides how to shut down (#992).
+  if (process.listenerCount(signal) === 0) process.kill(process.pid, signal);
 }
 
 const signalHandlers: Record<OwnedSignal, () => void> = {
