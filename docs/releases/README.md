@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.15.11](v3.15.11.md) | 2026-10-22 | Works on npm 12 and without an embedder; Copilot-ready MCP schemas. |
 | [v3.15.10](v3.15.10.md) | 2026-10-19 | Project-confined paths; redacted failures; real fleet runs; safe dreams. |
 | [v3.15.9](v3.15.9.md) | 2026-10-17 | No stuck tasks; measured-only metrics; non-blocking test runs. |
 | [v3.15.8](v3.15.8.md) | 2026-10-16 | Dream-safe memory writes; workers off switch; no startup insight sweep. |
