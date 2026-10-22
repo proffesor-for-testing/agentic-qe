@@ -194,7 +194,7 @@ const E2E_EXECUTE_SCHEMA: MCPToolSchema = {
         name: { type: 'string', description: 'Test case name' },
         description: { type: 'string', description: 'Test case description' },
         baseUrl: { type: 'string', description: 'Base URL for the test' },
-        steps: { type: 'array', description: 'Test steps to execute' },
+        steps: { type: 'array', description: 'Test steps to execute', items: { type: 'object', description: 'Test step' } },
         viewport: {
           type: 'object',
           description: 'Browser viewport configuration',
@@ -213,7 +213,7 @@ const E2E_EXECUTE_SCHEMA: MCPToolSchema = {
         id: { type: 'string', description: 'Test suite ID' },
         name: { type: 'string', description: 'Test suite name' },
         description: { type: 'string', description: 'Test suite description' },
-        testCases: { type: 'array', description: 'Test cases in the suite' },
+        testCases: { type: 'array', description: 'Test cases in the suite', items: { type: 'object', description: 'Test case' } },
         parallel: { type: 'boolean', description: 'Run tests in parallel' },
         maxWorkers: { type: 'number', description: 'Maximum parallel workers' },
       },

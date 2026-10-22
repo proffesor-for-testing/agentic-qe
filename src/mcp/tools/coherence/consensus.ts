@@ -121,11 +121,13 @@ const COHERENCE_CONSENSUS_SCHEMA: MCPToolSchema = {
           agentId: { type: 'string', description: 'Agent identifier', minLength: 1 },
           agentType: { type: 'string', description: 'Agent type (default: worker)' },
           // `verdict` may be a string, number, or boolean, which this schema
-          // type cannot express; it is required below and checked in execute().
+          // type cannot express. It is required, but checked in execute():
+          // listing it in `required` without a property is invalid in strict
+          // JSON Schema (#1185).
           confidence: { type: 'number', description: 'Confidence in the verdict', minimum: 0, maximum: 1 },
           reasoning: { type: 'string', description: 'Optional reasoning text' },
         },
-        required: ['agentId', 'verdict', 'confidence'],
+        required: ['agentId', 'confidence'],
       },
     },
     confidenceThreshold: {
