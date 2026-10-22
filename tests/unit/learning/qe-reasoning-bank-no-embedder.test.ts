@@ -96,3 +96,44 @@ describe('QEReasoningBank.storePattern without an embedding runtime (#981)', () 
     expect(create.mock.calls[0][0].embedding).toBe(supplied);
   });
 });
+
+describe('QEReasoningBank when the embedder endpoint fails at runtime (#1187)', () => {
+  const ENDPOINT_DOWN = new Error('[EmbedderEndpointClient] connect ECONNREFUSED 127.0.0.1:9');
+
+  afterEach(() => {
+    embeddingMocks.identity = null;
+    resetRuVectorFeatureFlags();
+    vi.restoreAllMocks();
+  });
+
+  it('stores the pattern text-only instead of failing', async () => {
+    setRuVectorFeatureFlags({ useRVFPatternStore: false });
+    embeddingMocks.identity = { spaceId: 'space-a' };
+    const { bank, create } = bankWithStore();
+    vi.spyOn(bank, 'embed').mockRejectedValue(ENDPOINT_DOWN);
+
+    const result = await bank.storePattern(LEARN);
+
+    expect(result.success).toBe(true);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(create.mock.calls[0][0].embedding).toBeUndefined();
+  });
+
+  it('searches by text instead of failing', async () => {
+    const { bank } = bankWithStore();
+    const search = vi.fn(async () => ({ success: true as const, value: [] }));
+    Object.assign(bank as unknown as Record<string, unknown>, {
+      patternStore: { create: vi.fn(), get: vi.fn(), search },
+    });
+    vi.spyOn(bank, 'embed').mockRejectedValue(ENDPOINT_DOWN);
+
+    const result = await bank.searchPatterns('flaky network retry');
+
+    expect(result.success).toBe(true);
+    expect(search).toHaveBeenCalledWith('flaky network retry', expect.objectContaining({
+      useVectorSearch: false,
+      textQuery: 'flaky network retry',
+      embeddingSpaceId: undefined,
+    }));
+  });
+});

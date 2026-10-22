@@ -102,6 +102,24 @@ describe('task_orchestrate without an embedding runtime (#1022)', () => {
     expect(mocks.startTaskTrajectory).not.toHaveBeenCalled();
   });
 
+  it('reports lexical-only when the embedder fails during this search (#1187)', async () => {
+    const reason = 'Embedder failed at runtime: connect ECONNREFUSED 127.0.0.1:8099';
+    mocks.searchPatternMatches.mockImplementation(async () => {
+      mocks.status = { mode: 'lexical-only', reason };
+      return [{
+        pattern: { id: 'p1', name: 'AAA Unit Test', description: 'd', confidence: 0.5 },
+        score: 0.4, similarity: 0, matchType: 'lexical', canReuse: false,
+      }];
+    });
+
+    const result = await handleTaskOrchestrate(TASK);
+
+    expect(result.success, result.error).toBe(true);
+    expect(result.data!.learning).toEqual({ patternSearch: 'lexical-only', reason });
+    const hints = mocks.submitTask.mock.calls[0][0].payload.patternHints;
+    expect(hints).toEqual([expect.objectContaining({ patternId: 'p1', matchType: 'lexical' })]);
+  });
+
   it('reports vector pattern search when an embedder is available (unchanged)', async () => {
     const result = await handleTaskOrchestrate(TASK);
 

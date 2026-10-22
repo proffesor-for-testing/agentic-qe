@@ -527,6 +527,25 @@ export function resetInitialization(): void {
 }
 
 /**
+ * #1187: allow a new initialization attempt after a failed one. A failed
+ * initialization is otherwise remembered for the whole process, so a short
+ * embedding-endpoint outage at startup would disable embeddings until the
+ * process restarts. Callers rate-limit retries. No-op unless the last
+ * initialization failed.
+ */
+export function allowEmbedderInitRetry(): void {
+  if (!initializationFailed) return;
+  initializationFailed = false;
+  failureReason = '';
+  initPromise = null;
+  if (endpointClient) {
+    endpointClient.close();
+  }
+  endpointClient = null;
+  endpointIdentity = null;
+}
+
+/**
  * ADR-097: Returns true when the embedding pipeline is the external endpoint path,
  * false when it's the in-process transformer (or uninitialized).
  */
