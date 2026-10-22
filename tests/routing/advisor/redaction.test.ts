@@ -38,6 +38,11 @@ describe('redact()', () => {
       expect(text).not.toContain('sk-abc123def456');
     });
 
+    it('redacts Authorization: Token headers (#740)', () => {
+      const { text } = redact('Authorization: Token ' + 'f'.repeat(40));
+      expect(text).toBe('Authorization: Token <REDACTED:api_key>');
+    });
+
     it('redacts x-api-key headers', () => {
       const { text } = redact('x-api-key: my-secret-key-12345');
       expect(text).toContain('<REDACTED:api_key>');
@@ -50,6 +55,20 @@ describe('redact()', () => {
       const { text, redactions } = redact(pem);
       expect(text).toBe('<REDACTED:private_key>');
       expect(redactions).toContain('private_key');
+    });
+
+    it('redacts an unterminated PEM block to end of input (#740)', () => {
+      const pem = 'before\n-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBg' + 'x'.repeat(64) + '\ntruncated';
+      const { text } = redact(pem);
+      expect(text).toBe('before\n<REDACTED:private_key>');
+    });
+
+    it('stays linear on many unterminated BEGIN headers (#740)', () => {
+      const hostile = '-----BEGIN RSA PRIVATE KEY-----\n-----END RSA '.repeat(4_000) + 'a '.repeat(80_000);
+      const start = performance.now();
+      redact(hostile);
+      redact('-----BEGIN ' + 'a '.repeat(80_000));
+      expect(performance.now() - start).toBeLessThan(1000);
     });
   });
 
@@ -142,6 +161,37 @@ describe('redact()', () => {
     it('redacts glpat- personal access tokens', () => {
       const { text } = redact('token: glpat-xxxxxxxxxxxxxxxxxxxx');
       expect(text).toContain('<REDACTED:gitlab_token>');
+    });
+  });
+
+  // Synthetic tokens are assembled at runtime so no literal resembles a real credential.
+  describe('Hugging Face, npm and Cognitum tokens (#740)', () => {
+    it.each([
+      ['huggingface_token', 'hf_' + 'x'.repeat(34)],
+      ['npm_token', 'npm_' + 'x'.repeat(36)],
+      ['cognitum_key', 'cog_' + 'x'.repeat(32)],
+      ['cognitum_key', 'cog_' + 'x'.repeat(12) + '-' + 'y'.repeat(12)],
+    ])('redacts a %s', (category, token) => {
+      const { text, redactions } = redact(`using ${token} now`, 'balanced');
+      expect(text).toBe(`using <REDACTED:${category}> now`);
+      expect(redactions).toContain(category);
+    });
+
+    it.each([
+      'hf_' + 'x'.repeat(10),
+      'npm_' + 'x'.repeat(20),
+      'cog_test',
+      'cog_provider_default_timeout_ms_value',
+      'myhf_' + 'x'.repeat(34),
+    ])('leaves short or identifier-like value %s alone', (value) => {
+      expect(redact(value, 'balanced').text).toBe(value);
+    });
+
+    it('stays linear on long prefix runs', () => {
+      const start = performance.now();
+      for (const prefix of ['hf_', 'npm_', 'cog_']) redact((prefix + 'x'.repeat(30) + '_').repeat(5_000));
+      redact('cog_' + 'a-'.repeat(80_000) + '_');
+      expect(performance.now() - start).toBeLessThan(1000);
     });
   });
 

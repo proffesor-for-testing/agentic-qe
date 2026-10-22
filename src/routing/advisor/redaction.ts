@@ -45,7 +45,7 @@ const PATTERNS: RedactionPattern[] = [
   },
   {
     category: 'api_key_header',
-    regex: /(Authorization:\s*Bearer\s+)\S+/gi,
+    regex: /(Authorization:\s*(?:Bearer|Token)\s+)\S+/gi,
     replacement: '$1<REDACTED:api_key>',
     modes: ['strict', 'balanced'],
   },
@@ -57,7 +57,8 @@ const PATTERNS: RedactionPattern[] = [
   },
   {
     category: 'private_key',
-    regex: /-----BEGIN\s[\w\s]*PRIVATE KEY-----[\s\S]*?-----END\s[\w\s]*PRIVATE KEY-----/g,
+    // A block with no END line (truncated output) is redacted to end of input.
+    regex: /-----BEGIN\s[\w\s]*PRIVATE KEY-----(?:[\s\S]*?-----END\s[\w\s]*PRIVATE KEY-----|[\s\S]*)/g,
     replacement: '<REDACTED:private_key>',
     modes: ['strict', 'balanced'],
   },
@@ -83,6 +84,25 @@ const PATTERNS: RedactionPattern[] = [
     category: 'slack_token',
     regex: /\b(xoxb-|xoxp-|xoxs-|xoxa-)[A-Za-z0-9-]{10,}\b/g,
     replacement: '<REDACTED:slack_token>',
+    modes: ['strict', 'balanced'],
+  },
+  {
+    category: 'huggingface_token',
+    regex: /\bhf_[A-Za-z0-9]{30,}\b/g,
+    replacement: '<REDACTED:huggingface_token>',
+    modes: ['strict', 'balanced'],
+  },
+  {
+    category: 'npm_token',
+    regex: /\bnpm_[A-Za-z0-9]{36,}\b/g,
+    replacement: '<REDACTED:npm_token>',
+    modes: ['strict', 'balanced'],
+  },
+  {
+    // Cognitum API keys; the trailing lookahead skips snake_case identifiers.
+    category: 'cognitum_key',
+    regex: /\bcog_[A-Za-z0-9-]{20,}(?!\w)/g,
+    replacement: '<REDACTED:cognitum_key>',
     modes: ['strict', 'balanced'],
   },
   {
