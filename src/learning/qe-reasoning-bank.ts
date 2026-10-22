@@ -117,6 +117,8 @@ import {
 export class QEReasoningBank implements IQEReasoningBank {
   private readonly config: QEReasoningBankConfig;
   private readonly embeddingProvenance = new WeakMap<number[], string>();
+  /** #1187: warn once per bank when the embedder fails, not once per pattern. */
+  private embedderFailureWarned = false;
   private patternStore: IPatternStore;
   private initialized = false;
   private sqliteStore: SQLitePatternStore | null = null;
@@ -383,7 +385,7 @@ export class QEReasoningBank implements IQEReasoningBank {
 
     // Generate embedding if not provided
     if (!options.embedding) {
-      const embedding = await this.embed(
+      const embedding = await this.embedForPatterns(
         `${options.name} ${options.description} ${options.context?.tags?.join(' ') || ''}`
       );
       // #981: with no embedding runtime, embed() returns a hash-fallback vector
@@ -391,8 +393,8 @@ export class QEReasoningBank implements IQEReasoningBank {
       // to persist it (VECTOR_SPACE_UNVERIFIED), losing the pattern. Store it
       // text-only instead, as search already does for such vectors; the vector
       // is filled later by `aqe learning backfill-embeddings`.
-      const hasProvenance = this.embeddingProvenance.has(embedding)
-        || Boolean(getActiveEmbeddingSpaceIdentity()?.spaceId);
+      const hasProvenance = embedding !== null && (this.embeddingProvenance.has(embedding)
+        || Boolean(getActiveEmbeddingSpaceIdentity()?.spaceId));
       if (hasProvenance) {
         options = { ...options, embedding };
       } else {
@@ -465,10 +467,10 @@ export class QEReasoningBank implements IQEReasoningBank {
         useVectorSearch = false;
         searchQuery = '';
       } else {
-        const embedding = await this.embed(query);
+        const embedding = await this.embedForPatterns(query);
         // Hash fallback and resized vectors do not belong to the active provider.
         // Keep their text searchable without claiming semantic comparability.
-        searchQuery = this.embeddingProvenance.has(embedding) ? embedding : query;
+        searchQuery = embedding && this.embeddingProvenance.has(embedding) ? embedding : query;
         useVectorSearch = Array.isArray(searchQuery);
       }
     }
@@ -599,9 +601,9 @@ export class QEReasoningBank implements IQEReasoningBank {
       }
 
       // 2. Search for similar patterns
-      const embedding = await this.embed(request.task);
-      const embeddingSpaceId = this.embeddingProvenance.get(embedding);
-      const patternResults = await this.patternStore.search(embeddingSpaceId ? embedding : request.task, {
+      const embedding = await this.embedForPatterns(request.task);
+      const embeddingSpaceId = embedding ? this.embeddingProvenance.get(embedding) : undefined;
+      const patternResults = await this.patternStore.search(embedding && embeddingSpaceId ? embedding : request.task, {
         limit: this.config.maxRoutingCandidates,
         domain: detectedDomains[0],
         useVectorSearch: Boolean(embeddingSpaceId),
@@ -821,6 +823,28 @@ export class QEReasoningBank implements IQEReasoningBank {
 
     // Hash-based fallback (always works, including ARM64)
     return hashEmbedding(text, this.config.embeddingDimension);
+  }
+
+  /**
+   * #1187: embed for pattern store, search and routing, or null when the
+   * embedder endpoint fails at runtime. Callers then store the pattern
+   * text-only and search by text, as they do without an embedding runtime.
+   * ADR-097 still holds: no hash vector stands in for an endpoint vector.
+   */
+  private async embedForPatterns(text: string): Promise<number[] | null> {
+    try {
+      return await this.embed(text);
+    } catch (error) {
+      const message = 'Embedder failed: storing and searching patterns by text only';
+      const context = { error: toErrorMessage(error) };
+      if (this.embedderFailureWarned) {
+        logger.debug(message, context);
+      } else {
+        this.embedderFailureWarned = true;
+        logger.warn(message, context);
+      }
+      return null;
+    }
   }
 
   /**

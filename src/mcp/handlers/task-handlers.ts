@@ -329,7 +329,8 @@ export interface TaskOrchestrateParams {
 /**
  * #1022: how learned patterns informed task_orchestrate.
  * - 'vector': embedding similarity plus text matching
- * - 'lexical-only': no embedding runtime; text matching only, no similarity
+ * - 'lexical-only': no working embedder (absent, or failed at runtime, #1187);
+ *   text matching only, no similarity
  *   scores, and experience guidance unavailable
  * - 'unavailable': the ReasoningBank could not start; no learned guidance
  */

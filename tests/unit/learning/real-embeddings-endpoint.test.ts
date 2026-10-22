@@ -29,6 +29,7 @@ import {
   computeRealEmbedding,
   computeBatchEmbeddings,
   resetInitialization,
+  allowEmbedderInitRetry,
   isUsingEndpoint,
   getEndpointIdentity,
   getActiveEmbeddingSpaceIdentity,
@@ -279,5 +280,29 @@ describe('real-embeddings.ts — ADR-097 endpoint branch', () => {
     ).rejects.toThrow(/dim mismatch/);
 
     await new Promise<void>((r) => bad.close(() => r()));
+  });
+
+  it('can initialize again after a failed start once a retry is allowed (#1187)', async () => {
+    const down = 'http://127.0.0.1:1';
+    await expect(computeRealEmbedding('x', { endpoint: down, enableCache: false })).rejects.toThrow();
+    await expect(
+      computeRealEmbedding('x', { endpoint: server.url, enableCache: false })
+    ).rejects.toThrow(/previously failed/);
+
+    allowEmbedderInitRetry();
+    const vec = await computeRealEmbedding('x', { endpoint: server.url, enableCache: false });
+
+    expect(vec).toHaveLength(getEmbeddingDimension());
+    expect(getEndpointIdentity()?.endpoint).toBe(server.url);
+  });
+
+  it('keeps a working embedder when a retry is allowed (#1187)', async () => {
+    await computeRealEmbedding('x', { endpoint: server.url, enableCache: false });
+    const identity = getEndpointIdentity();
+
+    allowEmbedderInitRetry();
+
+    expect(getEndpointIdentity()).toBe(identity);
+    expect(isUsingEndpoint()).toBe(true);
   });
 });

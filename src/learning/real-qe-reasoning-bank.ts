@@ -26,6 +26,7 @@ import { EMBEDDING_SPACE_CANARY } from './embedding-space.js';
 const logger: Logger = LoggerFactory.create('RealQEReasoningBank');
 import {
   computeRealEmbedding,
+  allowEmbedderInitRetry,
   isTransformerAvailable,
   getEmbeddingDimension,
   clearEmbeddingCache,
@@ -107,6 +108,12 @@ export interface RealQEReasoningBankConfig {
 
   /** Coherence energy threshold for pattern promotion (ADR-052) */
   coherenceThreshold?: number;
+
+  /**
+   * #1187: after the embedder fails (at startup or at runtime), wait this long
+   * before trying it again. Until then pattern search is lexical-only.
+   */
+  embedderRetryIntervalMs?: number;
 }
 
 export const DEFAULT_REAL_CONFIG: RealQEReasoningBankConfig = {
@@ -136,6 +143,7 @@ export const DEFAULT_REAL_CONFIG: RealQEReasoningBankConfig = {
     capabilities: 0.3,
   },
   coherenceThreshold: 0.4, // ADR-052: Coherence gate threshold
+  embedderRetryIntervalMs: 60_000,
 };
 
 // ============================================================================
@@ -155,7 +163,8 @@ export interface RealQEPatternSearchResult {
  * #1022: how pattern search works in this process. Without an embedding
  * runtime the bank stores patterns text-only (vectors pending, filled later by
  * `aqe learning backfill-embeddings`) and searches by SQLite FTS text matching
- * only. No similarity score is computed in that mode.
+ * only. No similarity score is computed in that mode. #1187: the same mode
+ * applies while an embedder that failed at runtime is unavailable.
  */
 export interface PatternSearchStatus {
   mode: 'vector' | 'lexical-only';
@@ -257,6 +266,9 @@ export class RealQEReasoningBank {
   private initialized = false;
   /** #1022: set when no embedding runtime is available; null when vectors work. */
   private embedderUnavailableReason: string | null = null;
+  /** #1187: when the embedder last failed, for the bounded retry. */
+  private embedderFailedAt = 0;
+  private embedderRetry: Promise<void> | null = null;
 
   // Statistics tracking - using CircularBuffer for O(1) operations (ADR memory leak fix)
   private stats = {
@@ -365,6 +377,7 @@ export class RealQEReasoningBank {
       await computeRealEmbedding(EMBEDDING_SPACE_CANARY, this.qeConfig.embeddings);
     } catch (error) {
       this.embedderUnavailableReason = toErrorMessage(error);
+      this.embedderFailedAt = Date.now();
       logger.warn(
         'No embedding runtime: patterns are stored without vectors (pending ' +
         '`aqe learning backfill-embeddings`) and searched by text matching only',
@@ -409,6 +422,55 @@ export class RealQEReasoningBank {
     return this.embedderUnavailableReason === null
       ? { mode: 'vector' }
       : { mode: 'lexical-only', reason: this.embedderUnavailableReason };
+  }
+
+  /**
+   * #1187: embed `text`, or return undefined when the embedder is unavailable.
+   * A runtime failure switches this bank to lexical-only (reported by
+   * getPatternSearchStatus): callers then store patterns text-only and search
+   * by text. The embedder is tried again once `embedderRetryIntervalMs` has
+   * passed, so a short outage, at startup or later, does not last until restart.
+   */
+  private async embedOrUndefined(text: string): Promise<number[] | undefined> {
+    await this.retryEmbedderIfDue();
+    if (this.embedderUnavailableReason !== null) return undefined;
+    try {
+      return await computeRealEmbedding(text, this.qeConfig.embeddings);
+    } catch (error) {
+      this.embedderUnavailableReason = `Embedder failed at runtime: ${toErrorMessage(error)}`;
+      this.embedderFailedAt = Date.now();
+      logger.warn(
+        'Embedder failed: patterns are stored without vectors and searched by ' +
+        'text matching only until it recovers',
+        { reason: this.embedderUnavailableReason }
+      );
+      return undefined;
+    }
+  }
+
+  private async retryEmbedderIfDue(): Promise<void> {
+    if (this.embedderUnavailableReason === null) return;
+    const interval = this.qeConfig.embedderRetryIntervalMs ?? 60_000;
+    if (Date.now() - this.embedderFailedAt < interval) return;
+    this.embedderRetry ??= this.retryEmbedder().finally(() => { this.embedderRetry = null; });
+    await this.embedderRetry;
+  }
+
+  private async retryEmbedder(): Promise<void> {
+    try {
+      allowEmbedderInitRetry();
+      // Bypass the cache: a cached canary vector proves nothing about the embedder now.
+      await computeRealEmbedding(EMBEDDING_SPACE_CANARY, { ...this.qeConfig.embeddings, enableCache: false });
+      if (!this.hnswIndex) {
+        await this.initializeHNSW();
+        await this.loadPatternsIntoHNSW();
+      }
+      this.embedderUnavailableReason = null;
+      logger.info('Embedder available again: pattern search uses vectors');
+    } catch (error) {
+      this.embedderFailedAt = Date.now();
+      logger.debug('Embedder still unavailable', { error: toErrorMessage(error) });
+    }
   }
 
   /**
@@ -543,12 +605,10 @@ export class RealQEReasoningBank {
     // Require explicit initialization - don't auto-initialize to avoid memory issues
 
     try {
-      // Generate REAL embedding using transformer model. #1022: without an
-      // embedding runtime the pattern is stored text-only (vector pending).
+      // Generate REAL embedding using transformer model. #1022/#1187: without
+      // a working embedder the pattern is stored text-only (vector pending).
       const textToEmbed = `${options.name} ${options.description || ''} ${options.context?.tags?.join(' ') || ''}`;
-      const embedding = this.embedderUnavailableReason === null
-        ? await computeRealEmbedding(textToEmbed, this.qeConfig.embeddings)
-        : undefined;
+      const embedding = await this.embedOrUndefined(textToEmbed);
 
       // Detect QE domain
       const qeDomain = detectQEDomain(textToEmbed) || 'test-generation';
@@ -667,13 +727,14 @@ export class RealQEReasoningBank {
       const limit = options.limit || 10;
       const patterns: RealQEPatternSearchResult[] = [];
 
-      // #1022: without an embedding runtime only the lexical (FTS) branch
+      // #1022/#1187: without a working embedder only the lexical (FTS) branch
       // below runs; its hits are labelled matchType 'lexical'.
-      if (this.embedderUnavailableReason === null) {
+      const queryEmbedding = await this.embedOrUndefined(query);
+      if (queryEmbedding) {
         if (!this.hnswIndex) {
           return err(new Error('HNSW index not available'));
         }
-        await this.collectVectorMatches(query, limit, options, patterns);
+        this.collectVectorMatches(queryEmbedding, limit, options, patterns);
       }
 
       const existing = new Map(patterns.map(hit => [hit.pattern.id, hit]));
@@ -704,16 +765,13 @@ export class RealQEReasoningBank {
     }
   }
 
-  /** Append HNSW vector matches for `query` to `patterns`. */
-  private async collectVectorMatches(
-    query: string,
+  /** Append HNSW vector matches for the query embedding to `patterns`. */
+  private collectVectorMatches(
+    queryEmbedding: number[],
     limit: number,
     options: { domain?: QEDomain; minSimilarity?: number },
     patterns: RealQEPatternSearchResult[]
-  ): Promise<void> {
-    // Generate REAL embedding for query
-    const queryEmbedding = await computeRealEmbedding(query, this.qeConfig.embeddings);
-
+  ): void {
     // Search HNSW index
     const results = this.hnswIndex!.searchKnn(queryEmbedding, limit * 2); // Get extra for filtering
 
