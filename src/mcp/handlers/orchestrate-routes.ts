@@ -9,10 +9,13 @@
  * with values the request did not contain.
  */
 
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import type { TaskType } from '../../coordination/queen-types.js';
 import type { DomainName } from '../../shared/types/index.js';
 import { findProjectRoot } from '../../kernel/project-root.js';
 import { confineIndexPaths } from '../../domains/code-intelligence/index-path-guard.js';
+import { requirePayloadPath } from '../../shared/io/payload-path-guard.js';
 
 export interface OrchestrateRequest {
   task: string;
@@ -20,8 +23,12 @@ export interface OrchestrateRequest {
 }
 
 export type OrchestrateRoute =
-  /** Submit `type` to `domain` with `payload`. */
-  | { kind: 'route'; type: string; domain: DomainName; payload: Record<string, unknown> }
+  /**
+   * Submit `type` to `domain` with `payload`. `executionOwner: 'caller'` runs
+   * the task through the MCP task executor, as the domain's own tool does,
+   * instead of the domain plugin.
+   */
+  | { kind: 'route'; type: string; domain: DomainName; payload: Record<string, unknown>; executionOwner?: 'caller' }
   /** The request lacks what the handler needs; `error` says what to supply. */
   | { kind: 'needs-input'; error: string }
   /** The inferred type has its own handler; submit it as before. */
@@ -43,6 +50,53 @@ async function projectFiles(type: TaskType, filePaths: string[]): Promise<{ file
     return needs(type, `these filePaths cannot be read: ${list}. Pass regular files inside the project.`);
   }
   return { files: accepted };
+}
+
+/** Source and report extensions that mark a bare word in a description as a file. */
+const PATH_EXTENSION = /\.(?:[cm]?[jt]sx?|py|go|rs|java|kt|cs|rb|php|swift|info|lcov|json|xml)$/i;
+/** Words after which a description names what to measure ("coverage for src"). */
+const TARGET_PREPOSITION = /^(?:for|of|in|under|on)$/i;
+
+/**
+ * The paths a description names: words with a path separator or a source /
+ * report extension, else a word after "for/of/in/under/on" that exists
+ * (`analyze coverage for src`). Anything else is prose.
+ */
+function pathsInDescription(task: string): string[] {
+  const words = task.split(/\s+/).map(w => w.replace(/^[`'"(]+|[`'",;:!?)]+$|\.$/g, '')).filter(Boolean);
+  const pathLike = words.filter(w => !/^https?:/i.test(w) && (/[\\/]/.test(w) || PATH_EXTENSION.test(w)));
+  if (pathLike.length > 0) return [...new Set(pathLike)];
+  // Resolved as the coverage handler resolves its target: from the cwd.
+  const named = words.filter((w, i) => i > 0 && TARGET_PREPOSITION.test(words[i - 1]) &&
+    /^[\w.-]+$/.test(w) && existsSync(resolve(w)));
+  return [...new Set(named)];
+}
+
+/**
+ * #1200: the one target an orchestrated coverage task measures — the single
+ * filePath, else the one path the description names, else '.' (the default
+ * of coverage_analyze_sublinear).
+ * The task then runs the handler coverage_analyze_sublinear runs, so it
+ * resolves the target, reads the report and judges its evidence the same way.
+ */
+async function coverageRoute(request: OrchestrateRequest): Promise<OrchestrateRoute> {
+  const type: TaskType = 'analyze-coverage';
+  const given = request.filePaths ?? [];
+  const candidates = given.length > 0 ? given : pathsInDescription(request.task);
+  if (candidates.length > 1) {
+    return needs(type, `coverage is analyzed for one target, and ${given.length > 0 ? 'filePaths' : 'the description'} ` +
+      `names ${candidates.length} (${candidates.join(', ')}). Pass one file or directory, or use ` +
+      'coverage_analyze_sublinear with a target.');
+  }
+  const target = candidates[0] ?? '.';
+  if (target !== '.') {
+    const confined = await requirePayloadPath(type, 'target', target, { allowDirectory: true, allowMissing: true });
+    if (!confined.success) return needs(type, `the ${confined.error.message.replace(/^Invalid [\w-]+ payload: /, '')}`);
+  }
+  return {
+    kind: 'route', type, domain: 'coverage-analysis', executionOwner: 'caller',
+    payload: { target, detectGaps: true },
+  };
 }
 
 /** Decide how task_orchestrate runs an inferred task type. */
@@ -79,6 +133,11 @@ export async function routeInferredTask(type: TaskType, request: OrchestrateRequ
       if ('kind' in confined) return confined;
       return { kind: 'route', type: 'analyze-quality', domain: 'quality-assessment', payload: { sourceFiles: confined.files } };
     }
+
+    case 'analyze-coverage':
+      // #1200: the domain plugin's handler needs coverageData, which a
+      // description never carries; the coverage tool's handler finds it.
+      return coverageRoute(request);
 
     case 'test-accessibility':
       // run-accessibility-audit falls back to URL-pattern heuristics when no

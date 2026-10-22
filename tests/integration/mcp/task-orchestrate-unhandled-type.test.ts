@@ -12,6 +12,9 @@
  * #1125: inferred types whose domain runs a concrete handler (sast-scan,
  * analyze-quality) are routed there with input from the request; the others
  * are refused with the input they need.
+ *
+ * #1200: an inferred coverage task runs the coverage_analyze_sublinear handler
+ * on its target and reports the same figures and evidence.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
@@ -172,5 +175,38 @@ describe.skipIf(!existsSync(bundle) && !process.env.CI)('MCP task_orchestrate le
     const open = (list.data as Array<{ taskId: string; status: string }>)
       .filter(t => t.status === 'running' || t.status === 'queued' || t.status === 'assigned');
     expect(open, JSON.stringify(open)).toEqual([]);
+  }, 120000);
+
+  it('runs an orchestrated coverage task on its filePath, as coverage_analyze_sublinear does (#1200)', async () => {
+    mkdirSync(join(root, 'coverage'), { recursive: true });
+    writeFileSync(join(root, 'coverage/lcov.info'),
+      'TN:\nSF:src/math.js\nFN:1,add\nFNDA:1,add\nFNF:1\nFNH:1\nDA:1,1\nLF:1\nLH:1\nend_of_record\n');
+    try {
+      const submitted = await call('task_orchestrate', { task: 'analyze coverage for src', filePaths: ['src/math.js'] });
+      expect(submitted.success, JSON.stringify(submitted)).toBe(true);
+      expect(submitted.data.type).toBe('analyze-coverage');
+      expect(await settle(submitted.data.taskId)).toBe('completed');
+      const { data: { result } } = await call('task_status', { taskId: submitted.data.taskId, detailed: true });
+
+      const reference = await call('coverage_analyze_sublinear', { target: 'src/math.js', saveResults: false });
+      expect(reference.success, JSON.stringify(reference)).toBe(true);
+      expect(result).toMatchObject({
+        lineCoverage: reference.data.lineCoverage,
+        functionCoverage: reference.data.functionCoverage,
+        totalFiles: 1,
+        measured: true,
+        coverageMethod: 'instrumented-report',
+        evidenceStatus: reference.data.evidenceStatus,
+      });
+      expect(result.lineCoverage).toBe(100);
+
+      // A file the report does not list is UNMEASURED, not 0%.
+      const outside = await call('task_orchestrate', { task: 'analyze coverage', filePaths: ['src/unsafe.js'] });
+      expect(await settle(outside.data.taskId)).toBe('completed');
+      const unmeasured = await call('task_status', { taskId: outside.data.taskId, detailed: true });
+      expect(unmeasured.data.result).toMatchObject({ lineCoverage: null, measured: false, unmeasured: true });
+    } finally {
+      rmSync(join(root, 'coverage'), { recursive: true, force: true });
+    }
   }, 120000);
 });
