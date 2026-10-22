@@ -446,7 +446,7 @@ describe('#995 review — evaluateCoverageForTarget (the one verdict MCP and CLI
     const verdict = evaluateCoverageForTarget(
       report([file('/proj/src/zero.ts', 0), file('/proj/lib/hit.ts', 4)]), root, '/proj/src/zero.ts'
     );
-    expect(verdict).toEqual({ status: 'measured', files: [file('/proj/src/zero.ts', 0)] });
+    expect(verdict).toMatchObject({ status: 'measured', files: [file('/proj/src/zero.ts', 0)] });
   });
 
   it('an all-zero report is still a measurement when the runner says tests ran', () => {

@@ -60,6 +60,11 @@ export interface IstanbulFileCoverage {
  * Load coverage data from common coverage file formats
  */
 export async function loadCoverageData(targetPath: string): Promise<CoverageData | null> {
+  return (await loadCoverageReport(targetPath))?.data ?? null;
+}
+
+/** `loadCoverageData` plus the path of the report it read (#1154: staleness needs it). */
+export async function loadCoverageReport(targetPath: string): Promise<{ data: CoverageData; path: string } | null> {
   // Try various coverage file locations (JS, Python, Java, etc.)
   const coverageLocations = [
     // JavaScript/TypeScript (Istanbul/nyc/vitest)
@@ -82,13 +87,13 @@ export async function loadCoverageData(targetPath: string): Promise<CoverageData
       const content = await readConfinedText(coveragePath, { outsideRoot: 'allow' });
 
       if (coveragePath.endsWith('coverage-summary.json')) {
-        return parseCoverageSummaryJson(content);
+        return { data: parseCoverageSummaryJson(content), path: coveragePath };
       } else if (coveragePath.endsWith('.json')) {
-        return parseCoverageJson(content);
+        return { data: parseCoverageJson(content), path: coveragePath };
       } else if (coveragePath.endsWith('.info')) {
-        return parseLcovInfo(content);
+        return { data: parseLcovInfo(content), path: coveragePath };
       } else if (coveragePath.endsWith('.xml')) {
-        return parseCoberturaXml(content);
+        return { data: parseCoberturaXml(content), path: coveragePath };
       }
     } catch {
       // File not found, try next

@@ -685,6 +685,16 @@ export interface CoverageAnalyzeResult {
    * this is "no measurement", never 0%.
    */
   unmeasured?: boolean;
+  /**
+   * #1154: `insufficient-evidence` when source files under the target are not
+   * in the report, or the report is older than the sources. The figures then
+   * cover the measured files only and must not be read as a pass.
+   */
+  evidenceStatus?: 'complete' | 'insufficient-evidence';
+  /** #1154: source files under the target with no entry in the report. */
+  unmeasuredFiles?: string[];
+  /** #1154: the report is older than these source files. */
+  staleReport?: { reportPath: string; reportModified: string; newerFiles: string[] };
   /** Caveats the caller should surface (e.g. "no instrumentation ran"). */
   warning?: string;
 }

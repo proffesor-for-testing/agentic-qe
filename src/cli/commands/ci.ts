@@ -132,6 +132,13 @@ async function executePhase(
 
         switch (outcome.kind) {
           case 'measured': {
+            if (outcome.insufficientEvidence.length > 0) {
+              // #1154: target files missing from the report, or a stale report.
+              status = 'warning';
+              phaseExitCode = coverageExitCode(outcome, threshold);
+              summary = `INSUFFICIENT EVIDENCE — ${outcome.insufficientEvidence.join('; ')}`;
+              break;
+            }
             status = outcome.verdict.meetsThreshold ? 'passed' : 'warning';
             summary = `Line: ${pct(outcome.summary.line)}, Branch: ${pct(outcome.summary.branch)} — ` +
               `${outcome.verdict.meetsThreshold ? 'meets' : 'below'} ${threshold}% threshold (measured)`;

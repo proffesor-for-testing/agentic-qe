@@ -794,6 +794,11 @@ export const coverageAnalyzeConfig: DomainHandlerConfig<CoverageAnalyzeParams, C
       ...(data.runStatus === 'passed' || data.runStatus === 'failed' ? { runStatus: data.runStatus as 'passed' | 'failed' } : {}),
       // #995: the target has no measurement at all — distinct from a measured 0%.
       ...(data.unmeasured === true ? { unmeasured: true } : {}),
+      // #1154: target files the report does not cover, and a stale report.
+      ...(data.evidenceStatus === 'complete' || data.evidenceStatus === 'insufficient-evidence'
+        ? { evidenceStatus: data.evidenceStatus as 'complete' | 'insufficient-evidence' } : {}),
+      ...(Array.isArray(data.unmeasuredFiles) ? { unmeasuredFiles: data.unmeasuredFiles as string[] } : {}),
+      ...(data.staleReport ? { staleReport: data.staleReport as CoverageAnalyzeResult['staleReport'] } : {}),
       ...(data.warning ? { warning: data.warning as string } : {}),
     };
   },

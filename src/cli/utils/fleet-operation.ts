@@ -17,6 +17,7 @@ import type { DomainName } from '../../shared/types/index.js';
 import { walkSourceFiles } from './file-discovery.js';
 import { summarizeCoverage } from './coverage-data.js';
 import { describeNoData, resolveExistingCoverage } from '../../coordination/handlers/coverage-target.js';
+import { describeEvidence } from '../../coordination/handlers/coverage-evidence.js';
 import { MAX_SAST_FILE_BYTES } from '../../domains/security-compliance/sast-path-guard.js';
 
 export const FLEET_OPERATIONS = ['test', 'analyze', 'scan'] as const;
@@ -26,6 +27,11 @@ export interface FleetOperationTask {
   domain: DomainName;
   type: string;
   payload: Record<string, unknown>;
+  /**
+   * #1154: why the input cannot support a passing verdict (target files missing
+   * from the coverage report, a stale report). The verdict fails while non-empty.
+   */
+  insufficientEvidence?: string[];
 }
 
 export type FleetOperationPlan =
@@ -78,9 +84,14 @@ export async function planFleetOperation(operation: FleetOperation, target: stri
       const { evaluation, projectRoot } = existing;
       if (evaluation.status !== 'measured') return refuse(describeNoData(evaluation.reason, target, projectRoot));
       const coverageData = { files: evaluation.files, summary: summarizeCoverage(evaluation.files) };
+      const insufficientEvidence = describeEvidence(evaluation.evidence, projectRoot);
       return {
         success: true,
-        task: { domain: 'coverage-analysis', type: 'analyze-coverage', payload: { coverageData, threshold: FLEET_COVERAGE_THRESHOLD } },
+        task: {
+          domain: 'coverage-analysis', type: 'analyze-coverage',
+          payload: { coverageData, threshold: FLEET_COVERAGE_THRESHOLD },
+          ...(insufficientEvidence.length > 0 ? { insufficientEvidence } : {}),
+        },
       };
     }
   }
