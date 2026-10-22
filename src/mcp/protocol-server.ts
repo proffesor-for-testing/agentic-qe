@@ -893,6 +893,8 @@ export class MCPProtocolServer {
         isCacheable: false,
         parameters: [
           { name: 'status', type: 'string', description: 'Filter by status' },
+          { name: 'priority', type: 'string', description: 'Filter by priority', enum: ['p0', 'p1', 'p2', 'p3'] },
+          { name: 'domain', type: 'string', description: 'Filter by assigned domain' },
           { name: 'limit', type: 'number', description: 'Maximum results', default: 50 },
         ],
       },
@@ -934,6 +936,7 @@ export class MCPProtocolServer {
           { name: 'task', type: 'string', description: 'Task description', required: true },
           { name: 'strategy', type: 'string', description: 'Execution strategy', enum: ['parallel', 'sequential', 'adaptive'] },
           { name: 'filePaths', type: 'array', description: 'Project files the task works on. A security scan or quality assessment runs on these files and is refused without them.', items: { type: 'string' } },
+          { name: 'priority', type: 'string', description: 'Task priority (default: medium/p2)', enum: ['p0', 'p1', 'p2', 'p3', 'critical', 'high', 'medium', 'low'] },
         ],
       },
       handler: (params) => handleTaskOrchestrate(params as unknown as Parameters<typeof handleTaskOrchestrate>[0]),

@@ -218,6 +218,13 @@ export class TaskHandler implements ICommandHandler {
   private async executeList(options: ListOptions, context: CLIContext): Promise<void> {
     if (!await this.ensureInitialized()) return this.cleanupAndExit(1);
 
+    // #1117: an unvalidated filter silently matches nothing, which reads as
+    // "no tasks" rather than "bad flag". Parity with `task submit`.
+    if (options.priority !== undefined && !isPriority(options.priority)) {
+      console.error(chalk.red(`\n  ${invalidPriorityMessage(options.priority)}\n`));
+      return this.cleanupAndExit(1);
+    }
+
     try {
       const tasks = context.queen!.listTasks({
         status: options.status as 'queued' | 'assigned' | 'running' | 'completed' | 'failed' | 'cancelled' | undefined,

@@ -158,7 +158,9 @@ export function isPriority(value: unknown): value is Priority {
 
 /** Shared rejection message so `task_submit` and `aqe task submit` stay in parity (#1108). */
 export function invalidPriorityMessage(value: unknown): string {
-  return `Invalid priority: ${String(value)}. Valid priorities: ${ALL_PRIORITIES.join(', ')}`;
+  // An empty string would otherwise render as "Invalid priority: ." (#1117).
+  const shown = value === '' ? '(empty)' : String(value);
+  return `Invalid priority: ${shown}. Valid priorities: ${ALL_PRIORITIES.join(', ')}`;
 }
 
 // ============================================================================

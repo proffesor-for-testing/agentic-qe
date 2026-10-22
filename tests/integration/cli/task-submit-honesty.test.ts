@@ -48,6 +48,13 @@ describe.skipIf(!existsSync(cli) && !process.env.CI)('built CLI task submit hone
     expect(result.stdout).not.toMatch(/ID: task_/);
   }, 35000);
 
+  it('#1117: rejects an invalid task list --priority filter instead of listing nothing', () => {
+    const result = runCli(['task', 'list', '--priority', 'bogus']);
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('Invalid priority: bogus. Valid priorities: p0, p1, p2, p3');
+  }, 35000);
+
   it('C: refuses a detached submit instead of printing an ID for abandoned work', () => {
     const result = runCli(['task', 'submit', 'analyze-coverage', '--domain', 'coverage-analysis', '--no-progress']);
     expect(result.error).toBeUndefined();
