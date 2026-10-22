@@ -20,6 +20,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { FileCoverage } from '../../domains/coverage-analysis/interfaces';
 import { walkSourceFiles } from './coverage-collection';
+import { inCoverageScope, readCoverageScope } from './coverage-scope';
 
 /** The report is older than these source files. */
 export interface StaleReport {
@@ -36,6 +37,8 @@ export interface CoverageEvidence {
   /** Production source files under the target, measured or not. */
   targetFiles: number;
   stale?: StaleReport;
+  /** The coverage config whose include/exclude scoped `unmeasuredFiles`, if any. */
+  coverageScope?: { source: string; readable: boolean };
 }
 
 /** Source files that share a coverage tool with each other (one report covers one family). */
@@ -71,23 +74,32 @@ function reportPaths(files: FileCoverage[], projectRoot: string): Set<string> {
 /**
  * Production source files under a directory `target` that the report has no
  * entry for. Only files in a language the report covers count: a JS report
- * does not make a Python helper script unmeasured.
+ * does not make a Python helper script unmeasured. Files the project's coverage
+ * config leaves out (include/exclude) were never meant to be measured and do
+ * not count either.
  */
 export function findUnmeasuredSourceFiles(
   reportFiles: FileCoverage[],
   projectRoot: string,
   target: string,
-): { targetFiles: string[]; unmeasured: string[] } {
+): { targetFiles: string[]; unmeasured: string[]; coverageScope?: { source: string; readable: boolean } } {
   let isDir = false;
   try { isDir = fs.statSync(target).isDirectory(); } catch { /* missing: nothing to compare */ }
   if (!isDir) return { targetFiles: [], unmeasured: [] };
 
+  const rootAbs = canonical(projectRoot);
+  const scope = readCoverageScope(rootAbs);
   const families = new Set(reportFiles.map(f => familyOf(f.path)).filter(Boolean));
   const inReport = reportPaths(reportFiles, projectRoot);
   const targetFiles = walkSourceFiles(target)
     .filter(file => families.has(familyOf(file)) && !isNeverInstrumented(file))
-    .map(canonical);
-  return { targetFiles, unmeasured: targetFiles.filter(file => !inReport.has(file)).sort() };
+    .map(canonical)
+    .filter(file => inCoverageScope(scope, file, rootAbs));
+  return {
+    targetFiles,
+    unmeasured: targetFiles.filter(file => !inReport.has(file)).sort(),
+    ...(scope ? { coverageScope: { source: scope.source, readable: scope.readable } } : {}),
+  };
 }
 
 /** Source files modified after the report was written; `undefined` when the report is current. */
@@ -117,8 +129,8 @@ export function assessCoverageEvidence(
   target: string,
   options: { reportPath?: string; checkCompleteness?: boolean } = {},
 ): CoverageEvidence {
-  const { targetFiles, unmeasured } = options.checkCompleteness === false
-    ? { targetFiles: [], unmeasured: [] }
+  const { targetFiles, unmeasured, coverageScope } = options.checkCompleteness === false
+    ? { targetFiles: [], unmeasured: [], coverageScope: undefined }
     : findUnmeasuredSourceFiles(report.files, projectRoot, target);
 
   const sources = new Set([...targetFiles, ...reportPaths(measuredFiles, projectRoot)]);
@@ -131,6 +143,7 @@ export function assessCoverageEvidence(
     unmeasuredFiles: unmeasured,
     targetFiles: sources.size,
     ...(stale ? { stale } : {}),
+    ...(coverageScope ? { coverageScope } : {}),
   };
 }
 
@@ -150,8 +163,15 @@ export function describeEvidence(evidence: CoverageEvidence | undefined, project
   const reasons: string[] = [];
   const n = evidence.unmeasuredFiles.length;
   if (n > 0) {
+    const scope = evidence.coverageScope;
+    const scopeNote = scope && !scope.readable
+      ? ` The coverage include/exclude in ${scope.source} could not be read statically, so files it leaves out ` +
+        'may be listed here; write them as literal string arrays to have them honoured.'
+      : '';
     reasons.push(`${n} of ${evidence.targetFiles} source files under the target are not in the coverage report ` +
-      `(UNMEASURED, not counted as covered): ${listFiles(evidence.unmeasuredFiles, projectRoot)}`);
+      `(UNMEASURED, not counted as covered): ${listFiles(evidence.unmeasuredFiles, projectRoot)}. Regenerate ` +
+      'the report with coverage for the whole target, or exclude files that are not meant to be measured in the ' +
+      `coverage tool's include/exclude config.${scopeNote}`);
   }
   if (evidence.stale) {
     const m = evidence.stale.newerFiles.length;

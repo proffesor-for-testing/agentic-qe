@@ -365,7 +365,7 @@ export function registerCoverageHandlers(ctx: TaskHandlerContext): void {
       const warnings = [...provenance.notes, ...(notes ?? [])];
       if (provenance.estimated) warnings.push(estimationGuidance(targetPath));
       if (evidenceReasons.length > 0) {
-        warnings.push(`INSUFFICIENT EVIDENCE — the threshold is not met on this report: ${evidenceReasons.join('; ')}.`);
+        warnings.push(`INSUFFICIENT EVIDENCE — the threshold is not met on this report: ${evidenceReasons.join('; ').replace(/\.?$/, '.')}`);
       }
 
       // #569: the analyzer generates recommendations from the summary numbers.

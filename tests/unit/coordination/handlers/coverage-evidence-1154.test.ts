@@ -140,8 +140,8 @@ describe('#1154 — shared resolver: completeness and staleness', () => {
       status: 'insufficient-evidence', unmeasuredFiles: [at('src/unsafe.js')], targetFiles: 2,
     });
     expect(describeEvidence(existing.evaluation.evidence, root)[0])
-      .toBe('1 of 2 source files under the target are not in the coverage report ' +
-        '(UNMEASURED, not counted as covered): src/unsafe.js');
+      .toContain('1 of 2 source files under the target are not in the coverage report ' +
+        '(UNMEASURED, not counted as covered): src/unsafe.js. Regenerate the report');
   });
 
   it('is complete when every target source file is in a current report', async () => {
@@ -186,16 +186,19 @@ describe('#1154 — shared resolver: completeness and staleness', () => {
     expect(existing.evaluation.evidence.status).toBe('complete');
   });
 
-  it('lists a file the coverage tool was configured to exclude: the runner config is not read', async () => {
+  it('lists files outside the report when the coverage config scope cannot be read, and says so', async () => {
     write('src/math.js', MATH_JS);
     write('src/generated.js', 'export const g = 1;');
-    write('vitest.config.ts', "export default { test: { coverage: { exclude: ['src/generated.js'] } } };");
+    write('vitest.config.ts', "const excluded = ['src/generated.js'];\nexport default { test: { coverage: { exclude: excluded } } };");
     write('coverage/lcov.info', LCOV_MATH, NEWER);
 
     const existing = await resolveExistingCoverage(at('src'));
 
     if (existing.status !== 'evaluated' || existing.evaluation.status !== 'measured') throw new Error('not measured');
     expect(existing.evaluation.evidence.unmeasuredFiles).toEqual([at('src/generated.js')]);
+    expect(existing.evaluation.evidence.coverageScope).toEqual({ source: 'vitest.config.ts', readable: false });
+    expect(describeEvidence(existing.evaluation.evidence, root)[0])
+      .toContain('The coverage include/exclude in vitest.config.ts could not be read statically');
   });
 
   it('does not look below the source walker depth limit (6 directories)', async () => {
