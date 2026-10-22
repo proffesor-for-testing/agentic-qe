@@ -105,7 +105,9 @@ describe('qe/coherence/consensus tool', () => {
     const tool = new CoherenceConsensusTool();
     const votesSchema = tool.getSchema().properties.votes;
 
-    expect(votesSchema.items?.required).toEqual(['agentId', 'verdict', 'confidence']);
+    // `verdict` has no property schema (string | number | boolean), so strict
+    // JSON Schema forbids listing it in `required` (#1185); execute() enforces it.
+    expect(votesSchema.items?.required).toEqual(['agentId', 'confidence']);
     expect(votesSchema.description).toMatch(/agentId.*verdict.*confidence/);
   });
 });

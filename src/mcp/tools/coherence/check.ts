@@ -90,6 +90,7 @@ const COHERENCE_CHECK_SCHEMA: MCPToolSchema = {
       type: 'array',
       description:
         'Array of nodes to check for coherence. Each node must have an id and embedding vector.',
+      items: { type: 'object', description: 'Node with id, embedding vector, optional weight and metadata' },
     },
     energyThreshold: {
       type: 'number',

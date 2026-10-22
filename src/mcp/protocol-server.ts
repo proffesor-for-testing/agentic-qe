@@ -832,7 +832,7 @@ export class MCPProtocolServer {
         parameters: [
           { name: 'topology', type: 'string', description: 'Swarm topology type', enum: ['hierarchical', 'mesh', 'ring', 'adaptive'] },
           { name: 'maxAgents', type: 'number', description: 'Maximum number of agents', default: 15 },
-          { name: 'enabledDomains', type: 'array', description: 'Domains to enable' },
+          { name: 'enabledDomains', type: 'array', description: 'Domains to enable', items: { type: 'string' } },
           { name: 'lazyLoading', type: 'boolean', description: 'Enable lazy loading', default: true },
         ],
       },
@@ -877,7 +877,7 @@ export class MCPProtocolServer {
         parameters: [
           { name: 'type', type: 'string', description: 'Task type', required: true },
           { name: 'priority', type: 'string', description: 'Task priority', enum: ['p0', 'p1', 'p2', 'p3'], default: 'p1' },
-          { name: 'targetDomains', type: 'array', description: 'Target domains (e.g. ["coverage-analysis"]); unknown domains are rejected' },
+          { name: 'targetDomains', type: 'array', description: 'Target domains (e.g. ["coverage-analysis"]); unknown domains are rejected', items: { type: 'string' } },
           { name: 'payload', type: 'object', description: 'Task payload data' },
         ],
       },
@@ -1106,7 +1106,7 @@ export class MCPProtocolServer {
         description: `Execute test files in parallel with automatic retry on flaky failures. ${SAVE_RESULTS_HINT} Example: test_execute_parallel({ testFiles: ["tests/auth.test.ts"], parallel: true })`,
         category: 'domain',
         parameters: [
-          { name: 'testFiles', type: 'array', description: 'Nonempty list of concrete test file paths (relative to the project working directory or absolute). Expand glob patterns before calling; glob patterns are rejected.' },
+          { name: 'testFiles', type: 'array', description: 'Nonempty list of concrete test file paths (relative to the project working directory or absolute). Expand glob patterns before calling; glob patterns are rejected.', items: { type: 'string' } },
           { name: 'parallel', type: 'boolean', description: 'Enable parallel execution', default: true },
           saveResultsParameter('test_execute_parallel'),
         ],
@@ -1349,7 +1349,7 @@ export class MCPProtocolServer {
         category: 'memory',
         parameters: [
           { name: 'sourceAgentId', type: 'string', description: 'Source agent ID', required: true },
-          { name: 'targetAgentIds', type: 'array', description: 'Target agent IDs', required: true },
+          { name: 'targetAgentIds', type: 'array', description: 'Target agent IDs', required: true, items: { type: 'string' } },
           { name: 'knowledgeDomain', type: 'string', description: 'Knowledge domain', required: true },
         ],
       },
@@ -1368,7 +1368,7 @@ export class MCPProtocolServer {
         parameters: [
           { name: 'task', type: 'string', description: 'Task description to analyze', required: true },
           { name: 'codeContext', type: 'string', description: 'Optional code context for complexity analysis' },
-          { name: 'filePaths', type: 'array', description: 'Optional file paths involved' },
+          { name: 'filePaths', type: 'array', description: 'Optional file paths involved', items: { type: 'string' } },
           { name: 'manualTier', type: 'number', description: 'Manual tier override (0-4)' },
           { name: 'isCritical', type: 'boolean', description: 'Mark as critical task (allows budget overrides)' },
           { name: 'agentType', type: 'string', description: 'Agent type making the request' },
@@ -1440,7 +1440,7 @@ export class MCPProtocolServer {
         description: 'Trigger infrastructure recovery for detected failures and optionally re-run affected tests. Example: infra_healing_recover({ services: ["postgres"], rerunTests: true })',
         category: 'infra-healing',
         parameters: [
-          { name: 'services', type: 'array', description: 'Specific services to recover (empty = all failing)' },
+          { name: 'services', type: 'array', description: 'Specific services to recover (empty = all failing)', items: { type: 'string' } },
           { name: 'rerunTests', type: 'boolean', description: 'Re-run affected tests after recovery', default: true },
         ],
       },
@@ -1537,7 +1537,7 @@ export class MCPProtocolServer {
         category: 'cross-phase',
         isConcurrencySafe: true,
         parameters: [
-          { name: 'signals', type: 'array', description: 'Signals to format', required: true },
+          { name: 'signals', type: 'array', description: 'Signals to format', required: true, items: { type: 'object' } },
         ],
       },
       handler: (params) => handleFormatSignals(params as unknown as FormatSignalsParams),
@@ -1566,7 +1566,7 @@ export class MCPProtocolServer {
           { name: 'filePath', type: 'string', description: 'Path to the document to validate' },
           { name: 'content', type: 'string', description: 'Inline content to validate (alternative to filePath)' },
           { name: 'pipeline', type: 'string', description: 'Pipeline type (default: requirements)', default: 'requirements' },
-          { name: 'steps', type: 'array', description: 'Specific step IDs to run (default: all 13)' },
+          { name: 'steps', type: 'array', description: 'Specific step IDs to run (default: all 13)', items: { type: 'string' } },
           { name: 'continueOnFailure', type: 'boolean', description: 'Continue past blocking failures', default: false },
           { name: 'format', type: 'string', description: 'Output format: markdown or json', default: 'json' },
         ],

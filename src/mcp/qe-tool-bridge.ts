@@ -64,6 +64,9 @@ function schemaToParameters(tool: MCPToolBase): ToolParameter[] {
       required: requiredSet.has(name) || undefined,
       default: prop.default,
       enum: prop.enum,
+      // #1185: keep the element schema; clients such as VS Code Copilot
+      // reject a tool whose array parameter has no items.
+      items: prop.items as Record<string, unknown> | undefined,
     });
   }
 

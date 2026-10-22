@@ -110,10 +110,12 @@ export class MinCutHealthTool extends MCPToolBase<MinCutHealthParams, MinCutHeal
         agents: {
           type: 'array',
           description: 'Agent vertices to add to the graph before analysis',
+          items: { type: 'object', description: 'Agent vertex { id, domain, weight? }' },
         },
         edges: {
           type: 'array',
           description: 'Edges to add between agents',
+          items: { type: 'object', description: 'Edge { source, target, weight? }' },
         },
         includeWeakVertices: {
           type: 'boolean',
@@ -370,6 +372,7 @@ export class MinCutStrengthenTool extends MCPToolBase<MinCutStrengthenParams, Mi
         targetVertices: {
           type: 'array',
           description: 'Specific vertices to strengthen',
+          items: { type: 'string', description: 'Vertex ID' },
         },
         apply: {
           type: 'boolean',

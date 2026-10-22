@@ -52,6 +52,7 @@ const QX_ANALYZE_SCHEMA: MCPToolSchema = {
     heuristics: {
       type: 'array',
       description: 'Specific heuristics to apply (default: all)',
+      items: { type: 'string', description: 'Heuristic name' },
     },
     minOracleSeverity: {
       type: 'string',
