@@ -47,6 +47,12 @@ describe('redactLogValue — credential-shaped values (#740)', () => {
     ['https userinfo', `https://bot:${CANARY}@git.example.com/repo.git`],
     ['pem block', `-----BEGIN RSA PRIVATE KEY-----\n${CANARY}\n-----END RSA PRIVATE KEY-----`],
     ['key=value', `retrying with api_key=${CANARY}`],
+    ['hugging face token', `hf_${CANARY}xxxxxxxx`],
+    ['npm token', `npm_${CANARY}xxxxxxxxxxxx`],
+    ['cognitum key', `cog_${CANARY}`],
+    ['token auth header', `Authorization: Token ${CANARY}`],
+    ['unterminated pem block', `-----BEGIN OPENSSH PRIVATE KEY-----\nb3Blbn${CANARY}\n${CANARY}`],
+    ['basic user:password outside a header', `retry Basic ${Buffer.from(`bot:${CANARY}`).toString('base64')} ok`],
   ])('redacts a %s under a generic key and inside arrays', (_label, secret) => {
     const out = serialized(redactLogValue({ value: secret, list: [secret], nested: { message: secret } }));
     expect(out).not.toContain(CANARY);
@@ -157,6 +163,23 @@ describe('redactLogText / formatErrorForLog (#740)', () => {
   it('keeps numeric counters in serialized text', () => {
     const text = JSON.stringify({ maxTokens: 4096, tokensUsed: 12, tokenizer: 'cl100k' });
     expect(redactLogText(text)).toBe(text);
+  });
+
+  it.each([
+    'Use Basic authentication for the legacy endpoint',
+    'Basic Authentication is deprecated',
+    'Basic Settings',
+    'Basic configuration options',
+  ])('keeps the prose %s intact', (text) => {
+    expect(redactLogText(text)).toBe(text);
+  });
+
+  it('stays linear on long Basic / header runs (#740)', () => {
+    const start = performance.now();
+    redactLogText(`Basic ${'A'.repeat(160_000)}!`);
+    redactLogText('Basic aaaaaaaa '.repeat(12_000));
+    redactLogText(`authorization: Basic ${'a'.repeat(160_000)}`);
+    expect(performance.now() - start).toBeLessThan(1000);
   });
 
   it('stays linear on backtracking-prone input (URL scheme ReDoS)', () => {

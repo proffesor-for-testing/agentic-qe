@@ -35,13 +35,23 @@ const SENSITIVE_SUFFIXES = [
   'sessionid', 'connectionstring',
 ];
 
+/** Basic credentials are base64("user:password"); prose such as "Basic authentication" is not. */
+function looksLikeBasicCredential(value: string): boolean {
+  const decoded = Buffer.from(value, 'base64').toString('latin1');
+  return decoded.includes(':') && /^[\x20-\x7e]+$/.test(decoded);
+}
+
 /** Log-specific credential shapes, applied before the shared advisor patterns. */
-const LOG_PATTERNS: Array<[RegExp, string]> = [
+const LOG_PATTERNS: Array<[RegExp, string | ((match: string, ...groups: string[]) => string)]> = [
   // Anchored on '://' rather than a scheme prefix: `\b[a-z][a-z0-9+.-]*://`
   // backtracks quadratically on inputs such as 'a.a.a.…' (seconds per call at
   // 100 KB). The scheme is left in place; an empty user (://:pw@) is covered.
   [/(:\/\/)[^\s/@:"']*:[^\s/@"']+@/g, '$1<REDACTED:credentials>@'],
-  [/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{8,}/gi, '$1 <REDACTED:credential>'],
+  // In a header any Basic value is a credential; outside one it must decode as user:password.
+  [/\b(authorization:\s*Basic)\s+[^\s"']+/gi, '$1 <REDACTED:credential>'],
+  [/\b(Basic)\s+([A-Za-z0-9+/]{8,}={0,2})(?![A-Za-z0-9._~+/=-])/gi,
+    (match, scheme, value) => looksLikeBasicCredential(value) ? `${scheme} <REDACTED:credential>` : match],
+  [/\b(Bearer)\s+[A-Za-z0-9._~+/=-]{8,}/gi, '$1 <REDACTED:credential>'],
   [/\bsk-(?:ant-|proj-)?[A-Za-z0-9_-]{16,}/g, '<REDACTED:api_key>'],
   [/\b(set-cookie|cookie):\s*[^\n]+/gi, '$1: <REDACTED:cookie>'],
   // Compound query/assignment keys the shared pattern misses: access_token=, client_secret=
@@ -72,7 +82,11 @@ export function redactLogText(text: string, maxLength = DEFAULTS.maxStringLength
   if (typeof text !== 'string') return formatErrorForLog(text);
   if (text.length > MAX_SCAN_LENGTH) return `[REDACTED:size-limit ${text.length} chars]`;
   let result = text;
-  for (const [regex, replacement] of LOG_PATTERNS) result = result.replace(regex, replacement);
+  for (const [regex, replacement] of LOG_PATTERNS) {
+    result = typeof replacement === 'string'
+      ? result.replace(regex, replacement)
+      : result.replace(regex, replacement);
+  }
   result = redactSerializedFields(result);
   result = redact(result, 'balanced').text;
   return result.length > maxLength
