@@ -3,6 +3,7 @@
  * Semantic code analysis using vector embeddings and HNSW search
  */
 
+import { createHash } from 'node:crypto';
 import { Result, ok, err } from '../../../shared/types';
 import { MemoryBackend } from '../../../kernel/interfaces';
 import {
@@ -873,14 +874,16 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
     return file.replace(/[/\\]/g, ':').replace(/\./g, '_');
   }
 
+  /**
+   * Content identity for the analysis and embedding caches.
+   *
+   * This keys cache entries, so it has to separate any two distinct inputs.
+   * A 31-multiplier 32-bit hash does not: for any shared prefix and suffix,
+   * "Aa" and "BB" collide, so two different functions would share one entry
+   * and the second caller would receive the first one's result.
+   */
   private hashCode(str: string): string {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash;
-    }
-    return hash.toString(16);
+    return createHash('sha256').update(str, 'utf8').digest('hex');
   }
 
   private cacheEmbedding(key: string, embedding: number[]): void {
