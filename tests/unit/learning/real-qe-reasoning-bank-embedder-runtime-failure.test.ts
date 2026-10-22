@@ -22,6 +22,7 @@ const DOWN = '[EmbedderEndpointClient] connect ECONNREFUSED 127.0.0.1:8099';
 
 const embeddingMocks = vi.hoisted(() => ({
   available: true,
+  failingText: null as string | null,
   calls: [] as string[],
 }));
 
@@ -43,7 +44,7 @@ vi.mock('../../../src/learning/real-embeddings.js', async (importOriginal) => {
     ...actual,
     computeRealEmbedding: vi.fn(async (text: string) => {
       embeddingMocks.calls.push(text);
-      if (!embeddingMocks.available) throw new Error(DOWN);
+      if (!embeddingMocks.available || text === embeddingMocks.failingText) throw new Error(DOWN);
       return testVector(text);
     }),
     allowEmbedderInitRetry: vi.fn(),
@@ -87,6 +88,7 @@ describe('RealQEReasoningBank when the embedder fails at runtime (#1187)', () =>
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-1187-'));
     vi.useFakeTimers({ toFake: ['Date'] });
     embeddingMocks.available = true;
+    embeddingMocks.failingText = null;
     embeddingMocks.calls = [];
   });
 
@@ -177,6 +179,41 @@ describe('RealQEReasoningBank when the embedder fails at runtime (#1187)', () =>
       const hit = result.value.find(r => r.pattern.name === RETRY_PATTERN.name);
       expect(hit?.matchType).toBe('vector');
       expect(hit!.similarity).toBeGreaterThan(0.5);
+    });
+
+    it('keeps a pattern stored during the outage text-only (findable by text) after recovery', async () => {
+      const before = countEmbeddings();
+      const stored = await bank.storeQEPattern(MOCK_PATTERN);
+      embeddingMocks.available = true;
+      later(RETRY_MS);
+
+      const result = await bank.searchQEPatterns('fake timers timeout assertions');
+
+      expect(bank.getPatternSearchStatus()).toEqual({ mode: 'vector' });
+      expect(stored.success && result.success).toBe(true);
+      if (!stored.success || !result.success) return;
+      expect(countEmbeddings()).toBe(before);
+      const hit = result.value.find(r => r.pattern.id === stored.value.id);
+      expect(hit?.matchType).toBe('lexical');
+    });
+  });
+
+  describe('overlapping searches', () => {
+    it('reports lexical-only after any of them hit an embedder failure, never vector', async () => {
+      bank = createBank();
+      await bank.initialize();
+      await bank.storeQEPattern(RETRY_PATTERN);
+      embeddingMocks.failingText = 'flaky network retry';
+
+      const [vectorCall, failedCall] = await Promise.all([
+        bank.searchQEPatterns('Retry flaky network calls'),
+        bank.searchQEPatterns('flaky network retry'),
+      ]);
+
+      expect(vectorCall.success && failedCall.success).toBe(true);
+      if (!failedCall.success) return;
+      expect(failedCall.value.every(r => r.matchType === 'lexical')).toBe(true);
+      expect(bank.getPatternSearchStatus().mode).toBe('lexical-only');
     });
   });
 
