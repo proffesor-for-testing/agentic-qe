@@ -174,17 +174,42 @@ describe('registered security_scan_comprehensive execution receipts', () => {
     expect(result.data!.limitations.length).toBeGreaterThan(0);
   });
 
+  // #1135: an invalid URL is no longer a DAST "success" with a synthetic finding,
+  // so a real completed scan of an owned loopback target stands in for one.
   it('does not credit a legacy DAST success without a receipt establishing execution', async () => {
+    const target = createServer((_request, response) => {
+      response.writeHead(_request.url === '/' ? 200 : 404, { 'Content-Type': 'text/html' });
+      response.end('<html><body>owned fixture</body></html>');
+    });
+    await new Promise<void>(resolve => target.listen(0, '127.0.0.1', resolve));
+    try {
+      const address = target.address();
+      if (!address || typeof address === 'string') throw new Error('Missing loopback port');
+      const result = await callTool<ScanResponse>('security_scan_comprehensive', {
+        sast: false, dast: true, targetUrl: `http://127.0.0.1:${address.port}/`,
+      });
+      expect(result.success).toBe(true);
+      expect(result.data).toMatchObject({ status: 'unavailable', filesScanned: 0,
+        evidence: { completeness: 'none' } });
+      expect(result.data!.evidence.engines).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: 'dast', status: 'unverified' }),
+      ]));
+      expect(result.data!.limitations).toContain('dast returned no execution receipt; coverage is unverified.');
+    } finally {
+      target.closeAllConnections();
+      await new Promise<void>(resolve => target.close(() => resolve()));
+    }
+  });
+
+  it('reports an invalid DAST target as a failed engine, not a credited scan (#1135)', async () => {
     const result = await callTool<ScanResponse>('security_scan_comprehensive', {
       sast: false, dast: true, targetUrl: 'not-a-valid-url',
     });
     expect(result.success).toBe(true);
-    expect(result.data).toMatchObject({ status: 'unavailable', filesScanned: 0,
-      evidence: { completeness: 'none' } });
+    expect(result.data).toMatchObject({ status: 'unavailable', vulnerabilities: 0, evidence: { completeness: 'none' } });
     expect(result.data!.evidence.engines).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: 'dast', status: 'unverified' }),
+      expect.objectContaining({ id: 'dast', status: 'failed', errors: [expect.stringContaining('DAST_INVALID_TARGET')] }),
     ]));
-    expect(result.data!.limitations).toContain('dast returned no execution receipt; coverage is unverified.');
   });
 
   it('treats a legacy task result without receipts as unverified', async () => {
