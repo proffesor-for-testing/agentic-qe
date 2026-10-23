@@ -91,7 +91,7 @@ jobs:
         uses: actions/setup-node@v7
         timeout-minutes: 2
         with:
-          node-version: '24.13.0'
+          node-version: '24.22.1'
           cache: 'npm'
 
       - name: Read published version from package.json

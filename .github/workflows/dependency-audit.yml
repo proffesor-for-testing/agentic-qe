@@ -34,7 +34,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: '24.13.0'
+  NODE_VERSION: '24.22.1'
   ISSUE_TITLE: 'Dependency audit: HIGH/CRITICAL CVE reachable by consumers'
 
 jobs:

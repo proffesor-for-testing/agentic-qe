@@ -30,7 +30,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: ['24.13.0']
+        node-version: ['24.22.1']
       fail-fast: false
 
     steps:

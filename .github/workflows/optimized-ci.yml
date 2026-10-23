@@ -32,7 +32,7 @@ env:
 # Only the "remaining" shard needs explicit excludes.
 
 jobs:
-  # Prove the published minimum independently from the Node 24 primary lanes.
+  # Exercise the Node 22 compatibility line on the patched security release.
   node-22-compatibility:
     name: Node 22 compatibility
     runs-on: ubuntu-latest
@@ -40,7 +40,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
-        with: { node-version: '22.13.0', cache: 'npm' }
+        with: { node-version: '22.23.4', cache: 'npm' }
       - run: npm ci
       - run: npm run build
       - run: npm run test:unit:fast
@@ -57,7 +57,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
-        with: { node-version: '24.13.0', cache: 'npm' }
+        with: { node-version: '24.22.1', cache: 'npm' }
       - run: npm ci --ignore-scripts
       - name: Block on high+critical CVEs in production deps
         run: npm audit --audit-level=high --omit=dev
@@ -78,7 +78,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
-        with: { node-version: '24.13.0', cache: 'npm' }
+        with: { node-version: '24.22.1', cache: 'npm' }
       - run: npm ci
       - run: npx tsx scripts/witness-chain-audit-gate.ts
 
@@ -92,7 +92,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
-        with: { node-version: '24.13.0', cache: 'npm' }
+        with: { node-version: '24.22.1', cache: 'npm' }
       - run: npm ci
       - run: npm run build
       - name: Run governance integration tests
@@ -107,7 +107,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
-        with: { node-version: '24.13.0', cache: 'npm' }
+        with: { node-version: '24.22.1', cache: 'npm' }
       - run: npm ci
       - run: npm run build
       - name: Run ruvector + coordination integration tests
@@ -122,7 +122,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
-        with: { node-version: '24.13.0', cache: 'npm' }
+        with: { node-version: '24.22.1', cache: 'npm' }
       - run: npm ci
       - run: npm run build
       - name: Run root-level integration tests
@@ -144,7 +144,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
-        with: { node-version: '24.13.0', cache: 'npm' }
+        with: { node-version: '24.22.1', cache: 'npm' }
       - run: npm ci
       - run: npm run build
       - name: Run remaining integration subdirectory tests
@@ -183,7 +183,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
-        with: { node-version: '24.13.0', cache: 'npm' }
+        with: { node-version: '24.22.1', cache: 'npm' }
       - run: npm ci
       - run: npm run build
       - name: Run contract tests
@@ -203,7 +203,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
-        with: { node-version: '24.13.0', cache: 'npm' }
+        with: { node-version: '24.22.1', cache: 'npm' }
       - run: npm ci
       - run: npm run build
       - name: Run code intelligence tests
@@ -221,7 +221,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
-        with: { node-version: '24.13.0', cache: 'npm' }
+        with: { node-version: '24.22.1', cache: 'npm' }
       - run: npm ci
       - run: npm run build
       - name: Run Infrastructure Tests
@@ -266,7 +266,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
-        with: { node-version: '24.13.0', cache: 'npm' }
+        with: { node-version: '24.22.1', cache: 'npm' }
       - run: npm ci
       - run: npm run build
       - name: Run Postgres integration tests
@@ -286,7 +286,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
-        with: { node-version: '24.13.0', cache: 'npm' }
+        with: { node-version: '24.22.1', cache: 'npm' }
       - run: npm ci
       - run: npm run build
       - name: Run Performance Gates
@@ -337,7 +337,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
-        with: { node-version: '24.13.0', cache: 'npm' }
+        with: { node-version: '24.22.1', cache: 'npm' }
       - run: npm ci
       - run: npm run build
       - name: Run tests with coverage (excluding browser E2E)
@@ -383,7 +383,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
-        with: { node-version: '24.13.0' }
+        with: { node-version: '24.22.1' }
       - name: Generate Dashboard
         run: node scripts/test-dashboard.cjs
       - name: Generate Test Inventory
