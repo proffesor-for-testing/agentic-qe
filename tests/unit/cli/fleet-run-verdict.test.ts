@@ -167,8 +167,9 @@ describe('fleet run execution verdicts', () => {
     const finding = { severity: 'high', title: 'XSS via innerHTML Assignment', location: { file: 'src/b.ts', line: 2 } };
     const highScan = { ...cleanScan, vulnerabilities: [finding], summary: { ...cleanScan.summary, high: 1 } };
     plan.mockResolvedValue({ success: true, task: { domain: 'security-compliance', type: 'sast-scan', payload: { files: ['src/a.ts', 'src/b.ts'] } } });
-    getTaskStatus.mockReturnValueOnce({ status: 'completed', result: cleanScan })
-      .mockReturnValueOnce({ status: 'completed', result: highScan });
+    // Each worker's task id is its first file, so each gets its own result.
+    submitTask.mockImplementation(async (task: { payload: { files: string[] } }) => ({ success: true, value: task.payload.files[0] }));
+    getTaskStatus.mockImplementation((id: string) => ({ status: 'completed', result: id === 'src/b.ts' ? highScan : cleanScan }));
     const execution = program.parseAsync(['node', 'aqe', 'fleet', 'run', 'scan', '--parallel', '2', '--format', 'json']);
     await vi.advanceTimersByTimeAsync(1000);
     await execution;
