@@ -609,8 +609,12 @@ describe('DomainTaskExecutor', () => {
         passed: boolean;
         score: number;
         violations: unknown[];
+        measured: boolean;
       };
-      expect(data.score).toBeGreaterThanOrEqual(0);
+      // #1145: nothing was audited, so the score is -1 (unmeasured), not 0/100
+      expect(data.measured).toBe(false);
+      expect(data.score).toBe(-1);
+      expect(data.violations).toEqual([]);
     });
   });
 

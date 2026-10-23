@@ -23,8 +23,8 @@ export function registerMiscHandlers(ctx: TaskHandlerContext): void {
       passed: false,
       violations: [],
       warnings: [],
-      score: 0,
-      // #1145: nothing was audited, so `passed: false` and `score: 0` are not a verdict
+      // #1145: nothing was audited, so `passed: false` is not a verdict and the score is -1
+      score: -1,
       measured: false,
       note: 'Accessibility NOT MEASURED: this is not a failing result. ' +
             'Accessibility testing requires a browser environment (Puppeteer/Playwright). ' +

@@ -249,7 +249,7 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
       incomplete: filterRulesByLevel(this.rules, wcagLevel).map((rule) => ({
         id: rule.id, description: rule.description, reason: 'Not measured: see notMeasuredReason', nodes: [],
       })),
-      score: 0,
+      score: -1,
       wcagLevel,
       measured: false,
       notMeasuredReason: reason,
@@ -301,17 +301,14 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
         }
       }
 
-      const totalChecks = applicableRules.length;
-      const failedChecks = violations.length;
-      const score = Math.round(((totalChecks - failedChecks) / totalChecks) * 100);
-
       const report: AccessibilityReport = {
         url,
         timestamp: new Date(),
         violations,
         passes,
         incomplete,
-        score,
+        // The synthetic score is not a measurement: -1, like every unmeasured score
+        score: -1,
         wcagLevel,
         measured: false,
         notMeasuredReason: 'simulation mode: synthetic results, the page was not loaded',

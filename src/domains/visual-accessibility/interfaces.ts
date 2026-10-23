@@ -388,13 +388,14 @@ export interface AccessibilityReport {
   readonly violations: AccessibilityViolation[];
   readonly passes: PassedRule[];
   readonly incomplete: IncompleteCheck[];
+  /** 0-100 when measured; -1 when `measured` is false (#1145), never a grade. */
   readonly score: number;
   readonly wcagLevel: 'A' | 'AA' | 'AAA';
   /**
    * True only when a browser loaded the page and ran the checks (#1145).
    * `false` = nothing was measured: violations and passes are empty (or
-   * synthetic, in simulation mode), `score` is 0 by construction, and the
-   * report must not count as a finding, a pass or a fail.
+   * synthetic, in simulation mode), `score` is -1, and the report must not
+   * count as a finding, a pass or a fail.
    */
   readonly measured?: boolean;
   /** Why the page was not measured, when `measured` is false (#1145). */
@@ -617,6 +618,7 @@ export interface AccessibilityAuditReport {
   readonly passingUrls: number;
   readonly totalViolations: number;
   readonly criticalViolations: number;
+  /** Mean over measured URLs only; -1 when no URL was measured (#1145). */
   readonly averageScore: number;
   readonly reports: AccessibilityReport[];
   readonly topIssues: TopAccessibilityIssue[];

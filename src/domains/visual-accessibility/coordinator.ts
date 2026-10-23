@@ -502,7 +502,7 @@ export class VisualAccessibilityCoordinator
       const measuredReports = reports.filter((r) => r.measured === true);
       const averageScore = measuredReports.length > 0
         ? Math.round(measuredReports.reduce((sum, r) => sum + r.score, 0) / measuredReports.length)
-        : 0;
+        : -1;
 
       const topIssues = this.identifyTopIssues(measuredReports);
 

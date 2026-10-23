@@ -188,6 +188,8 @@ describe('VisualAccessibilityCoordinator', () => {
           expect(result.value.status).toBe('not-measured');
           expect(result.value.measuredUrls).toBe(0);
           expect(result.value.passingUrls).toBe(0);
+          expect(result.value.averageScore).toBe(-1);
+          expect(result.value.reports.map((r) => r.score)).toEqual([-1]);
           expect(result.value.totalViolations).toBe(0);
           expect(result.value.topIssues).toEqual([]);
           expect(result.value.notMeasured?.[0].url).toBe('https://example.invalid/');
@@ -209,6 +211,10 @@ describe('VisualAccessibilityCoordinator', () => {
           expect(result.value.status).toBe('partial');
           expect(result.value.measuredUrls).toBe(1);
           expect(result.value.totalViolations).toBe(1);
+          // The unmeasured URL's -1 is not averaged in
+          const measuredScore = result.value.reports.find((r) => r.measured)!.score;
+          expect(measuredScore).toBeGreaterThanOrEqual(0);
+          expect(result.value.averageScore).toBe(measuredScore);
           expect(result.value.topIssues.map((i) => i.affectedUrls)).toEqual([['http://127.0.0.1:18145/']]);
           expect(result.value.notMeasured).toEqual([
             { url: 'https://example.invalid/', reason: expect.stringContaining('ERR_NAME_NOT_RESOLVED') },
@@ -216,6 +222,7 @@ describe('VisualAccessibilityCoordinator', () => {
           const invalid = result.value.reports.find((r) => r.url === 'https://example.invalid/');
           expect(invalid?.measured).toBe(false);
           expect(invalid?.violations).toEqual([]);
+          expect(invalid?.score).toBe(-1);
         }
       });
 

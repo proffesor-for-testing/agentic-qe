@@ -728,7 +728,9 @@ describe('A11yAuditTool', () => {
     expect(audit?.measured).toBe(false);
     expect(audit?.notMeasuredReason).toContain('browser mode is disabled');
     expect(audit?.violations).toEqual([]);
+    expect(audit?.score).toBe(-1);
     expect(result.data?.summary.measuredUrls).toBe(0);
+    expect(result.data?.summary.avgScore).toBe(-1);
     expect(result.data?.summary.passingUrls).toBe(0);
     expect(result.data?.summary.totalViolations).toBe(0);
     expect(result.data?.topIssues).toEqual([]);

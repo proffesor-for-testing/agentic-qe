@@ -96,6 +96,7 @@ export interface A11yAuditResult {
 
 export interface UrlAudit {
   url: string;
+  /** 0-100 when measured; -1 when the URL was not measured (#1145). */
   score: number;
   passed: boolean;
   violations: A11yViolation[];
@@ -134,6 +135,7 @@ export interface A11ySummary {
   /** URLs a browser actually audited; passing/score/violation counts cover only these (#1145). */
   measuredUrls?: number;
   passingUrls: number;
+  /** Mean over measured URLs; -1 when none was measured (#1145). */
   avgScore: number;
   criticalViolations: number;
   seriousViolations: number;
@@ -421,7 +423,7 @@ export class A11yAuditTool extends MCPToolBase<A11yAuditParams, A11yAuditResult>
           // #1145: an unmeasured URL carries no findings and no verdict
           audits.push({
             url,
-            score: 0,
+            score: -1,
             passed: false,
             violations: [],
             warnings: [],
@@ -566,7 +568,7 @@ export class A11yAuditTool extends MCPToolBase<A11yAuditParams, A11yAuditResult>
         passingUrls: measuredAudits.filter((a) => a.passed).length,
         avgScore: measuredAudits.length > 0
           ? Math.round(measuredAudits.reduce((sum, a) => sum + a.score, 0) / measuredAudits.length)
-          : 0,
+          : -1,
         criticalViolations: audits.reduce(
           (sum, a) => sum + a.violations.filter((v) => v.impact === 'critical').length,
           0
@@ -583,7 +585,9 @@ export class A11yAuditTool extends MCPToolBase<A11yAuditParams, A11yAuditResult>
 
       this.emitStream(context, {
         status: 'complete',
-        message: `Audit complete: ${summary.measuredUrls}/${summary.totalUrls} URL(s) measured, avg score ${summary.avgScore}%`,
+        message: summary.avgScore < 0
+          ? `Audit complete: no URL measured (0/${summary.totalUrls}); no score`
+          : `Audit complete: ${summary.measuredUrls}/${summary.totalUrls} URL(s) measured, avg score ${summary.avgScore}%`,
         progress: 100,
       });
 

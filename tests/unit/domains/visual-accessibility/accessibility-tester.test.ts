@@ -117,11 +117,25 @@ describe('AccessibilityTesterService', () => {
       }
     });
 
-    it('should return score between 0 and 100', async () => {
+    it('should report score -1, not a 0-100 grade, when the page was not measured (#1145)', async () => {
       const result = await service.audit('https://example.com');
 
       expect(result.success).toBe(true);
       if (result.success) {
+        expect(result.value.measured).toBe(false);
+        expect(result.value.score).toBe(-1);
+      }
+    });
+
+    it('should return a measured score between 0 and 100', async () => {
+      const measuredService = new AccessibilityTesterService(mockMemory, {
+        browserClient: createBrowserClient(), preferAgentBrowser: false,
+      });
+      const result = await measuredService.audit('http://127.0.0.1/');
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.value.measured).toBe(true);
         expect(result.value.score).toBeGreaterThanOrEqual(0);
         expect(result.value.score).toBeLessThanOrEqual(100);
       }
@@ -437,7 +451,7 @@ describe('AccessibilityTesterService', () => {
         expect(result.value.notMeasuredReason).toContain('no browser is available');
         expect(result.value.violations).toEqual([]);
         expect(result.value.passes).toEqual([]);
-        expect(result.value.score).toBe(0);
+        expect(result.value.score).toBe(-1);
         expect(result.value.incomplete.length).toBeGreaterThan(0);
         expect(result.value.incomplete.every((i) => i.reason.startsWith('Not measured'))).toBe(true);
       }
@@ -495,6 +509,7 @@ describe('AccessibilityTesterService', () => {
       if (result.success) {
         expect(result.value.measured).toBe(false);
         expect(result.value.notMeasuredReason).toContain('simulation mode');
+        expect(result.value.score).toBe(-1);
       }
       expect(Array.from(mockMemory.getAll().keys())).toEqual([]);
     });

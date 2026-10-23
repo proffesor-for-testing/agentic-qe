@@ -223,7 +223,7 @@ export interface AccessibilityTestResult {
   score: number;
   violations: unknown[];
   warnings: unknown[];
-  /** #1145: false when no page was audited; `passed` and `score` are then not a verdict. */
+  /** #1145: false when no page was audited; `passed` is then not a verdict and `score` is -1. */
   measured?: boolean;
   note?: string;
   duration: number;
@@ -1051,7 +1051,8 @@ export const accessibilityTestConfig: DomainHandlerConfig<AccessibilityTestParam
     taskId,
     status: data.measured === true ? 'completed' : 'not-measured',
     passed: (data.passed as boolean) || false,
-    score: (data.score as number) || 0,
+    // #1145: an unmeasured score is -1, never a 0/100 grade
+    score: data.measured === true && typeof data.score === 'number' ? data.score : -1,
     violations: (data.violations as unknown[]) || [],
     warnings: (data.warnings as unknown[]) || [],
     // #1145: fail closed; only an explicit measurement counts as one
