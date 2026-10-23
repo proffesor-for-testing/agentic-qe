@@ -15,6 +15,7 @@
 import type { SessionPromptContext, SessionResponse } from '../types/opencode.js';
 import type { AQEPluginConfig } from '../config.js';
 import type { SessionManager, DreamQueueItem } from '../lifecycle.js';
+import { formatErrorForLog } from '../redaction.js';
 
 // =============================================================================
 // Outcome Detection
@@ -107,7 +108,7 @@ export function createOnSessionPromptAfter(
 
     // 2. Async outcome processing (fire-and-forget)
     processOutcomeAsync(ctx, response, config, session).catch((err) => {
-      console.error('[AQE Plugin] Outcome processing error:', err);
+      console.error('[AQE Plugin] Outcome processing error:', formatErrorForLog(err));
     });
   };
 }
@@ -142,7 +143,7 @@ async function processOutcomeAsync(
         }
       }
     } catch (err) {
-      console.error('[AQE Plugin] Pattern promotion error:', err);
+      console.error('[AQE Plugin] Pattern promotion error:', formatErrorForLog(err));
     }
   }
 
@@ -179,7 +180,7 @@ async function processOutcomeAsync(
         'opencode'
       );
     } catch (err) {
-      console.error('[AQE Plugin] Metrics storage error:', err);
+      console.error('[AQE Plugin] Metrics storage error:', formatErrorForLog(err));
     }
   }
 }

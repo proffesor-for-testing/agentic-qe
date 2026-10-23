@@ -14,6 +14,7 @@
 import type { ToolCallContext, ToolResult } from '../types/opencode.js';
 import type { AQEPluginConfig } from '../config.js';
 import type { SessionManager, DreamQueueItem } from '../lifecycle.js';
+import { formatErrorForLog, redactText } from '../redaction.js';
 
 // =============================================================================
 // Pattern Extraction
@@ -49,8 +50,8 @@ function extractPatternFromEdit(
     content: JSON.stringify({
       filePattern: getFilePattern(filePath),
       changeType: classifyChange(oldString, newString),
-      before: truncate(oldString, 200),
-      after: truncate(newString, 200),
+      before: truncate(redactText(oldString), 200),
+      after: truncate(redactText(newString), 200),
     }),
     domain,
     confidence: 0.6,
@@ -79,13 +80,13 @@ function extractPatternFromBash(
     type: 'command-pattern',
     toolName: 'bash',
     content: JSON.stringify({
-      commandTemplate: anonymizeCommand(command),
+      commandTemplate: anonymizeCommand(redactText(command)),
       exitSuccess: true,
     }),
     domain,
     confidence: 0.5,
     metadata: {
-      originalCommand: truncate(command, 300),
+      originalCommand: truncate(redactText(command), 300),
       durationMs: result.durationMs,
     },
   };
@@ -142,7 +143,7 @@ export function createOnToolCallAfter(
 
     // 2. Pattern capture (async — fire and forget for non-blocking)
     capturePatternAsync(ctx, result, config, session).catch((err) => {
-      console.error('[AQE Plugin] Pattern capture error:', err);
+      console.error('[AQE Plugin] Pattern capture error:', formatErrorForLog(err));
     });
   };
 }

@@ -182,6 +182,97 @@ describe('redactLogText / formatErrorForLog (#740)', () => {
     expect(performance.now() - start).toBeLessThan(1000);
   });
 
+  it.each([
+    'use Bearer authorization for this endpoint',
+    'Bearer authentication is required.',
+    'The Bearer Authorization scheme',
+    'send a Bearer credentials header',
+  ])('keeps the prose %s intact (#1196)', (text) => {
+    expect(redactLogText(text)).toBe(text);
+  });
+
+  it.each([
+    ['opaque token with digits', `use Bearer ${CANARY}`],
+    ['dotted token', 'Bearer CANARYpart.CANARYpart.sig'],
+    ['token with underscore', 'Bearer CANARY_abcdefgh'],
+    ['token with dash', 'Bearer CANARY-abcdefgh'],
+    ['mixed-case letters only', 'Bearer CANARYabcdefghXyZ'],
+    ['long lowercase run', 'Bearer canaryabcdefghijklmnop'],
+    ['base64 padding', 'Bearer CANARYabcdefgh=='],
+    ['header with a prose-like word', 'Authorization: Bearer canarytoken'],
+    ['header with a short value', 'authorization: bearer CANARY'],
+    ['proxy header', 'Proxy-Authorization: Bearer canaryword'],
+  ])('still redacts a Bearer %s (#1196)', (_label, text) => {
+    expect(redactLogText(text).toLowerCase()).not.toContain('canary');
+  });
+
+  it.each([
+    ['JSON object', `{"password":{"value":"${CANARY}","n":1},"user":"bob"}`],
+    ['JSON array', `{"apiKey":["${CANARY}","x"],"user":"bob"}`],
+    ['nested JSON object', `{"auth":{"inner":{"deep":["${CANARY}"]}},"user":"bob"}`],
+    ['pretty-printed JSON', JSON.stringify({ credentials: { a: CANARY, b: [1, 2] }, user: 'bob' }, null, 2)],
+    ['repr object', `{'client_secret': {'v': '${CANARY}'}, 'user': 'bob'}`],
+    ['util.inspect object', `{ token: { raw: '${CANARY}' }, user: 'bob' }`],
+    ['util.inspect array', `{ githubToken: [ '${CANARY}' ], user: 'bob' }`],
+    ['brackets inside strings', `{"secret":{"a":"}]${CANARY}","b":"${CANARY}"},"user":"bob"}`],
+    ['escaped quotes inside strings', `{"secret":{"a":"\\"}${CANARY}"},"user":"bob"}`],
+    ['sensitive key nested under a plain key', `{"config":{"db":{"password":["${CANARY}"]}},"user":"bob"}`],
+    ['JSON serialized inside a JSON string', JSON.stringify({ msg: `body=${JSON.stringify({ password: CANARY, user: 'bob' })}` })],
+    ['object serialized inside a JSON string', JSON.stringify({ msg: `body=${JSON.stringify({ apiKey: { v: CANARY }, user: 'bob' })}` })],
+    ['escaped value holding an escaped quote', JSON.stringify({ msg: JSON.stringify({ token: `a"${CANARY}`, user: 'bob' }) })],
+    ['escaped value holding a backslash', JSON.stringify({ msg: JSON.stringify({ token: `a\\${CANARY}`, user: 'bob' }) })],
+    ['repr text inside a JSON string', JSON.stringify({ msg: `got { token: '${CANARY}' } for bob` })],
+  ])('redacts a whole %s under a serialized sensitive key (#740)', (_label, text) => {
+    const out = redactLogText(text);
+    expect(out).not.toContain(CANARY);
+    expect(out).toContain('bob');
+  });
+
+  it('redacts an unbalanced object under a sensitive key to the end of the text', () => {
+    const out = redactLogText(`prefix {"token":{"a":"${CANARY}", "b": [${CANARY}`);
+    expect(out).not.toContain(CANARY);
+    expect(out).toContain('prefix');
+  });
+
+  it('keeps the rest of an escaped JSON object after a redacted escaped value', () => {
+    const out = redactLogText(JSON.stringify({ msg: JSON.stringify({ secret: { a: '}]', b: CANARY }, user: 'bob' }) }));
+    expect(out).not.toContain(CANARY);
+    expect(out).toContain('\\"user\\":\\"bob\\"');
+  });
+
+  it('keeps objects and arrays under non-sensitive keys', () => {
+    const text = JSON.stringify({ headers: { accept: 'json' }, tokens: [1, 2], maxTokens: { limit: 5 } });
+    expect(redactLogText(text)).toBe(text);
+  });
+
+  it('stays linear on long Bearer runs (#1196)', () => {
+    const start = performance.now();
+    redactLogText(`Bearer ${'a'.repeat(160_000)}`);
+    redactLogText('Bearer abcdefgh '.repeat(12_000));
+    redactLogText(`authorization: Bearer ${'a'.repeat(160_000)}`);
+    redactLogText(`authorization:${' '.repeat(160_000)}Bearer`);
+    expect(performance.now() - start).toBeLessThan(1000);
+  });
+
+  it('stays linear on adversarial serialized-field input (#740)', () => {
+    const start = performance.now();
+    redactLogText(`{"token":${'{'.repeat(160_000)}`);
+    redactLogText('{"token":{"token":{"token":'.repeat(8_000));
+    redactLogText(`token:${'['.repeat(80_000)}${']'.repeat(80_000)}`);
+    redactLogText(`{"secret":{"a":"${'\\'.repeat(160_000)}`);
+    redactLogText(`"${'a'.repeat(160_000)}`);
+    redactLogText(`${'a'.repeat(160_000)}${' '.repeat(160_000)}`);
+    redactLogText('"a"'.repeat(60_000));
+    redactLogText('a: "'.repeat(40_000));
+    redactLogText('"a":"'.repeat(40_000));
+    redactLogText(`"k":"${"b:'x".repeat(40_000)}`);
+    redactLogText('\\"a\\":\\"'.repeat(25_000));
+    redactLogText(`{\\"token\\":${'{\\"'.repeat(50_000)}`);
+    redactLogText(`{\\"token\\":\\"${'x'.repeat(160_000)}`);
+    redactLogText(`{\\"token\\":\\"${'\\'.repeat(160_000)}`);
+    expect(performance.now() - start).toBeLessThan(1000);
+  });
+
   it('stays linear on backtracking-prone input (URL scheme ReDoS)', () => {
     const hostile = 'a.'.repeat(100_000);
     const start = performance.now();
@@ -189,6 +280,49 @@ describe('redactLogText / formatErrorForLog (#740)', () => {
     redactLogText('a-'.repeat(100_000));
     // Unbounded scheme quantifier took ~4 s here; bounded it is milliseconds.
     expect(performance.now() - start).toBeLessThan(1000);
+  });
+
+  it('keeps name, code and status next to the redacted error text (#740)', () => {
+    const err = Object.assign(new Error(`HTTP 401 for Bearer ${CANARY}`), { code: 'E_PROVIDER_AUTH', status: 401 });
+    err.name = 'ProviderError';
+    const out = formatErrorForLog(err);
+    expect(out).toContain('HTTP 401');
+    expect(out).toContain('"name":"ProviderError"');
+    expect(out).toContain('"code":"E_PROVIDER_AUTH"');
+    expect(out).toContain('"status":401');
+    expect(out).not.toContain(CANARY);
+  });
+
+  it('redacts string error fields, drops non-scalar ones and never invokes getters', () => {
+    const getter = vi.fn(() => CANARY);
+    const err = Object.assign(new Error('boom'), { name: `ghp_${CANARY}xyz`, status: { raw: CANARY } });
+    Object.defineProperty(err, 'code', { get: getter, enumerable: true });
+    const out = formatErrorForLog(err);
+    expect(out).not.toContain(CANARY);
+    expect(out).not.toContain('"status"');
+    expect(getter).not.toHaveBeenCalled();
+  });
+
+  it('adds no field suffix when the stack already shows the only field, the name', () => {
+    expect(formatErrorForLog(new TypeError('plain'))).not.toContain('{"name"');
+    const renamed = new Error('renamed after construction');
+    renamed.stack = `Error: renamed after construction`;
+    renamed.name = 'QuotaError';
+    expect(formatErrorForLog(renamed)).toContain('{"name":"QuotaError"}');
+  });
+
+  it('keeps structured fields of errors in the cause chain', () => {
+    const cause = Object.assign(new Error('connect refused'), { code: 'ECONNREFUSED' });
+    const out = formatErrorForLog(new Error('fetch failed', { cause }));
+    expect(out).toContain('Caused by:');
+    expect(out).toContain('"code":"ECONNREFUSED"');
+  });
+
+  it('keeps redacted code and status on structured errors', () => {
+    const err = Object.assign(new Error('x'), { code: `token=${CANARY}`, status: 503 });
+    const out = redactLogValue({ err }) as { err: Record<string, unknown> };
+    expect(out.err.status).toBe(503);
+    expect(String(out.err.code)).not.toContain(CANARY);
   });
 
   it('does not throw on a non-string message from an untyped caller', () => {

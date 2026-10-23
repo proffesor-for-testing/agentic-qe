@@ -298,8 +298,43 @@ const FAST_HOOKS = new Set(['guard', 'pre-command']);
 const SPAWN_TIMEOUT_MS = Number(process.env.AQE_HOOK_TIMEOUT_MS)
   || (FAST_HOOKS.has(args[0]) ? 2500 : 4500);
 
+// Credential shapes scrubbed from health-log lines (#740). The child's stderr
+// can echo hook arguments (commands, prompts) and provider errors. This file is
+// copied standalone into user projects and cannot import the AQE logger, so it
+// carries a compact copy of src/logging/redaction.ts's detectors; the parity
+// test (tests/unit/logging/redaction-copies.test.ts) keeps them in step. Every
+// pattern is linear: bounded or single-pass quantifiers only.
+const HEALTH_REDACTIONS = [
+  [/-----BEGIN[^-\n]{0,64}PRIVATE KEY-----(?:[\s\S]*?-----END[^-\n]{0,64}PRIVATE KEY-----|[\s\S]*)/g, '<REDACTED:private_key>'],
+  [/(:\/\/)[^\s/@:"']*:[^\s/@"']+@/g, '$1<REDACTED:credentials>@'],
+  [/\b((?:authorization|x-api-key):\s*(?:(?:Bearer|Basic|Token)\s+)?)[^\s"']+/gi, '$1<REDACTED:credential>'],
+  [/\b(set-cookie|cookie):\s*[^\n]+/gi, '$1: <REDACTED:cookie>'],
+  [/\b(Bearer)\s+([A-Za-z0-9._~+/=-]{8,})/gi,
+    (match, scheme, value) => (isProseWord(value) ? match : `${scheme} <REDACTED:credential>`)],
+  [/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g, '<REDACTED:jwt>'],
+  [/\b(?:sk-(?:ant-|proj-)?[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9_]{16,}|github_pat_[A-Za-z0-9_]{16,}|glpat-[A-Za-z0-9_-]{20,}|xox[bpsa]-[A-Za-z0-9-]{10,}|hf_[A-Za-z0-9]{30,}|npm_[A-Za-z0-9]{36,}|cog_[A-Za-z0-9-]{20,}|[spr]k_(?:live|test)_[A-Za-z0-9]{10,}|AIzaSy[A-Za-z0-9_-]{33}|A[KS]IA[0-9A-Z]{16})/g,
+    '<REDACTED:token>'],
+  // key=value, key: value, "key": "value" and --key value for sensitive key names.
+  [/((?:^|[^A-Za-z0-9])[A-Za-z0-9_-]{0,64}?(?:token|secret|password|passwd|passphrase|api[_-]?key|credentials?|private[_-]?key)["']?\s*[:=]\s*["']?)[^\s"'&,;}]+/gi,
+    '$1<REDACTED:credential>'],
+  [/(--?[A-Za-z0-9-]{0,64}?(?:token|secret|password|api-?key)\s+)[^\s-][^\s]*/gi, '$1<REDACTED:credential>'],
+];
+
+/** "use Bearer authorization" is prose; digits, mixed case, symbols or >16 letters mean a token. */
+function isProseWord(value) {
+  return /^[A-Z]?[a-z]+\.?$/.test(value) && value.replace(/\.$/, '').length <= 16;
+}
+
+/** Redact credential-shaped text before it reaches the health log. */
+function redactHealthText(text) {
+  let out = String(text);
+  for (const [regex, replacement] of HEALTH_REDACTIONS) out = out.replace(regex, replacement);
+  return out;
+}
+
 function recordHookHealth(line) {
   try {
+    line = redactHealthText(line);
     const logPath = path.join(PROJECT, '.agentic-qe', 'hooks-health.log');
     // Throttle: skip if we logged within the last 5 min (avoid a line/turn).
     // lstat, so a planted symlink's TARGET mtime never decides anything.
@@ -399,7 +434,8 @@ function superviseSpawn(cmd, cmdArgs, subcmd, ts) {
     // Child exited non-zero with no JSON payload — e.g. an empty-task throw
     // when the harness didn't populate $PROMPT/$TOOL_INPUT_*.
     recordHookHealth(`[${ts()}] EMPTY-RESULT hook exited status=${res.status} `
-      + `with no JSON output (cmd=${subcmd}). stderr: ${stderr.slice(0, 300)}\n`);
+      // Redact before truncating, so a cut can never leave a token too short to match.
+      + `with no JSON output (cmd=${subcmd}). stderr: ${redactHealthText(stderr.slice(0, 4096)).slice(0, 300)}\n`);
   }
   return out;
 }
@@ -426,6 +462,6 @@ function main() {
 // requiring this file never spawns anything.
 // brain-checkpoint.cjs checks for this export (and the require.main guard
 // below) before requiring this file; keep both.
-module.exports = { resolveAqeInvocation, parseCmdShimTarget };
+module.exports = { resolveAqeInvocation, parseCmdShimTarget, redactHealthText };
 
 if (require.main === module) main();

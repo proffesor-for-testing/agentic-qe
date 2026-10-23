@@ -8,6 +8,7 @@
  */
 
 import type { AQEPluginConfig } from './config.js';
+import { formatErrorForLog, redactText } from './redaction.js';
 
 // =============================================================================
 // Types
@@ -138,7 +139,7 @@ export class SessionManager {
       this.state = 'active';
       this.resetInactivityTimer();
     } catch (error) {
-      console.error('[AQE Plugin] Failed to initialize session:', error);
+      console.error('[AQE Plugin] Failed to initialize session:', formatErrorForLog(error));
       // Degrade gracefully — allow hooks to run without memory
       this.state = 'active';
       this.metrics.startedAt = Date.now();
@@ -237,7 +238,7 @@ export class SessionManager {
         await this.memory.close();
       }
     } catch (error) {
-      console.error('[AQE Plugin] Error during session end:', error);
+      console.error('[AQE Plugin] Error during session end:', formatErrorForLog(error));
     } finally {
       this.memory = null;
       this.state = 'ended';
@@ -302,7 +303,7 @@ class StubMemoryConnection implements MemoryConnection {
   private store_: Map<string, unknown> = new Map();
 
   constructor(private readonly dbPath: string) {
-    console.log(`[AQE Plugin] Memory stub initialized (dbPath: ${dbPath})`);
+    console.log(`[AQE Plugin] Memory stub initialized (dbPath: ${redactText(dbPath)})`);
   }
 
   async store(key: string, value: unknown, _namespace?: string): Promise<void> {
