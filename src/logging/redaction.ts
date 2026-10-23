@@ -110,11 +110,21 @@ function redactSerializedFields(text: string): string {
   return copied === 0 ? text : out + text.slice(copied);
 }
 
-/** Index just past the escaped closing quote, or the end of the line when there is none. */
+/**
+ * Index just past the escaped closing quote (\" or \'), or the end of the line
+ * when there is none. Each \X pair decodes to X; a decoded backslash escapes
+ * the next decoded character, so an inner \\\" does not end the string.
+ */
 function escapedStringEnd(text: string, start: number, quote: string): number {
+  let innerEscape = false;
   for (let i = start; i < text.length; i++) {
-    if (text[i] === '\n') return i;
-    if (text.startsWith(quote, i)) return i + quote.length;
+    const pair = text[i] === '\\';
+    if (pair) i++;
+    const decoded = text[i];
+    if (decoded === '\n' || decoded === undefined) return i;
+    if (innerEscape) innerEscape = false;
+    else if (pair && decoded === '\\') innerEscape = true;
+    else if (pair && decoded === quote[1]) return i + 1;
   }
   return text.length;
 }

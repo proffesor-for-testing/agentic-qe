@@ -219,6 +219,8 @@ describe('redactLogText / formatErrorForLog (#740)', () => {
     ['sensitive key nested under a plain key', `{"config":{"db":{"password":["${CANARY}"]}},"user":"bob"}`],
     ['JSON serialized inside a JSON string', JSON.stringify({ msg: `body=${JSON.stringify({ password: CANARY, user: 'bob' })}` })],
     ['object serialized inside a JSON string', JSON.stringify({ msg: `body=${JSON.stringify({ apiKey: { v: CANARY }, user: 'bob' })}` })],
+    ['escaped value holding an escaped quote', JSON.stringify({ msg: JSON.stringify({ token: `a"${CANARY}`, user: 'bob' }) })],
+    ['escaped value holding a backslash', JSON.stringify({ msg: JSON.stringify({ token: `a\\${CANARY}`, user: 'bob' }) })],
     ['repr text inside a JSON string', JSON.stringify({ msg: `got { token: '${CANARY}' } for bob` })],
   ])('redacts a whole %s under a serialized sensitive key (#740)', (_label, text) => {
     const out = redactLogText(text);
@@ -267,6 +269,7 @@ describe('redactLogText / formatErrorForLog (#740)', () => {
     redactLogText('\\"a\\":\\"'.repeat(25_000));
     redactLogText(`{\\"token\\":${'{\\"'.repeat(50_000)}`);
     redactLogText(`{\\"token\\":\\"${'x'.repeat(160_000)}`);
+    redactLogText(`{\\"token\\":\\"${'\\'.repeat(160_000)}`);
     expect(performance.now() - start).toBeLessThan(1000);
   });
 
