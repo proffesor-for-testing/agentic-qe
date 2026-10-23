@@ -23,6 +23,20 @@ import { type OutputFormat, writeOutput, toJSON } from '../utils/ci-output.js';
 // Task Handler
 // ============================================================================
 
+/**
+ * What a completed task's result says it could not check (#1135, #1052):
+ * `incompleteChecks`, or a top-level status of incomplete/failed with its reason.
+ */
+export function incompleteResultReasons(result: unknown): string[] {
+  if (!result || typeof result !== 'object') return [];
+  const { status, error, incompleteChecks } = result as { status?: unknown; error?: unknown; incompleteChecks?: unknown };
+  const reasons = Array.isArray(incompleteChecks) ? incompleteChecks.filter((reason): reason is string => typeof reason === 'string') : [];
+  if (reasons.length === 0 && (status === 'incomplete' || status === 'failed')) {
+    reasons.push(typeof error === 'string' ? error : `result status is ${status}`);
+  }
+  return reasons;
+}
+
 export class TaskHandler implements ICommandHandler {
   readonly name = 'task';
   readonly description = 'Manage QE tasks';
@@ -182,6 +196,12 @@ export class TaskHandler implements ICommandHandler {
             const taskStatus = context.queen!.getTaskStatus(taskId);
             if (taskStatus) {
               if (taskStatus.status === 'completed') {
+                // #1135, #1052: a result that reports an incomplete or failed check is not a clean run.
+                const incomplete = incompleteResultReasons(taskStatus.result);
+                if (incomplete.length > 0) {
+                  waitSpinner.fail(`Task completed, but its result is incomplete: ${incomplete.join('; ')}`);
+                  return this.cleanupAndExit(1);
+                }
                 waitSpinner.succeed('Task completed successfully');
                 completed = true;
               } else if (taskStatus.status === 'failed' || taskStatus.status === 'cancelled') {

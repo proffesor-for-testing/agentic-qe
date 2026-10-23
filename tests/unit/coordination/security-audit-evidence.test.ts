@@ -111,6 +111,32 @@ describe('security audit execution evidence', () => {
     }
   });
 
+  // #1135: the scanner's failure code reaches the audit, not a generic "unavailable".
+  it('keeps the DAST scanner failure code in the incomplete checks', async () => {
+    const { protocol } = setup(false, { enableDAST: true, targetUrl: 'http://127.0.0.1:9/' });
+    const failure = Object.assign(new Error('DAST authentication rejected (HTTP 401); dynamic analysis is incomplete'), { code: 'DAST_AUTHENTICATION_FAILED' });
+    vi.spyOn(protocol as unknown as { getSecurityScanner: () => unknown }, 'getSecurityScanner')
+      .mockReturnValue({ scanUrl: vi.fn().mockResolvedValue(err(failure)) });
+    const result = await protocol.execute('manual');
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.value.deploymentDecision.allowed).toBe(false);
+      expect(result.value.incompleteChecks?.join(' ')).toContain('DAST scan did not complete (DAST_AUTHENTICATION_FAILED): DAST authentication rejected (HTTP 401)');
+      expect(result.value.incompleteChecks?.join(' ')).not.toContain('DAST scanning unavailable');
+    }
+  });
+
+  it('records an incomplete DAST result as an incomplete check', async () => {
+    const { protocol } = setup(false, { enableDAST: true, targetUrl: 'http://127.0.0.1:9/' });
+    vi.spyOn(protocol as unknown as { runDASTScan: () => Promise<Result<DASTResult>> }, 'runDASTScan').mockResolvedValue(ok({
+      scanId: 'fixture', targetUrl: 'http://127.0.0.1:9/', vulnerabilities: [], summary, crawledUrls: 1,
+      status: 'incomplete', failedRequests: [{ url: 'http://127.0.0.1:9/.env', code: 'DAST_REQUEST_FAILED', reason: 'UND_ERR_SOCKET' }],
+      error: '1 DAST request(s) were not answered (DAST_REQUEST_FAILED); findings cover only the answered requests',
+    }));
+    const result = await protocol.execute('manual');
+    expect(result.success && result.value.incompleteChecks?.join(' ')).toContain('DAST scan is incomplete: 1 DAST request(s) were not answered');
+  });
+
   it.each(['gdpr', 'unknown-standard'])('does not approve placeholder %s compliance', async standard => {
     const { protocol } = setup(false, { complianceStandards: [standard] });
     vi.mocked(protocol.validateCompliance).mockRestore();

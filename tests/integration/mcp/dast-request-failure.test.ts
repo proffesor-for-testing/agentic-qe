@@ -1,15 +1,17 @@
-/** #1052: public MCP DAST failure has observed failed-engine provenance. */
+/** #1052, #1135: public MCP DAST failures and partial scans have observed engine provenance. */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { existsSync, mkdtempSync, realpathSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 import { createInterface } from 'node:readline';
+import { createServer as createHttpServer, type Server } from 'node:http';
 
 const bundle = resolve('dist/mcp/bundle.js');
 import { createServer } from 'node:net';
 
-describe.skipIf(!existsSync(bundle) && !process.env.CI)('MCP DAST initial request failure over stdio (#1052)', () => {
+// #1135: no silent skip. Without a built bundle this suite fails and says why.
+describe('MCP DAST initial request failure over stdio (#1052)', () => {
   let child: ChildProcessWithoutNullStreams;
   let root: string;
   let nextId = 0;
@@ -34,7 +36,22 @@ describe.skipIf(!existsSync(bundle) && !process.env.CI)('MCP DAST initial reques
     return JSON.parse(response.result.content[0].text);
   }
 
+  let fixture: Server;
+  let fixtureUrl: string;
+
   beforeAll(async () => {
+    if (!existsSync(bundle)) throw new Error(`${bundle} is not built; run \`npm run build\` before this suite`);
+    // Owned loopback target: `/` is rate limited under /limited, `/.env` is dropped (WAF 444).
+    fixture = createHttpServer((request, response) => {
+      if (request.url === '/limited/') { response.writeHead(429); return response.end('Too Many Requests'); }
+      if (request.url === '/.env') return request.socket.destroy();
+      response.writeHead(request.url === '/' ? 200 : 404, { 'Content-Type': 'text/html' });
+      response.end(request.url === '/' ? '<html><body>owned</body></html>' : 'not found');
+    });
+    await new Promise<void>(resolvePromise => fixture.listen(0, '127.0.0.1', resolvePromise));
+    const fixtureAddress = fixture.address();
+    if (!fixtureAddress || typeof fixtureAddress === 'string') throw new Error('Missing fixture port');
+    fixtureUrl = `http://127.0.0.1:${fixtureAddress.port}/`;
     root = realpathSync(mkdtempSync(join(tmpdir(), 'aqe-1052-dast-')));
     mkdirSync(join(root, 'src'));
     mkdirSync(join(root, 'fake-home'));
@@ -73,7 +90,57 @@ describe.skipIf(!existsSync(bundle) && !process.env.CI)('MCP DAST initial reques
       await exited;
     }
     if (root) rmSync(root, { recursive: true, force: true });
+    fixture?.closeAllConnections();
+    if (fixture) await new Promise<void>(resolvePromise => fixture.close(() => resolvePromise()));
   });
+
+  async function dastEngine(targetUrl: string) {
+    const result = await call('security_scan_comprehensive', { target: 'src/', sast: false, dast: true, targetUrl, saveResults: false });
+    expect(result.success, JSON.stringify(result)).toBe(true);
+    return { data: result.data, engine: result.data.evidence.engines.find((engine: { id: string }) => engine.id === 'dast') };
+  }
+
+  it('fails an initially rate-limited target instead of scoring the 429 page (#1135)', async () => {
+    const { data, engine } = await dastEngine(`${fixtureUrl}limited/`);
+    expect(engine).toMatchObject({ status: 'failed', errors: [expect.stringContaining('DAST_RATE_LIMITED')] });
+    expect(data.findings).toEqual([]);
+  }, 120000);
+
+  it('fails an invalid target URL as a validation error, without a finding (#1135)', async () => {
+    const { data, engine } = await dastEngine('not a url');
+    expect(engine).toMatchObject({ status: 'failed', errors: [expect.stringContaining('DAST_INVALID_TARGET')] });
+    expect(data.findings).toEqual([]);
+  }, 120000);
+
+  it('keeps the findings of a partially answered scan and lists the dropped probe (#1135)', async () => {
+    const { data, engine } = await dastEngine(fixtureUrl);
+    expect(engine).toMatchObject({ status: 'partial', errors: [expect.stringContaining('1 request(s) not answered (DAST_REQUEST_FAILED)')] });
+    expect(engine.limitations).toEqual([expect.stringContaining(`${fixtureUrl}.env (DAST_REQUEST_FAILED`)]);
+    expect(data.status).not.toBe('completed');
+    expect(data.findings.map((finding: { title: string }) => finding.title)).toContain('Missing Content-Security-Policy');
+  }, 120000);
+
+  it('reports the security-audit DAST phase failed for an unreachable target (#1052)', async () => {
+    const reserved = createServer();
+    await new Promise<void>(resolvePromise => reserved.listen(0, '127.0.0.1', resolvePromise));
+    const address = reserved.address();
+    if (!address || typeof address === 'string') throw new Error('Missing fixture port');
+    await new Promise<void>(resolvePromise => reserved.close(() => resolvePromise()));
+    const submitted = await call('task_submit', { type: 'security-audit', payload: {
+      targetUrl: `http://127.0.0.1:${address.port}/`, includeDAST: true, includeSAST: false, includeDependencies: false, includeSecrets: false,
+    } });
+    expect(submitted.success, JSON.stringify(submitted)).toBe(true);
+    let status: any;
+    for (let attempt = 0; attempt < 120; attempt++) {
+      status = await call('task_status', { taskId: submitted.data.taskId, detailed: true });
+      if (['completed', 'failed', 'cancelled'].includes(status.data?.status)) break;
+      await new Promise(resolvePromise => setTimeout(resolvePromise, 250));
+    }
+    expect(status.data.status).toBe('completed');
+    expect(status.data.result.dastResults).toMatchObject({ status: 'failed', vulnerabilities: [] });
+    expect(status.data.result.incompleteChecks.join(' ')).toContain('DAST_REQUEST_FAILED');
+    expect(status.data.result.recommendations.join(' ')).not.toContain('Security posture is good');
+  }, 120000);
 
   it('reports a failed required DAST engine for an owned unreachable target', async () => {
     const reserved = createServer();

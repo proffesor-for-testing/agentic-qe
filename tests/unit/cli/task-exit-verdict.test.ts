@@ -42,6 +42,25 @@ describe('task CLI failure exit codes (#734)', () => {
     expect(cleanup).toHaveBeenCalledWith(1);
   });
 
+  // #1135, #1052: a completed task whose result is incomplete or failed is not a clean run.
+  it.each([
+    [{ status: 'incomplete', error: '1 DAST request(s) were not answered (DAST_REQUEST_FAILED)' }, 'DAST_REQUEST_FAILED'],
+    [{ status: 'failed', error: 'DAST_RATE_LIMITED: DAST rate limited (HTTP 429)' }, 'DAST_RATE_LIMITED'],
+    [{ recommendations: [], incompleteChecks: ['DAST scan failed: DAST_TLS_FAILED'] }, 'DAST_TLS_FAILED'],
+  ])('exits nonzero for a completed task whose result is not complete (%j)', async (result, reason) => {
+    getTaskStatus.mockReturnValue({ status: 'completed', result });
+    await run('submit', 'dast-scan', '--wait', '--timeout', '1000', '--no-progress');
+    expect(cleanup).toHaveBeenCalledWith(1);
+    const { incompleteResultReasons } = await import('../../../src/cli/handlers/task-handler.js');
+    expect(incompleteResultReasons(result).join(' ')).toContain(reason);
+  });
+
+  it('does not fail a completed task whose result is complete', async () => {
+    getTaskStatus.mockReturnValue({ status: 'completed', result: { status: 'complete', failedRequests: [] } });
+    await run('submit', 'dast-scan', '--wait', '--timeout', '1000', '--no-progress');
+    expect(cleanup).not.toHaveBeenCalledWith(1);
+  });
+
   it('exits nonzero when a running task exceeds --timeout', async () => {
     getTaskStatus.mockReturnValue({ status: 'running' });
     vi.useFakeTimers();

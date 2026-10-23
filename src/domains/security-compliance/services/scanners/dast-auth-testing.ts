@@ -4,7 +4,8 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import type { Vulnerability, AuthCredentials } from './scanner-types.js';
+import type { Vulnerability, AuthCredentials, DASTRequestFailure } from './scanner-types.js';
+import { probe } from './dast-requests.js';
 
 // ============================================================================
 // Authorization Testing
@@ -18,7 +19,8 @@ export async function testAuthorizationBypass(
   authHeaders: Record<string, string>,
   crawledUrls: number,
   maxDepth: number,
-  vulnerabilities: Vulnerability[]
+  vulnerabilities: Vulnerability[],
+  failures?: DASTRequestFailure[]
 ): Promise<number> {
   const protectedEndpoints = [
     '/admin',
@@ -35,24 +37,24 @@ export async function testAuthorizationBypass(
     const testUrl = new URL(endpoint, parsedUrl.origin).toString();
 
     // Try with authentication
-    const authResponse = await fetch(testUrl, {
+    const authResponse = await probe(testUrl, {
       method: 'GET',
       headers: { ...authHeaders },
       signal: AbortSignal.timeout(5000),
-    });
+    }, failures);
 
-    if (authResponse.ok) {
+    if (authResponse?.ok) {
       crawledUrls++;
 
       // Try without authentication
-      const unauthResponse = await fetch(testUrl, {
+      const unauthResponse = await probe(testUrl, {
         method: 'GET',
         signal: AbortSignal.timeout(5000),
-      });
+      }, failures);
 
-      if (unauthResponse.ok && unauthResponse.status === 200) {
-        const authText = await authResponse.text();
-        const unauthText = await unauthResponse.text();
+      if (unauthResponse?.ok && unauthResponse.status === 200) {
+        const authText = authResponse.text;
+        const unauthText = unauthResponse.text;
 
         if (authText.length > 100 && unauthText.length > 100 &&
             Math.abs(authText.length - unauthText.length) < authText.length * 0.1) {
@@ -82,7 +84,8 @@ export async function testIDOR(
   authHeaders: Record<string, string>,
   crawledUrls: number,
   maxDepth: number,
-  vulnerabilities: Vulnerability[]
+  vulnerabilities: Vulnerability[],
+  failures?: DASTRequestFailure[]
 ): Promise<number> {
   const idorEndpoints = [
     '/api/users/1',
@@ -95,15 +98,15 @@ export async function testIDOR(
     if (crawledUrls >= maxDepth * 15) break;
 
     const testUrl = new URL(endpoint, parsedUrl.origin).toString();
-    const response = await fetch(testUrl, {
+    const response = await probe(testUrl, {
       method: 'GET',
       headers: { ...authHeaders },
       signal: AbortSignal.timeout(5000),
-    });
+    }, failures);
 
-    if (response.ok) {
+    if (response?.ok) {
       crawledUrls++;
-      const text = await response.text();
+      const text = response.text;
 
       if (text.includes('email') || text.includes('password') || text.includes('phone')) {
         vulnerabilities.push({

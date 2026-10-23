@@ -136,7 +136,9 @@ export function generateRecommendations(
     );
   }
 
-  if (recommendations.length === 0) {
+  // #1052: an incomplete or failed check cannot support a "posture is good" verdict.
+  const unmeasured = (dast !== undefined && dast.status !== 'complete') || (deps !== undefined && deps.status !== 'complete');
+  if (recommendations.length === 0 && !unmeasured) {
     recommendations.push('Security posture is good. Continue regular scanning.');
   }
 

@@ -288,8 +288,12 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
           });
           if (result.success) {
             dastResult = result.value;
-            // Legacy DAST results contain findings, but no execution coverage receipt.
-            engines.push({ ...unverifiedEngine('dast', 'url'), target: payload.targetUrl });
+            // #1135: probes the target did not answer make DAST partial; the
+            // findings it did collect are kept. A complete run still has no
+            // execution coverage receipt, so it stays unverified.
+            engines.push(dastResult.status === 'incomplete'
+              ? { ...partialDastEngine(dastResult.failedRequests), target: payload.targetUrl }
+              : { ...unverifiedEngine('dast', 'url'), target: payload.targetUrl });
           } else {
             engines.push({ ...failedEngine('dast', 'url', result.error), target: payload.targetUrl });
           }
@@ -434,6 +438,13 @@ function failedEngine(id: string, scope: SecurityEngineEvidence['scope'], error:
 function safeErrorCode(error: unknown): string {
   const code = (error as NodeJS.ErrnoException | undefined)?.code;
   return typeof code === 'string' && /^[A-Z0-9_]{1,32}$/.test(code) ? code : 'UNKNOWN';
+}
+
+function partialDastEngine(failedRequests: DASTResult['failedRequests']): SecurityEngineEvidence {
+  const codes = [...new Set(failedRequests.map(failure => failure.code))].join(', ');
+  return { id: 'dast', requested: true, required: true, status: 'partial', scope: 'url',
+    ruleCoverage: 'unknown', errors: [`dast incomplete: ${failedRequests.length} request(s) not answered (${codes}).`],
+    limitations: failedRequests.slice(0, 20).map(failure => `dast not answered: ${failure.url} (${failure.code}: ${failure.reason})`) };
 }
 
 function unverifiedEngine(id: string, scope: SecurityEngineEvidence['scope']): SecurityEngineEvidence {

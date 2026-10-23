@@ -71,7 +71,6 @@ export {
   testIDOR,
   validateCredentials,
   buildAuthHeaders,
-  handleFetchError,
   calculateSummary,
   storeScanResults,
 } from './dast-helpers.js';

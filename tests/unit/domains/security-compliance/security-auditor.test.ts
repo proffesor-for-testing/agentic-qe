@@ -54,6 +54,7 @@ describe('SecurityAuditorService', () => {
     service = new SecurityAuditorService(mockMemory);
     // Unit tests must not depend on registry latency or network availability.
     vi.spyOn(service as any, 'getLatestVersion').mockResolvedValue('9.9.9');
+    vi.spyOn(service as any, 'lookupRegistry').mockResolvedValue({ ok: true, version: '9.9.9', deprecated: false });
     // ...nor on the OSV API: a complete lookup with no advisories (#1049 shape).
     vi.spyOn((service as any).osvClient, 'lookupBatch').mockImplementation(async (pkgs: any[]) => ({
       status: 'complete',

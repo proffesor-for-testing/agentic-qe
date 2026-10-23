@@ -163,10 +163,21 @@ export class SecurityAuditorService implements ISecurityAuditorService {
   ): Promise<Result<PackageSecurityInfo>> {
     try {
       const vulnerabilities = await this.queryVulnerabilityDatabase(name, version, ecosystem);
-      const latestVersion = await this.getLatestVersion(name, ecosystem);
-      const isDeprecated = await this.checkDeprecation(name, ecosystem);
+      // #1052: a failed registry lookup is unchecked, never "not deprecated".
+      const registry = await this.lookupRegistry(name, ecosystem);
+      const unchecked = !registry.ok
+        ? [`latest version and deprecation: ${registry.reason}`]
+        : registry.deprecated === null ? [`deprecation: not reported by the ${ecosystem} registry`] : [];
 
-      return ok({ name, version, vulnerabilities, latestVersion, isDeprecated });
+      return ok({
+        name,
+        version,
+        vulnerabilities,
+        latestVersion: registry.ok ? registry.version : null,
+        isDeprecated: registry.ok ? registry.deprecated : null,
+        status: unchecked.length > 0 ? 'incomplete' : 'complete',
+        ...(unchecked.length > 0 ? { unchecked } : {}),
+      });
     } catch (error) {
       return err(toError(error));
     }
@@ -192,22 +203,29 @@ export class SecurityAuditorService implements ISecurityAuditorService {
       for (const [key, vulns] of byPackage) {
         const [ecosystem, name] = key.split(':');
         const currentVersion = vulns[0].location.dependency?.version || 'unknown';
-        const latestVersion = await this.getLatestVersion(
-          name,
-          ecosystem as DependencyInfo['ecosystem']
-        );
+        const registry = await this.lookupRegistry(name, ecosystem as DependencyInfo['ecosystem']);
 
         const fixedVersions = vulns
           .filter((v) => v.id)
           .map((v) => v.id);
 
-        recommendations.push({
-          package: name,
-          fromVersion: currentVersion,
-          toVersion: latestVersion,
-          fixesVulnerabilities: fixedVersions,
-          breakingChanges: this.hasBreakingChanges(currentVersion, latestVersion),
-        });
+        // #1052: without a target version the package is unchecked, not "upgrade to unknown".
+        recommendations.push(registry.ok
+          ? {
+            package: name,
+            fromVersion: currentVersion,
+            toVersion: registry.version,
+            fixesVulnerabilities: fixedVersions,
+            breakingChanges: this.hasBreakingChanges(currentVersion, registry.version),
+          }
+          : {
+            package: name,
+            fromVersion: currentVersion,
+            toVersion: null,
+            fixesVulnerabilities: fixedVersions,
+            breakingChanges: null,
+            unchecked: registry.reason,
+          });
       }
 
       recommendations.sort(
@@ -261,9 +279,18 @@ export class SecurityAuditorService implements ISecurityAuditorService {
         sastResults, dastResults, dependencyResults, secretScanResults
       );
       // #1049: an incomplete advisory lookup leaves dependency risk unmeasured.
+      const incompleteChecks: string[] = [];
       if (dependencyResults && dependencyResults.status !== 'complete') {
+        incompleteChecks.push(`Dependency scan ${dependencyResults.status}: ${dependencyResults.error ?? 'advisories could not be checked'}`);
         recommendations.unshift(
           `${dependencyResults.error ?? 'Dependency advisories could not be checked'}. Dependency risk is unmeasured; re-run the scan when the OSV API is reachable.`
+        );
+      }
+      // #1052: a DAST target that could not be (fully) scanned is not a clean target.
+      if (dastResults && dastResults.status !== 'complete') {
+        incompleteChecks.push(`DAST scan ${dastResults.status}: ${dastResults.error ?? 'the target was not fully scanned'}`);
+        recommendations.unshift(
+          `DAST scan ${dastResults.status} (${dastResults.error ?? 'the target was not fully scanned'}). Dynamic risk is unmeasured for what was not scanned.`
         );
       }
 
@@ -276,6 +303,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
         secretScanResults,
         overallRiskScore,
         recommendations,
+        ...(incompleteChecks.length > 0 ? { incompleteChecks } : {}),
       };
 
       await this.memory.set(
@@ -613,47 +641,41 @@ export class SecurityAuditorService implements ISecurityAuditorService {
     name: string,
     ecosystem: DependencyInfo['ecosystem']
   ): Promise<string> {
+    const registry = await this.lookupRegistry(name, ecosystem);
+    return registry.ok ? registry.version : 'unknown';
+  }
+
+  /**
+   * Latest version and deprecation from the package registry (#1052). A failed
+   * lookup says why; it never reads as "not deprecated" or a version.
+   * `deprecated` is null when the registry does not report deprecation.
+   */
+  private async lookupRegistry(
+    name: string,
+    ecosystem: DependencyInfo['ecosystem']
+  ): Promise<{ ok: true; version: string; deprecated: boolean | null } | { ok: false; reason: string }> {
     try {
       if (ecosystem === 'npm') {
-        const response = await httpGet<{ 'dist-tags'?: { latest?: string }; version?: string }>(
+        const response = await httpGet<{ deprecated?: string; version?: string }>(
           `https://registry.npmjs.org/${encodeURIComponent(name)}/latest`
         );
-        if (response.ok && response.data.version) {
-          return response.data.version;
-        }
-      } else if (ecosystem === 'pip') {
+        if (!response.ok) return { ok: false, reason: `npm registry returned HTTP ${response.status}` };
+        if (!response.data.version) return { ok: false, reason: 'npm registry response has no version' };
+        return { ok: true, version: response.data.version, deprecated: Boolean(response.data.deprecated) };
+      }
+      if (ecosystem === 'pip') {
         const response = await httpGet<{ info?: { version?: string } }>(
           `https://pypi.org/pypi/${encodeURIComponent(name)}/json`
         );
-        if (response.ok && response.data.info?.version) {
-          return response.data.info.version;
-        }
+        if (!response.ok) return { ok: false, reason: `PyPI returned HTTP ${response.status}` };
+        if (!response.data.info?.version) return { ok: false, reason: 'PyPI response has no version' };
+        return { ok: true, version: response.data.info.version, deprecated: null };
       }
+      return { ok: false, reason: `no registry lookup for ${ecosystem} packages` };
     } catch (error) {
-      logger.error(`Failed to get latest version for ${name}:`, error instanceof Error ? error : undefined);
+      logger.error(`Registry lookup failed for ${name}:`, error instanceof Error ? error : undefined);
+      return { ok: false, reason: `registry lookup failed: ${toError(error).message}` };
     }
-
-    return 'unknown';
-  }
-
-  private async checkDeprecation(
-    name: string,
-    ecosystem: DependencyInfo['ecosystem']
-  ): Promise<boolean> {
-    try {
-      if (ecosystem === 'npm') {
-        const response = await httpGet<{ deprecated?: string }>(
-          `https://registry.npmjs.org/${encodeURIComponent(name)}/latest`
-        );
-        if (response.ok && response.data.deprecated) {
-          return true;
-        }
-      }
-    } catch (error) {
-      logger.error(`Failed to check deprecation for ${name}:`, error instanceof Error ? error : undefined);
-    }
-
-    return false;
   }
 
   private determineUpdateType(

@@ -4,14 +4,15 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { toErrorMessage } from '@shared/error-utils.js';
 import type {
   Vulnerability,
   VulnerabilitySeverity,
   ScanSummary,
   MutableScanSummary,
   MemoryBackend,
+  DASTRequestFailure,
 } from './scanner-types.js';
+import { probe } from './dast-requests.js';
 
 // Re-export from specialized modules for convenience
 export { testXSS, testSQLi } from './dast-injection-testing.js';
@@ -145,7 +146,8 @@ export async function scanSensitiveFiles(
   parsedUrl: URL,
   crawledUrls: number,
   maxDepth: number,
-  vulnerabilities: Vulnerability[]
+  vulnerabilities: Vulnerability[],
+  failures?: DASTRequestFailure[]
 ): Promise<number> {
   const sensitiveEndpoints = [
     { path: '/.git/config', name: 'Git Configuration' },
@@ -160,14 +162,14 @@ export async function scanSensitiveFiles(
     if (crawledUrls >= maxDepth * 10) break;
 
     const testUrl = new URL(endpoint.path, parsedUrl.origin).toString();
-    const testResponse = await fetch(testUrl, {
+    const testResponse = await probe(testUrl, {
       method: 'GET',
       signal: AbortSignal.timeout(5000),
-    });
+    }, failures);
 
-    if (testResponse.ok) {
+    if (testResponse?.ok) {
       crawledUrls++;
-      const text = await testResponse.text();
+      const text = testResponse.text;
 
       if (text.length > 20 && !text.toLowerCase().includes('not found') && !text.toLowerCase().includes('404')) {
         const isSensitive =
@@ -204,16 +206,18 @@ export async function scanSensitiveFiles(
  */
 export async function analyzeCORS(
   targetUrl: string,
-  vulnerabilities: Vulnerability[]
+  vulnerabilities: Vulnerability[],
+  failures?: DASTRequestFailure[]
 ): Promise<void> {
-  const corsResponse = await fetch(targetUrl, {
+  const corsResponse = await probe(targetUrl, {
     method: 'OPTIONS',
     headers: {
       'Origin': 'https://evil-attacker.com',
       'Access-Control-Request-Method': 'GET',
     },
     signal: AbortSignal.timeout(5000),
-  });
+  }, failures);
+  if (!corsResponse) return;
 
   const allowOrigin = corsResponse.headers.get('access-control-allow-origin');
   if (allowOrigin === '*' || allowOrigin === 'https://evil-attacker.com') {
@@ -242,7 +246,8 @@ export async function extractAndCrawlLinks(
   baseUrl: URL,
   currentCrawled: number,
   maxDepth: number,
-  vulnerabilities: Vulnerability[]
+  vulnerabilities: Vulnerability[],
+  failures?: DASTRequestFailure[]
 ): Promise<number> {
   let crawledUrls = currentCrawled;
   const maxCrawl = maxDepth * 5;
@@ -269,12 +274,13 @@ export async function extractAndCrawlLinks(
     if (crawledUrls >= maxCrawl) break;
 
     const crawlUrl = new URL(path, baseUrl.origin).toString();
-    const crawlResponse = await fetch(crawlUrl, {
+    const crawlResponse = await probe(crawlUrl, {
       method: 'GET',
       headers: { 'User-Agent': 'AgenticQE-DAST-Scanner/3.0' },
       signal: AbortSignal.timeout(5000),
       redirect: 'follow',
-    });
+    }, failures);
+    if (!crawlResponse) continue;
 
     crawledUrls++;
 
@@ -292,7 +298,7 @@ export async function extractAndCrawlLinks(
         });
       }
 
-      const responseText = await crawlResponse.text();
+      const responseText = crawlResponse.text;
       if (responseText.includes('Index of /') || responseText.includes('Directory listing for')) {
         vulnerabilities.push({
           id: uuidv4(),
@@ -399,41 +405,6 @@ export function analyzeFormsForSecurityIssues(
 // ============================================================================
 
 /**
- * Handle fetch errors and add appropriate vulnerabilities
- */
-export function handleFetchError(
-  fetchError: unknown,
-  targetUrl: string,
-  vulnerabilities: Vulnerability[]
-): void {
-  const errorMsg = toErrorMessage(fetchError);
-
-  if (errorMsg.includes('CERT') || errorMsg.includes('SSL') || errorMsg.includes('TLS') || errorMsg.includes('certificate')) {
-    vulnerabilities.push({
-      id: uuidv4(),
-      title: 'TLS Certificate Error',
-      description: `SSL/TLS error: ${errorMsg}`,
-      severity: 'high',
-      category: 'security-misconfiguration',
-      location: { file: targetUrl },
-      remediation: { description: 'Fix TLS certificate configuration', estimatedEffort: 'moderate', automatable: false },
-      references: ['https://owasp.org/www-project-web-security-testing-guide/'],
-    });
-  } else if (errorMsg.includes('timeout') || errorMsg.includes('abort')) {
-    vulnerabilities.push({
-      id: uuidv4(),
-      title: 'Connection Timeout',
-      description: `Target did not respond within timeout: ${errorMsg}`,
-      severity: 'informational',
-      category: 'security-misconfiguration',
-      location: { file: targetUrl },
-      remediation: { description: 'Verify target is accessible', estimatedEffort: 'trivial', automatable: false },
-      references: [],
-    });
-  }
-}
-
-/**
  * Calculate scan summary from vulnerabilities
  */
 export function calculateSummary(
@@ -466,7 +437,8 @@ export async function storeScanResults(
   scanId: string,
   scanType: string,
   vulnerabilities: Vulnerability[],
-  summary: ScanSummary
+  summary: ScanSummary,
+  completeness?: { status: string; failedRequests: DASTRequestFailure[] }
 ): Promise<void> {
   await memory.set(
     `security:scan:${scanId}`,
@@ -475,6 +447,7 @@ export async function storeScanResults(
       scanType,
       vulnerabilities,
       summary,
+      ...completeness,
       timestamp: new Date().toISOString(),
     },
     { namespace: 'security-compliance', ttl: 86400 * 7 }
