@@ -267,10 +267,26 @@ if (binCandidate && binCandidate.endsWith('bundle.js')) {
 appendFileSync(logFile, '[' + ts + '] Using: ' + mcpCmd + ' ' + mcpArgs.join(' ') + '\\n');
 
 // #1066: keep a user's AQE_WORKERS_ENABLED (for example false) instead of forcing it on.
-const env = { ...process.env, AQE_STORAGE_PATH: '.agentic-qe', AQE_LEARNING_ENABLED: 'true', AQE_WORKERS_ENABLED: workersSetting ?? 'true', AQE_HTTP_PORT: '0' };
-const child = spawn(mcpCmd, mcpArgs, { cwd: projectRoot, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
-child.stdout.on('data', d => appendFileSync(logFile, d));
-child.stderr.on('data', d => appendFileSync(logFile, d));
+// #1158: AQE_MCP_DAEMON=1 is daemon mode. The server has no stdin here, so
+// without it the stdin-EOF guard (#513) shut it down right after starting;
+// in daemon mode it stops only on SIGTERM/SIGINT (stop-daemon.cjs).
+const env = { ...process.env, AQE_STORAGE_PATH: '.agentic-qe', AQE_LEARNING_ENABLED: 'true', AQE_WORKERS_ENABLED: workersSetting ?? 'true', AQE_HTTP_PORT: '0', AQE_MCP_DAEMON: '1' };
+// #1158: the server writes daemon.log itself, through a descriptor opened
+// here with the same symlink rules as appendFileSync. Piping its output
+// through this script kept the script from exiting while the daemon ran, and
+// once the script was gone nothing was logged any more.
+function openLogFd(file) {
+  if (!isRegularOrAbsent(file)) return 'ignore';
+  const c = fs.constants;
+  try { return fs.openSync(file, c.O_APPEND | c.O_CREAT | c.O_WRONLY | (c.O_NOFOLLOW || 0), 0o644); } catch { return 'ignore'; }
+}
+const logFd = openLogFd(logFile);
+let child;
+try {
+  child = spawn(mcpCmd, mcpArgs, { cwd: projectRoot, env, detached: true, stdio: ['ignore', logFd, logFd] });
+} finally {
+  if (typeof logFd === 'number') { try { fs.closeSync(logFd); } catch {} }
+}
 let exited = null;
 child.on('exit', (code, signal) => { exited = { code, signal }; });
 // #1116: a command that cannot be started (no npx on PATH: spawn ENOENT) emits

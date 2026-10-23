@@ -12,6 +12,8 @@
  * Environment Variables:
  *   AQE_HTTP_PORT: Port for HTTP server (0 = disabled, default: 0)
  *   AQE_VERBOSE: Enable verbose logging
+ *   AQE_MCP_DAEMON: 1 = daemon mode (#1158): stdin EOF does not shut the
+ *     server down; only honoured when stdin is not a pipe. See daemon-mode.ts.
  */
 
 import { quickStart, MCPProtocolServer } from './protocol-server';
@@ -26,7 +28,11 @@ import { initFeatureFlagsFromEnv } from '../integrations/ruvector/feature-flags.
 import { resetSharedRvfAdapter } from '../integrations/ruvector/shared-rvf-adapter.js';
 import { resetSharedRvfDualWriter } from '../integrations/ruvector/shared-rvf-dual-writer.js';
 import { claimProcessLifecycle, closeRegisteredStores } from '../kernel/process-lifecycle.js';
-import { startBackgroundWorkers } from './background-workers.js';
+import { getBackgroundWorkersState, startBackgroundWorkers } from './background-workers.js';
+import {
+  DAEMON_MODE_ENV, detectStdinKind, resolveStdinGuardMode, startDaemonHeartbeat,
+  type DaemonHeartbeatStatus,
+} from './daemon-mode.js';
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -89,10 +95,13 @@ async function main(): Promise<void> {
   // resolved, which is why `kill <pid>` appeared to be "ignored" and only
   // `kill -9` worked.
   let shuttingDown = false;
+  let stopDaemonHeartbeat: (() => void) | null = null;
+  let daemonStatus: (() => DaemonHeartbeatStatus | undefined) | null = null;
   const shutdown = async (reason: string): Promise<void> => {
     if (shuttingDown) return;
     shuttingDown = true;
     originalStderrWrite(`[AQE] Shutting down (${reason})\n`);
+    stopDaemonHeartbeat?.();
 
     const watchdog = setTimeout(() => {
       originalStderrWrite('[AQE] Shutdown watchdog fired — forcing exit\n');
@@ -134,9 +143,21 @@ async function main(): Promise<void> {
   // reaches EOF. An orphaned stdio MCP server has no parent to serve, so exit
   // instead of lingering at high CPU. Guarded to a piped stdin so an
   // interactive TTY debug session (Ctrl-D) is unaffected.
-  if (!process.stdin.isTTY) {
+  // #1158: start-daemon.cjs runs the server with no stdin and AQE_MCP_DAEMON=1;
+  // that daemon mode skips this guard (only when stdin is not a client pipe).
+  const stdinGuard = resolveStdinGuardMode(process.env, detectStdinKind(process.stdin));
+  delete process.env[DAEMON_MODE_ENV]; // never inherited by processes we spawn
+  if (stdinGuard.mode === 'stdio') {
     process.stdin.on('end', () => { void shutdown('stdin-eof'); });
     process.stdin.on('close', () => { void shutdown('stdin-close'); });
+  } else if (stdinGuard.mode === 'daemon') {
+    // Worker timers are unref'd (#513), so a daemon with no stdin needs its
+    // own ref'd timer to stay up, from the start of boot; it also logs
+    // liveness to daemon.log.
+    stopDaemonHeartbeat = startDaemonHeartbeat(
+      (message) => originalStderrWrite(message), // declared further down
+      () => daemonStatus?.(),
+    );
   }
 
   // Catch unhandled exceptions/rejections to prevent MCP connection drops
@@ -332,6 +353,24 @@ async function main(): Promise<void> {
     // IMP-10: Start background workers (heartbeat scheduler, etc.) and the
     // QualityDaemon. #1061: AQE_WORKERS_ENABLED=false skips both.
     await startBackgroundWorkers(originalStderrWrite);
+
+    if (stdinGuard.warning) originalStderrWrite(stdinGuard.warning);
+    if (stdinGuard.mode === 'daemon') {
+      if (getBackgroundWorkersState().state !== 'disabled') {
+        const { getDaemon } = await import('../workers/daemon.js');
+        daemonStatus = () => {
+          const health = getDaemon().getStatus().workerManager;
+          const workers = Object.values(health.workers);
+          return {
+            totalWorkers: health.totalWorkers,
+            errorWorkers: health.errorWorkers,
+            totalExecutions: workers.reduce((sum, w) => sum + w.totalExecutions, 0),
+            failedExecutions: workers.reduce((sum, w) => sum + w.failedExecutions, 0),
+          };
+        };
+      }
+      originalStderrWrite(`[AQE] Daemon mode (${DAEMON_MODE_ENV}): stdin EOF ignored; stop with SIGTERM (stop-daemon.cjs)\n`);
+    }
 
     // Start HTTP server for AG-UI/A2A/A2UI if port is specified
     const httpPort = parseInt(process.env.AQE_HTTP_PORT || '0', 10);
