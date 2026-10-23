@@ -219,6 +219,25 @@ describe('VisualAccessibilityCoordinator', () => {
         }
       });
 
+      it('should list a URL whose audit errored instead of dropping it', async () => {
+        const coord = await coordinatorWith({ browserClient: browserClient() });
+        // The measured report cannot be stored, so the tester returns an error
+        vi.spyOn(ctx.memory, 'set').mockImplementation(async (key: string) => {
+          if (key.startsWith('visual-accessibility:report:')) throw new Error('Storage failed');
+        });
+        const result = await coord.runAccessibilityAudit(['http://127.0.0.1:18145/'], 'AA');
+        await coord.dispose();
+
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.value.status).toBe('not-measured');
+          expect(result.value.reports).toEqual([]);
+          expect(result.value.notMeasured).toEqual([
+            { url: 'http://127.0.0.1:18145/', reason: 'Storage failed' },
+          ]);
+        }
+      });
+
       it('should not turn a missing report into a clean single-URL pass', async () => {
         const coord = await coordinatorWith({});
         const result = await coord.runAccessibilityAuditSingle({ url: 'https://example.invalid/', wcagLevel: 'AA' });
