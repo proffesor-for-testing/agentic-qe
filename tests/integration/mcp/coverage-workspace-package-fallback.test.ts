@@ -122,6 +122,9 @@ describe.each(runners)('workspace package fallback over real $runner and MCP std
       expect(result.success, JSON.stringify(result)).toBe(true);
       expect(result.data, JSON.stringify(result)).toMatchObject({ measured: true, estimated: false, functionCoverage: 50 });
     } finally {
+      // Vitest 5.0.2+ may create a real node_modules (its cache dir) at the
+      // adopted root during the run; replace it with the shared symlink again.
+      rmSync(join(root, 'node_modules'), { recursive: true, force: true });
       symlinkSync(runnerModules, join(root, 'node_modules'), 'dir');
     }
   }, 180000);
