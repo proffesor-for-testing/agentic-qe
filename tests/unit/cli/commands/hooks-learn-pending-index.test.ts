@@ -11,6 +11,7 @@ import { Command } from 'commander';
 const shared = vi.hoisted(() => ({
   storePattern: vi.fn(),
   getPattern: vi.fn(),
+  getEmbedderFailure: vi.fn((): string | null => null),
 }));
 
 vi.mock('../../../../src/cli/commands/hooks-handlers/hooks-shared.js', async (importOriginal) => {
@@ -18,7 +19,11 @@ vi.mock('../../../../src/cli/commands/hooks-handlers/hooks-shared.js', async (im
   return {
     ...actual,
     getHooksSystem: vi.fn(async () => ({
-      reasoningBank: { storePattern: shared.storePattern, getPattern: shared.getPattern },
+      reasoningBank: {
+        storePattern: shared.storePattern,
+        getPattern: shared.getPattern,
+        getEmbedderFailure: shared.getEmbedderFailure,
+      },
       hookRegistry: {},
     })),
   };
@@ -54,6 +59,9 @@ describe('aqe hooks learn — committed row with pending vector index (#981)', (
     vi.restoreAllMocks();
     shared.storePattern.mockReset();
     shared.getPattern.mockReset();
+    shared.getEmbedderFailure.mockReset();
+    shared.getEmbedderFailure.mockReturnValue(null);
+    vi.unstubAllEnvs();
   });
 
   it('reports the committed pattern as stored, with the index pending, and does not throw', async () => {
@@ -126,5 +134,44 @@ describe('aqe hooks learn — committed row with pending vector index (#981)', (
 
     await expect(runLearn()).rejects.toThrow(/FAILED/);
     expect(shared.getPattern).not.toHaveBeenCalled();
+  });
+
+  describe('#1204: AQE_EMBEDDER_ENDPOINT is set but the endpoint failed', () => {
+    const REASON = 'Failed to initialize transformer model: connect ECONNREFUSED 127.0.0.1:8099';
+
+    it('says the configured endpoint failed, with the reason, instead of "no embedding runtime"', async () => {
+      vi.stubEnv('AQE_EMBEDDER_ENDPOINT', 'http://user:secret@127.0.0.1:8099');
+      shared.storePattern.mockResolvedValue({ success: true, value: { ...PATTERN } });
+      shared.getEmbedderFailure.mockReturnValue(REASON);
+
+      await runLearn(['--json']);
+
+      const json = JSON.parse(out.join('\n'));
+      expect(json.vectorIndex).toBe('pending');
+      expect(json.warning).toContain('configured embedding endpoint');
+      expect(json.warning).toContain('AQE_EMBEDDER_ENDPOINT=http://127.0.0.1:8099');
+      expect(json.warning).toContain('failed: connect ECONNREFUSED 127.0.0.1:8099.');
+      expect(json.warning).toMatch(/backfill-embeddings/);
+      expect(json.warning).not.toMatch(/no embedding runtime|Set AQE_EMBEDDER_ENDPOINT|secret|transformer/i);
+    });
+
+    it('human output prints the same failure hint', async () => {
+      vi.stubEnv('AQE_EMBEDDER_ENDPOINT', 'http://127.0.0.1:8099');
+      shared.storePattern.mockResolvedValue({ success: true, value: { ...PATTERN } });
+      shared.getEmbedderFailure.mockReturnValue(REASON);
+
+      await runLearn();
+
+      const text = out.join('\n');
+      expect(text).toMatch(/Vector index pending: .*configured embedding endpoint .* failed: .*ECONNREFUSED/);
+    });
+
+    it('keeps the "no embedding runtime" advice when nothing failed', async () => {
+      shared.storePattern.mockResolvedValue({ success: true, value: { ...PATTERN } });
+
+      await runLearn(['--json']);
+
+      expect(JSON.parse(out.join('\n')).warning).toMatch(/no embedding runtime is available/);
+    });
   });
 });

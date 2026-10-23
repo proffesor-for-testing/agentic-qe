@@ -21,6 +21,7 @@ import {
   computeRealEmbedding,
   type EmbeddingConfig,
 } from '../../../learning/real-embeddings.js';
+import { EmbedderRecovery, probeEmbedder } from '../../../learning/embedder-recovery.js';
 import type { Trajectory, TrajectoryMetrics } from './trajectory-tracker.js';
 import { CircularBuffer } from '../../../shared/utils/circular-buffer.js';
 import { HNSWEmbeddingIndex } from '../../embeddings/index/HNSWIndex.js';
@@ -113,6 +114,16 @@ export interface ExperienceGuidance {
 }
 
 /**
+ * #1204: whether similar-experience guidance can use vectors. 'unavailable'
+ * means the embedder failed (or there is none): experiences are stored
+ * without vectors and getGuidance returns no guidance.
+ */
+export interface ExperienceGuidanceStatus {
+  mode: 'vector' | 'unavailable';
+  reason?: string;
+}
+
+/**
  * Configuration for ExperienceReplay
  */
 export interface ExperienceReplayConfig {
@@ -136,6 +147,9 @@ export interface ExperienceReplayConfig {
 
   /** Prune threshold (quality below this is removed) */
   pruneThreshold: number;
+
+  /** #1204: after the embedder fails, wait this long before retrying it (default 60 s). */
+  embedderRetryIntervalMs?: number;
 }
 
 const DEFAULT_CONFIG: ExperienceReplayConfig = {
@@ -207,7 +221,13 @@ export class ExperienceReplay {
   private prepared: Map<string, Statement> = new Map();
   private initialized = false;
   private initializationPromise: Promise<void> | null = null;
-  private embedderUnavailableLogged = false;
+  /**
+   * #1204: whether the embedder works; retried in the background after a
+   * failure, as the pattern banks do (#1187).
+   */
+  private readonly embedderRecovery: EmbedderRecovery;
+  /** Whether an embedding succeeded, to label later failures as runtime ones. */
+  private embedderWorked = false;
 
   // Real HNSW index for O(log n) similarity search (150x-12,500x faster than linear scan)
   private hnswIndex: HNSWEmbeddingIndex;
@@ -235,6 +255,11 @@ export class ExperienceReplay {
   constructor(config: Partial<ExperienceReplayConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.recentExperiences = new CircularBuffer(100);
+    this.embedderRecovery = new EmbedderRecovery({
+      retryIntervalMs: this.config.embedderRetryIntervalMs,
+      probe: () => probeEmbedder(this.config.embedding),
+      onRecovered: () => console.log('[ExperienceReplay] Embedder available again: similar-experience guidance uses vectors'),
+    });
 
     // Initialize real HNSW index with optimal parameters for experience search
     this.hnswIndex = new HNSWEmbeddingIndex({
@@ -670,21 +695,37 @@ export class ExperienceReplay {
    * #1022: embed text, or return null when no embedding runtime is available.
    * The experience is then stored without a vector (backfilled at a later
    * start that has an embedder) and similarity search finds no matches.
+   * #1204: a failure is reported by getEmbedderStatus(), labelled as a
+   * runtime failure when the embedder had worked, and warned about once per
+   * outage. The embedder is retried in the background after the interval.
    */
   private async embedOrNull(text: string): Promise<number[] | null> {
+    if (!this.embedderRecovery.isAvailable()) return null;
     try {
-      return await computeRealEmbedding(text, this.config.embedding);
+      const embedding = await computeRealEmbedding(text, this.config.embedding);
+      this.embedderWorked = true;
+      return embedding;
     } catch (error) {
-      if (!this.embedderUnavailableLogged) {
-        this.embedderUnavailableLogged = true;
+      const message = error instanceof Error ? error.message : String(error);
+      const reason = this.embedderWorked ? `Embedder failed at runtime: ${message}` : message;
+      if (this.embedderRecovery.markUnavailable(reason)) {
         console.warn(
-          '[ExperienceReplay] No embedding runtime; experiences are stored without vectors ' +
-          'and similar-experience guidance is unavailable:',
-          error instanceof Error ? error.message : error
+          this.embedderWorked
+            ? '[ExperienceReplay] Embedder failed; experiences are stored without vectors and ' +
+              'similar-experience guidance is unavailable until it recovers:'
+            : '[ExperienceReplay] No embedding runtime; experiences are stored without vectors ' +
+              'and similar-experience guidance is unavailable:',
+          message
         );
       }
       return null;
     }
+  }
+
+  /** #1204: whether similar-experience guidance can use vectors, and if not why. */
+  getEmbedderStatus(): ExperienceGuidanceStatus {
+    const reason = this.embedderRecovery.unavailableReason;
+    return reason === null ? { mode: 'vector' } : { mode: 'unavailable', reason };
   }
 
   /**

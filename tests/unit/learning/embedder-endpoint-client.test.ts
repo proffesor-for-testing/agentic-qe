@@ -388,6 +388,83 @@ describe('EmbedderEndpointClient', () => {
     expect(out[0]).toHaveLength(384);
   });
 
+  it('#1204: probeThroughOpenBreaker reaches the endpoint inside the window and closes the breaker', async () => {
+    client.close();
+    client = new EmbedderEndpointClient({
+      endpoint: server.url,
+      failureThreshold: 2,
+      failureWindowMs: 60_000,
+    });
+    server.responder = (_body, res) => {
+      res.writeHead(500);
+      res.end('boom');
+    };
+    await expect(client.embed(['x'])).rejects.toThrow();
+    await expect(client.embed(['x'])).rejects.toThrow();
+    expect(client.getBreakerState().open).toBe(true);
+    server.responder = defaultResponder;
+
+    const identity = await client.probeThroughOpenBreaker();
+    const out = await client.embed(['x']);
+
+    expect(identity.dim).toBe(384);
+    expect(client.getCachedIdentity()).toEqual(identity);
+    expect(out[0]).toHaveLength(384);
+    expect(client.getBreakerState()).toMatchObject({ open: false, failures: 0 });
+  });
+
+  it('#1204: other callers keep fast-failing while the trial probe runs', async () => {
+    client.close();
+    client = new EmbedderEndpointClient({
+      endpoint: server.url,
+      failureThreshold: 1,
+      failureWindowMs: 60_000,
+    });
+    server.responder = (_body, res) => {
+      res.writeHead(500);
+      res.end('boom');
+    };
+    await expect(client.embed(['x'])).rejects.toThrow();
+    let answer!: () => void;
+    server.responder = (body, res) => { answer = () => defaultResponder(body, res); };
+
+    const trial = client.probeThroughOpenBreaker();
+    const started = Date.now();
+    await expect(client.embed(['y'])).rejects.toThrow(/circuit breaker open/);
+    const otherCallerMs = Date.now() - started;
+    await new Promise((r) => setTimeout(r, 20));
+    answer();
+    await trial;
+
+    expect(otherCallerMs).toBeLessThan(50);
+    expect(client.getBreakerState().open).toBe(false);
+  });
+
+  it('#1204: a failed trial probe keeps the breaker open for a full new window', async () => {
+    client.close();
+    client = new EmbedderEndpointClient({
+      endpoint: server.url,
+      failureThreshold: 3,
+      failureWindowMs: 60_000,
+    });
+    server.responder = (_body, res) => {
+      res.writeHead(500);
+      res.end('boom');
+    };
+    for (let i = 0; i < 3; i++) {
+      await expect(client.embed(['x'])).rejects.toThrow();
+    }
+    const firstTrip = client.getBreakerState().trippedAt!;
+    await new Promise((r) => setTimeout(r, 5));
+
+    await expect(client.probeThroughOpenBreaker()).rejects.toThrow(/HTTP 500/);
+
+    const state = client.getBreakerState();
+    expect(state.open).toBe(true);
+    expect(state.trippedAt!).toBeGreaterThan(firstTrip);
+    await expect(client.embed(['x'])).rejects.toThrow(/circuit breaker open/);
+  });
+
   // -- ADR-097 boundary hardening (devil's-advocate audit) --
 
   it('embed() lazily probes when no cached identity exists', async () => {

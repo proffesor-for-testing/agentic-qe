@@ -30,6 +30,7 @@ import {
   computeBatchEmbeddings,
   resetInitialization,
   allowEmbedderInitRetry,
+  recheckEmbedder,
   isUsingEndpoint,
   getEndpointIdentity,
   getActiveEmbeddingSpaceIdentity,
@@ -76,6 +77,38 @@ async function startServer(): Promise<{
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
   const addr = server.address();
   handle.url = `http://127.0.0.1:${(addr as { port: number }).port}`;
+  handle.close = () => new Promise<void>((r) => server.close(() => r()));
+  return handle;
+}
+
+/** #1204: an endpoint that can go down (503), answer slowly, or switch models. */
+async function startControllableServer(): Promise<{
+  url: string;
+  mode: 'up' | 'down' | 'slow' | 'other-model';
+  close: () => Promise<void>;
+}> {
+  const handle = { url: '', mode: 'up' as 'up' | 'down' | 'slow' | 'other-model', close: async () => {} };
+  const server = http.createServer((req, res) => {
+    let raw = '';
+    req.on('data', (c) => (raw += c));
+    req.on('end', () => {
+      if (handle.mode === 'down') {
+        res.writeHead(503);
+        res.end('restarting');
+        return;
+      }
+      const { input } = JSON.parse(raw) as { input: string[] };
+      const salt = handle.mode === 'other-model' ? 'other-model:' : '';
+      const reply = () => {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ data: input.map((t, i) => ({ index: i, embedding: fakeEmbedding(salt + t) })) }));
+      };
+      if (handle.mode === 'slow') setTimeout(reply, 200);
+      else reply();
+    });
+  });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  handle.url = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
   handle.close = () => new Promise<void>((r) => server.close(() => r()));
   return handle;
 }
@@ -304,5 +337,68 @@ describe('real-embeddings.ts — ADR-097 endpoint branch', () => {
 
     expect(getEndpointIdentity()).toBe(identity);
     expect(isUsingEndpoint()).toBe(true);
+  });
+
+  it('recheckEmbedder reaches an endpoint that failed at runtime inside the breaker window (#1204)', async () => {
+    const flaky = await startControllableServer();
+    try {
+      await computeRealEmbedding('x', { endpoint: flaky.url, enableCache: false });
+      flaky.mode = 'down';
+      for (let i = 0; i < 3; i++) {
+        await expect(computeRealEmbedding('x', { endpoint: flaky.url, enableCache: false })).rejects.toThrow(/HTTP 503/);
+      }
+      await expect(computeRealEmbedding('x', { endpoint: flaky.url, enableCache: false }))
+        .rejects.toThrow(/circuit breaker open/);
+      flaky.mode = 'up';
+
+      await recheckEmbedder({ endpoint: flaky.url });
+      const vec = await computeRealEmbedding('x', { endpoint: flaky.url, enableCache: false });
+
+      expect(vec).toHaveLength(getEmbeddingDimension());
+    } finally {
+      resetInitialization();
+      await flaky.close();
+    }
+  });
+
+  it('recheckEmbedder refuses an endpoint whose identity changed since this process bound to it (#1204)', async () => {
+    const flaky = await startControllableServer();
+    try {
+      await computeRealEmbedding('x', { endpoint: flaky.url, enableCache: false });
+      flaky.mode = 'down';
+      for (let i = 0; i < 3; i++) {
+        await expect(computeRealEmbedding('x', { endpoint: flaky.url, enableCache: false })).rejects.toThrow();
+      }
+      flaky.mode = 'other-model';
+
+      await expect(recheckEmbedder({ endpoint: flaky.url })).rejects.toThrow(/identity changed/);
+    } finally {
+      resetInitialization();
+      await flaky.close();
+    }
+  });
+
+  it('recheckEmbedder re-initializes after a failed start while other callers keep failing fast (#1204)', async () => {
+    const flaky = await startControllableServer();
+    try {
+      flaky.mode = 'down';
+      await expect(computeRealEmbedding('x', { endpoint: flaky.url, enableCache: false })).rejects.toThrow();
+      flaky.mode = 'slow';
+
+      const recheck = recheckEmbedder({ endpoint: flaky.url });
+      const started = Date.now();
+      await expect(computeRealEmbedding('y', { endpoint: flaky.url, enableCache: false }))
+        .rejects.toThrow(/previously failed/);
+      const otherCallerMs = Date.now() - started;
+      await recheck;
+      const vec = await computeRealEmbedding('y', { endpoint: flaky.url, enableCache: false });
+
+      expect(otherCallerMs).toBeLessThan(50);
+      expect(vec).toHaveLength(getEmbeddingDimension());
+      expect(getEndpointIdentity()?.endpoint).toBe(flaky.url);
+    } finally {
+      resetInitialization();
+      await flaky.close();
+    }
   });
 });

@@ -12,6 +12,7 @@ import type { QEDomain } from '../../../learning/qe-patterns.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { committedPendingIndexPatternId } from '../../../learning/pattern-mutation-error.js';
 import { formatLearningOutcomes, formatPatternSuccessRate } from '../../../learning/usage-outcome.js';
+import { redactEndpoint } from '../../../learning/embedder-endpoint-client.js';
 import {
   getHooksSystem,
   printJson,
@@ -25,14 +26,33 @@ import {
  * - `sqlite`: an embedder produced the vector and SQLite holds it (vector
  *   search uses it now); only the ANN index (patterns.rvf) was not open in
  *   this process. It is ingested automatically the next time the index opens.
- * - `pending`: no vector (no embedding runtime); text search only until an
- *   embedder is configured and `aqe learning backfill-embeddings` runs.
+ * - `pending`: no vector (no embedding runtime, or #1204: the configured
+ *   embedder failed); text search only until an embedder works and
+ *   `aqe learning backfill-embeddings` runs.
  */
 export function describeVectorIndexState(
   pattern: { embedding?: ArrayLike<number> },
   indexUnavailableCause?: string,
+  embedderFailure?: string | null,
 ): { vectorIndex: 'indexed' | 'sqlite' | 'pending'; notice?: string } {
   const hasVector = Boolean(pattern.embedding && pattern.embedding.length > 0);
+  if (!hasVector && embedderFailure) {
+    const endpoint = process.env.AQE_EMBEDDER_ENDPOINT;
+    const embedder = endpoint
+      ? `the configured embedding endpoint (AQE_EMBEDDER_ENDPOINT=${redactEndpoint(endpoint)})`
+      : 'the embedder';
+    // The embedder's own wording says "transformer" for the endpoint path too.
+    const reason = endpoint
+      ? embedderFailure.replace(/^(Transformer initialization previously failed|Failed to initialize transformer model): /, '')
+      : embedderFailure;
+    return {
+      vectorIndex: 'pending',
+      notice:
+        `Pattern stored in SQLite without a vector: ${embedder} failed: ${reason}. ` +
+        'Text search finds it now. Once the embedder works again, run ' +
+        '`aqe learning backfill-embeddings` to enable semantic search for it.',
+    };
+  }
   if (!hasVector) {
     return {
       vectorIndex: 'pending',
@@ -244,7 +264,8 @@ export function registerStatsHooks(hooks: Command): void {
         if (!pattern) {
           throw new Error('learn failed: no pattern returned');
         }
-        const { vectorIndex, notice: pendingWarning } = describeVectorIndexState(pattern, indexCause);
+        const { vectorIndex, notice: pendingWarning } = describeVectorIndexState(
+          pattern, indexCause, reasoningBank.getEmbedderFailure());
 
         if (options.json) {
           printJson({

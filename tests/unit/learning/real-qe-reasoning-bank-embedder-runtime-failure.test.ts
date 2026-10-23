@@ -9,6 +9,10 @@
  * says lexical-only with the reason. The embedder is tried again after a
  * bounded interval, so a short outage (at startup or later) does not last
  * until the process restarts.
+ *
+ * #1204: that retry runs in the background. The call that triggers it stays
+ * lexical-only and never waits for the embedder, and the bank reports vector
+ * search only after the retry has succeeded.
  */
 import * as fs from 'node:fs';
 import * as os from 'node:os';
@@ -23,6 +27,8 @@ const DOWN = '[EmbedderEndpointClient] connect ECONNREFUSED 127.0.0.1:8099';
 const embeddingMocks = vi.hoisted(() => ({
   available: true,
   failingText: null as string | null,
+  /** When set, embedding calls wait on this (an embedder host that never answers). */
+  hang: null as Promise<never> | null,
   calls: [] as string[],
 }));
 
@@ -44,15 +50,17 @@ vi.mock('../../../src/learning/real-embeddings.js', async (importOriginal) => {
     ...actual,
     computeRealEmbedding: vi.fn(async (text: string) => {
       embeddingMocks.calls.push(text);
+      if (embeddingMocks.hang) await embeddingMocks.hang;
       if (!embeddingMocks.available || text === embeddingMocks.failingText) throw new Error(DOWN);
       return testVector(text);
     }),
-    allowEmbedderInitRetry: vi.fn(),
+    recheckEmbedder: vi.fn(async () => undefined),
     getActiveEmbeddingSpaceIdentity: () => ({ spaceId: SPACE_ID }) as never,
   };
 });
 
 import { RealQEReasoningBank } from '../../../src/learning/real-qe-reasoning-bank.js';
+import { EMBEDDING_SPACE_CANARY } from '../../../src/learning/embedding-space.js';
 
 const RETRY_PATTERN = {
   patternType: 'test-template' as const,
@@ -83,16 +91,21 @@ describe('RealQEReasoningBank when the embedder fails at runtime (#1187)', () =>
   }).sqliteStore;
   const countEmbeddings = (): number => store().getAllEmbeddings().length;
   const later = (ms: number) => vi.setSystemTime(Date.now() + ms);
+  const retrySettled = () => (bank as unknown as {
+    embedderRecovery: { whenRetrySettled(): Promise<void> };
+  }).embedderRecovery.whenRetrySettled();
 
   beforeEach(() => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-1187-'));
     vi.useFakeTimers({ toFake: ['Date'] });
     embeddingMocks.available = true;
     embeddingMocks.failingText = null;
+    embeddingMocks.hang = null;
     embeddingMocks.calls = [];
   });
 
   afterEach(async () => {
+    await retrySettled();
     await bank?.dispose();
     vi.useRealTimers();
     fs.rmSync(dir, { recursive: true, force: true });
@@ -161,6 +174,7 @@ describe('RealQEReasoningBank when the embedder fails at runtime (#1187)', () =>
       later(RETRY_MS);
 
       const result = await bank.searchQEPatterns('flaky network retry');
+      await retrySettled();
 
       expect(result.success).toBe(true);
       expect(bank.getPatternSearchStatus().mode).toBe('lexical-only');
@@ -170,6 +184,8 @@ describe('RealQEReasoningBank when the embedder fails at runtime (#1187)', () =>
       await bank.searchQEPatterns('flaky network retry');
       embeddingMocks.available = true;
       later(RETRY_MS);
+      await bank.searchQEPatterns('flaky network retry'); // starts the background retry
+      await retrySettled();
 
       const result = await bank.searchQEPatterns('Retry flaky network calls');
 
@@ -186,6 +202,8 @@ describe('RealQEReasoningBank when the embedder fails at runtime (#1187)', () =>
       const stored = await bank.storeQEPattern(MOCK_PATTERN);
       embeddingMocks.available = true;
       later(RETRY_MS);
+      await bank.searchQEPatterns('fake timers'); // starts the background retry
+      await retrySettled();
 
       const result = await bank.searchQEPatterns('fake timers timeout assertions');
 
@@ -228,6 +246,8 @@ describe('RealQEReasoningBank when the embedder fails at runtime (#1187)', () =>
       expect(bank.getPatternSearchStatus()).toEqual({ mode: 'lexical-only', reason: DOWN });
       embeddingMocks.available = true;
       later(RETRY_MS);
+      await bank.searchQEPatterns('flaky'); // starts the background retry
+      await retrySettled();
 
       const stored = await bank.storeQEPattern(RETRY_PATTERN);
       const result = await bank.searchQEPatterns('Retry flaky network calls');
@@ -238,6 +258,62 @@ describe('RealQEReasoningBank when the embedder fails at runtime (#1187)', () =>
       expect(stored.value.embedding).toHaveLength(DIM);
       const hit = result.value.find(r => r.pattern.id === stored.value.id);
       expect(hit?.matchType).toBe('vector');
+    });
+  });
+
+  describe('the call that triggers a retry (#1204)', () => {
+    beforeEach(async () => {
+      bank = createBank();
+      await bank.initialize();
+      await bank.storeQEPattern(RETRY_PATTERN);
+      embeddingMocks.available = false;
+      await bank.searchQEPatterns('flaky network retry');
+      later(RETRY_MS);
+    });
+
+    it('stays lexical-only and does not wait for an embedder host that never answers', async () => {
+      let release!: () => void;
+      embeddingMocks.hang = new Promise<never>((_, reject) => { release = () => reject(new Error(DOWN)); });
+
+      const result = await bank.searchQEPatterns('flaky network retry');
+
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(result.value.every(r => r.matchType === 'lexical')).toBe(true);
+      expect(bank.getPatternSearchStatus().mode).toBe('lexical-only');
+      // The retry is still waiting on the host; finish it so the test can clean up.
+      release();
+      await retrySettled();
+      expect(bank.getPatternSearchStatus().mode).toBe('lexical-only');
+    });
+
+    it('reports lexical-only while the retry runs, and vector only after it succeeded', async () => {
+      let release!: () => void;
+      embeddingMocks.available = true;
+      embeddingMocks.hang = new Promise<never>((resolve) => { release = () => resolve(undefined as never); });
+
+      const triggering = await bank.searchQEPatterns('Retry flaky network calls');
+
+      expect(triggering.success && triggering.value.every(r => r.matchType === 'lexical')).toBe(true);
+      expect(bank.getPatternSearchStatus().mode).toBe('lexical-only');
+      embeddingMocks.hang = null;
+      release();
+      await retrySettled();
+      expect(bank.getPatternSearchStatus()).toEqual({ mode: 'vector' });
+    });
+
+    it('starts one retry for overlapping calls', async () => {
+      embeddingMocks.available = true;
+      embeddingMocks.calls = [];
+
+      await Promise.all([
+        bank.searchQEPatterns('flaky network retry'),
+        bank.searchQEPatterns('network retry'),
+        bank.storeQEPattern(MOCK_PATTERN),
+      ]);
+      await retrySettled();
+
+      expect(embeddingMocks.calls.filter(t => t === EMBEDDING_SPACE_CANARY)).toHaveLength(1);
     });
   });
 });

@@ -193,6 +193,11 @@ class CircuitBreaker {
     return true;
   }
 
+  /** #1204: open (or re-open) the breaker for a full window from now. */
+  trip(): void {
+    this.trippedAt = Date.now();
+  }
+
   /** For tests / observability */
   getState(): { open: boolean; failures: number; trippedAt: number | null } {
     return { open: this.isOpen(), failures: this.failures.length, trippedAt: this.trippedAt };
@@ -352,6 +357,22 @@ export class EmbedderEndpointClient {
 
   getBreakerState(): { open: boolean; failures: number; trippedAt: number | null } {
     return this.breaker.getState();
+  }
+
+  /**
+   * #1204: probe the endpoint while the circuit breaker is open, as its single
+   * half-open trial. Other callers keep fast-failing meanwhile. A success
+   * closes the breaker and refreshes the identity; a failure keeps the
+   * breaker open for another full window. Lets a caller that rate-limits its
+   * own retries recover without also waiting out the breaker window.
+   */
+  async probeThroughOpenBreaker(): Promise<EndpointIdentity> {
+    try {
+      return await this.probe();
+    } catch (err) {
+      this.breaker.trip();
+      throw err;
+    }
   }
 
   /**

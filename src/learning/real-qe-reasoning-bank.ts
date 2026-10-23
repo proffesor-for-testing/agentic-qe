@@ -26,13 +26,13 @@ import { EMBEDDING_SPACE_CANARY } from './embedding-space.js';
 const logger: Logger = LoggerFactory.create('RealQEReasoningBank');
 import {
   computeRealEmbedding,
-  allowEmbedderInitRetry,
   isTransformerAvailable,
   getEmbeddingDimension,
   clearEmbeddingCache,
   getActiveEmbeddingSpaceIdentity,
   type EmbeddingConfig,
 } from './real-embeddings.js';
+import { EmbedderRecovery, probeEmbedder } from './embedder-recovery.js';
 import {
   SQLitePatternStore,
   createSQLitePatternStore,
@@ -264,11 +264,11 @@ export class RealQEReasoningBank {
   private hnswIndex: HierarchicalNSW | null = null;
   private patternIdMap: Map<number, string> = new Map();
   private initialized = false;
-  /** #1022: set when no embedding runtime is available; null when vectors work. */
-  private embedderUnavailableReason: string | null = null;
-  /** #1187: when the embedder last failed, for the bounded retry. */
-  private embedderFailedAt = 0;
-  private embedderRetry: Promise<void> | null = null;
+  /**
+   * #1022/#1187/#1204: whether the embedder works. While it does not, patterns
+   * are stored text-only and searched by text; it is retried in the background.
+   */
+  private readonly embedderRecovery: EmbedderRecovery;
 
   // Statistics tracking - using CircularBuffer for O(1) operations (ADR memory leak fix)
   private stats = {
@@ -355,6 +355,12 @@ export class RealQEReasoningBank {
     this.qeConfig = { ...DEFAULT_REAL_CONFIG, ...config };
     this.sqliteStore = createSQLitePatternStore(this.qeConfig.sqlite);
     this.asymmetricEngine = new AsymmetricLearningEngine();
+    this.embedderRecovery = new EmbedderRecovery({
+      retryIntervalMs: this.qeConfig.embedderRetryIntervalMs,
+      probe: () => this.probeEmbedderForRetry(),
+      onRecovered: () => logger.info('Embedder available again: pattern search uses vectors'),
+      onRetryFailed: (error) => logger.debug('Embedder still unavailable', { error: toErrorMessage(error) }),
+    });
   }
 
   /**
@@ -376,16 +382,15 @@ export class RealQEReasoningBank {
     try {
       await computeRealEmbedding(EMBEDDING_SPACE_CANARY, this.qeConfig.embeddings);
     } catch (error) {
-      this.embedderUnavailableReason = toErrorMessage(error);
-      this.embedderFailedAt = Date.now();
+      this.embedderRecovery.markUnavailable(toErrorMessage(error));
       logger.warn(
         'No embedding runtime: patterns are stored without vectors (pending ' +
         '`aqe learning backfill-embeddings`) and searched by text matching only',
-        { reason: this.embedderUnavailableReason }
+        { reason: this.embedderRecovery.unavailableReason }
       );
     }
 
-    if (this.embedderUnavailableReason === null) {
+    if (this.embedderRecovery.unavailableReason === null) {
       // Initialize HNSW index
       await this.initializeHNSW();
       logger.info('HNSW index initialized');
@@ -419,9 +424,8 @@ export class RealQEReasoningBank {
 
   /** #1022: whether pattern search uses vectors or text matching only. */
   getPatternSearchStatus(): PatternSearchStatus {
-    return this.embedderUnavailableReason === null
-      ? { mode: 'vector' }
-      : { mode: 'lexical-only', reason: this.embedderUnavailableReason };
+    const reason = this.embedderRecovery.unavailableReason;
+    return reason === null ? { mode: 'vector' } : { mode: 'lexical-only', reason };
   }
 
   /**
@@ -430,46 +434,31 @@ export class RealQEReasoningBank {
    * getPatternSearchStatus): callers then store patterns text-only and search
    * by text. The embedder is tried again once `embedderRetryIntervalMs` has
    * passed, so a short outage, at startup or later, does not last until restart.
+   * #1204: that retry runs in the background; this call stays text-only.
    */
   private async embedOrUndefined(text: string): Promise<number[] | undefined> {
-    await this.retryEmbedderIfDue();
-    if (this.embedderUnavailableReason !== null) return undefined;
+    if (!this.embedderRecovery.isAvailable()) return undefined;
     try {
       return await computeRealEmbedding(text, this.qeConfig.embeddings);
     } catch (error) {
-      this.embedderUnavailableReason = `Embedder failed at runtime: ${toErrorMessage(error)}`;
-      this.embedderFailedAt = Date.now();
-      logger.warn(
-        'Embedder failed: patterns are stored without vectors and searched by ' +
-        'text matching only until it recovers',
-        { reason: this.embedderUnavailableReason }
-      );
+      const reason = `Embedder failed at runtime: ${toErrorMessage(error)}`;
+      if (this.embedderRecovery.markUnavailable(reason)) {
+        logger.warn(
+          'Embedder failed: patterns are stored without vectors and searched by ' +
+          'text matching only until it recovers',
+          { reason }
+        );
+      }
       return undefined;
     }
   }
 
-  private async retryEmbedderIfDue(): Promise<void> {
-    if (this.embedderUnavailableReason === null) return;
-    const interval = this.qeConfig.embedderRetryIntervalMs ?? 60_000;
-    if (Date.now() - this.embedderFailedAt < interval) return;
-    this.embedderRetry ??= this.retryEmbedder().finally(() => { this.embedderRetry = null; });
-    await this.embedderRetry;
-  }
-
-  private async retryEmbedder(): Promise<void> {
-    try {
-      allowEmbedderInitRetry();
-      // Bypass the cache: a cached canary vector proves nothing about the embedder now.
-      await computeRealEmbedding(EMBEDDING_SPACE_CANARY, { ...this.qeConfig.embeddings, enableCache: false });
-      if (!this.hnswIndex) {
-        await this.initializeHNSW();
-        await this.loadPatternsIntoHNSW();
-      }
-      this.embedderUnavailableReason = null;
-      logger.info('Embedder available again: pattern search uses vectors');
-    } catch (error) {
-      this.embedderFailedAt = Date.now();
-      logger.debug('Embedder still unavailable', { error: toErrorMessage(error) });
+  /** #1187: the retry probe; vector search needs the HNSW index as well. */
+  private async probeEmbedderForRetry(): Promise<void> {
+    await probeEmbedder(this.qeConfig.embeddings);
+    if (!this.hnswIndex) {
+      await this.initializeHNSW();
+      await this.loadPatternsIntoHNSW();
     }
   }
 

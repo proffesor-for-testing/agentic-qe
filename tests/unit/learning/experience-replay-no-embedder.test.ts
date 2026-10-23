@@ -7,7 +7,7 @@
  * later start that has one) and similarity search returns no matches. It must
  * never invent a similarity.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const embeddingMocks = vi.hoisted(() => ({ available: false }));
 
@@ -30,6 +30,7 @@ vi.mock('../../../src/learning/real-embeddings.js', async (importOriginal) => {
 });
 
 import { ExperienceReplay } from '../../../src/integrations/agentic-flow/reasoning-bank/experience-replay.js';
+import { computeRealEmbedding } from '../../../src/learning/real-embeddings.js';
 import type { Trajectory } from '../../../src/integrations/agentic-flow/reasoning-bank/trajectory-tracker.js';
 import { resetRuVectorFeatureFlags, setRuVectorFeatureFlags } from '../../../src/integrations/ruvector/feature-flags.js';
 
@@ -112,5 +113,87 @@ describe('ExperienceReplay without an embedding runtime (#1022)', () => {
     const args = insertExperience.run.mock.calls[0];
     expect(Buffer.isBuffer(args[7])).toBe(true);
     expect(args[8]).toBe(384);
+  });
+});
+
+describe('ExperienceReplay reports embedder failures and retries the embedder (#1204)', () => {
+  const RETRY_MS = 15_000;
+  const later = (ms: number) => vi.setSystemTime(Date.now() + ms);
+  const retrySettled = (replay: ExperienceReplay) => (replay as unknown as {
+    embedderRecovery: { whenRetrySettled(): Promise<void> };
+  }).embedderRecovery.whenRetrySettled();
+
+  function replayWithRetry() {
+    const insertExperience = { run: vi.fn() };
+    const replay = new ExperienceReplay({ autoPrune: false, embedderRetryIntervalMs: RETRY_MS });
+    Object.assign(replay as unknown as Record<string, unknown>, {
+      initialized: true,
+      prepared: new Map([['insertExperience', insertExperience]]),
+    });
+    return { replay, insertExperience };
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.mocked(computeRealEmbedding).mockClear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    embeddingMocks.available = false;
+    vi.restoreAllMocks();
+  });
+
+  it('labels a failure after the embedder had worked as a runtime failure, and warns once', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    embeddingMocks.available = true;
+    const { replay } = replayWithRetry();
+    await replay.storeExperience(TRAJECTORY, 'analyze then generate');
+    expect(replay.getEmbedderStatus()).toEqual({ mode: 'vector' });
+    embeddingMocks.available = false;
+
+    await replay.getGuidance('generate unit tests');
+    await replay.getGuidance('generate more unit tests');
+
+    expect(replay.getEmbedderStatus()).toEqual({
+      mode: 'unavailable',
+      reason: 'Embedder failed at runtime: In-process embeddings require the optional package',
+    });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0][0])).toMatch(/Embedder failed/);
+  });
+
+  it('reports a missing embedding runtime with its reason', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { replay } = replayWithRetry();
+
+    await replay.getGuidance('generate unit tests');
+
+    expect(replay.getEmbedderStatus()).toEqual({
+      mode: 'unavailable',
+      reason: 'In-process embeddings require the optional package',
+    });
+  });
+
+  it('does not call the embedder again until a background retry finds it back', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { replay, insertExperience } = replayWithRetry();
+    await replay.storeExperience(TRAJECTORY, 'analyze then generate');
+    vi.mocked(computeRealEmbedding).mockClear();
+    embeddingMocks.available = true;
+
+    later(RETRY_MS - 1);
+    await replay.storeExperience(TRAJECTORY, 'analyze then generate');
+    expect(computeRealEmbedding).not.toHaveBeenCalled();
+
+    later(1);
+    await replay.storeExperience(TRAJECTORY, 'analyze then generate'); // starts the retry; no vector yet
+    await retrySettled(replay);
+    await replay.storeExperience(TRAJECTORY, 'analyze then generate');
+
+    const dims = insertExperience.run.mock.calls.map(args => args[8]);
+    expect(dims).toEqual([null, null, null, 384]);
+    expect(replay.getEmbedderStatus()).toEqual({ mode: 'vector' });
   });
 });

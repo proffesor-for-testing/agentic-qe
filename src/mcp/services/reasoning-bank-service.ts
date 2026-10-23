@@ -19,6 +19,7 @@ import {
   type TrajectoryStep as TrackerTrajectoryStep,
   type TrajectoryOptions,
   type ExperienceGuidance,
+  type ExperienceGuidanceStatus,
   type EnhancedReasoningBankAdapterStats,
 } from '../../integrations/agentic-flow/reasoning-bank/index.js';
 import {
@@ -725,6 +726,15 @@ export class ReasoningBankService {
   /** #1022: whether pattern search uses vectors or text matching only. */
   getPatternSearchStatus(): PatternSearchStatus {
     return this.enhancedAdapter.getPatternSearchStatus();
+  }
+
+  /**
+   * #1204: whether similar-experience guidance can use vectors; null when
+   * experience replay is disabled or the service is disposed.
+   */
+  getExperienceGuidanceStatus(): ExperienceGuidanceStatus | null {
+    if (!this.config.enableExperienceReplay || this.disposed) return null;
+    return this.enhancedAdapter.getExperienceGuidanceStatus();
   }
 
   /**

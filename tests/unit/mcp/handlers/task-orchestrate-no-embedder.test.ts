@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   serviceError: null as Error | null,
   status: { mode: 'vector' } as { mode: 'vector' | 'lexical-only'; reason?: string },
+  experienceStatus: null as null | { mode: 'vector' | 'unavailable'; reason?: string },
   submitTask: vi.fn(),
   startTaskTrajectory: vi.fn(),
   searchPatternMatches: vi.fn(),
@@ -51,6 +52,7 @@ vi.mock('../../../../src/mcp/services/reasoning-bank-service', () => ({
       getExperienceGuidance: async () => null,
       searchPatternMatches: mocks.searchPatternMatches,
       getPatternSearchStatus: () => mocks.status,
+      getExperienceGuidanceStatus: () => mocks.experienceStatus,
     };
   },
   startTaskTrajectory: mocks.startTaskTrajectory,
@@ -67,6 +69,7 @@ describe('task_orchestrate without an embedding runtime (#1022)', () => {
     vi.clearAllMocks();
     mocks.serviceError = null;
     mocks.status = { mode: 'vector' };
+    mocks.experienceStatus = null;
     mocks.submitTask.mockResolvedValue({ success: true, value: 'task-1' });
     mocks.searchPatternMatches.mockResolvedValue([]);
   });
@@ -126,5 +129,46 @@ describe('task_orchestrate without an embedding runtime (#1022)', () => {
     expect(result.success, result.error).toBe(true);
     expect(result.data!.learning).toEqual({ patternSearch: 'vector' });
     expect(mocks.startTaskTrajectory).toHaveBeenCalledTimes(1);
+  });
+
+  it('#1204: reports that experience guidance is unavailable because its embedder failed', async () => {
+    const reason = 'Embedder failed at runtime: connect ECONNREFUSED 127.0.0.1:8099';
+    mocks.experienceStatus = { mode: 'unavailable', reason };
+
+    const result = await handleTaskOrchestrate(TASK);
+
+    expect(result.success, result.error).toBe(true);
+    expect(result.data!.learning).toEqual({
+      patternSearch: 'vector',
+      experienceGuidance: { mode: 'unavailable', reason },
+    });
+  });
+
+  it('#1204: reports vector experience guidance when its embedder works', async () => {
+    mocks.experienceStatus = { mode: 'vector' };
+
+    const result = await handleTaskOrchestrate(TASK);
+
+    expect(result.data!.learning).toEqual({ patternSearch: 'vector', experienceGuidance: { mode: 'vector' } });
+  });
+
+  it('#1204: does not label a text-only search vector when the embedder recovers during the call', async () => {
+    const reason = 'Embedder failed at runtime: connect ECONNREFUSED 127.0.0.1:8099';
+    mocks.status = { mode: 'lexical-only', reason };
+    mocks.experienceStatus = { mode: 'unavailable', reason };
+    mocks.searchPatternMatches.mockImplementation(async () => {
+      // A background retry succeeds while this (text-only) search runs.
+      mocks.status = { mode: 'vector' };
+      mocks.experienceStatus = { mode: 'vector' };
+      return [];
+    });
+
+    const result = await handleTaskOrchestrate(TASK);
+
+    expect(result.data!.learning).toEqual({
+      patternSearch: 'lexical-only',
+      reason,
+      experienceGuidance: { mode: 'unavailable', reason },
+    });
   });
 });
