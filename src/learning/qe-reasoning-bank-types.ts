@@ -53,6 +53,12 @@ export interface QEReasoningBankConfig {
 
   /** Optional RVF dual-writer for vector replication (Phase 3) */
   rvfDualWriter?: RvfDualWriter;
+
+  /**
+   * #1204: after the embedder fails, wait this long before trying it again
+   * (in the background). Until then patterns are stored and searched by text.
+   */
+  embedderRetryIntervalMs?: number;
 }
 
 /**

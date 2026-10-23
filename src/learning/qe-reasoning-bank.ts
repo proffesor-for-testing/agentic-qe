@@ -52,6 +52,7 @@ import {
 import { getWitnessChain } from '../audit/witness-chain.js';
 import type { RvfDualWriter } from '../integrations/ruvector/rvf-dual-writer.js';
 import { getActiveEmbeddingSpaceIdentity } from './real-embeddings.js';
+import { EmbedderRecovery } from './embedder-recovery.js';
 import { reconcileRvfWithSqlite, type RvfReconcileResult } from './rvf-reconcile.js';
 import { PatternMutationError } from './pattern-mutation-error.js';
 
@@ -117,8 +118,11 @@ import {
 export class QEReasoningBank implements IQEReasoningBank {
   private readonly config: QEReasoningBankConfig;
   private readonly embeddingProvenance = new WeakMap<number[], string>();
-  /** #1187: warn once per bank when the embedder fails, not once per pattern. */
-  private embedderFailureWarned = false;
+  /**
+   * #1187/#1204: whether the embedder works. While it does not, patterns are
+   * stored text-only and searched by text; it is retried in the background.
+   */
+  private readonly embedderRecovery: EmbedderRecovery;
   private patternStore: IPatternStore;
   private initialized = false;
   private sqliteStore: SQLitePatternStore | null = null;
@@ -164,6 +168,11 @@ export class QEReasoningBank implements IQEReasoningBank {
     private readonly coherenceService?: import('../integrations/coherence/coherence-service.js').ICoherenceService
   ) {
     this.config = { ...DEFAULT_QE_REASONING_BANK_CONFIG, ...config };
+    this.embedderRecovery = new EmbedderRecovery({
+      retryIntervalMs: this.config.embedderRetryIntervalMs,
+      onRecovered: () => logger.info('Embedder available again: patterns are stored and searched with vectors'),
+      onRetryFailed: (error) => logger.debug('Embedder still unavailable', { error: toErrorMessage(error) }),
+    });
     if (config.rvfDualWriter) {
       this.rvfDualWriter = config.rvfDualWriter;
     }
@@ -830,21 +839,33 @@ export class QEReasoningBank implements IQEReasoningBank {
    * embedder endpoint fails at runtime. Callers then store the pattern
    * text-only and search by text, as they do without an embedding runtime.
    * ADR-097 still holds: no hash vector stands in for an endpoint vector.
+   * #1204: after a failure the embedder is not called again until a
+   * background retry, due `embedderRetryIntervalMs` later, finds it working.
    */
   private async embedForPatterns(text: string): Promise<number[] | null> {
+    if (!this.embedderRecovery.isAvailable()) return null;
     try {
       return await this.embed(text);
     } catch (error) {
+      const reason = toErrorMessage(error);
       const message = 'Embedder failed: storing and searching patterns by text only';
-      const context = { error: toErrorMessage(error) };
-      if (this.embedderFailureWarned) {
-        logger.debug(message, context);
+      if (this.embedderRecovery.markUnavailable(reason)) {
+        logger.warn(message, { error: reason });
       } else {
-        this.embedderFailureWarned = true;
-        logger.warn(message, context);
+        logger.debug(message, { error: reason });
       }
       return null;
     }
+  }
+
+  /**
+   * #1204: why the embedder failed, while patterns are stored and searched
+   * by text only because of that failure; null while it works or was never
+   * needed. A missing embedding runtime with no endpoint configured is not a
+   * failure: there embed() returns a hash vector, which is stored text-only.
+   */
+  getEmbedderFailure(): string | null {
+    return this.embedderRecovery.unavailableReason;
   }
 
   /**

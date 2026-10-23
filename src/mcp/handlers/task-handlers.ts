@@ -28,7 +28,10 @@ import {
   endTaskTrajectory,
   type TaskOutcome,
 } from '../services/reasoning-bank-service';
-import type { ExperienceGuidance } from '../../integrations/agentic-flow/reasoning-bank/index.js';
+import type {
+  ExperienceGuidance,
+  ExperienceGuidanceStatus,
+} from '../../integrations/agentic-flow/reasoning-bank/index.js';
 import type { ModelTier } from '../../integrations/agentic-flow';
 import type { QEDomain } from '../../learning/qe-patterns.js';
 import type { RealQEPatternSearchResult } from '../../learning/real-qe-reasoning-bank.js';
@@ -333,10 +336,15 @@ export interface TaskOrchestrateParams {
  *   text matching only, no similarity
  *   scores, and experience guidance unavailable
  * - 'unavailable': the ReasoningBank could not start; no learned guidance
+ *
+ * #1204: `experienceGuidance` says the same for similar-experience guidance:
+ * 'unavailable' (with the reason) when its embedder failed or is absent.
+ * Omitted when experience replay is disabled or the ReasoningBank is down.
  */
 export interface OrchestrateLearningStatus {
   patternSearch: 'vector' | 'lexical-only' | 'unavailable';
   reason?: string;
+  experienceGuidance?: ExperienceGuidanceStatus;
 }
 
 export interface TaskOrchestrateResult {
@@ -391,6 +399,12 @@ async function getOrchestrateLearningContext(
     };
   }
 
+  // #1204: a background embedder retry can finish while this call runs.
+  // Report vector matching only if the embedder was usable for the whole
+  // call, so hints found by text alone are never labelled vector.
+  const patternStatusBefore = service.getPatternSearchStatus();
+  const experienceStatusBefore = service.getExperienceGuidanceStatus();
+
   const experienceGuidance = await service.getExperienceGuidance(task, guidanceDomain);
 
   // Bring HNSW A (qe_patterns) into the routing decision alongside HNSW C
@@ -401,12 +415,25 @@ async function getOrchestrateLearningContext(
     .searchPatternMatches(task, { limit: 5, domain: patternDomain })
     .catch(() => [] as RealQEPatternSearchResult[]);
 
-  const status = service.getPatternSearchStatus();
+  const status = notVectorIfEither(patternStatusBefore, service.getPatternSearchStatus());
+  const experienceStatusAfter = service.getExperienceGuidanceStatus();
+  const experienceStatus = experienceStatusBefore && experienceStatusAfter
+    ? notVectorIfEither(experienceStatusBefore, experienceStatusAfter)
+    : experienceStatusAfter;
   return {
     experienceGuidance,
     patternHintMatches,
-    learning: { patternSearch: status.mode, ...(status.reason ? { reason: status.reason } : {}) },
+    learning: {
+      patternSearch: status.mode,
+      ...(status.reason ? { reason: status.reason } : {}),
+      ...(experienceStatus ? { experienceGuidance: experienceStatus } : {}),
+    },
   };
+}
+
+/** #1204: the status before the call unless it was vector; otherwise the one after. */
+function notVectorIfEither<T extends { mode: string }>(before: T, after: T): T {
+  return before.mode === 'vector' ? after : before;
 }
 
 export async function handleTaskOrchestrate(

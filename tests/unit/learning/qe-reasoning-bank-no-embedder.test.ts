@@ -10,15 +10,29 @@
  * left for `aqe learning backfill-embeddings`), mirroring how search already
  * drops non-provenance vectors.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const embeddingMocks = vi.hoisted(() => ({
   identity: null as null | { spaceId: string },
+  /** #1204: the retry probe's embedder; probes wait on `hang` when set. */
+  probeUp: false,
+  hang: null as Promise<void> | null,
+  probes: [] as Array<{ text: string; enableCache?: boolean }>,
 }));
 
 vi.mock('../../../src/learning/real-embeddings.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../src/learning/real-embeddings.js')>();
-  return { ...actual, getActiveEmbeddingSpaceIdentity: () => embeddingMocks.identity };
+  return {
+    ...actual,
+    getActiveEmbeddingSpaceIdentity: () => embeddingMocks.identity,
+    recheckEmbedder: vi.fn(async () => undefined),
+    computeRealEmbedding: vi.fn(async (text: string, config?: { enableCache?: boolean }) => {
+      embeddingMocks.probes.push({ text, enableCache: config?.enableCache });
+      if (embeddingMocks.hang) await embeddingMocks.hang;
+      if (!embeddingMocks.probeUp) throw new Error('[EmbedderEndpointClient] connect ECONNREFUSED 127.0.0.1:9');
+      return new Array(384).fill(0.05);
+    }),
+  };
 });
 
 vi.mock('../../../src/audit/witness-chain.js', () => ({
@@ -26,15 +40,17 @@ vi.mock('../../../src/audit/witness-chain.js', () => ({
 }));
 
 import { QEReasoningBank } from '../../../src/learning/qe-reasoning-bank.js';
+import { recheckEmbedder } from '../../../src/learning/real-embeddings.js';
+import { EMBEDDING_SPACE_CANARY } from '../../../src/learning/embedding-space.js';
 import type { QEPattern } from '../../../src/learning/qe-patterns.js';
 import { resetRuVectorFeatureFlags, setRuVectorFeatureFlags } from '../../../src/integrations/ruvector/feature-flags.js';
 
-function bankWithStore() {
+function bankWithStore(config: { embedderRetryIntervalMs?: number } = {}) {
   const create = vi.fn(async (options: { name: string; embedding?: number[] }) => ({
     success: true as const,
     value: { id: 'p-1', name: options.name, embedding: options.embedding } as unknown as QEPattern,
   }));
-  const bank = new QEReasoningBank({} as never);
+  const bank = new QEReasoningBank({} as never, undefined, config);
   Object.assign(bank as unknown as Record<string, unknown>, {
     initialized: true,
     patternStore: { create, get: vi.fn() },
@@ -135,5 +151,101 @@ describe('QEReasoningBank when the embedder endpoint fails at runtime (#1187)', 
       textQuery: 'flaky network retry',
       embeddingSpaceId: undefined,
     }));
+  });
+});
+
+describe('QEReasoningBank retries a failed embedder after a cooldown (#1204)', () => {
+  const RETRY_MS = 20_000;
+  const DOWN = new Error('Failed to initialize transformer model: connect ECONNREFUSED 127.0.0.1:9');
+  const later = (ms: number) => vi.setSystemTime(Date.now() + ms);
+  const retrySettled = (bank: QEReasoningBank) => (bank as unknown as {
+    embedderRecovery: { whenRetrySettled(): Promise<void> };
+  }).embedderRecovery.whenRetrySettled();
+
+  /** A bank whose endpoint was down at startup: its first embed failed. */
+  async function failedBank() {
+    setRuVectorFeatureFlags({ useRVFPatternStore: false });
+    embeddingMocks.identity = { spaceId: 'space-a' };
+    const { bank, create } = bankWithStore({ embedderRetryIntervalMs: RETRY_MS });
+    const vector = [0.4, 0.5, 0.6];
+    const embed = vi.spyOn(bank, 'embed').mockImplementation(async () => {
+      if (!embeddingMocks.probeUp) throw DOWN;
+      (bank as unknown as { embeddingProvenance: WeakMap<number[], string> }).embeddingProvenance.set(vector, 'space-a');
+      return vector;
+    });
+    await bank.storePattern(LEARN);
+    embed.mockClear();
+    create.mockClear();
+    embeddingMocks.probes = [];
+    return { bank, create, embed, vector };
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    embeddingMocks.identity = null;
+    embeddingMocks.probeUp = false;
+    embeddingMocks.hang = null;
+    embeddingMocks.probes = [];
+    resetRuVectorFeatureFlags();
+    vi.restoreAllMocks();
+  });
+
+  it('reports the failure and does not call the embedder again before the interval', async () => {
+    const { bank, create, embed } = await failedBank();
+    later(RETRY_MS - 1);
+
+    await bank.storePattern(LEARN);
+
+    expect(bank.getEmbedderFailure()).toBe(DOWN.message);
+    expect(embed).not.toHaveBeenCalled();
+    expect(embeddingMocks.probes).toEqual([]);
+    expect(create.mock.calls[0][0].embedding).toBeUndefined();
+  });
+
+  it('stores with vectors again once a retry after the interval finds the embedder back', async () => {
+    const { bank, create, vector } = await failedBank();
+    embeddingMocks.probeUp = true;
+    later(RETRY_MS);
+
+    await bank.storePattern(LEARN); // triggers the retry; stays text-only
+    await retrySettled(bank);
+    await bank.storePattern(LEARN);
+
+    expect(create.mock.calls[0][0].embedding).toBeUndefined();
+    expect(create.mock.calls[1][0].embedding).toBe(vector);
+    expect(bank.getEmbedderFailure()).toBeNull();
+    expect(recheckEmbedder).toHaveBeenCalled();
+    expect(embeddingMocks.probes).toEqual([{ text: EMBEDDING_SPACE_CANARY, enableCache: false }]);
+  });
+
+  it('stays text-only when the retry fails', async () => {
+    const { bank, create } = await failedBank();
+    later(RETRY_MS);
+
+    await bank.storePattern(LEARN);
+    await retrySettled(bank);
+    await bank.storePattern(LEARN);
+
+    expect(create.mock.calls.every(call => call[0].embedding === undefined)).toBe(true);
+    expect(bank.getEmbedderFailure()).toBe(DOWN.message);
+  });
+
+  it('never makes the triggering call wait for an embedder host that does not answer', async () => {
+    const { bank, create } = await failedBank();
+    let release!: () => void;
+    embeddingMocks.hang = new Promise<void>((resolve) => { release = resolve; });
+    later(RETRY_MS);
+
+    const result = await bank.storePattern(LEARN);
+
+    expect(result.success).toBe(true);
+    expect(create.mock.calls[0][0].embedding).toBeUndefined();
+    expect(embeddingMocks.probes).toHaveLength(1);
+    release();
+    await retrySettled(bank);
   });
 });

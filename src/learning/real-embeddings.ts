@@ -58,6 +58,8 @@ let embeddingModel: FeatureExtractionPipeline | null = null;
 let initPromise: Promise<void> | null = null;
 let initializationFailed = false;
 let failureReason = '';
+/** #1204: an in-flight recheckEmbedder() re-initialization, shared by callers. */
+let initRetryPromise: Promise<void> | null = null;
 
 /**
  * Set when ADR-097 endpoint path is active. Tracked separately so callers
@@ -162,8 +164,13 @@ function isNonSemanticText(text: string): boolean {
 /**
  * Initialize the transformer model
  */
-async function initializeModel(config: Partial<EmbeddingConfig> = {}): Promise<void> {
-  if (initializationFailed) {
+async function initializeModel(
+  config: Partial<EmbeddingConfig> = {},
+  retryingAfterFailure = false
+): Promise<void> {
+  // #1204: a recheckEmbedder() retry runs while the failure is still recorded,
+  // so other callers keep failing fast instead of waiting on a dead host.
+  if (initializationFailed && !retryingAfterFailure) {
     throw new Error(`Transformer initialization previously failed: ${failureReason}`);
   }
 
@@ -228,6 +235,8 @@ async function initializeModel(config: Partial<EmbeddingConfig> = {}): Promise<v
         }
 
         embeddingModel = createEndpointPipeline(endpointClient);
+        initializationFailed = false;
+        failureReason = '';
         return;
       }
 
@@ -278,6 +287,8 @@ async function initializeModel(config: Partial<EmbeddingConfig> = {}): Promise<v
         runtimeFingerprint: fingerprintEmbeddingRuntime(canaryVector),
       });
 
+      initializationFailed = false;
+      failureReason = '';
       const loadTime = performance.now() - startTime;
       console.log(`[RealEmbeddings] Model loaded in ${loadTime.toFixed(0)}ms`);
     } catch (error) {
@@ -543,6 +554,49 @@ export function allowEmbedderInitRetry(): void {
   }
   endpointClient = null;
   endpointIdentity = null;
+}
+
+/**
+ * #1204: check whether a failed embedder works again, for callers that retry
+ * it after a cooldown. Resolves when the embedder is usable; throws otherwise.
+ * Other callers keep failing fast while the check runs, so a host that never
+ * answers stalls only the (background) check, never them:
+ * - after a failed initialization, initialize again while the failure stays
+ *   recorded; concurrent rechecks share that attempt;
+ * - after runtime failures that opened the endpoint circuit breaker, probe the
+ *   endpoint as the breaker's single trial request, so recovery does not wait
+ *   for the breaker window as well as the caller's retry interval. The probe
+ *   must find the identity this process bound to (ADR-097): a changed
+ *   fingerprint means vectors would not be comparable.
+ * Callers rate-limit rechecks, then embed a canary to confirm.
+ */
+export async function recheckEmbedder(config: Partial<EmbeddingConfig> = {}): Promise<void> {
+  if (initializationFailed) {
+    initRetryPromise ??= retryInitialization(config).finally(() => {
+      initRetryPromise = null;
+    });
+    return initRetryPromise;
+  }
+  const client = endpointClient;
+  if (!client || !client.getBreakerState().open) return;
+  const identity = await client.probeThroughOpenBreaker();
+  if (endpointIdentity && identity.fingerprint !== endpointIdentity.fingerprint) {
+    throw new Error(
+      `[RealEmbeddings] endpoint identity changed since this process bound to it ` +
+        `(fingerprint ${endpointIdentity.fingerprint} -> ${identity.fingerprint}); ` +
+        `restart to use the new embedding space`
+    );
+  }
+}
+
+async function retryInitialization(config: Partial<EmbeddingConfig>): Promise<void> {
+  if (endpointClient) {
+    endpointClient.close();
+  }
+  endpointClient = null;
+  endpointIdentity = null;
+  initPromise = null;
+  await initializeModel(config, true);
 }
 
 /**

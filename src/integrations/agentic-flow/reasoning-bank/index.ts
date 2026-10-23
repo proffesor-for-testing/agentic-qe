@@ -38,6 +38,7 @@ import {
   ExperienceReplay,
   createExperienceReplay,
   type ExperienceGuidance,
+  type ExperienceGuidanceStatus,
   type ExperienceReplayConfig,
 } from './experience-replay.js';
 import {
@@ -88,6 +89,7 @@ export {
   createExperienceReplay,
   type Experience,
   type ExperienceGuidance,
+  type ExperienceGuidanceStatus,
   type ExperienceReplayConfig,
 } from './experience-replay.js';
 
@@ -513,6 +515,15 @@ export class EnhancedReasoningBankAdapter {
   getPatternSearchStatus(): PatternSearchStatus {
     this.ensureInitialized();
     return this.reasoningBank!.getPatternSearchStatus();
+  }
+
+  /**
+   * #1204: whether similar-experience guidance can use vectors; null when
+   * experience replay is disabled.
+   */
+  getExperienceGuidanceStatus(): ExperienceGuidanceStatus | null {
+    this.ensureInitialized();
+    return this.experienceReplay?.getEmbedderStatus() ?? null;
   }
 
   /**
