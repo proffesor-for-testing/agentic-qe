@@ -3,9 +3,10 @@
  * Implements WCAG 2.2 compliance auditing with browser mode support
  *
  * This service supports multiple modes of operation:
- * 1. Heuristic Mode (default): URL-pattern-based analysis without browser automation
- * 2. Browser Mode (agent-browser): Real DOM inspection via unified browser client
- * 3. Browser Mode (Vibium): Real DOM inspection via Vibium MCP integration
+ * 1. Browser Mode (agent-browser): Real DOM inspection via unified browser client
+ * 2. Browser Mode (Vibium): Real DOM inspection via Vibium MCP integration
+ * 3. Not measured: no browser could load the page. The report says so
+ *    (`measured: false`) and carries no findings (#1145).
  *
  * Browser mode provides more accurate results by:
  * - Running actual axe-core accessibility checks in the browser
@@ -15,7 +16,8 @@
  * Browser Client Integration:
  * - Prefers agent-browser when available (supports snapshots and axe-core injection)
  * - Falls back to Vibium if agent-browser unavailable
- * - Uses heuristic mode when no browser tool is available
+ * - Reports "not measured" when no browser tool could audit the page; it never
+ *   guesses findings from the URL (#1145)
  *
  * @module domains/visual-accessibility/services/accessibility-tester
  */
@@ -59,10 +61,7 @@ import {
 import {
   initializeRules,
   filterRulesByLevel,
-  runRule,
-  validateCriterion,
-  analyzeContrastForElements,
-  generateKeyboardReportWithHeuristics,
+  runSimulatedRule,
   hashUrl,
   type AccessibilityRule,
 } from './accessibility-tester-heuristics.js';
@@ -76,6 +75,7 @@ export interface AccessibilityTesterConfig {
   auditTimeout: number;
   enableColorContrastCheck: boolean;
   enableKeyboardCheck: boolean;
+  /** Synthetic, URL-hash-derived results for tests; always reported unmeasured. */
   simulationMode: boolean;
   useBrowserMode: boolean;
   browserConfig: {
@@ -172,6 +172,7 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
   ): Promise<Result<AccessibilityReport, Error>> {
     try {
       const wcagLevel = options?.wcagLevel || this.config.defaultWCAGLevel;
+      const failures: string[] = [];
 
       if (this.shouldUseBrowserMode()) {
         const browserClient = await this.getBrowserClient();
@@ -179,11 +180,9 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
           const browserResult = await auditWithBrowserClient(
             browserClient, url, wcagLevel, this.config.browserConfig, options
           );
-          if (browserResult.success) {
-            await this.storeReport(browserResult.value);
-            return browserResult;
-          }
+          if (browserResult.success) return await this.measuredReport(browserResult.value);
           const errorMsg = getErrorMessage(browserResult);
+          failures.push(errorMsg);
           logger.warn(`Browser client audit failed: ${errorMsg}`);
         }
 
@@ -191,16 +190,15 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
           const vibiumResult = await auditWithVibium(
             this.vibiumClient, url, wcagLevel, this.config.browserConfig, options
           );
-          if (vibiumResult.success) {
-            await this.storeReport(vibiumResult.value);
-            return vibiumResult;
-          }
+          if (vibiumResult.success) return await this.measuredReport(vibiumResult.value);
           const errorMsg = getErrorMessage(vibiumResult);
-          logger.warn(`Vibium audit failed, falling back to heuristic mode: ${errorMsg}`);
+          failures.push(errorMsg);
+          logger.warn(`Vibium audit failed; the page is not measured: ${errorMsg}`);
         }
       }
 
-      return this.auditWithHeuristics(url, wcagLevel, options);
+      if (this.config.simulationMode) return this.auditSimulated(url, wcagLevel, options);
+      return ok(this.notMeasuredReport(url, wcagLevel, this.notMeasuredReason(failures)));
     } catch (error) {
       return err(toError(error));
     }
@@ -214,12 +212,9 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
       const browserResult = await auditElementWithVibium(
         this.vibiumClient, url, selector, this.config.defaultWCAGLevel, this.config.browserConfig
       );
-      if (browserResult.success) {
-        await this.storeReport(browserResult.value);
-        return browserResult;
-      }
+      if (browserResult.success) return await this.measuredReport(browserResult.value);
       const errorMsg = getErrorMessage(browserResult);
-      logger.warn(`Browser mode element audit failed, falling back to heuristic mode: ${errorMsg}`);
+      logger.warn(`Browser mode element audit failed, falling back to a page audit: ${errorMsg}`);
     }
 
     return this.audit(url, {
@@ -229,10 +224,40 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
   }
 
   // ============================================================================
-  // Heuristic Audit
+  // Unmeasured Results (#1145)
   // ============================================================================
 
-  private async auditWithHeuristics(
+  private async measuredReport(report: AccessibilityReport): Promise<Result<AccessibilityReport, Error>> {
+    const measured: AccessibilityReport = { ...report, measured: true };
+    await this.storeReport(measured);
+    return ok(measured);
+  }
+
+  private notMeasuredReason(failures: string[]): string {
+    if (failures.length > 0) return `no browser could audit the page (${failures.join('; ')})`;
+    if (!this.config.useBrowserMode) return 'browser mode is disabled, and only a browser run measures a page';
+    return 'no browser is available (install agent-browser or connect Vibium) to load the page';
+  }
+
+  /** A report that says nothing was measured: no violations, no passes, no verdict. */
+  private notMeasuredReport(url: string, wcagLevel: 'A' | 'AA' | 'AAA', reason: string): AccessibilityReport {
+    return {
+      url,
+      timestamp: new Date(),
+      violations: [],
+      passes: [],
+      incomplete: filterRulesByLevel(this.rules, wcagLevel).map((rule) => ({
+        id: rule.id, description: rule.description, reason: 'Not measured: see notMeasuredReason', nodes: [],
+      })),
+      score: 0,
+      wcagLevel,
+      measured: false,
+      notMeasuredReason: reason,
+    };
+  }
+
+  /** Simulation mode: synthetic results, labelled unmeasured and never stored. */
+  private async auditSimulated(
     url: string,
     wcagLevel: 'A' | 'AA' | 'AAA',
     options?: AuditOptions
@@ -248,7 +273,7 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
       const incomplete: AccessibilityReport['incomplete'] = [];
 
       for (const rule of applicableRules) {
-        const result = runRule(rule, { url }, this.config.simulationMode, this.config.enableColorContrastCheck);
+        const result = runSimulatedRule(rule, { url });
 
         if (result.nodes.length > 0) {
           violations.push({
@@ -288,9 +313,10 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
         incomplete,
         score,
         wcagLevel,
+        measured: false,
+        notMeasuredReason: 'simulation mode: synthetic results, the page was not loaded',
       };
 
-      await this.storeReport(report);
       return ok(report);
     } catch (error) {
       return err(toError(error));
@@ -303,26 +329,21 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
 
   async checkContrast(url: string): Promise<Result<ContrastAnalysis[], Error>> {
     try {
-      const cacheKey = `visual-accessibility:contrast:${hashUrl(url)}`;
+      // v2 (#1145): never serve a guessed result cached by an earlier version.
+      const cacheKey = `visual-accessibility:contrast:v2:${hashUrl(url)}`;
       const cached = await this.memory.get<ContrastAnalysis[]>(cacheKey);
       if (cached) return ok(cached);
 
-      let analyses: ContrastAnalysis[];
-
-      if (this.shouldUseBrowserMode() && this.vibiumClient) {
-        const browserResult = await checkContrastWithVibium(
-          this.vibiumClient, url, this.config.defaultWCAGLevel, this.config.browserConfig
-        );
-        if (browserResult.success) {
-          analyses = browserResult.value;
-        } else {
-          const errorMsg = getErrorMessage(browserResult);
-          logger.warn(`Browser mode contrast check failed, falling back to heuristic mode: ${errorMsg}`);
-          analyses = analyzeContrastForElements(url);
-        }
-      } else {
-        analyses = analyzeContrastForElements(url);
+      if (!this.shouldUseBrowserMode() || !this.vibiumClient) {
+        return err(notMeasuredError('Color contrast', url, this.notMeasuredReason([])));
       }
+      const browserResult = await checkContrastWithVibium(
+        this.vibiumClient, url, this.config.defaultWCAGLevel, this.config.browserConfig
+      );
+      if (!browserResult.success) {
+        return err(notMeasuredError('Color contrast', url, this.notMeasuredReason([getErrorMessage(browserResult)])));
+      }
+      const analyses = browserResult.value;
 
       await this.memory.set(cacheKey, analyses, { namespace: 'visual-accessibility', ttl: 3600 });
       return ok(analyses);
@@ -340,34 +361,27 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
     level: 'A' | 'AA' | 'AAA'
   ): Promise<Result<WCAGValidationResult, Error>> {
     try {
-      const levelOrder = { A: 1, AA: 2, AAA: 3 };
-      const targetLevel = levelOrder[level];
-
-      const applicableCriteria = Object.values(WCAG_CRITERIA).filter(
-        (c) => levelOrder[c.level] <= targetLevel
-      );
-
-      const failedCriteria: typeof applicableCriteria = [];
-      const passedCriteria: typeof applicableCriteria = [];
-
-      const urlHash = hashUrl(url);
-      const hashNum = parseInt(urlHash, 36);
-
-      for (const criterion of applicableCriteria) {
-        const ruleResult = validateCriterion(criterion, hashNum);
-        if (ruleResult.passed) {
-          passedCriteria.push(criterion);
-        } else {
-          failedCriteria.push(criterion);
-        }
+      const audit = await this.audit(url, { wcagLevel: level, includeWarnings: true });
+      if (!audit.success) return err(audit.error);
+      if (audit.value.measured !== true) {
+        return err(notMeasuredError(`WCAG ${level} validation`, url, audit.value.notMeasuredReason ?? 'not audited'));
       }
 
-      const passed = failedCriteria.length === 0;
-      const score = Math.round(
-        (passedCriteria.length / applicableCriteria.length) * 100
+      const levelOrder = { A: 1, AA: 2, AAA: 3 };
+      const applicableCriteria = Object.values(WCAG_CRITERIA).filter(
+        (c) => levelOrder[c.level] <= levelOrder[level]
       );
+      const violated = new Set(audit.value.violations.flatMap((v) => v.wcagCriteria.map((c) => c.id)));
+      const failedCriteria = applicableCriteria.filter((c) => violated.has(c.id));
+      const passedCriteria = applicableCriteria.filter((c) => !violated.has(c.id));
 
-      return ok({ level, passed, failedCriteria, passedCriteria, score });
+      const score = Math.round((passedCriteria.length / applicableCriteria.length) * 100);
+
+      return ok({
+        level, passed: failedCriteria.length === 0, failedCriteria, passedCriteria, score, measured: true,
+        limitations: ['A passed criterion means no automated axe-core check failed for it; ' +
+          'keyboard operation, focus order and similar criteria still need manual review.'],
+      });
     } catch (error) {
       return err(toError(error));
     }
@@ -381,26 +395,22 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
     url: string
   ): Promise<Result<KeyboardNavigationReport, Error>> {
     try {
-      const cacheKey = `visual-accessibility:keyboard:${hashUrl(url)}`;
+      const cacheKey = `visual-accessibility:keyboard:v2:${hashUrl(url)}`;
       const cached = await this.memory.get<KeyboardNavigationReport>(cacheKey);
       if (cached) return ok(cached);
 
-      let report: KeyboardNavigationReport;
-
-      if (this.shouldUseBrowserMode() && this.config.enableKeyboardCheck && this.vibiumClient) {
-        const browserResult = await checkKeyboardWithVibium(
-          this.vibiumClient, url, this.config.defaultWCAGLevel, this.config.browserConfig
-        );
-        if (browserResult.success) {
-          report = browserResult.value;
-        } else {
-          const errorMsg = getErrorMessage(browserResult);
-          logger.warn(`Browser mode keyboard check failed, falling back to heuristic mode: ${errorMsg}`);
-          report = generateKeyboardReportWithHeuristics(url);
-        }
-      } else {
-        report = generateKeyboardReportWithHeuristics(url);
+      if (!this.shouldUseBrowserMode() || !this.config.enableKeyboardCheck || !this.vibiumClient) {
+        const reason = this.config.enableKeyboardCheck
+          ? this.notMeasuredReason([]) : 'the keyboard check is disabled';
+        return err(notMeasuredError('Keyboard navigation', url, reason));
       }
+      const browserResult = await checkKeyboardWithVibium(
+        this.vibiumClient, url, this.config.defaultWCAGLevel, this.config.browserConfig
+      );
+      if (!browserResult.success) {
+        return err(notMeasuredError('Keyboard navigation', url, this.notMeasuredReason([getErrorMessage(browserResult)])));
+      }
+      const report = browserResult.value;
 
       await this.memory.set(cacheKey, report, { namespace: 'visual-accessibility', ttl: 3600 });
       return ok(report);
@@ -445,6 +455,9 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
       if (!wcagResult.success) {
         return err(new Error(`WCAG audit failed: ${wcagResult.error.message}`));
       }
+      if (wcagResult.value.measured !== true) {
+        return err(notMeasuredError('EU compliance', url, wcagResult.value.notMeasuredReason ?? 'not audited'));
+      }
 
       const euResult = await this.euComplianceService.validateCompliance(
         wcagResult.value,
@@ -479,4 +492,9 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
       this.managedBrowserClient = null;
     }
   }
+}
+
+/** #1145: an unmeasured check is an error with its reason, never an empty pass. */
+function notMeasuredError(check: string, url: string, reason: string): Error {
+  return new Error(`${check} NOT MEASURED for ${url}: ${reason}. No findings or verdict were produced.`);
 }

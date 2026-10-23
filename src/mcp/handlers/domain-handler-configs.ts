@@ -223,6 +223,9 @@ export interface AccessibilityTestResult {
   score: number;
   violations: unknown[];
   warnings: unknown[];
+  /** #1145: false when no page was audited; `passed` and `score` are then not a verdict. */
+  measured?: boolean;
+  note?: string;
   duration: number;
   savedFiles?: string[];
   /** #933: true when result files were written; see savedFiles for their paths. */
@@ -1046,11 +1049,14 @@ export const accessibilityTestConfig: DomainHandlerConfig<AccessibilityTestParam
 
   mapToResult: (taskId, data, duration, savedFiles) => ({
     taskId,
-    status: 'completed',
+    status: data.measured === true ? 'completed' : 'not-measured',
     passed: (data.passed as boolean) || false,
     score: (data.score as number) || 0,
     violations: (data.violations as unknown[]) || [],
     warnings: (data.warnings as unknown[]) || [],
+    // #1145: fail closed; only an explicit measurement counts as one
+    measured: data.measured === true,
+    ...(typeof data.note === 'string' ? { note: data.note } : {}),
     duration,
     savedFiles,
   }),

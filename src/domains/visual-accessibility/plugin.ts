@@ -740,6 +740,11 @@ export class VisualAccessibilityPlugin extends BaseDomainPlugin {
                 occurrences: issue.occurrences,
                 impact: issue.impact,
               })),
+              // #1145: unmeasured URLs are neither passing nor failing
+              status: result.value.status,
+              measuredUrls: result.value.measuredUrls,
+              notMeasured: result.value.notMeasured,
+              message: result.value.message,
             });
           }
 

@@ -101,6 +101,9 @@ export interface UrlAudit {
   violations: A11yViolation[];
   warnings: A11yWarning[];
   passedRules: number;
+  /** False when no browser audited the URL; it is then neither passing nor failing (#1145). */
+  measured?: boolean;
+  notMeasuredReason?: string;
 }
 
 export interface A11yViolation {
@@ -128,6 +131,8 @@ export interface A11yWarning {
 
 export interface A11ySummary {
   totalUrls: number;
+  /** URLs a browser actually audited; passing/score/violation counts cover only these (#1145). */
+  measuredUrls?: number;
   passingUrls: number;
   avgScore: number;
   criticalViolations: number;
@@ -412,8 +417,8 @@ export class A11yAuditTool extends MCPToolBase<A11yAuditParams, A11yAuditResult>
           includeWarnings,
         });
 
-        if (!auditResult.success) {
-          // Add failed audit with error info
+        if (!auditResult.success || auditResult.value.measured !== true) {
+          // #1145: an unmeasured URL carries no findings and no verdict
           audits.push({
             url,
             score: 0,
@@ -421,11 +426,16 @@ export class A11yAuditTool extends MCPToolBase<A11yAuditParams, A11yAuditResult>
             violations: [],
             warnings: [],
             passedRules: 0,
+            measured: false,
+            notMeasuredReason: auditResult.success
+              ? auditResult.value.notMeasuredReason ?? 'not measured'
+              : auditResult.error.message,
           });
           continue;
         }
 
         const report = auditResult.value;
+        const notMeasuredWarnings: A11yWarning[] = [];
 
         // Optionally check contrast
         let contrastViolations: A11yViolation[] = [];
@@ -451,6 +461,8 @@ export class A11yAuditTool extends MCPToolBase<A11yAuditParams, A11yAuditResult>
                 ],
               }));
             }
+          } else {
+            notMeasuredWarnings.push({ id: 'color-contrast-not-measured', description: contrastResult.error.message, nodes: 0 });
           }
         }
 
@@ -500,6 +512,8 @@ export class A11yAuditTool extends MCPToolBase<A11yAuditParams, A11yAuditResult>
                 ],
               });
             }
+          } else {
+            notMeasuredWarnings.push({ id: 'keyboard-not-measured', description: keyboardResult.error.message, nodes: 0 });
           }
         }
 
@@ -524,11 +538,11 @@ export class A11yAuditTool extends MCPToolBase<A11yAuditParams, A11yAuditResult>
         ];
 
         // Convert warnings (from incomplete checks)
-        const warnings: A11yWarning[] = report.incomplete.map((i) => ({
+        const warnings: A11yWarning[] = [...report.incomplete.map((i) => ({
           id: i.id,
           description: i.description,
           nodes: i.nodes.length,
-        }));
+        })), ...notMeasuredWarnings];
 
         const hasCriticalOrSerious = violations.some(
           (v) => v.impact === 'critical' || v.impact === 'serious'
@@ -541,14 +555,17 @@ export class A11yAuditTool extends MCPToolBase<A11yAuditParams, A11yAuditResult>
           violations,
           warnings,
           passedRules: report.passes.length,
+          measured: true,
         });
       }
 
+      const measuredAudits = audits.filter((a) => a.measured === true);
       const summary: A11ySummary = {
         totalUrls: audits.length,
-        passingUrls: audits.filter((a) => a.passed).length,
-        avgScore: audits.length > 0
-          ? Math.round(audits.reduce((sum, a) => sum + a.score, 0) / audits.length)
+        measuredUrls: measuredAudits.length,
+        passingUrls: measuredAudits.filter((a) => a.passed).length,
+        avgScore: measuredAudits.length > 0
+          ? Math.round(measuredAudits.reduce((sum, a) => sum + a.score, 0) / measuredAudits.length)
           : 0,
         criticalViolations: audits.reduce(
           (sum, a) => sum + a.violations.filter((v) => v.impact === 'critical').length,
@@ -566,7 +583,7 @@ export class A11yAuditTool extends MCPToolBase<A11yAuditParams, A11yAuditResult>
 
       this.emitStream(context, {
         status: 'complete',
-        message: `Audit complete: avg score ${summary.avgScore}%`,
+        message: `Audit complete: ${summary.measuredUrls}/${summary.totalUrls} URL(s) measured, avg score ${summary.avgScore}%`,
         progress: 100,
       });
 

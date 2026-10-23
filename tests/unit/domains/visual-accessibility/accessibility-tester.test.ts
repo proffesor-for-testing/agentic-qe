@@ -8,12 +8,37 @@ import {
   AccessibilityTesterConfig,
 } from '../../../../src/domains/visual-accessibility/services/accessibility-tester';
 import { MemoryBackend, StoreOptions, VectorSearchResult } from '../../../../src/kernel/interfaces';
-import {
-  AccessibilityReport,
-  ContrastAnalysis,
-  KeyboardNavigationReport,
-  WCAGValidationResult,
-} from '../../../../src/domains/visual-accessibility/interfaces';
+import { ok, err } from '../../../../src/shared/types';
+import type { IBrowserClient } from '../../../../src/integrations/browser';
+
+/**
+ * Browser client double: navigation succeeds and axe-core reports one
+ * color-contrast violation, or navigation fails like an unresolvable host.
+ */
+function createBrowserClient(options: { navigationError?: string } = {}): IBrowserClient {
+  const axeResult = {
+    violations: [{
+      id: 'color-contrast', impact: 'serious', description: 'Elements must have sufficient color contrast',
+      help: 'Elements must meet minimum color contrast ratio thresholds',
+      tags: ['wcag2aa', 'wcag143'],
+      nodes: [{ selector: 'p.muted', html: '<p class="muted">', target: ['p.muted'], failureSummary: 'ratio 2.1:1' }],
+    }],
+    passes: ['html-has-lang', 'image-alt'],
+    incomplete: [],
+    inapplicable: [],
+  };
+  return {
+    tool: 'vibium',
+    launch: vi.fn().mockResolvedValue(ok({ id: 'session' })),
+    navigate: vi.fn().mockResolvedValue(options.navigationError
+      ? err(new Error(options.navigationError))
+      : ok({ url: 'http://127.0.0.1/', title: 'page', statusCode: 200, loadTime: 1 })),
+    evaluate: vi.fn().mockResolvedValue(ok(JSON.stringify(axeResult))),
+    quit: vi.fn().mockResolvedValue(ok(undefined)),
+    isAvailable: vi.fn().mockResolvedValue(true),
+    dispose: vi.fn().mockResolvedValue(undefined),
+  } as unknown as IBrowserClient;
+}
 
 /**
  * Mock MemoryBackend implementation for testing
@@ -120,11 +145,22 @@ describe('AccessibilityTesterService', () => {
       }
     });
 
-    it('should store report in memory', async () => {
+    it('should not store an unmeasured report as evidence (#1145)', async () => {
       await service.audit('https://example.com');
 
-      const stored = mockMemory.getAll();
-      const reportKeys = Array.from(stored.keys()).filter(
+      const reportKeys = Array.from(mockMemory.getAll().keys()).filter(
+        (k) => k.includes('report') || k.includes('latest')
+      );
+      expect(reportKeys).toEqual([]);
+    });
+
+    it('should store a measured report in memory', async () => {
+      const measuredService = new AccessibilityTesterService(mockMemory, {
+        browserClient: createBrowserClient(), preferAgentBrowser: false,
+      });
+      await measuredService.audit('http://127.0.0.1/');
+
+      const reportKeys = Array.from(mockMemory.getAll().keys()).filter(
         (k) => k.includes('report') || k.includes('latest')
       );
       expect(reportKeys.length).toBeGreaterThan(0);
@@ -194,184 +230,74 @@ describe('AccessibilityTesterService', () => {
   });
 
   describe('checkContrast', () => {
-    it('should return contrast analysis results', async () => {
+    it('should refuse with the reason when no browser measured contrast (#1145)', async () => {
       const result = await service.checkContrast('https://example.com');
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(Array.isArray(result.value)).toBe(true);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.message).toContain('NOT MEASURED');
+        expect(result.error.message).toContain('browser mode is disabled');
       }
     });
 
-    it('should include contrast ratio in analysis', async () => {
-      const result = await service.checkContrast('https://example.com');
-
-      expect(result.success).toBe(true);
-      if (result.success && result.value.length > 0) {
-        const analysis = result.value[0];
-        expect(analysis).toHaveProperty('ratio');
-        expect(typeof analysis.ratio).toBe('number');
-        expect(analysis.ratio).toBeGreaterThan(0);
-      }
-    });
-
-    it('should indicate pass/fail for each element', async () => {
-      const result = await service.checkContrast('https://example.com');
-
-      expect(result.success).toBe(true);
-      if (result.success && result.value.length > 0) {
-        result.value.forEach((analysis) => {
-          expect(typeof analysis.passes).toBe('boolean');
-        });
-      }
-    });
-
-    it('should include foreground and background colors', async () => {
-      const result = await service.checkContrast('https://example.com');
-
-      expect(result.success).toBe(true);
-      if (result.success && result.value.length > 0) {
-        const analysis = result.value[0];
-        expect(analysis).toHaveProperty('foreground');
-        expect(analysis).toHaveProperty('background');
-        expect(analysis.foreground).toMatch(/^#[0-9a-f]{6}$/i);
-        expect(analysis.background).toMatch(/^#[0-9a-f]{6}$/i);
-      }
-    });
-
-    it('should store contrast results in memory', async () => {
+    it('should not cache anything when contrast was not measured', async () => {
       await service.checkContrast('https://example.com');
 
-      const stored = mockMemory.getAll();
-      const contrastKeys = Array.from(stored.keys()).filter((k) =>
-        k.includes('contrast')
-      );
-      expect(contrastKeys.length).toBeGreaterThan(0);
-    });
-
-    it('should include required ratio for WCAG compliance', async () => {
-      const result = await service.checkContrast('https://example.com');
-
-      expect(result.success).toBe(true);
-      if (result.success && result.value.length > 0) {
-        result.value.forEach((analysis) => {
-          expect(analysis).toHaveProperty('requiredRatio');
-          expect(analysis.requiredRatio).toBeGreaterThanOrEqual(3);
-        });
-      }
+      const contrastKeys = Array.from(mockMemory.getAll().keys()).filter((k) => k.includes('contrast'));
+      expect(contrastKeys).toEqual([]);
     });
   });
 
   describe('validateWCAGLevel', () => {
-    it('should validate WCAG Level A', async () => {
-      const result = await service.validateWCAGLevel('https://example.com', 'A');
+    it.each(['A', 'AA', 'AAA'] as const)(
+      'should give no WCAG %s verdict when the page was not measured (#1145)',
+      async (level) => {
+        const result = await service.validateWCAGLevel('https://example.com', level);
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.value.level).toBe('A');
-        expect(typeof result.value.passed).toBe('boolean');
-        expect(typeof result.value.score).toBe('number');
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error.message).toContain(`WCAG ${level} validation NOT MEASURED`);
+        }
       }
+    );
+
+    it('should give the same refusal for every URL instead of a URL-hash verdict', async () => {
+      const a = await service.validateWCAGLevel('https://a.example', 'AA');
+      const b = await service.validateWCAGLevel('https://b.example/dashboard', 'AA');
+
+      expect(a.success).toBe(false);
+      expect(b.success).toBe(false);
     });
 
-    it('should validate WCAG Level AA', async () => {
-      const result = await service.validateWCAGLevel('https://example.com', 'AA');
+    it('should derive failed criteria from measured axe-core violations', async () => {
+      const measuredService = new AccessibilityTesterService(mockMemory, {
+        browserClient: createBrowserClient(), preferAgentBrowser: false,
+      });
+      const result = await measuredService.validateWCAGLevel('http://127.0.0.1/', 'AA');
 
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.value.level).toBe('AA');
-      }
-    });
-
-    it('should validate WCAG Level AAA', async () => {
-      const result = await service.validateWCAGLevel('https://example.com', 'AAA');
-
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.value.level).toBe('AAA');
-      }
-    });
-
-    it('should include failed and passed criteria', async () => {
-      const result = await service.validateWCAGLevel('https://example.com', 'AA');
-
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(Array.isArray(result.value.failedCriteria)).toBe(true);
-        expect(Array.isArray(result.value.passedCriteria)).toBe(true);
-      }
-    });
-
-    it('should return score between 0 and 100', async () => {
-      const result = await service.validateWCAGLevel('https://example.com', 'AA');
-
-      expect(result.success).toBe(true);
-      if (result.success) {
+        expect(result.value.measured).toBe(true);
+        expect(result.value.passed).toBe(false);
+        expect(result.value.failedCriteria.map((c) => c.id)).toEqual(['1.4.3']);
+        expect(result.value.passedCriteria.map((c) => c.id)).not.toContain('1.4.3');
         expect(result.value.score).toBeGreaterThanOrEqual(0);
         expect(result.value.score).toBeLessThanOrEqual(100);
+        expect(result.value.limitations?.length).toBeGreaterThan(0);
       }
     });
   });
 
   describe('checkKeyboardNavigation', () => {
-    it('should return keyboard navigation report', async () => {
-      const result = await service.checkKeyboardNavigation('https://example.com');
+    it('should refuse with the reason when no browser measured keyboard navigation (#1145)', async () => {
+      const result = await service.checkKeyboardNavigation('https://example.com/modal-form');
 
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.value.url).toBe('https://example.com');
-        expect(typeof result.value.focusableElements).toBe('number');
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.message).toContain('Keyboard navigation NOT MEASURED');
       }
-    });
-
-    it('should include tab order information', async () => {
-      const result = await service.checkKeyboardNavigation('https://example.com');
-
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(Array.isArray(result.value.tabOrder)).toBe(true);
-        if (result.value.tabOrder.length > 0) {
-          const item = result.value.tabOrder[0];
-          expect(item).toHaveProperty('index');
-          expect(item).toHaveProperty('selector');
-          expect(item).toHaveProperty('elementType');
-          expect(item).toHaveProperty('hasVisibleFocus');
-        }
-      }
-    });
-
-    it('should detect keyboard issues', async () => {
-      const result = await service.checkKeyboardNavigation('https://example.com');
-
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(Array.isArray(result.value.issues)).toBe(true);
-        if (result.value.issues.length > 0) {
-          const issue = result.value.issues[0];
-          expect(issue).toHaveProperty('type');
-          expect(issue).toHaveProperty('selector');
-          expect(issue).toHaveProperty('description');
-        }
-      }
-    });
-
-    it('should detect focus traps', async () => {
-      const result = await service.checkKeyboardNavigation('https://example.com');
-
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(Array.isArray(result.value.traps)).toBe(true);
-      }
-    });
-
-    it('should store keyboard report in memory', async () => {
-      await service.checkKeyboardNavigation('https://example.com');
-
-      const stored = mockMemory.getAll();
-      const keyboardKeys = Array.from(stored.keys()).filter((k) =>
-        k.includes('keyboard')
-      );
-      expect(keyboardKeys.length).toBeGreaterThan(0);
+      const keyboardKeys = Array.from(mockMemory.getAll().keys()).filter((k) => k.includes('keyboard'));
+      expect(keyboardKeys).toEqual([]);
     });
   });
 
@@ -412,11 +338,12 @@ describe('AccessibilityTesterService', () => {
 
   describe('error handling', () => {
     it('should handle audit errors gracefully', async () => {
-      // Create service with mock that throws
+      // Create service with mock that throws when the measured report is stored
       const errorMemory = new MockMemoryBackend();
       vi.spyOn(errorMemory, 'set').mockRejectedValue(new Error('Storage failed'));
 
       const errorService = new AccessibilityTesterService(errorMemory, {
+        browserClient: createBrowserClient(),
         preferAgentBrowser: false, // Prevent real browser client creation in tests
       });
       const result = await errorService.audit('https://example.com');
@@ -452,7 +379,7 @@ describe('AccessibilityTesterService', () => {
       expect(serviceWithVibium).toBeDefined();
     });
 
-    it('should use heuristic mode when Vibium client not provided', async () => {
+    it('should report not measured when Vibium client not provided', async () => {
       // Disable preferAgentBrowser to prevent real browser client creation
       const serviceWithoutVibium = new AccessibilityTesterService(mockMemory, {
         preferAgentBrowser: false,
@@ -462,8 +389,8 @@ describe('AccessibilityTesterService', () => {
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.value.url).toBe('https://example.com');
-        // Should still produce valid report using heuristic mode
-        expect(Array.isArray(result.value.violations)).toBe(true);
+        expect(result.value.measured).toBe(false);
+        expect(result.value.violations).toEqual([]);
       }
     });
 
@@ -476,8 +403,9 @@ describe('AccessibilityTesterService', () => {
 
       expect(result.success).toBe(true);
       if (result.success) {
-        // Should work with heuristic mode
         expect(result.value.url).toBe('https://example.com');
+        expect(result.value.measured).toBe(false);
+        expect(result.value.notMeasuredReason).toContain('browser mode is disabled');
       }
     });
 
@@ -494,52 +422,89 @@ describe('AccessibilityTesterService', () => {
     });
   });
 
-  describe('graceful fallback', () => {
-    it('should fall back to heuristic mode when browser mode fails', async () => {
-      // Service without Vibium client should use heuristic mode
-      // Disable preferAgentBrowser to prevent real browser client creation
-      const serviceWithoutVibium = new AccessibilityTesterService(mockMemory, {
+  describe('no browser: not measured instead of guessed (#1145)', () => {
+    it('should return no violations, no passes and a not-measured status', async () => {
+      const serviceWithoutBrowser = new AccessibilityTesterService(mockMemory, {
         useBrowserMode: true, // Enabled but no client provided
         preferAgentBrowser: false, // Prevent real browser client creation in tests
       });
 
-      const result = await serviceWithoutVibium.audit('https://example.com');
+      const result = await serviceWithoutBrowser.audit('https://example.invalid/');
 
-      // Should succeed with heuristic fallback
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.value.violations).toBeDefined();
-        expect(result.value.passes).toBeDefined();
+        expect(result.value.measured).toBe(false);
+        expect(result.value.notMeasuredReason).toContain('no browser is available');
+        expect(result.value.violations).toEqual([]);
+        expect(result.value.passes).toEqual([]);
+        expect(result.value.score).toBe(0);
+        expect(result.value.incomplete.length).toBeGreaterThan(0);
+        expect(result.value.incomplete.every((i) => i.reason.startsWith('Not measured'))).toBe(true);
       }
     });
 
-    it('should fall back for checkContrast when browser mode unavailable', async () => {
-      const serviceWithoutVibium = new AccessibilityTesterService(mockMemory, {
-        useBrowserMode: true,
-        preferAgentBrowser: false, // Prevent real browser client creation in tests
-      });
-
-      const result = await serviceWithoutVibium.checkContrast('https://example.com');
-
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(Array.isArray(result.value)).toBe(true);
+    it('should not report a color-contrast violation on .text-content for any URL', async () => {
+      for (const url of ['https://example.invalid/', 'https://example.invalid/dashboard/form/modal']) {
+        const result = await service.audit(url);
+        expect(result.success).toBe(true);
+        if (result.success) expect(result.value.violations).toEqual([]);
       }
     });
 
-    it('should fall back for checkKeyboardNavigation when browser mode unavailable', async () => {
-      const serviceWithoutVibium = new AccessibilityTesterService(mockMemory, {
-        useBrowserMode: true,
-        preferAgentBrowser: false, // Prevent real browser client creation in tests
+    it('should produce no findings when the host does not resolve', async () => {
+      const client = createBrowserClient({ navigationError: 'Navigation failed: net::ERR_NAME_NOT_RESOLVED' });
+      const unresolvable = new AccessibilityTesterService(mockMemory, {
+        browserClient: client, preferAgentBrowser: false,
       });
 
-      const result = await serviceWithoutVibium.checkKeyboardNavigation('https://example.com');
+      const result = await unresolvable.audit('https://example.invalid/');
+
+      expect(client.navigate).toHaveBeenCalled();
+      expect(client.evaluate).not.toHaveBeenCalled();
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.value.measured).toBe(false);
+        expect(result.value.violations).toEqual([]);
+        expect(result.value.passes).toEqual([]);
+        expect(result.value.notMeasuredReason).toContain('ERR_NAME_NOT_RESOLVED');
+      }
+    });
+
+    it('should mark a browser-audited report as measured', async () => {
+      const measuredService = new AccessibilityTesterService(mockMemory, {
+        browserClient: createBrowserClient(), preferAgentBrowser: false,
+      });
+
+      const result = await measuredService.audit('http://127.0.0.1/');
 
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.value.tabOrder).toBeDefined();
-        expect(result.value.issues).toBeDefined();
+        expect(result.value.measured).toBe(true);
+        expect(result.value.violations.map((v) => v.id)).toEqual(['color-contrast']);
       }
+    });
+
+    it('should label simulation-mode output unmeasured and not store it', async () => {
+      const simulated = new AccessibilityTesterService(mockMemory, {
+        useBrowserMode: false, preferAgentBrowser: false, simulationMode: true,
+      });
+
+      const result = await simulated.audit('https://example.com');
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.value.measured).toBe(false);
+        expect(result.value.notMeasuredReason).toContain('simulation mode');
+      }
+      expect(Array.from(mockMemory.getAll().keys())).toEqual([]);
+    });
+
+    it('should refuse EU compliance when the WCAG audit was not measured', async () => {
+      const result = await service.validateEUCompliance('https://example.invalid/');
+
+      expect(result.success).toBe(false);
+      if (!result.success) expect(result.error.message).toContain('EU compliance NOT MEASURED');
     });
   });
+
 });

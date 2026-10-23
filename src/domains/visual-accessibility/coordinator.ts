@@ -460,6 +460,7 @@ export class VisualAccessibilityCoordinator
       this.addAgentToWorkflow(workflowId, agentResult.value);
 
       const reports: AccessibilityReport[] = [];
+      const notMeasured: Array<{ url: string; reason: string }> = [];
       let totalViolations = 0;
       let criticalViolations = 0;
       let passingUrls = 0;
@@ -468,7 +469,14 @@ export class VisualAccessibilityCoordinator
         const url = urls[i];
         const auditResult = await this.accessibilityTester.audit(url, { wcagLevel: level });
 
-        if (auditResult.success) {
+        if (!auditResult.success) {
+          notMeasured.push({ url, reason: auditResult.error.message });
+        } else if (auditResult.value.measured !== true) {
+          // #1145: an unmeasured page is reported as such, never as a pass,
+          // a fail or a finding, and no audit event is published for it.
+          reports.push(auditResult.value);
+          notMeasured.push({ url, reason: auditResult.value.notMeasuredReason ?? 'not measured' });
+        } else {
           const report = auditResult.value;
           reports.push(report);
 
@@ -490,14 +498,16 @@ export class VisualAccessibilityCoordinator
         this.updateWorkflowProgress(workflowId, ((i + 1) / urls.length) * 100);
       }
 
-      // Calculate average score
-      const averageScore = reports.length > 0
-        ? Math.round(reports.reduce((sum, r) => sum + r.score, 0) / reports.length)
+      // Scores and top issues cover measured pages only (#1145)
+      const measuredReports = reports.filter((r) => r.measured === true);
+      const averageScore = measuredReports.length > 0
+        ? Math.round(measuredReports.reduce((sum, r) => sum + r.score, 0) / measuredReports.length)
         : 0;
 
-      // Identify top issues
-      const topIssues = this.identifyTopIssues(reports);
+      const topIssues = this.identifyTopIssues(measuredReports);
 
+      const status = notMeasured.length === 0 ? 'measured'
+        : measuredReports.length === 0 ? 'not-measured' : 'partial';
       const auditReport: AccessibilityAuditReport = {
         totalUrls: urls.length,
         passingUrls,
@@ -506,6 +516,14 @@ export class VisualAccessibilityCoordinator
         averageScore,
         reports,
         topIssues,
+        status,
+        measuredUrls: measuredReports.length,
+        notMeasured,
+        ...(notMeasured.length > 0 ? {
+          message: `Accessibility NOT MEASURED for ${notMeasured.length} of ${urls.length} URL(s); ` +
+            'they count as neither passing nor failing and contribute no findings. ' +
+            notMeasured.map((n) => `${n.url}: ${n.reason}`).join('; '),
+        } : {}),
       };
 
       this.completeWorkflow(workflowId);
@@ -753,8 +771,9 @@ export class VisualAccessibilityCoordinator
     }
 
     const report = result.value.reports[0];
-    if (!report) {
-      return ok({ violations: [], wcagLevel: options.wcagLevel, score: 100 });
+    if (!report || report.measured !== true) {
+      // #1145: no measured report is not a clean pass
+      return err(new Error(result.value.message ?? `Accessibility NOT MEASURED for ${options.url}`));
     }
 
     return ok({
@@ -819,6 +838,10 @@ export class VisualAccessibilityCoordinator
 
       if (!auditResult.success) {
         return err(auditResult.error);
+      }
+      if (auditResult.value.measured !== true) {
+        return err(new Error(`Color contrast NOT MEASURED for ${options.url}: ` +
+          `${auditResult.value.notMeasuredReason ?? 'not audited'}. No findings were produced.`));
       }
 
       // Filter for color contrast violations

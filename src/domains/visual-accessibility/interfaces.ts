@@ -390,6 +390,15 @@ export interface AccessibilityReport {
   readonly incomplete: IncompleteCheck[];
   readonly score: number;
   readonly wcagLevel: 'A' | 'AA' | 'AAA';
+  /**
+   * True only when a browser loaded the page and ran the checks (#1145).
+   * `false` = nothing was measured: violations and passes are empty (or
+   * synthetic, in simulation mode), `score` is 0 by construction, and the
+   * report must not count as a finding, a pass or a fail.
+   */
+  readonly measured?: boolean;
+  /** Why the page was not measured, when `measured` is false (#1145). */
+  readonly notMeasuredReason?: string;
 }
 
 export interface PassedRule {
@@ -411,6 +420,10 @@ export interface WCAGValidationResult {
   readonly failedCriteria: WCAGCriterion[];
   readonly passedCriteria: WCAGCriterion[];
   readonly score: number;
+  /** Always true: an unmeasured page yields an error, never a verdict (#1145). */
+  readonly measured?: boolean;
+  /** What the verdict does not cover (#1145). */
+  readonly limitations?: string[];
 }
 
 export interface KeyboardNavigationReport {
@@ -607,6 +620,15 @@ export interface AccessibilityAuditReport {
   readonly averageScore: number;
   readonly reports: AccessibilityReport[];
   readonly topIssues: TopAccessibilityIssue[];
+  /**
+   * #1145: `measured` when every URL was audited in a browser, `partial` when
+   * some were, `not-measured` when none were. Counts, scores and top issues
+   * cover measured URLs only; unmeasured URLs are listed in `notMeasured`.
+   */
+  readonly status?: 'measured' | 'partial' | 'not-measured';
+  readonly measuredUrls?: number;
+  readonly notMeasured?: Array<{ readonly url: string; readonly reason: string }>;
+  readonly message?: string;
 }
 
 export interface TopAccessibilityIssue {

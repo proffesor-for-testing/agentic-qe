@@ -24,7 +24,10 @@ export function registerMiscHandlers(ctx: TaskHandlerContext): void {
       violations: [],
       warnings: [],
       score: 0,
-      note: 'Accessibility testing requires a browser environment (Puppeteer/Playwright). ' +
+      // #1145: nothing was audited, so `passed: false` and `score: 0` are not a verdict
+      measured: false,
+      note: 'Accessibility NOT MEASURED: this is not a failing result. ' +
+            'Accessibility testing requires a browser environment (Puppeteer/Playwright). ' +
             'Use tools like axe-core, pa11y, or Lighthouse CLI for WCAG compliance testing. ' +
             'Example: npx pa11y ' + (payload.url || '<url>'),
     });
