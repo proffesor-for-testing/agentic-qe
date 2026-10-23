@@ -90,6 +90,18 @@ export function calculateRetryStrategyConfidence(testCount: number): number {
   return Math.min(1, 0.7 + (testCount / 100));
 }
 
+/** #1176: TestRunCompleted for a run's final outcome, retries applied. */
+function completedPayload(run: TestRunResult): TestRunCompletedPayload {
+  return {
+    runId: run.runId,
+    passed: run.passed,
+    failed: run.failed,
+    skipped: run.skipped,
+    duration: run.duration,
+    ...(run.flaky ? { flaky: run.flaky } : {}),
+  };
+}
+
 /**
  * Configuration for the test execution coordinator
  */
@@ -334,34 +346,37 @@ export class TestExecutionCoordinator
 
     // Use parallel execution by default (unless explicitly disabled)
     if (request.parallel !== false && testsToRun.length > 1) {
-      const result = await this.executeParallel({
+      // #1176: execute/executeParallel run the retries before they record
+      // the run, so its events and learning records see the final outcome.
+      return this.executeParallel({
         testFiles: testsToRun,
         framework,
         workers,
         timeout,
+        retryCount: request.retryCount,
       });
-
-      if (result.success) await this.retryFailures(result.value, request.retryCount);
-      return result;
     }
 
     // Sequential execution
-    const result = await this.execute({
+    return this.execute({
       testFiles: testsToRun,
       framework,
       timeout,
+      retryCount: request.retryCount,
     });
-
-    if (result.success) await this.retryFailures(result.value, request.retryCount);
-    return result;
   }
 
   /**
    * Retry a run's failed tests when retries were requested, and attach what
    * the retries did to the run (#1130). A test that passed on a retry counts
-   * as passed and flaky in the run's own counts (#1170).
+   * as passed and flaky in the run's own counts (#1170). When that changes
+   * the outcome, the run is stored again with it (#1176).
    */
-  private async retryFailures(run: TestRunResult, retryCount: number | undefined): Promise<void> {
+  private async retryFailures(
+    run: TestRunResult,
+    retryCount: number | undefined,
+    testFiles: readonly string[],
+  ): Promise<void> {
     if (!retryCount || retryCount <= 0) return;
     if (run.failed === 0) {
       run.retries = { totalRetries: 0, nowPassing: 0, stillFailing: 0, tests: [] };
@@ -375,6 +390,7 @@ export class TestExecutionCoordinator
     });
     if (!retried.success) return;
     applyRetryOutcome(run, retried.value);
+    await this.executor.recordFinalOutcome(run, testFiles);
   }
 
   /**
@@ -455,6 +471,11 @@ export class TestExecutionCoordinator
       this.activeRuns.delete(runId);
 
       if (result.success) {
+        // #1176: these first-attempt failures did happen; flaky analysis
+        // records them even when a retry then passes.
+        const firstAttemptFailures = [...result.value.failedTests];
+        await this.retryFailures(result.value, request.retryCount, orderedTestFiles);
+
         // Record execution results for learning
         if (this.config.enablePrioritization && prioritizationResult) {
           await this.recordExecutionResults(runId, orderedTestFiles, result.value, prioritizationResult);
@@ -463,17 +484,11 @@ export class TestExecutionCoordinator
         // Publish completion event
         await this.publishEvent<TestRunCompletedPayload>(
           TestExecutionEvents.TestRunCompleted,
-          {
-            runId: result.value.runId,
-            passed: result.value.passed,
-            failed: result.value.failed,
-            skipped: result.value.skipped,
-            duration: result.value.duration,
-          }
+          completedPayload(result.value)
         );
 
         // Record failed tests for flaky analysis
-        for (const failed of result.value.failedTests) {
+        for (const failed of firstAttemptFailures) {
           await this.flakyDetector.recordExecution(failed.testId, {
             runId: result.value.runId,
             passed: false,
@@ -513,7 +528,7 @@ export class TestExecutionCoordinator
           const rerunResult = await this.attemptAutoRecoveryAndRerun(
             result.value.failedTests,
             request.framework,
-            { timeout: request.timeout, env: request.env },
+            { timeout: request.timeout, env: request.env, retryCount: request.retryCount },
           );
           if (rerunResult) return rerunResult;
         }
@@ -602,6 +617,9 @@ export class TestExecutionCoordinator
       this.activeRuns.delete(runId);
 
       if (result.success) {
+        // #1176: retries finish before the run is recorded or announced.
+        await this.retryFailures(result.value, request.retryCount, orderedTestFiles);
+
         // Record execution results for learning
         if (this.config.enablePrioritization && prioritizationResult) {
           await this.recordExecutionResults(runId, orderedTestFiles, result.value, prioritizationResult);
@@ -610,13 +628,7 @@ export class TestExecutionCoordinator
         // Publish completion event
         await this.publishEvent<TestRunCompletedPayload>(
           TestExecutionEvents.TestRunCompleted,
-          {
-            runId: result.value.runId,
-            passed: result.value.passed,
-            failed: result.value.failed,
-            skipped: result.value.skipped,
-            duration: result.value.duration,
-          }
+          completedPayload(result.value)
         );
 
         // Check for flaky tests based on history
@@ -666,7 +678,7 @@ export class TestExecutionCoordinator
           const rerunResult = await this.attemptAutoRecoveryAndRerun(
             result.value.failedTests,
             request.framework,
-            { timeout: request.timeout, env: request.env },
+            { timeout: request.timeout, env: request.env, retryCount: request.retryCount },
           );
           if (rerunResult) return rerunResult;
         }
@@ -896,7 +908,7 @@ export class TestExecutionCoordinator
   private async attemptAutoRecoveryAndRerun(
     failedTests: readonly { testId: string; file: string; error: string }[],
     framework: string,
-    originalRequest: { timeout?: number; env?: Record<string, string> },
+    originalRequest: { timeout?: number; env?: Record<string, string>; retryCount?: number },
   ): Promise<Result<TestRunResult, Error> | null> {
     if (!this.config.infraHealing) return null;
 
@@ -940,6 +952,7 @@ export class TestExecutionCoordinator
       framework,
       timeout: originalRequest.timeout,
       env: originalRequest.env,
+      retryCount: originalRequest.retryCount,
     });
   }
 

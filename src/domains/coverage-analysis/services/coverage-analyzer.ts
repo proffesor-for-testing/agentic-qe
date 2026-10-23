@@ -26,7 +26,7 @@ import { safeJsonParse } from '../../../shared/safe-json.js';
 import { writeQualityEvidence, writeTestRunEvidence } from '../../quality-assessment/quality-evidence.js';
 import { measuredCoverageSummary } from '../../quality-assessment/coverage-report-event.js';
 import { getClaudeModelForTier } from '../../../shared/llm/model-registry.js';
-import { collectedMetrics, collectedSummary, fileCoverageKey, type CollectedSummary } from '../collected-metrics.js';
+import { collectedMetrics, collectedSummary, projectFileCoverageKeys, type CollectedSummary } from '../collected-metrics.js';
 
 /**
  * Whether an analyze request carries instrumented (measured) coverage (#1008).
@@ -684,7 +684,10 @@ Provide thoughtful, specific analysis based on the coverage data. Do not include
     projectRoot?: string,
     runStatus?: 'passed' | 'failed'
   ): Promise<void> {
+    const keys = projectFileCoverageKeys(files.map(file => file.path), projectRoot);
     for (const file of files) {
+      const key = keys.get(file.path);
+      if (!key) continue;
       try {
         // #1014: a metric with no data is null (not collected), never 0%.
         const pct = (m: { covered: number; total: number }) =>
@@ -693,7 +696,7 @@ Provide thoughtful, specific analysis based on the coverage data. Do not include
 
         // #1014: stamped, so readers can tell it from legacy unstamped
         // estimate records written by <= 3.15.4.
-        await this.memory.set(`coverage:file:${fileCoverageKey(file.path, projectRoot)}`, {
+        await this.memory.set(`coverage:file:${key}`, {
           line: pct(file.lines),
           branch: pct(file.branches),
           function: pct(file.functions),
@@ -708,11 +711,14 @@ Provide thoughtful, specific analysis based on the coverage data. Do not include
   }
 
   private async indexFileCoverageVectors(files: FileCoverage[], projectRoot?: string): Promise<void> {
+    const keys = projectFileCoverageKeys(files.map(file => file.path), projectRoot);
     for (const file of files) {
+      const key = keys.get(file.path);
+      if (!key) continue;
       try {
         // Create a vector representation of the file coverage
         const embedding = this.createCoverageEmbedding(file);
-        await this.memory.storeVector(`coverage:file:${fileCoverageKey(file.path, projectRoot)}`, embedding, {
+        await this.memory.storeVector(`coverage:file:${key}`, embedding, {
           path: file.path,
           lineCoverage: file.lines.covered / (file.lines.total || 1),
           branchCoverage: file.branches.covered / (file.branches.total || 1),

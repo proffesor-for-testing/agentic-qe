@@ -13,6 +13,9 @@ import { describe, it, expect, vi } from 'vitest';
 import { TestExecutorService } from '../../../../src/domains/test-execution/services/test-executor.js';
 import { findProjectRoot } from '../../../../src/kernel/project-root.js';
 
+/** #1030: per-file records are written only for files inside the project. */
+const A_TS = `${findProjectRoot()}/src/a.ts`;
+
 type Internals = {
   storeResults(runId: string, result: Record<string, unknown>): Promise<void>;
   extractCoverageFromJson(json: unknown): {
@@ -34,7 +37,7 @@ function service() {
 const run = (overrides: Record<string, unknown>) => ({
   runId: 'r1', status: 'passed', total: 2, passed: 2, failed: 0, skipped: 0, duration: 1, failedTests: [],
   coverage: { line: 75, branch: 50, function: 100, statement: 70 },
-  fileCoverages: [{ path: '/p/src/a.ts', line: 75, branch: 50, function: 100, statement: 70 }],
+  fileCoverages: [{ path: A_TS, line: 75, branch: 50, function: 100, statement: 70 }],
   ...overrides,
 });
 
@@ -44,7 +47,7 @@ describe('#1015.2 — TestExecutorService.storeResults', () => {
     await internals.storeResults('r1', run({}));
 
     expect(store.get('coverage:latest')).toMatchObject({ line: 75, branch: 50, function: 100, statement: 70, files: 1, measured: true, runStatus: 'passed' });
-    expect(store.get('coverage:file:/p/src/a.ts')).toMatchObject({ line: 75, measured: true });
+    expect(store.get(`coverage:file:${A_TS}`)).toMatchObject({ line: 75, measured: true });
     expect(store.get('quality-evidence:coverage:latest')).toMatchObject({ value: 75 });
   });
 
@@ -54,7 +57,7 @@ describe('#1015.2 — TestExecutorService.storeResults', () => {
 
     expect(store.has('test-run:r1')).toBe(true);
     expect(store.has('coverage:latest')).toBe(false);
-    expect(store.has('coverage:file:/p/src/a.ts')).toBe(false);
+    expect(store.has(`coverage:file:${A_TS}`)).toBe(false);
     expect(store.has('quality-evidence:coverage:latest')).toBe(false);
   });
 
@@ -63,7 +66,7 @@ describe('#1015.2 — TestExecutorService.storeResults', () => {
     await internals.storeResults('r1', run({ status: 'failed', failed: 1, passed: 1 }));
 
     expect(store.get('coverage:latest')).toMatchObject({ line: 75, measured: true, runStatus: 'failed' });
-    expect(store.get('coverage:file:/p/src/a.ts')).toMatchObject({ line: 75, measured: true, runStatus: 'failed' });
+    expect(store.get(`coverage:file:${A_TS}`)).toMatchObject({ line: 75, measured: true, runStatus: 'failed' });
     expect(store.get('quality-evidence:coverage:latest')).toMatchObject({ value: 75 });
   });
 

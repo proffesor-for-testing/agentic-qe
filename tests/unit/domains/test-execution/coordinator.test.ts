@@ -33,6 +33,12 @@ import {
 } from '../coordinator-test-utils';
 import type { ExecuteTestsRequest, ParallelExecutionRequest } from '../../../../src/domains/test-execution/interfaces';
 import { TestExecutionEvents } from '../../../../src/shared/events';
+import type { TestExecutorService } from '../../../../src/domains/test-execution/services/test-executor';
+
+/** The coordinator's executor service, to stub what the runner returned. */
+function executorOf(coordinator: TestExecutionCoordinator): TestExecutorService {
+  return (coordinator as unknown as { executor: TestExecutorService }).executor;
+}
 
 describe('TestExecutionCoordinator', () => {
   it('caps retry-strategy confidence at 1 for large failed-test batches', () => {
@@ -288,7 +294,7 @@ describe('TestExecutionCoordinator', () => {
           { testId: 'a', testName: 'suite > a', file: '/p/a.test.ts', error: 'boom', duration: 1 },
           { testId: 'b', testName: 'b', file: '/p/b.test.ts', error: 'boom', duration: 1 },
         ];
-        vi.spyOn(coordinator, 'executeParallel').mockResolvedValue({
+        vi.spyOn(executorOf(coordinator), 'executeParallel').mockResolvedValue({
           success: true,
           value: { runId: 'r', status: 'failed', total: 3, passed: 1, failed: 2, skipped: 0, duration: 1, failedTests },
         });
@@ -319,7 +325,7 @@ describe('TestExecutionCoordinator', () => {
       });
 
       it('should attach no retry outcome when the retry step itself fails', async () => {
-        vi.spyOn(coordinator, 'executeParallel').mockResolvedValue({
+        vi.spyOn(executorOf(coordinator), 'executeParallel').mockResolvedValue({
           success: true,
           value: {
             runId: 'r', status: 'failed', total: 1, passed: 0, failed: 1, skipped: 0, duration: 1,
@@ -336,7 +342,7 @@ describe('TestExecutionCoordinator', () => {
       });
 
       it('should report zero retries when retries were requested but nothing failed', async () => {
-        vi.spyOn(coordinator, 'executeParallel').mockImplementation(async () => ({
+        vi.spyOn(executorOf(coordinator), 'executeParallel').mockImplementation(async () => ({
           success: true,
           value: { runId: 'r', status: 'passed', total: 1, passed: 1, failed: 0, skipped: 0, duration: 1, failedTests: [] },
         }));
@@ -348,6 +354,52 @@ describe('TestExecutionCoordinator', () => {
         expect(retry).not.toHaveBeenCalled();
         expect(requested.success && requested.value.retries).toEqual({ totalRetries: 0, nowPassing: 0, stillFailing: 0, tests: [] });
         expect(notRequested.success && notRequested.value).not.toHaveProperty('retries');
+      });
+
+      // #1176: TestRunCompleted and the stored run carry the outcome after retries.
+      describe.each([
+        ['parallel', true, 'executeParallel'],
+        ['sequential', false, 'execute'],
+      ] as const)('#1176 — %s run with a test that passes on a retry', (_label, parallel, method) => {
+        const firstAttempt = () => ({
+          runId: 'r1176', status: 'failed' as const, total: 3, passed: 2, failed: 1, skipped: 0, duration: 5,
+          failedTests: [{ testId: 'f', testName: 'flaky', file: '/p/f.test.ts', error: 'boom', duration: 1 }],
+        });
+
+        beforeEach(() => {
+          vi.spyOn(executorOf(coordinator), method).mockImplementation(async () => ({ success: true, value: firstAttempt() }));
+          vi.spyOn(coordinator, 'retry').mockResolvedValue({
+            success: true,
+            value: {
+              originalFailed: 1, retried: 1, nowPassing: 1, stillFailing: 0, flakyDetected: ['f'],
+              tests: [{ testId: 'f', attempts: 1, passed: true }],
+            },
+          });
+        });
+
+        it('publishes TestRunCompleted with the final counts, not the first attempt', async () => {
+          await coordinator.runTests({ testFiles: ['a.test.ts', 'f.test.ts'], parallel, retryCount: 2 });
+
+          const completed = ctx.eventBus.getEventsByType(TestExecutionEvents.TestRunCompleted);
+          expect(completed).toHaveLength(1);
+          expect(completed[0].payload).toEqual({ runId: 'r1176', passed: 3, failed: 0, skipped: 0, duration: 5, flaky: 1 });
+        });
+
+        it('stores the run again with its final outcome', async () => {
+          const recordFinalOutcome = vi.spyOn(executorOf(coordinator), 'recordFinalOutcome');
+
+          await coordinator.runTests({ testFiles: ['a.test.ts', 'f.test.ts'], parallel, retryCount: 2 });
+
+          expect(recordFinalOutcome).toHaveBeenCalledTimes(1);
+          expect(recordFinalOutcome.mock.calls[0][0]).toMatchObject({ runId: 'r1176', status: 'passed', passed: 3, failed: 0, flaky: 1 });
+        });
+
+        it('without retries requested, publishes the run as it ran', async () => {
+          await coordinator.runTests({ testFiles: ['a.test.ts', 'f.test.ts'], parallel });
+
+          expect(coordinator.retry).not.toHaveBeenCalled();
+          expectEventPublished(ctx.eventBus, TestExecutionEvents.TestRunCompleted, { passed: 2, failed: 1 });
+        });
       });
 
       it('should use sequential execution when parallel is false', async () => {
