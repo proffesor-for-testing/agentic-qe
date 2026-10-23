@@ -16,6 +16,7 @@
 import chalk from 'chalk';
 import { FLEET_COVERAGE_THRESHOLD, type FleetOperation } from './fleet-operation.js';
 import { thresholdVerdict } from '../../coordination/handlers/coverage-target.js';
+import { combineFleetResults } from './fleet-shard.js';
 
 export interface FleetResultSummary {
   lines: string[];
@@ -53,7 +54,9 @@ function summarizeScan(result: Record<string, unknown>): FleetResultSummary {
     ...findings.slice(0, MAX_LISTED_FINDINGS).map(f =>
       `  [${f.severity ?? '?'}] ${f.title ?? 'untitled'} @ ${f.location?.file ?? '?'}:${f.location?.line ?? '?'}`),
   ];
-  if (findings.length > MAX_LISTED_FINDINGS) lines.push(`  … ${findings.length - MAX_LISTED_FINDINGS} more`);
+  if (findings.length > MAX_LISTED_FINDINGS) {
+    lines.push(`  … ${findings.length - MAX_LISTED_FINDINGS} more (--format json lists every finding)`);
+  }
 
   const reasons: string[] = [];
   if (count('critical') + count('high') > 0) reasons.push(`${count('critical')} critical and ${count('high')} high findings`);
@@ -120,36 +123,53 @@ export function summarizeFleetResult(operation: FleetOperation, result: unknown)
   }
 }
 
+export interface FleetVerdict {
+  /** The workers' results combined into one (#1146); undefined when no worker completed. */
+  combined: unknown;
+  /** Summary of the combined result; undefined when no worker completed. */
+  summary?: FleetResultSummary;
+  passed: boolean;
+  reasons: string[];
+}
+
 /**
- * Print each distinct worker result once and the verdict over all workers.
+ * Judge a fleet run: the completed workers' results are combined (each worker
+ * handled its own share of the target, #1146) and summarized once.
  * `insufficientEvidence` (from the operation's plan) fails the verdict whatever
- * the workers returned. Returns whether the operation passed.
+ * the workers returned.
  */
+export function judgeFleetRun(
+  operation: FleetOperation,
+  workers: ReadonlyArray<{ success: boolean; result: unknown }>,
+  insufficientEvidence: readonly string[] = [],
+): FleetVerdict {
+  const completed = workers.filter(w => w.success).map(w => w.result);
+  const combined = completed.length > 0 ? combineFleetResults(operation, completed) : undefined;
+  const summary = completed.length > 0 ? summarizeFleetResult(operation, combined) : undefined;
+
+  const incomplete = workers.length - completed.length;
+  const reasons = [...(summary?.reasons ?? [])];
+  if (insufficientEvidence.length > 0) reasons.push('insufficient evidence: the coverage report is incomplete or stale for the target');
+  if (incomplete > 0) reasons.unshift(`${incomplete} of ${workers.length} workers did not complete`);
+  return { combined, ...(summary ? { summary } : {}), passed: reasons.length === 0, reasons };
+}
+
+/** Print the combined result and the verdict over all workers. Returns whether the operation passed. */
 export function reportFleetVerdict(
   operation: FleetOperation,
   workers: ReadonlyArray<{ success: boolean; result: unknown }>,
   log: (line: string) => void = line => console.log(line),
   insufficientEvidence: readonly string[] = [],
 ): boolean {
-  const summaries = workers.filter(w => w.success).map(w => summarizeFleetResult(operation, w.result));
-  const shown = new Set<string>();
-  for (const summary of summaries) {
-    const text = summary.lines.join('\n');
-    if (shown.has(text)) continue;
-    shown.add(text);
+  const verdict = judgeFleetRun(operation, workers, insufficientEvidence);
+  if (verdict.summary) {
     log('');
-    for (const line of summary.lines) log(`   ${line}`);
+    for (const line of verdict.summary.lines) log(`   ${line}`);
   }
-
   for (const reason of insufficientEvidence) log(chalk.yellow(`   Evidence: ${reason}`));
-
-  const incomplete = workers.filter(w => !w.success).length;
-  const reasons = [...new Set(summaries.flatMap(s => s.reasons))];
-  if (insufficientEvidence.length > 0) reasons.push('insufficient evidence: the coverage report is incomplete or stale for the target');
-  if (incomplete > 0) reasons.unshift(`${incomplete} of ${workers.length} workers did not complete`);
   log('');
-  log(reasons.length === 0
+  log(verdict.passed
     ? chalk.green('   Verdict: PASSED')
-    : chalk.red(`   Verdict: FAILED (${reasons.join('; ')})`));
-  return reasons.length === 0;
+    : chalk.red(`   Verdict: FAILED (${verdict.reasons.join('; ')})`));
+  return verdict.passed;
 }

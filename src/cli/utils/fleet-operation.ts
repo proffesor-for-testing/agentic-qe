@@ -19,6 +19,7 @@ import { summarizeCoverage } from './coverage-data.js';
 import { describeNoData, resolveExistingCoverage } from '../../coordination/handlers/coverage-target.js';
 import { describeEvidence } from '../../coordination/handlers/coverage-evidence.js';
 import { MAX_SAST_FILE_BYTES } from '../../domains/security-compliance/sast-path-guard.js';
+import { confinePayloadPaths } from '../../shared/io/payload-path-guard.js';
 
 export const FLEET_OPERATIONS = ['test', 'analyze', 'scan'] as const;
 export type FleetOperation = typeof FLEET_OPERATIONS[number];
@@ -46,10 +47,24 @@ const SAST_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']);
 
 const refuse = (error: string): FleetOperationPlan => ({ success: false, error });
 
-/** Build the domain task for a fleet operation on `target`, or say why it cannot run. */
-export async function planFleetOperation(operation: FleetOperation, target: string): Promise<FleetOperationPlan> {
+/**
+ * Build the domain task for a fleet operation on `target`, or say why it
+ * cannot run. `projectRoot` defaults to the project `aqe` runs in.
+ */
+export async function planFleetOperation(
+  operation: FleetOperation,
+  target: string,
+  projectRoot?: string,
+): Promise<FleetOperationPlan> {
   const targetPath = resolve(target);
   if (!existsSync(targetPath)) return refuse(`Target does not exist: ${target}`);
+  // #1146: the target is confined to the project, as handler paths are
+  // (#1096): a symlink that leads out of the project is refused here instead
+  // of failing every worker later.
+  const { skipped } = await confinePayloadPaths([target], { projectRoot, allowDirectory: true });
+  if (skipped[0]?.reason === 'outside-project-root') {
+    return refuse(`Target ${target} resolves outside the project. Run aqe from the project the target belongs to.`);
+  }
 
   switch (operation) {
     case 'test': {

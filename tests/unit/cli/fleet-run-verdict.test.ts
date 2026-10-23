@@ -120,19 +120,93 @@ describe('fleet run execution verdicts', () => {
   });
 
   // #1125: the domain task runs with the payload its handler needs.
-  it('submits the planned domain task with its payload to every worker', async () => {
-    plan.mockResolvedValue({ success: true, task: { domain: 'security-compliance', type: 'sast-scan', payload: { files: ['src/a.ts'] } } });
+  // #1146: each worker gets its own share of the files; the same payload is
+  // no longer submitted --parallel times.
+  it('splits the planned files across the workers instead of repeating the payload', async () => {
+    plan.mockResolvedValue({ success: true, task: { domain: 'security-compliance', type: 'sast-scan', payload: { files: ['src/a.ts', 'src/b.ts', 'src/c.ts'] } } });
     getTaskStatus.mockReturnValue({ status: 'completed', result: cleanScan });
     const execution = program.parseAsync(['node', 'aqe', 'fleet', 'run', 'scan', '--target', 'src', '--parallel', '2']);
     await vi.advanceTimersByTimeAsync(1000);
     await execution;
     expect(plan).toHaveBeenCalledWith('scan', 'src');
     expect(submitTask).toHaveBeenCalledTimes(2);
+    const submitted = submitTask.mock.calls.map(([task]) => task.payload.files);
+    expect(submitted).toEqual([['src/a.ts', 'src/b.ts'], ['src/c.ts']]);
     expect(submitTask).toHaveBeenCalledWith(expect.objectContaining({
       type: 'sast-scan', targetDomains: ['security-compliance'],
-      payload: expect.objectContaining({ files: ['src/a.ts'], target: 'src' }),
+      payload: expect.objectContaining({ target: 'src' }),
     }));
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Workers: 2, files per worker: 2, 1'));
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Files scanned: 2 (evidence: complete)'));
     expect(cleanup).toHaveBeenCalledWith(0);
+  });
+
+  it('runs one worker per file at most, and says so', async () => {
+    plan.mockResolvedValue({ success: true, task: { domain: 'security-compliance', type: 'sast-scan', payload: { files: ['src/a.ts'] } } });
+    getTaskStatus.mockReturnValue({ status: 'completed', result: cleanScan });
+    const execution = program.parseAsync(['node', 'aqe', 'fleet', 'run', 'scan', '--parallel', '3']);
+    await vi.advanceTimersByTimeAsync(1000);
+    await execution;
+    expect(submitTask).toHaveBeenCalledTimes(1);
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('--parallel 3 asks for more workers than there are files (1); 1 run.'));
+  });
+
+  it('runs analyze once whatever --parallel says', async () => {
+    plan.mockResolvedValue({ success: true, task: { domain: 'coverage-analysis', type: 'analyze-coverage', payload: { coverageData: { files: [] }, threshold: 80 } } });
+    getTaskStatus.mockReturnValue({ status: 'completed', result: { summary: { line: 90, branch: 90, function: 90, statement: 90, files: 1 } } });
+    const execution = program.parseAsync(['node', 'aqe', 'fleet', 'run', 'analyze', '--parallel', '4']);
+    await vi.advanceTimersByTimeAsync(1000);
+    await execution;
+    expect(submitTask).toHaveBeenCalledTimes(1);
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('analyze judges one coverage report as a whole'));
+    expect(cleanup).toHaveBeenCalledWith(0);
+  });
+
+  // #1146: --format json prints the verdict and every worker's result as the handler returned it.
+  it('prints the verdict and each worker result as JSON', async () => {
+    const finding = { severity: 'high', title: 'XSS via innerHTML Assignment', location: { file: 'src/b.ts', line: 2 } };
+    const highScan = { ...cleanScan, vulnerabilities: [finding], summary: { ...cleanScan.summary, high: 1 } };
+    plan.mockResolvedValue({ success: true, task: { domain: 'security-compliance', type: 'sast-scan', payload: { files: ['src/a.ts', 'src/b.ts'] } } });
+    getTaskStatus.mockReturnValueOnce({ status: 'completed', result: cleanScan })
+      .mockReturnValueOnce({ status: 'completed', result: highScan });
+    const execution = program.parseAsync(['node', 'aqe', 'fleet', 'run', 'scan', '--parallel', '2', '--format', 'json']);
+    await vi.advanceTimersByTimeAsync(1000);
+    await execution;
+    expect(console.log).toHaveBeenCalledTimes(1);
+    const output = JSON.parse(vi.mocked(console.log).mock.calls[0][0] as string);
+    expect(output).toMatchObject({
+      operation: 'scan', status: 'failed',
+      verdict: { passed: false, reasons: ['0 critical and 1 high findings'] },
+      combined: { vulnerabilities: [finding], summary: { high: 1 }, coverage: { filesScanned: 2 } },
+      workers: [
+        { id: 'scan-agent-1', files: ['src/a.ts'], status: 'completed', result: cleanScan },
+        { id: 'scan-agent-2', files: ['src/b.ts'], status: 'completed', result: highScan },
+      ],
+    });
+    expect(progress.start).not.toHaveBeenCalled();
+    expect(cleanup).toHaveBeenCalledWith(1);
+  });
+
+  it('reports a failed worker and a refused plan as JSON', async () => {
+    getTaskStatus.mockReturnValue({ status: 'failed', error: 'domain execution failed' });
+    const execution = program.parseAsync(['node', 'aqe', 'fleet', 'run', 'test', '--format', 'json']);
+    await vi.advanceTimersByTimeAsync(1000);
+    await execution;
+    expect(JSON.parse(vi.mocked(console.log).mock.calls[0][0] as string)).toMatchObject({
+      status: 'failed', verdict: { reasons: ['1 of 1 workers did not complete'] },
+      workers: [{ id: 'test-agent-1', status: 'failed', error: 'domain execution failed' }],
+    });
+
+    vi.mocked(console.log).mockClear();
+    plan.mockResolvedValue({ success: false, error: 'No coverage report for project /p, so there is no coverage to analyze.' });
+    const refused = program.parseAsync(['node', 'aqe', 'fleet', 'run', 'analyze', '--format', 'json']);
+    await vi.advanceTimersByTimeAsync(1000);
+    await refused;
+    expect(JSON.parse(vi.mocked(console.log).mock.calls[0][0] as string)).toEqual({
+      operation: 'analyze', target: '.', status: 'refused',
+      error: 'No coverage report for project /p, so there is no coverage to analyze.',
+    });
+    expect(submitTask).toHaveBeenCalledTimes(1);
   });
 
   // #1125: without the input the handler needs, nothing is submitted.

@@ -5,7 +5,7 @@
  * sourceFiles. Without the input a handler needs, the operation is refused.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { planFleetOperation } from '../../../src/cli/utils/fleet-operation.js';
@@ -22,22 +22,44 @@ describe('planFleetOperation (#1125)', () => {
   afterEach(() => rmSync(root, { recursive: true, force: true }));
 
   it('refuses a target that does not exist', async () => {
-    expect(await planFleetOperation('scan', join(root, 'nope'))).toEqual({
+    expect(await planFleetOperation('scan', join(root, 'nope'), root)).toEqual({
       success: false, error: `Target does not exist: ${join(root, 'nope')}`,
     });
+  });
+
+  // #1146: a target that leads out of the project is refused, as handler
+  // paths are (#1096), instead of failing every worker after submission.
+  it('refuses a symlinked target that resolves outside the project', async () => {
+    const outside = mkdtempSync(join(tmpdir(), 'aqe-1146-outside-'));
+    try {
+      writeFileSync(join(outside, 'x.js'), 'eval(x);');
+      symlinkSync(outside, join(root, 'linkout'));
+      expect(await planFleetOperation('scan', join(root, 'linkout'), root)).toEqual({
+        success: false, error: `Target ${join(root, 'linkout')} resolves outside the project. Run aqe from the project the target belongs to.`,
+      });
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it('accepts a symlinked target that stays inside the project', async () => {
+    write('src/a.js', 'eval(x);');
+    symlinkSync(join(root, 'src'), join(root, 'linkin'));
+    const plan = await planFleetOperation('scan', join(root, 'linkin'), root);
+    expect(plan.success).toBe(true);
   });
 
   it('test: generates for the source files under the target, not its tests', async () => {
     write('src/a.ts', 'export const a = 1;');
     write('src/a.test.ts', 'it("a", () => {});');
-    expect(await planFleetOperation('test', join(root, 'src'))).toEqual({
+    expect(await planFleetOperation('test', join(root, 'src'), root)).toEqual({
       success: true,
       task: { domain: 'test-generation', type: 'generate-tests', payload: { sourceFiles: [join(root, 'src/a.ts')] } },
     });
   });
 
   it('test: refuses a target without source files', async () => {
-    const plan = await planFleetOperation('test', join(root, 'src'));
+    const plan = await planFleetOperation('test', join(root, 'src'), root);
     expect(plan).toEqual({ success: false, error: expect.stringContaining('No source files under') });
   });
 
@@ -45,7 +67,7 @@ describe('planFleetOperation (#1125)', () => {
     write('src/a.js', 'eval(x);');
     write('src/b.test.ts', 'eval(y);');
     write('src/c.py', 'eval(z)');
-    const plan = await planFleetOperation('scan', join(root, 'src'));
+    const plan = await planFleetOperation('scan', join(root, 'src'), root);
     expect(plan.success).toBe(true);
     if (!plan.success) return;
     expect(plan.task).toMatchObject({ domain: 'security-compliance', type: 'sast-scan' });
@@ -54,20 +76,20 @@ describe('planFleetOperation (#1125)', () => {
 
   it('scan: refuses a target with no file the SAST scanner covers', async () => {
     write('src/c.py', 'eval(z)');
-    const plan = await planFleetOperation('scan', join(root, 'src'));
+    const plan = await planFleetOperation('scan', join(root, 'src'), root);
     expect(plan).toEqual({ success: false, error: expect.stringContaining('that the SAST scanner covers (.ts .tsx .js .jsx .mjs .cjs)') });
   });
 
   it('scan: refuses a target with a file over the SAST size limit, naming it', async () => {
     write('src/a.js', 'eval(x);');
     write('src/bundle.js', `// ${'x'.repeat(3 * 1024 * 1024)}`);
-    const plan = await planFleetOperation('scan', join(root, 'src'));
+    const plan = await planFleetOperation('scan', join(root, 'src'), root);
     expect(plan).toEqual({ success: false, error: expect.stringContaining(`over the 2 MB SAST limit (${join(root, 'src/bundle.js')})`) });
   });
 
   it('analyze: refuses a project without a coverage report instead of estimating one', async () => {
     write('src/math.js', 'export const add = (a, b) => a + b;');
-    const plan = await planFleetOperation('analyze', join(root, 'src'));
+    const plan = await planFleetOperation('analyze', join(root, 'src'), root);
     expect(plan).toEqual({ success: false, error: expect.stringContaining(`No coverage report for project ${root}`) });
   });
 
@@ -77,7 +99,7 @@ describe('planFleetOperation (#1125)', () => {
     write('coverage/lcov.info',
       `TN:\nSF:${join(root, 'src/math.js')}\nDA:1,1\nDA:2,1\nDA:3,0\nDA:4,1\nLF:4\nLH:3\nend_of_record\n`);
 
-    const plan = await planFleetOperation('analyze', join(root, 'src'));
+    const plan = await planFleetOperation('analyze', join(root, 'src'), root);
 
     expect(plan.success, JSON.stringify(plan)).toBe(true);
     if (!plan.success) return;
@@ -94,7 +116,7 @@ describe('planFleetOperation (#1125)', () => {
     mkdirSync(join(root, 'coverage'));
     write('coverage/lcov.info', `TN:\nSF:${join(root, 'other/x.js')}\nDA:1,1\nLF:1\nLH:1\nend_of_record\n`);
 
-    const plan = await planFleetOperation('analyze', join(root, 'src'));
+    const plan = await planFleetOperation('analyze', join(root, 'src'), root);
 
     expect(plan).toEqual({ success: false, error: expect.stringContaining('Target is UNMEASURED') });
   });
