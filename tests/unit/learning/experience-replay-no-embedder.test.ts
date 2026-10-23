@@ -11,6 +11,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const embeddingMocks = vi.hoisted(() => ({ available: false }));
 
+// One bucket per word, so texts that share words are close and others are not.
+const wordVector = vi.hoisted(() => (text: string): number[] => {
+  const v = new Array(384).fill(0);
+  for (const word of text.toLowerCase().split(/\W+/).filter(Boolean)) {
+    let h = 0;
+    for (const ch of word) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    v[h % 384] += 1;
+  }
+  const norm = Math.hypot(...v) || 1;
+  return v.map(x => x / norm);
+});
+
 vi.mock('../../../src/kernel/unified-memory.js', () => ({
   getUnifiedMemory: () => ({
     initialize: async () => undefined,
@@ -22,9 +34,9 @@ vi.mock('../../../src/learning/real-embeddings.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../src/learning/real-embeddings.js')>();
   return {
     ...actual,
-    computeRealEmbedding: vi.fn(async () => {
+    computeRealEmbedding: vi.fn(async (text: string) => {
       if (!embeddingMocks.available) throw new Error('In-process embeddings require the optional package');
-      return new Array(384).fill(1 / Math.sqrt(384));
+      return wordVector(text);
     }),
   };
 });
@@ -195,5 +207,69 @@ describe('ExperienceReplay reports embedder failures and retries the embedder (#
     const dims = insertExperience.run.mock.calls.map(args => args[8]);
     expect(dims).toEqual([null, null, null, 384]);
     expect(replay.getEmbedderStatus()).toEqual({ mode: 'vector' });
+  });
+});
+
+describe('ExperienceReplay reservoir guidance reports only measured similarity (#1192)', () => {
+  /** A replay with the reservoir buffer on and an empty HNSW index, so guidance comes from the reservoir. */
+  async function reservoirReplay() {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    setRuVectorFeatureFlags({ useReservoirReplay: true });
+    const replay = new ExperienceReplay({ autoPrune: false });
+    vi.spyOn(replay as never, 'ensureSchema').mockImplementation(() => undefined);
+    vi.spyOn(replay as never, 'prepareStatements').mockImplementation(() => undefined);
+    vi.spyOn(replay as never, 'loadEmbeddingIndex').mockResolvedValue(undefined);
+    await replay.initialize();
+    // Searches go through the reservoir only: findSimilarExperiences (HNSW) finds nothing.
+    vi.spyOn(replay, 'findSimilarExperiences').mockResolvedValue([]);
+    const reservoir = (replay as unknown as {
+      reservoirBuffer: { admit(id: string, data: unknown, coherence: number): void };
+    }).reservoirBuffer;
+    const admit = (id: string, task: string, embedding?: number[]) => reservoir.admit(id, {
+      id, task, domain: 'test-generation', strategy: 'analyze then generate', keyActions: ['analyze'],
+      qualityScore: 0.9, avgTokenSavings: 100, embedding,
+    }, 0.9);
+    return { replay, admit };
+  }
+
+  afterEach(() => {
+    embeddingMocks.available = false;
+    resetRuVectorFeatureFlags();
+    vi.restoreAllMocks();
+  });
+
+  it('does not blend in an unrelated reservoir experience', async () => {
+    embeddingMocks.available = true;
+    const { replay, admit } = await reservoirReplay();
+    admit('exp-unit', 'generate unit tests for src/a.ts', wordVector('generate unit tests for src/a.ts'));
+
+    const guidance = await replay.getGuidance('scan the payment service for SQL injection');
+
+    expect(guidance).toBeNull();
+  });
+
+  it('reports the measured similarity of a related reservoir experience, not a coherence-derived one', async () => {
+    embeddingMocks.available = true;
+    const { replay, admit } = await reservoirReplay();
+    const query = 'generate unit tests for src/a.ts';
+    const stored = wordVector('generate unit tests for src/a.ts quickly');
+    admit('exp-unit', 'generate unit tests for src/a.ts quickly', stored);
+
+    const guidance = await replay.getGuidance(query);
+
+    const measured = wordVector(query).reduce((sum, x, i) => sum + x * stored[i], 0);
+    expect(guidance).not.toBeNull();
+    expect(guidance!.sourceExperiences).toHaveLength(1);
+    expect(guidance!.sourceExperiences[0].similarity).toBeCloseTo(measured, 5);
+    expect(guidance!.sourceExperiences[0].similarity).not.toBeCloseTo(0.9 * 0.8, 2);
+  });
+
+  it('skips a reservoir experience that has no vector to compare', async () => {
+    embeddingMocks.available = true;
+    const { replay, admit } = await reservoirReplay();
+    admit('exp-novec', 'generate unit tests for src/a.ts');
+
+    await expect(replay.getGuidance('generate unit tests for src/a.ts')).resolves.toBeNull();
   });
 });

@@ -19,6 +19,7 @@ import { getUnifiedMemory, type UnifiedMemoryManager } from '../../../kernel/uni
 import type { QEDomain } from '../../../learning/qe-patterns.js';
 import {
   computeRealEmbedding,
+  cosineSimilarity,
   type EmbeddingConfig,
 } from '../../../learning/real-embeddings.js';
 import { EmbedderRecovery, probeEmbedder } from '../../../learning/embedder-recovery.js';
@@ -741,18 +742,21 @@ export class ExperienceReplay {
   ): Promise<ExperienceGuidance | null> {
     this.ensureInitialized();
 
-    // #1022: the reservoir blend below picks experiences without looking at
-    // the query and gives them a coherence-derived similarity. Without an
-    // embedding of the query nothing measures relevance, so return no guidance
-    // rather than query-independent picks with a made-up similarity.
-    if (!(await this.embedOrNull(scrubReasoningBlocks(task)))) {
+    // #1022: without an embedding of the query nothing measures relevance, so
+    // return no guidance rather than picks with a made-up similarity.
+    const queryEmbedding = await this.embedOrNull(scrubReasoningBlocks(task));
+    if (!queryEmbedding) {
       return null;
     }
 
     // Find similar experiences via HNSW
     const similar = await this.findSimilarExperiences(task, domain);
 
-    // Blend in high-coherence experiences from reservoir buffer (R10, ADR-087)
+    // Blend in high-coherence experiences from reservoir buffer (R10, ADR-087).
+    // #1192: the buffer samples without looking at the query, so a sample is
+    // kept only when its similarity to the query embedding is measured and
+    // reaches the retrieval threshold. Samples without a comparable vector
+    // are skipped: every reported similarity is a measured one.
     if (this.reservoirBuffer && this.reservoirBuffer.size() > 0) {
       const reservoirSamples = this.reservoirBuffer.sample(
         Math.max(2, Math.floor(this.config.topK / 2)),
@@ -764,8 +768,10 @@ export class ExperienceReplay {
         if (similar.some(s => s.experience.id === exp.id)) continue;
         // Skip if domain filter doesn't match
         if (domain && exp.domain !== domain) continue;
-        // Add with a coherence-based similarity score
-        similar.push({ experience: exp, similarity: entry.coherenceScore * 0.8 });
+        if (!exp.embedding || exp.embedding.length !== queryEmbedding.length) continue;
+        const similarity = cosineSimilarity(queryEmbedding, exp.embedding);
+        if (similarity < this.config.similarityThreshold) continue;
+        similar.push({ experience: exp, similarity });
       }
     }
 
