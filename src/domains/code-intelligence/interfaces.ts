@@ -99,6 +99,13 @@ export interface SearchResults {
   results: SearchResult[];
   total: number;
   searchTime: number;
+  /**
+   * #1224, semantic searches only: 'vector' when an embedding model ranked the
+   * results, 'lexical-only' when none was available and query words were
+   * matched against the indexed text instead (`reason` says why).
+   */
+  mode?: 'vector' | 'lexical-only';
+  reason?: string;
 }
 
 export interface SearchResult {
@@ -108,6 +115,8 @@ export interface SearchResult {
   score: number;
   highlights: string[];
   metadata?: Record<string, unknown>;
+  /** #1224: how a semantic hit was found; its score is a text-match score when 'lexical'. */
+  matchType?: 'vector' | 'lexical';
 }
 
 export interface ImpactRequest {

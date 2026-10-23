@@ -292,13 +292,10 @@ export class CodeAnalyzeTool extends MCPToolBase<CodeAnalyzeParams, CodeAnalyzeR
 
     const searchTime = Date.now() - startTime;
 
-    // If search failed, return error
+    // #1224: a search that could not run (e.g. nothing indexed) is an error,
+    // not an empty result.
     if (!result.success) {
-      return {
-        results: [],
-        total: 0,
-        searchTime,
-      };
+      throw result.error;
     }
 
     // Empty results is a valid state - no matches found

@@ -307,9 +307,10 @@ describe('SemanticAnalyzerService', () => {
 
     it('should filter results below minimum score threshold', async () => {
       const lowScoreMemory = createMockMemoryBackend();
+      // #1224: only vectors recorded as made by the current model are compared.
       lowScoreMemory.vectorSearch = vi.fn().mockResolvedValue([
-        { key: 'k1', score: 0.3, metadata: { file: 'f1.ts' } }, // Below threshold
-        { key: 'k2', score: 0.8, metadata: { file: 'f2.ts' } }, // Above threshold
+        { key: 'k1', score: 0.2, metadata: { file: 'f1.ts', embeddingModel: 'injected-provider' } }, // Below threshold
+        { key: 'k2', score: 0.8, metadata: { file: 'f2.ts', embeddingModel: 'injected-provider' } }, // Above threshold
       ]);
 
       const lowScoreService = new SemanticAnalyzerService(lowScoreMemory, {
@@ -322,10 +323,8 @@ describe('SemanticAnalyzerService', () => {
 
       expect(result.success).toBe(true);
       if (result.success) {
-        // Results with score < 0.5 (default minScore) should be filtered
-        for (const r of result.value) {
-          expect(r.score).toBeGreaterThanOrEqual(0.5);
-        }
+        // Results below the default minVectorScore (0.3) are filtered
+        expect(result.value.map((r) => r.file)).toEqual(['f2.ts']);
       }
     });
 
@@ -567,12 +566,12 @@ describe('SemanticAnalyzerService', () => {
     it('should respect minScore filter in search', async () => {
       const strictMemory = createMockMemoryBackend();
       strictMemory.vectorSearch = vi.fn().mockResolvedValue([
-        { key: 'low', score: 0.3, metadata: { file: 'low.ts' } },
-        { key: 'high', score: 0.9, metadata: { file: 'high.ts' } },
+        { key: 'low', score: 0.3, metadata: { file: 'low.ts', embeddingModel: 'injected-provider' } },
+        { key: 'high', score: 0.9, metadata: { file: 'high.ts', embeddingModel: 'injected-provider' } },
       ]);
 
       const strictService = new SemanticAnalyzerService(strictMemory, {
-        minScore: 0.8,
+        minVectorScore: 0.8,
         embeddingProvider: mockEmbeddingProvider,
         useNomicEmbeddings: false,
       });
@@ -582,8 +581,8 @@ describe('SemanticAnalyzerService', () => {
 
       expect(result.success).toBe(true);
       if (result.success) {
-        // Only results above minScore should be returned
-        expect(result.value.every(r => r.score >= 0.8)).toBe(true);
+        // Only results above minVectorScore should be returned
+        expect(result.value.map((r) => r.file)).toEqual(['high.ts']);
       }
     });
   });

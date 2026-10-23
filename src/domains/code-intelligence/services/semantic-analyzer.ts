@@ -21,6 +21,20 @@ import {
 } from '../interfaces';
 
 /**
+ * #1224: the message for a search over an empty index. "No results" is only
+ * reported after searching an index that holds code.
+ */
+export const NOTHING_INDEXED_FOR_SEARCH =
+  'No code is indexed for search yet, so the search was not run. ' +
+  'Index the project first (MCP code_index, or `aqe code index <path>`), then search again.';
+
+/** Vector metadata recording which embedding model produced the vector. */
+interface StoredVectorMetadata {
+  file?: string;
+  embeddingModel?: string;
+}
+
+/**
  * Interface for the semantic analyzer service
  */
 export interface ISemanticAnalyzerService {
@@ -36,7 +50,10 @@ export interface ISemanticAnalyzerService {
   /** Analyze code semantics */
   analyze(code: string): Promise<Result<SemanticAnalysis, Error>>;
 
-  /** Get code embeddings */
+  /**
+   * Get code embeddings. Throws when no embedding model is available: no
+   * pseudo-embedding is substituted (ADR-097).
+   */
   getEmbedding(code: string): Promise<number[]>;
 }
 
@@ -78,8 +95,15 @@ export interface HalsteadMetrics {
 export interface SemanticAnalyzerConfig {
   /** Embedding vector dimension (384 for all-MiniLM-L6-v2) */
   embeddingDimension: number;
-  /** Minimum similarity score threshold */
+  /** Minimum word-overlap score for fuzzy and text-only matches */
   minScore: number;
+  /**
+   * #1224: minimum cosine similarity for vector hits. Sentence-embedding
+   * models score a relevant file well below 0.5 (all-MiniLM-L6-v2 gave 0.37
+   * for "login" against a login function), so the text threshold would hide
+   * every vector hit.
+   */
+  minVectorScore: number;
   /** Maximum search results */
   maxResults: number;
   /** Storage namespace */
@@ -96,9 +120,13 @@ export interface SemanticAnalyzerConfig {
   embeddingProvider?: IEmbeddingProvider;
 }
 
+/** Upper bound on indexed files one exact/fuzzy search reads. */
+const MAX_INDEXED_FILES_SCANNED = 100_000;
+
 const DEFAULT_CONFIG: SemanticAnalyzerConfig = {
   embeddingDimension: EMBEDDING_CONFIG.DIMENSIONS, // 384 for all-MiniLM-L6-v2
   minScore: 0.5,
+  minVectorScore: 0.3,
   maxResults: 100,
   namespace: 'code-intelligence:semantic',
   enableCaching: true,
@@ -116,6 +144,8 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
   private readonly analysisCache: Map<string, SemanticAnalysis> = new Map();
   private embedder: IEmbeddingProvider | null = null;
   private embedderInitialized = false;
+  /** #1224: why no embedder is in use, once initialization has run. */
+  private embedderUnavailableReason: string | null = null;
 
   constructor(
     private readonly memory: MemoryBackend,
@@ -139,9 +169,11 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
     }
 
     if (this.config.useNomicEmbeddings) {
+      // #1224: no pseudo-embedding fallback. A failed embed throws, and the
+      // search reports itself as lexical-only instead.
       const nomicEmbedder = new NomicEmbedder({
-        enableFallback: true,
         ...this.config.nomicConfig,
+        enableFallback: false,
       });
 
       // Check if Ollama is available
@@ -151,7 +183,12 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
         // Update dimension to match Nomic's output
         (this.config as { embeddingDimension: number }).embeddingDimension =
           EMBEDDING_CONFIG.DIMENSIONS;
+      } else {
+        this.embedderUnavailableReason =
+          `no embedding model available (Ollama model '${EMBEDDING_CONFIG.MODEL}' is not reachable)`;
       }
+    } else {
+      this.embedderUnavailableReason = 'embeddings are disabled for code search';
     }
 
     this.embedderInitialized = true;
@@ -166,12 +203,26 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
     try {
       const { query, type, scope, limit = this.config.maxResults, filters } = request;
 
+      if (type !== 'semantic' && type !== 'exact' && type !== 'fuzzy') {
+        return err(new Error(`Unknown search type: ${type}`));
+      }
+
+      // #1224: an empty answer from an empty index is not "no results".
+      const indexed = await this.memory.search(this.contentKeyPattern(), 1);
+      if (indexed.length === 0) {
+        return err(new Error(NOTHING_INDEXED_FOR_SEARCH));
+      }
+
       let results: SearchResult[];
+      let lexicalOnlyReason: string | undefined;
 
       switch (type) {
-        case 'semantic':
-          results = await this.semanticSearch(query, limit, scope, filters);
+        case 'semantic': {
+          const semantic = await this.semanticSearch(query, limit, scope, filters);
+          results = semantic.results;
+          lexicalOnlyReason = semantic.lexicalOnlyReason;
           break;
+        }
         case 'exact':
           results = await this.exactSearch(query, limit, scope, filters);
           break;
@@ -188,6 +239,11 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
         results,
         total: results.length,
         searchTime,
+        ...(type === 'semantic'
+          ? lexicalOnlyReason === undefined
+            ? { mode: 'vector' as const }
+            : { mode: 'lexical-only' as const, reason: lexicalOnlyReason }
+          : {}),
       });
     } catch (error) {
       return err(toError(error));
@@ -199,19 +255,21 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
    */
   async indexCode(file: string, content: string): Promise<Result<void, Error>> {
     try {
-      // Generate embedding for the code
-      const embedding = await this.getEmbedding(content);
-
       // Extract code metadata
       const metadata = this.extractCodeMetadata(file, content);
 
-      // Store in vector index
-      const key = `${this.config.namespace}:code:${this.fileToKey(file)}`;
-      await this.memory.storeVector(key, embedding, {
-        file,
-        ...metadata,
-        indexedAt: new Date().toISOString(),
-      });
+      // #1224: store a vector only when a real embedding model produced one;
+      // without it the file is still searchable by text.
+      const embedded = await this.tryEmbed(content);
+      if (embedded.vector) {
+        const key = `${this.vectorKeyPrefix()}${this.fileToKey(file)}`;
+        await this.memory.storeVector(key, embedded.vector, {
+          file,
+          ...metadata,
+          embeddingModel: this.embeddingModelId(),
+          indexedAt: new Date().toISOString(),
+        });
+      }
 
       // Store content for retrieval.
       // The key is already fully namespace-qualified, so do NOT also pass a
@@ -240,14 +298,14 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
   ): Promise<Result<SearchResult[], Error>> {
     try {
       const embedding = await this.getEmbedding(code);
-      const vectorResults = await this.memory.vectorSearch(embedding, limit);
+      const vectorResults = await this.memory.vectorSearch(embedding, limit, this.vectorKeyPrefix());
 
       const results: SearchResult[] = [];
       for (const vr of vectorResults) {
-        if (vr.score < this.config.minScore) continue;
+        if (vr.score < this.config.minVectorScore) continue;
 
-        const metadata = vr.metadata as { file: string } | undefined;
-        if (!metadata?.file) continue;
+        const metadata = vr.metadata as StoredVectorMetadata | undefined;
+        if (!metadata?.file || !this.isCurrentModelVector(metadata)) continue;
 
         const contentKey = `${this.config.namespace}:content:${this.fileToKey(metadata.file)}`;
         const stored = await this.memory.get<{
@@ -319,8 +377,9 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
   }
 
   /**
-   * Get embedding vector for code
-   * Uses Nomic embeddings via Ollama when available, falls back to pseudo-embeddings
+   * Get embedding vector for code.
+   * Uses Nomic embeddings via Ollama (or the injected provider). Throws when
+   * neither is available: no pseudo-embedding is substituted (#1224, ADR-097).
    */
   async getEmbedding(code: string): Promise<number[]> {
     // Check cache
@@ -332,14 +391,10 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
     // Initialize embedder lazily
     await this.initializeEmbedder();
 
-    // Generate embedding using Nomic or fallback
-    let embedding: number[];
-    if (this.embedder) {
-      embedding = await this.embedder.embed(code);
-    } else {
-      // Fallback to pseudo-embedding when Ollama is not available
-      embedding = this.generateCodeEmbedding(code);
+    if (!this.embedder) {
+      throw new Error(`Code embeddings unavailable: ${this.embedderUnavailableReason ?? 'no embedding model'}`);
     }
+    const embedding = await this.embedder.embed(code);
 
     // Cache result
     if (this.config.enableCaching) {
@@ -356,29 +411,79 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
     return this.embedder !== null && this.embedder instanceof NomicEmbedder;
   }
 
+  /** #1224: embed `text`, or say why no real embedding is available. */
+  private async tryEmbed(text: string): Promise<{ vector?: number[]; reason?: string }> {
+    await this.initializeEmbedder();
+    if (!this.embedder) {
+      return { reason: this.embedderUnavailableReason ?? 'no embedding model available' };
+    }
+    try {
+      return { vector: await this.getEmbedding(text) };
+    } catch (error) {
+      return { reason: `the embedding model failed: ${toError(error).message}` };
+    }
+  }
+
+  /** Identifies the model behind stored vectors, so vectors from another model are not compared. */
+  private embeddingModelId(): string {
+    return this.embedder instanceof NomicEmbedder ? EMBEDDING_CONFIG.MODEL : 'injected-provider';
+  }
+
+  private isCurrentModelVector(metadata: StoredVectorMetadata): boolean {
+    return metadata.embeddingModel === this.embeddingModelId();
+  }
+
+  private vectorKeyPrefix(): string {
+    return `${this.config.namespace}:code:`;
+  }
+
+  private contentKeyPattern(): string {
+    return `${this.config.namespace}:content:*`;
+  }
+
   // ============================================================================
   // Private Search Methods
   // ============================================================================
 
+  /**
+   * #1224: vector search when an embedding model is available. Otherwise (or
+   * when no indexed file has a vector from that model) it matches query words
+   * against the indexed text and says so through `lexicalOnlyReason`; no
+   * similarity is invented for those hits.
+   */
   private async semanticSearch(
     query: string,
     limit: number,
     scope?: string[],
     filters?: SearchFilter[]
-  ): Promise<SearchResult[]> {
-    // Generate query embedding
-    const queryEmbedding = await this.getEmbedding(query);
+  ): Promise<{ results: SearchResult[]; lexicalOnlyReason?: string }> {
+    const embedded = await this.tryEmbed(query);
+    if (!embedded.vector) {
+      return {
+        results: await this.lexicalSearch(query, limit, scope, filters),
+        lexicalOnlyReason: embedded.reason,
+      };
+    }
 
-    // Perform vector search
-    const vectorResults = await this.memory.vectorSearch(queryEmbedding, limit * 2);
+    // Only this namespace's vectors, from the model that embedded the query.
+    const vectorResults = (await this.memory.vectorSearch(embedded.vector, limit * 2, this.vectorKeyPrefix()))
+      .filter((vr) => {
+        const metadata = vr.metadata as StoredVectorMetadata | undefined;
+        return !!metadata?.file && this.isCurrentModelVector(metadata);
+      });
+    if (vectorResults.length === 0) {
+      return {
+        results: await this.lexicalSearch(query, limit, scope, filters),
+        lexicalOnlyReason: `no indexed file has an embedding from ${this.embeddingModelId()}; re-index to enable vector search`,
+      };
+    }
 
     // Convert to search results with filtering
     const results: SearchResult[] = [];
     for (const vr of vectorResults) {
-      if (vr.score < this.config.minScore) continue;
+      if (vr.score < this.config.minVectorScore) continue;
 
-      const metadata = vr.metadata as { file: string } | undefined;
-      if (!metadata?.file) continue;
+      const metadata = vr.metadata as { file: string };
 
       // Apply scope filter
       if (scope && scope.length > 0) {
@@ -406,13 +511,25 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
           score: vr.score,
           highlights: this.findSemanticHighlights(stored.content, query),
           metadata: stored.metadata,
+          matchType: 'vector',
         });
 
         if (results.length >= limit) break;
       }
     }
 
-    return results;
+    return { results };
+  }
+
+  /** Word-overlap matching for a semantic query when no vectors can be used. */
+  private async lexicalSearch(
+    query: string,
+    limit: number,
+    scope?: string[],
+    filters?: SearchFilter[]
+  ): Promise<SearchResult[]> {
+    const hits = await this.fuzzySearch(query, limit, scope, filters);
+    return hits.map((hit) => ({ ...hit, matchType: 'lexical' as const }));
   }
 
   private async exactSearch(
@@ -422,8 +539,8 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
     filters?: SearchFilter[]
   ): Promise<SearchResult[]> {
     const results: SearchResult[] = [];
-    const pattern = `${this.config.namespace}:content:*`;
-    const keys = await this.memory.search(pattern, limit * 3);
+    // #1224: scan every indexed file; a cap here hid matches in later files.
+    const keys = await this.memory.search(this.contentKeyPattern(), MAX_INDEXED_FILES_SCANNED);
 
     for (const key of keys) {
       const stored = await this.memory.get<{
@@ -472,8 +589,7 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
     filters?: SearchFilter[]
   ): Promise<SearchResult[]> {
     const results: SearchResult[] = [];
-    const pattern = `${this.config.namespace}:content:*`;
-    const keys = await this.memory.search(pattern, limit * 5);
+    const keys = await this.memory.search(this.contentKeyPattern(), MAX_INDEXED_FILES_SCANNED);
 
     const queryTokens = this.tokenize(query.toLowerCase());
 
@@ -503,7 +619,7 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
 
       if (score >= this.config.minScore) {
         const matchedTokens = queryTokens.filter((t) =>
-          contentTokens.some((ct) => ct.includes(t) || t.includes(ct))
+          contentTokens.some((ct) => this.tokensMatch(t, ct))
         );
 
         results.push({
@@ -706,45 +822,6 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
   // Private Helper Methods
   // ============================================================================
 
-  private generateCodeEmbedding(code: string): number[] {
-    // Fallback: Generate a pseudo-embedding based on code features
-    // Used when Ollama/Nomic is not available
-
-    const embedding = new Array(this.config.embeddingDimension).fill(0);
-
-    // Extract tokens and features
-    const tokens = this.tokenize(code);
-    const concepts = this.extractConcepts(code);
-
-    // Combine token-based and concept-based features
-    for (let i = 0; i < tokens.length; i++) {
-      const token = tokens[i];
-      for (let j = 0; j < token.length && j < embedding.length; j++) {
-        embedding[(i + j) % embedding.length] += token.charCodeAt(j) / 1000;
-      }
-    }
-
-    // Add concept signals
-    const conceptIndex = new Map([
-      ['object-oriented', 0],
-      ['asynchronous', 1],
-      ['functional', 2],
-      ['type-safe', 3],
-      ['modular', 4],
-    ]);
-
-    for (const concept of concepts) {
-      const idx = conceptIndex.get(concept);
-      if (idx !== undefined) {
-        embedding[idx] += 0.5;
-      }
-    }
-
-    // Normalize
-    const magnitude = Math.sqrt(embedding.reduce((sum, v) => sum + v * v, 0)) || 1;
-    return embedding.map((v) => v / magnitude);
-  }
-
   private extractCodeMetadata(
     file: string,
     content: string
@@ -783,12 +860,22 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
 
     let matches = 0;
     for (const qt of queryTokens) {
-      if (contentTokens.some((ct) => ct.includes(qt) || qt.includes(ct))) {
+      if (contentTokens.some((ct) => this.tokensMatch(qt, ct))) {
         matches++;
       }
     }
 
     return matches / queryTokens.length;
+  }
+
+  /**
+   * A content token matches a query token it contains, or that contains it.
+   * #1224: the second direction needs a content token of 3+ characters, so a
+   * one-letter variable such as `i` does not match the query "login".
+   */
+  private tokensMatch(queryToken: string, contentToken: string): boolean {
+    return contentToken.includes(queryToken) ||
+      (contentToken.length >= 3 && queryToken.includes(contentToken));
   }
 
   private matchesFilters(

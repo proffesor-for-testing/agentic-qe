@@ -144,3 +144,67 @@ describe('index-code handler collects project metrics (#999 MCP-CLI parity)', ()
     expect((r2 as { value: Record<string, unknown> }).value.filesIndexed).toBe(1);
   });
 });
+
+describe('index-code handler makes the files searchable (#1224)', () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(__dirname, 'tmp-idx1224-'));
+    vi.stubEnv('AQE_PROJECT_ROOT', tmpDir);
+    await fs.writeFile(path.join(tmpDir, 'auth.ts'), 'export function login() { return 1; }\n');
+  });
+
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  function setup(coordinator: unknown) {
+    let handler: InstanceTaskHandler | undefined;
+    const ctx = {
+      registerHandler: (type: string, h: InstanceTaskHandler) => {
+        if (type === 'index-code') handler = h;
+      },
+      getKnowledgeGraph: () => ({
+        index: vi.fn().mockResolvedValue(ok({ filesIndexed: 1, nodesCreated: 1, edgesCreated: 0, duration: 0, errors: [] })),
+      }),
+      getCodeIntelligenceCoordinator: vi.fn(async () => coordinator),
+    } as unknown as TaskHandlerContext;
+    registerCodeIntelligenceHandlers(ctx);
+    return handler!;
+  }
+
+  const run = async (handler: InstanceTaskHandler) => {
+    const result = await handler({ payload: { target: tmpDir, incremental: false } } as unknown as QueenTask);
+    expect(result.success).toBe(true);
+    return (result as { value: { warnings: string[] } }).value;
+  };
+
+  it('indexes the same files into the search index the search task reads', async () => {
+    const indexForSearch = vi.fn().mockResolvedValue({ searchable: 1, warnings: [] });
+    const handler = setup({ collectProjectMetrics: vi.fn().mockResolvedValue(ok(undefined)), indexForSearch });
+
+    const value = await run(handler);
+
+    expect(indexForSearch).toHaveBeenCalledWith([path.join(tmpDir, 'auth.ts')]);
+    expect(value.warnings).toEqual([]);
+  });
+
+  it('passes on what search will not cover', async () => {
+    const warning = 'Search covers 0 of 1 indexed files; code in the other files is not found by search.';
+    const handler = setup({
+      collectProjectMetrics: vi.fn().mockResolvedValue(ok(undefined)),
+      indexForSearch: vi.fn().mockResolvedValue({ searchable: 0, warnings: [warning] }),
+    });
+
+    expect((await run(handler)).warnings).toEqual([warning]);
+  });
+
+  it('warns, instead of staying silent, when the search index cannot be updated', async () => {
+    const value = await run(setup(undefined));
+
+    expect(value.warnings).toEqual([
+      'Search index not updated: the code-intelligence domain is unavailable, so a code search will not find these files.',
+    ]);
+  });
+});
