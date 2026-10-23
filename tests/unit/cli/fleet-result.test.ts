@@ -3,7 +3,7 @@
  * reporting every completed task as a success.
  */
 import { describe, expect, it } from 'vitest';
-import { reportFleetVerdict, summarizeFleetResult } from '../../../src/cli/utils/fleet-result.js';
+import { judgeFleetRun, reportFleetVerdict, summarizeFleetResult } from '../../../src/cli/utils/fleet-result.js';
 
 const scan = (over: Record<string, unknown> = {}) => ({
   vulnerabilities: [],
@@ -63,13 +63,32 @@ describe('summarizeFleetResult (#1125)', () => {
 });
 
 describe('reportFleetVerdict (#1125)', () => {
-  it('prints identical worker results once and fails when a worker did not complete', () => {
+  // #1146: each worker scanned its own share of the files, so their results
+  // are combined into one summary instead of being shown per worker.
+  it('prints one combined summary of the workers and fails when a worker did not complete', () => {
     const lines: string[] = [];
     const passed = reportFleetVerdict('scan', [
       { success: true, result: scan() }, { success: true, result: scan() }, { success: false, result: undefined },
     ], line => lines.push(line));
     expect(passed).toBe(false);
     expect(lines.filter(l => l.includes('Findings:'))).toHaveLength(1);
+    expect(lines).toContain('   Files scanned: 4 (evidence: complete)');
     expect(lines.at(-1)).toContain('Verdict: FAILED (1 of 3 workers did not complete)');
+  });
+
+  it('fails on a finding from any shard', () => {
+    const critical = scan({
+      vulnerabilities: [{ severity: 'critical', title: 'eval', location: { file: 'b.js', line: 3 } }],
+      summary: { critical: 1, high: 0, medium: 0, low: 0, informational: 0 },
+    });
+    const verdict = judgeFleetRun('scan', [{ success: true, result: scan() }, { success: true, result: critical }]);
+    expect(verdict).toMatchObject({ passed: false, reasons: ['1 critical and 0 high findings'] });
+    expect(verdict.summary?.lines).toContain('  [critical] eval @ b.js:3');
+  });
+
+  it('has no summary when no worker completed', () => {
+    expect(judgeFleetRun('scan', [{ success: false, result: undefined }])).toEqual({
+      combined: undefined, passed: false, reasons: ['1 of 1 workers did not complete'],
+    });
   });
 });

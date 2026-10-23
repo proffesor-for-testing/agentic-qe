@@ -35,8 +35,14 @@ const NEEDS_INPUT = [
   ['validate the api contract', 'validate-contracts', 'Use contract_validate'],
   ['validate requirements for login', 'validate-requirements', 'Use requirements_validate'],
   ['test accessibility of https://example.com', 'test-accessibility', 'Use accessibility_test'],
-  // #1125 review: a vague description must not overwrite learned strategies.
-  ['improve the login page performance', 'optimize-learning', 'Use task_submit with type optimize-strategies'],
+  // #1125 review: a description must not overwrite learned strategies.
+  // #1146: only learning wording infers it; "improve ..." alone no longer does.
+  ['optimize the learning strategies', 'optimize-learning', 'Use task_submit with type optimize-strategies'],
+  // #1146: a search is refused as a search, not for lacking files to index.
+  ['semantic search for auth code', 'index-code', 'the description asks for a code search'],
+  // #1225: generate-tests without source files was accepted, then failed with "missing sourceFiles".
+  ['improve the login page performance', 'generate-tests', 'no task type could be inferred from the description'],
+  ['generate unit tests for the user service', 'generate-tests', 'Pass filePaths with the source files to generate tests for'],
 ] as const;
 
 describe.skipIf(!existsSync(bundle) && !process.env.CI)('MCP task_orchestrate leaves no task running that nothing executes (#1081)', () => {
@@ -153,6 +159,14 @@ describe.skipIf(!existsSync(bundle) && !process.env.CI)('MCP task_orchestrate le
       const detail = await call('task_status', { taskId: submitted.data.taskId, detailed: true });
       expect(JSON.stringify(detail.data.result)).toContain('eval()');
     }
+  }, 120000);
+
+  // #1225: a test generation request that names its source file runs on it.
+  it('generates tests for the source file a description names', async () => {
+    const submitted = await call('task_orchestrate', { task: 'generate unit tests for src/math.js' });
+    expect(submitted.success, JSON.stringify(submitted)).toBe(true);
+    expect(submitted.data).toMatchObject({ type: 'generate-tests', status: 'submitted' });
+    expect(await settle(submitted.data.taskId)).toBe('completed');
   }, 120000);
 
   it('refuses scan filePaths outside the project', async () => {

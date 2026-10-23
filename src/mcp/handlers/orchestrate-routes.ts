@@ -16,6 +16,7 @@ import type { DomainName } from '../../shared/types/index.js';
 import { findProjectRoot } from '../../kernel/project-root.js';
 import { confineIndexPaths } from '../../domains/code-intelligence/index-path-guard.js';
 import { requirePayloadPath } from '../../shared/io/payload-path-guard.js';
+import { isCodeSearch, namesTestGeneration } from './task-inference.js';
 
 export interface OrchestrateRequest {
   task: string;
@@ -99,6 +100,30 @@ async function coverageRoute(request: OrchestrateRequest): Promise<OrchestrateRo
   };
 }
 
+/**
+ * #1225: test generation reads source files. Without filePaths, the files the
+ * description names are used; with none, the task is refused up front instead
+ * of being accepted and failing with "missing sourceFiles". `generate-tests`
+ * is also the fallback for a description that names no task, which the
+ * refusal says.
+ */
+async function testGenerationRoute(request: OrchestrateRequest): Promise<OrchestrateRoute> {
+  const type: TaskType = 'generate-tests';
+  if ((request.filePaths ?? []).length > 0) return { kind: 'as-inferred' };
+  const named = pathsInDescription(request.task);
+  if (named.length === 0) {
+    const why = namesTestGeneration(request.task)
+      ? 'no source files were given and the description names none.'
+      : 'no task type could be inferred from the description, and test generation (the fallback) needs ' +
+        'source files: none were given and the description names none.';
+    return needs(type, `${why} Pass filePaths with the source files to generate tests for, or use ` +
+      'test_generate_enhanced, or task_submit with a task type and its payload.');
+  }
+  const confined = await projectFiles(type, named);
+  if ('kind' in confined) return confined;
+  return { kind: 'route', type, domain: 'test-generation', payload: { sourceFiles: confined.files } };
+}
+
 /** Decide how task_orchestrate runs an inferred task type. */
 export async function routeInferredTask(type: TaskType, request: OrchestrateRequest): Promise<OrchestrateRoute> {
   const filePaths = request.filePaths ?? [];
@@ -114,7 +139,16 @@ export async function routeInferredTask(type: TaskType, request: OrchestrateRequ
       return { kind: 'route', type: 'sast-scan', domain: 'security-compliance', payload: { files: confined.files } };
     }
 
-    case 'index-code':
+    case 'index-code': {
+      // #1146: a search description ("semantic search for auth code") is not
+      // an index request. Running the domain's search could answer "no
+      // results" for code that exists (#1224), so it is refused with what to
+      // use instead of the misleading "no files to index".
+      if (isCodeSearch(request.task)) {
+        return needs(type, 'the description asks for a code search, which task_orchestrate does not run: the ' +
+          'code-intelligence search can report no results for code that exists (#1224). Search the source ' +
+          'directly (e.g. grep), or use code_index with a target for dependency and impact analysis.');
+      }
       // #1134: indexing reads exactly the files it is given; without them the
       // task could only fail after it was accepted. The indexer confines the
       // paths to the project itself (#1096).
@@ -123,6 +157,7 @@ export async function routeInferredTask(type: TaskType, request: OrchestrateRequ
           'or use code_index with a target.');
       }
       return { kind: 'as-inferred' };
+    }
 
     case 'assess-quality': {
       if (filePaths.length === 0) {
@@ -147,8 +182,8 @@ export async function routeInferredTask(type: TaskType, request: OrchestrateRequ
 
     case 'optimize-learning':
       // optimize-strategies overwrites the stored learned strategies
-      // (persist: true). Words like "improve" or "optimize" in a description
-      // must not change learning data as a side effect.
+      // (persist: true), so learning wording alone does not run it (#1146:
+      // "improve"/"optimize" alone no longer infer it at all).
       return needs(type, 'learning optimization overwrites the stored learned strategies, so it is not run from ' +
         'a description. Use task_submit with type optimize-strategies in domain learning-optimization.');
 
@@ -165,6 +200,9 @@ export async function routeInferredTask(type: TaskType, request: OrchestrateRequ
       return needs(type, 'requirement validation needs a structured requirement (title, description, ' +
         'acceptance criteria). Use requirements_validate, or task_submit with type validate and ' +
         'payload.requirement in domain requirements-validation.');
+
+    case 'generate-tests':
+      return testGenerationRoute(request);
 
     default:
       return { kind: 'as-inferred' };

@@ -507,6 +507,7 @@ describe('Task Handlers', () => {
     it('should orchestrate task from description', async () => {
       const result = await handleTaskOrchestrate({
         task: 'Generate unit tests for the authentication module',
+        filePaths: ['src/auth.ts'],
       });
 
       expect(result.success).toBe(true);
@@ -530,6 +531,7 @@ describe('Task Handlers', () => {
     ])('maps orchestrate priority %s to %s', async (priority, expected) => {
       const result = await handleTaskOrchestrate({
         task: 'Generate unit tests for the authentication module',
+        filePaths: ['src/auth.ts'],
         priority: priority as never,
       });
 
@@ -649,6 +651,7 @@ describe('Task Handlers', () => {
     it('should respect strategy parameter', async () => {
       const result = await handleTaskOrchestrate({
         task: 'Generate tests',
+        filePaths: ['src/auth.ts'],
         strategy: 'parallel',
       });
 
@@ -669,6 +672,7 @@ describe('Task Handlers', () => {
     it('should include routing information (ADR-051)', async () => {
       const result = await handleTaskOrchestrate({
         task: 'Generate unit tests',
+        filePaths: ['src/auth.ts'],
       });
 
       expect(result.success).toBe(true);
@@ -682,6 +686,7 @@ describe('Task Handlers', () => {
     it('should handle context parameter', async () => {
       const result = await handleTaskOrchestrate({
         task: 'Generate tests',
+        filePaths: ['src/auth.ts'],
         context: {
           project: 'my-project',
           branch: 'feature/test',
@@ -931,18 +936,21 @@ describe('Task Handlers', () => {
       expect(result.success).toBe(true);
     });
 
-    it('should handle empty task description for orchestrate', async () => {
+    // #1225: an empty description names no task and no files; it used to be
+    // accepted as generate-tests and then fail with "missing sourceFiles".
+    it('should refuse an empty task description up front, saying what to pass', async () => {
       const result = await handleTaskOrchestrate({ task: '' });
 
-      expect(result.success).toBe(true);
-      // Should default to generate-tests
-      expect(result.data!.type).toBe('generate-tests');
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("task_orchestrate inferred 'generate-tests'");
+      expect(result.error).toContain('no task type could be inferred from the description');
+      expect(result.error).toContain('Pass filePaths');
     }, 30000);
 
     it('should handle very long task description', async () => {
       const longDescription = 'Generate tests for ' + 'module '.repeat(100);
 
-      const result = await handleTaskOrchestrate({ task: longDescription });
+      const result = await handleTaskOrchestrate({ task: longDescription, filePaths: ['src/auth.ts'], });
 
       expect(result.success).toBe(true);
     }, 30000);
@@ -1005,13 +1013,19 @@ describe('Task Handlers', () => {
       injectMockQueen();
     });
 
-    it('should succeed for generate-tests task without filePaths', async () => {
+    // #1225: the domain handler refuses an empty sourceFiles, so the task used
+    // to be accepted and then fail. It is refused up front instead.
+    it('should refuse a generate-tests task without filePaths, saying what to pass', async () => {
+      const queen = getFleetState().queen!;
+      const submit = vi.spyOn(queen, 'submitTask');
       const result = await handleTaskOrchestrate({
         task: 'Generate unit tests for the user service',
       });
 
-      expect(result.success).toBe(true);
-      expect(result.data!.type).toBe('generate-tests');
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('no source files were given and the description names none');
+      expect(result.error).toContain('Pass filePaths');
+      expect(submit).not.toHaveBeenCalled();
     }, 30000);
 
     it('should forward filePaths into payload', async () => {
