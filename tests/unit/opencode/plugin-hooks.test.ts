@@ -328,6 +328,45 @@ describe('AQE OpenCode Plugin Hooks', () => {
       expect(elapsed).toBeLessThan(500);
     });
 
+    it('redacts credentials from captured bash commands (#740)', async () => {
+      const canary = 'CANARYa1b2c3d4e5f6g7h8i9j0';
+      const hook = createOnToolCallAfter(config, session);
+      const ctx = makeToolCtx({
+        toolName: 'bash',
+        input: { command: `curl -H "Authorization: Bearer ${canary}" --token ${canary} https://api.example.com` },
+      });
+
+      await session.ensureInitialized();
+      await hook(ctx, makeToolResult({ success: true }));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      const captured = JSON.stringify(session.getDreamQueue());
+      expect(captured).toContain('curl -H');
+      expect(captured).not.toContain(canary);
+    });
+
+    it('logs pattern capture failures redacted, with the error code (#740)', async () => {
+      const canary = 'CANARYa1b2c3d4e5f6g7h8i9j0';
+      const failure = Object.assign(new Error(`store rejected Bearer ${canary}`), { code: 'E_STORE' });
+      vi.spyOn(session, 'getMemory').mockReturnValue({ store: async () => { throw failure; } } as never);
+      const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const hook = createOnToolCallAfter(config, session);
+      const ctx = makeToolCtx({
+        toolName: 'write',
+        input: { file_path: '/project/src/a.test.ts', content: 'describe("a", () => { it("b", () => {}); });' },
+      });
+
+      await session.ensureInitialized();
+      await hook(ctx, makeToolResult({ success: true }));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      const printed = log.mock.calls.map((args) => args.join(' ')).join('\n');
+      expect(printed).toContain('Pattern capture error');
+      expect(printed).toContain('"code":"E_STORE"');
+      expect(printed).not.toContain(canary);
+      log.mockRestore();
+    });
+
     it('should not capture patterns for trivial bash commands', async () => {
       const hook = createOnToolCallAfter(config, session);
       const ctx = makeToolCtx({

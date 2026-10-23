@@ -41,6 +41,16 @@ function looksLikeBasicCredential(value: string): boolean {
   return decoded.includes(':') && /^[\x20-\x7e]+$/.test(decoded);
 }
 
+/**
+ * Bearer tokens are opaque, so prose ("use Bearer authorization") is told apart
+ * by shape: a short lowercase or Capitalized word, optionally ending a sentence.
+ * Anything with digits, mixed case, '_', '-', '/', '+', '=' or over 16 letters
+ * is treated as a token: when unsure, redact.
+ */
+function looksLikeProseWord(value: string): boolean {
+  return /^[A-Z]?[a-z]+\.?$/.test(value) && value.replace(/\.$/, '').length <= 16;
+}
+
 /** Log-specific credential shapes, applied before the shared advisor patterns. */
 const LOG_PATTERNS: Array<[RegExp, string | ((match: string, ...groups: string[]) => string)]> = [
   // Anchored on '://' rather than a scheme prefix: `\b[a-z][a-z0-9+.-]*://`
@@ -51,7 +61,10 @@ const LOG_PATTERNS: Array<[RegExp, string | ((match: string, ...groups: string[]
   [/\b(authorization:\s*Basic)\s+[^\s"']+/gi, '$1 <REDACTED:credential>'],
   [/\b(Basic)\s+([A-Za-z0-9+/]{8,}={0,2})(?![A-Za-z0-9._~+/=-])/gi,
     (match, scheme, value) => looksLikeBasicCredential(value) ? `${scheme} <REDACTED:credential>` : match],
-  [/\b(Bearer)\s+[A-Za-z0-9._~+/=-]{8,}/gi, '$1 <REDACTED:credential>'],
+  // Same split for Bearer (#1196): any value in a header; outside one, only prose words are kept.
+  [/\b(authorization:\s*Bearer)\s+[^\s"']+/gi, '$1 <REDACTED:credential>'],
+  [/\b(Bearer)\s+([A-Za-z0-9._~+/=-]{8,})/gi,
+    (match, scheme, value) => looksLikeProseWord(value) ? match : `${scheme} <REDACTED:credential>`],
   [/\bsk-(?:ant-|proj-)?[A-Za-z0-9_-]{16,}/g, '<REDACTED:api_key>'],
   [/\b(set-cookie|cookie):\s*[^\n]+/gi, '$1: <REDACTED:cookie>'],
   // Compound query/assignment keys the shared pattern misses: access_token=, client_secret=
@@ -59,15 +72,76 @@ const LOG_PATTERNS: Array<[RegExp, string | ((match: string, ...groups: string[]
 ];
 
 /**
- * JSON / repr serialized fields ("apiKey":"…", 'password': 123). The key is
- * checked with isSensitiveLogKey() so text and structured values agree.
- * Unterminated strings are redacted to end of line (fail closed).
+ * JSON / repr serialized fields ("apiKey":"…", 'password': 123, token: {…}).
+ * Keys are quoted (JSON, Python repr) or bare (util.inspect); a bare key must
+ * start a word. The key is checked with isSensitiveLogKey() so text and
+ * structured values agree. Values are strings, numbers, or an opening '{' / '['
+ * whose whole object/array is then redacted. JSON embedded in a JSON string
+ * ({\"password\":\"…\"}) uses escaped quotes; its string value runs to the next
+ * escaped quote. Unterminated strings are redacted to end of line and
+ * unbalanced objects/arrays to end of text (fail closed).
  */
-const SERIALIZED_FIELD = /(["'])([A-Za-z0-9_.-]{1,64})\1(\s*:\s*)("(?:[^"\\\n]|\\.)*"?|'(?:[^'\\\n]|\\.)*'?|-?\d[\d.eE+-]*)/g;
+const SERIALIZED_FIELD = /(?:(\\?["'])([A-Za-z0-9_.-]{1,64})\1|(?<![A-Za-z0-9_.$-])([A-Za-z_$][A-Za-z0-9_.$-]{0,63}))(\s*:\s*)("(?:[^"\\\n]|\\.)*"?|'(?:[^'\\\n]|\\.)*'?|\\["']|-?\d[\d.eE+-]*|[{[])/g;
 
 function redactSerializedFields(text: string): string {
-  return text.replace(SERIALIZED_FIELD, (match, q: string, key: string, sep: string) =>
-    isSensitiveLogKey(key) ? `${q}${key}${q}${sep}${q}<REDACTED:sensitive-key>${q}` : match);
+  const pattern = new RegExp(SERIALIZED_FIELD.source, SERIALIZED_FIELD.flags);
+  let out = '';
+  let copied = 0;
+  for (let m = pattern.exec(text); m !== null; m = pattern.exec(text)) {
+    const [match, quote = '', quotedKey, bareKey, sep, value] = m;
+    const key = quotedKey ?? bareKey;
+    const valueStart = m.index + match.length - value.length;
+    if (!isSensitiveLogKey(key)) {
+      // Not sensitive: resume inside the value, so keys nested in an object or
+      // serialized into a string ("body={\"password\":…}") are still checked.
+      pattern.lastIndex = valueStart + 1;
+      continue;
+    }
+    const end = value === '{' || value === '['
+      ? compoundValueEnd(text, valueStart, quote.length === 2)
+      : value.length === 2 && value[0] === '\\'
+        ? escapedStringEnd(text, valueStart + 2, value)
+        : m.index + match.length;
+    out += `${text.slice(copied, m.index)}${quote}${key}${quote}${sep}${quote}<REDACTED:sensitive-key>${quote}`;
+    copied = end;
+    // Resume after the redacted value, which is never scanned again.
+    pattern.lastIndex = end;
+  }
+  return copied === 0 ? text : out + text.slice(copied);
+}
+
+/** Index just past the escaped closing quote, or the end of the line when there is none. */
+function escapedStringEnd(text: string, start: number, quote: string): number {
+  for (let i = start; i < text.length; i++) {
+    if (text[i] === '\n') return i;
+    if (text.startsWith(quote, i)) return i + quote.length;
+  }
+  return text.length;
+}
+
+/**
+ * Index just past the object/array opened at `start`, skipping quoted strings
+ * (delimited by \" when the object is itself escaped inside a JSON string).
+ * An unbalanced value runs to the end of the text, so it is redacted rather than printed.
+ */
+function compoundValueEnd(text: string, start: number, escaped: boolean): number {
+  let depth = 0;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (escaped && ch === '\\' && (text[i + 1] === '"' || text[i + 1] === "'")) {
+      i = escapedStringEnd(text, i + 2, text.slice(i, i + 2)) - 1;
+    } else if (!escaped && (ch === '"' || ch === "'")) {
+      // A newline also ends a string: neither JSON nor repr strings contain a raw one.
+      for (i++; i < text.length && text[i] !== ch && text[i] !== '\n'; i++) {
+        if (text[i] === '\\') i++;
+      }
+    } else if (ch === '{' || ch === '[') {
+      depth++;
+    } else if ((ch === '}' || ch === ']') && --depth === 0) {
+      return i + 1;
+    }
+  }
+  return text.length;
 }
 
 export function isSensitiveLogKey(key: string): boolean {
@@ -103,11 +177,11 @@ export function redactLogValue(value: unknown, options: LogRedactionOptions = {}
 export function formatErrorForLog(error: unknown): string {
   try {
     if (error instanceof Error) {
-      let text = redactLogText(error.stack || `${error.name}: ${error.message}`);
+      let text = formatErrorText(error);
       let cause = (error as Error & { cause?: unknown }).cause;
       for (let hops = 0; cause !== undefined && hops < 3; hops++) {
         text += `\nCaused by: ${cause instanceof Error
-          ? redactLogText(cause.stack || `${cause.name}: ${cause.message}`)
+          ? formatErrorText(cause)
           : JSON.stringify(redactLogValue(cause, { maxDepth: 3 }))}`;
         cause = cause instanceof Error ? (cause as Error & { cause?: unknown }).cause : undefined;
       }
@@ -119,6 +193,32 @@ export function formatErrorForLog(error: unknown): string {
   } catch {
     return '[REDACTED:sanitization-failed]';
   }
+}
+
+/** Fields kept from an error besides its message and stack: they identify the failure, not its data. */
+const SAFE_ERROR_FIELDS = ['name', 'code', 'status'] as const;
+const MAX_ERROR_FIELD_LENGTH = 200;
+
+/** name/code/status as a redacted record; strings are redacted, numbers kept, anything else dropped. */
+function safeErrorFields(error: Error): Record<string, string | number> {
+  const fields: Record<string, string | number> = {};
+  for (const field of SAFE_ERROR_FIELDS) {
+    const descriptor = Object.getOwnPropertyDescriptor(error, field)
+      ?? (field === 'name' ? { value: error.name } : undefined);
+    const value: unknown = descriptor && 'value' in descriptor ? descriptor.value : undefined;
+    if (typeof value === 'string') fields[field] = redactLogText(value, MAX_ERROR_FIELD_LENGTH);
+    else if (typeof value === 'number' && Number.isFinite(value)) fields[field] = value;
+  }
+  return fields;
+}
+
+/** Redacted stack (or name: message) followed by the safe structured fields, unless they add nothing. */
+function formatErrorText(error: Error): string {
+  const text = redactLogText(error.stack || `${error.name}: ${error.message}`);
+  const fields = safeErrorFields(error);
+  const keys = Object.keys(fields);
+  const nameOnly = keys.length === 0 || (keys.length === 1 && text.startsWith(`${fields.name}`));
+  return nameOnly ? text : `${text} ${JSON.stringify(fields)}`;
 }
 
 function sanitize(value: unknown, opts: Required<LogRedactionOptions>, depth: number, ancestors: object[]): unknown {
@@ -156,8 +256,9 @@ function sanitizeError(error: Error, opts: Required<LogRedactionOptions>, depth:
     message: redactLogText(String(error.message), opts.maxStringLength),
   };
   if (typeof error.stack === 'string') out.stack = redactLogText(error.stack, opts.maxStringLength);
-  const code = (error as Error & { code?: unknown }).code;
-  if (typeof code === 'string' || typeof code === 'number') out.code = code;
+  const { code, status } = safeErrorFields(error);
+  if (code !== undefined) out.code = code;
+  if (status !== undefined) out.status = status;
   const cause = (error as Error & { cause?: unknown }).cause;
   if (cause !== undefined) out.cause = sanitize(cause, opts, depth + 1, path);
   return out;

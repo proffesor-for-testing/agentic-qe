@@ -15,6 +15,7 @@
 import type { SessionPromptContext, PromptModification } from '../types/opencode.js';
 import type { AQEPluginConfig } from '../config.js';
 import type { SessionManager, PatternMatch } from '../lifecycle.js';
+import { formatErrorForLog } from '../redaction.js';
 
 // =============================================================================
 // Complexity Analysis
@@ -171,7 +172,7 @@ export function createOnSessionPromptBefore(
           .sort((a, b) => b.confidence - a.confidence)
           .slice(0, 5);
       } catch (err) {
-        console.error('[AQE Plugin] Pattern query error:', err);
+        console.error('[AQE Plugin] Pattern query error:', formatErrorForLog(err));
       }
     }
 

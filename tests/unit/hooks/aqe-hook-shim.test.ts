@@ -198,6 +198,24 @@ describe('aqe-hook.cjs resilient shim (#510 item 5)', () => {
       expect(log).toContain('cmd=route');
     });
 
+    it('redacts credentials from the stderr it copies into an EMPTY-RESULT entry (#740)', () => {
+      tmp = mkdtempSync(join(tmpdir(), 'aqe-shim-'));
+      mkdirSync(join(tmp, 'dist', 'cli'), { recursive: true });
+      const canary = 'CANARYa1b2c3d4e5f6g7h8i9j0';
+      // Fake provider error that echoes a hook argument holding credentials.
+      writeFileSync(
+        join(tmp, 'dist', 'cli', 'bundle.js'),
+        `console.error('Error: curl -H "Authorization: Bearer ${canary}" https://bot:${canary}@h/x failed');`
+          + ' process.exit(1);',
+      );
+      const r = runShim(['pre-command', '--json'], tmp);
+      expect(r.code).toBe(0);
+      const log = healthLog(tmp);
+      expect(log).toContain('EMPTY-RESULT');
+      expect(log).toContain('curl -H');
+      expect(log).not.toContain(canary);
+    });
+
     it('forwards stdin to the child (2026-07-05 regression: Claude Code delivers hook events via stdin JSON, not $PROMPT)', () => {
       tmp = mkdtempSync(join(tmpdir(), 'aqe-shim-'));
       mkdirSync(join(tmp, 'dist', 'cli'), { recursive: true });
