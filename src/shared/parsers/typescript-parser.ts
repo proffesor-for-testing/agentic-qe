@@ -194,6 +194,19 @@ export class TypeScriptParser {
   }
 
   /**
+   * #1020: syntax errors in a parsed file, read through the public Program
+   * API instead of the internal `parseDiagnostics` field. For JavaScript this
+   * includes TypeScript-only syntax, which is not valid JavaScript.
+   */
+  countSyntaxErrors(sourceFile: ts.SourceFile): number {
+    const options: ts.CompilerOptions = { noLib: true, noResolve: true, allowJs: true, types: [] };
+    const host = ts.createCompilerHost(options);
+    host.getSourceFile = () => sourceFile;
+    const program = ts.createProgram({ rootNames: [sourceFile.fileName], options, host });
+    return program.getSyntacticDiagnostics(sourceFile).length;
+  }
+
+  /**
    * Extract all functions from the AST
    */
   extractFunctions(ast: ts.SourceFile): FunctionInfo[] {
@@ -425,7 +438,7 @@ export class TypeScriptParser {
     if (filePath.endsWith('.tsx')) return ts.ScriptKind.TSX;
     if (filePath.endsWith('.ts')) return ts.ScriptKind.TS;
     if (filePath.endsWith('.jsx')) return ts.ScriptKind.JSX;
-    if (filePath.endsWith('.js')) return ts.ScriptKind.JS;
+    if (/\.(js|mjs|cjs)$/.test(filePath)) return ts.ScriptKind.JS;
     return ts.ScriptKind.TS;
   }
 

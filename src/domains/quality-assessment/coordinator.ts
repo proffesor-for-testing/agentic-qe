@@ -416,7 +416,9 @@ export class QualityAssessmentCoordinator
       // V3 Integration: Use consensus for borderline cases (CONSENSUS-MIXIN-001)
       // Borderline cases are pass/fail decisions where metrics are close to thresholds
       let finalResult = result.value;
-      if (this.config.enableConsensus && this.isBorderlineGateResult(request.metrics, request.thresholds, result.value)) {
+      // #1020: a verdict on missing evidence is not borderline; it is not a verdict.
+      if (this.config.enableConsensus && result.value.evidenceStatus !== 'insufficient-evidence'
+        && this.isBorderlineGateResult(request.metrics, request.thresholds, result.value)) {
         const consensusResult = await this.verifyGateVerdictWithConsensus(
           effectiveRequest,
           result.value
@@ -796,19 +798,16 @@ export class QualityAssessmentCoordinator
   async generateReport(options: {
     format: 'json' | 'html' | 'markdown';
     includeRecommendations?: boolean;
-  }): Promise<Result<{ content: string; format: string }, Error>> {
+  }): ReturnType<typeof ReportHelpers.generateReport> {
     return ReportHelpers.generateReport(this.memory, options);
   }
 
   /**
-   * Get quality dashboard overview
+   * Get quality dashboard overview. #1020: built from measured evidence only;
+   * unmeasured metrics are -1 and listed in `unmeasured`.
    * @returns Result containing dashboard data
    */
-  async getQualityDashboard(): Promise<Result<{
-    overallScore: number;
-    metrics: QualityMetrics;
-    trends: Record<string, number>;
-  }, Error>> {
+  async getQualityDashboard(): ReturnType<typeof ReportHelpers.getQualityDashboard> {
     return ReportHelpers.getQualityDashboard(this.memory);
   }
 
@@ -820,22 +819,27 @@ export class QualityAssessmentCoordinator
   async analyzeRisks(options: {
     scope: 'project' | 'module' | 'file';
     includeSecurityRisks?: boolean;
-  }): Promise<Result<{
-    risks: Array<{ id: string; severity: string; description: string; category: string }>;
-    overallRiskLevel: 'low' | 'medium' | 'high' | 'critical';
-  }, Error>> {
+  }): ReturnType<typeof ReportHelpers.analyzeRisks> {
     return ReportHelpers.analyzeRisks(this.memory, options);
   }
 
   /**
-   * Evaluate a quality gate (simplified API)
+   * Evaluate a quality gate (simplified API). #1020: a metric the caller does
+   * not supply is unmeasured, so the gate cannot pass on it.
    * @param options - Quality gate evaluation options
    * @returns Result containing gate evaluation
    */
   async evaluateQualityGate(options: {
     gateId: string;
     metrics: Partial<QualityMetrics>;
-  }): Promise<Result<{ passed: boolean; score: number; violations: string[] }, Error>> {
+  }): Promise<Result<{
+    passed: boolean;
+    /** 0-100; -1 when a configured check is unmeasured. */
+    score: number;
+    violations: string[];
+    evidenceStatus?: GateResult['evidenceStatus'];
+    unmeasured?: string[];
+  }, Error>> {
     const request = ReportHelpers.buildFullGateRequest(options);
     const result = await this.evaluateGate(request);
     if (!result.success) {
@@ -845,22 +849,20 @@ export class QualityAssessmentCoordinator
       passed: result.value.passed,
       score: result.value.overallScore,
       violations: result.value.failedChecks,
+      ...(result.value.evidenceStatus ? { evidenceStatus: result.value.evidenceStatus } : {}),
+      ...(result.value.unmeasured ? { unmeasured: result.value.unmeasured } : {}),
     });
   }
 
   /**
-   * Assess deployment readiness
+   * Assess deployment readiness. #1020: never ready while an input is unmeasured.
    * @param options - Deployment readiness options
    * @returns Result containing readiness assessment
    */
   async assessDeploymentReadiness(options: {
     environment: 'development' | 'staging' | 'production';
     changeSet: string[];
-  }): Promise<Result<{
-    ready: boolean;
-    risks: Array<{ id: string; severity: string; description: string }>;
-    score: number;
-  }, Error>> {
+  }): ReturnType<typeof ReportHelpers.assessDeploymentReadiness> {
     return ReportHelpers.assessDeploymentReadiness(this.memory, options);
   }
 
@@ -872,11 +874,7 @@ export class QualityAssessmentCoordinator
   async analyzeTechnicalDebt(options: {
     projectPath: string;
     includeCodeSmells?: boolean;
-  }): Promise<Result<{
-    totalDebt: number;
-    items: Array<{ file: string; type: string; effort: number; description: string }>;
-    debtRatio: number;
-  }, Error>> {
+  }): ReturnType<typeof ReportHelpers.analyzeTechnicalDebt> {
     return ReportHelpers.analyzeTechnicalDebt(this.memory, options);
   }
 

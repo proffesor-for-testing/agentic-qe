@@ -19,6 +19,7 @@ import {
   createDomainFinding,
 } from '../../coordination/consensus/domain-findings';
 import type { ConsensusEnabledMixin } from '../../coordination/mixins/consensus-enabled-domain';
+import { isMeasuredMetricValue } from './evidence-sufficiency.js';
 
 /**
  * Check if a gate result is a borderline case.
@@ -48,7 +49,8 @@ export function isBorderlineGateResult(
     const metricValue = metrics[metricKey];
     const thresholdConfig = thresholds[thresholdKey];
 
-    if (thresholdConfig === undefined) continue;
+    // #1020: an unmeasured value is not near any threshold.
+    if (thresholdConfig === undefined || !isMeasuredMetricValue(metricValue)) continue;
 
     const threshold = isMin
       ? (thresholdConfig as { min: number }).min

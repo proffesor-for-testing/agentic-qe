@@ -128,15 +128,17 @@ export class QualityGateService implements IQualityGateService {
         .filter((check) => !isMeasuredMetricValue(check.value))
         .map((check) => check.name);
 
-      // Collect failed checks
+      // Collect failed checks. #1020: an unmeasured check did not fail a
+      // threshold; it is listed in `unmeasured` only.
       for (const check of checks) {
-        if (!check.passed) {
+        if (!check.passed && isMeasuredMetricValue(check.value)) {
           failedChecks.push(check.name);
         }
       }
 
-      // Calculate overall score (0-100)
-      const overallScore = this.calculateOverallScore(checks);
+      // Calculate overall score (0-100). #1020: -1 = no measured score, the
+      // same sentinel quality_assess uses; never a score over partial data.
+      const overallScore = unmeasured.length === 0 ? this.calculateOverallScore(checks) : -1;
 
       // Determine pass/fail based on critical checks
       const passed = unmeasured.length === 0 && this.determineGateStatus(checks);

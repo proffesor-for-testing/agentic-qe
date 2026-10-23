@@ -43,10 +43,14 @@ import {
 // Test Data Fixtures
 // ============================================================================
 
+// #1020: a healthy fixture measures every scored input, including the
+// high/medium vulnerability counts (an omitted count is unmeasured, not 0).
 const HEALTHY_METRICS: QualityMetricsInput = {
   lineCoverage: 92,
   testPassRate: 99,
   criticalVulns: 0,
+  highVulns: 0,
+  mediumVulns: 0,
   p95Latency: 100,
   targetLatency: 200,
   maintainabilityIndex: 85,
@@ -708,6 +712,8 @@ describe('Coherence Gate Integration', () => {
         lineCoverage: 95,
         testPassRate: 100,
         criticalVulns: 0,
+        highVulns: 0,
+        mediumVulns: 0,
         p95Latency: 50,
         targetLatency: 200,
         maintainabilityIndex: 95,
@@ -737,6 +743,8 @@ describe('Coherence Gate Integration', () => {
         lineCoverage: 95,
         testPassRate: 100,
         criticalVulns: 0,
+        highVulns: 0,
+        mediumVulns: 0,
         p95Latency: 50,
         targetLatency: 200,
         maintainabilityIndex: 95,
@@ -756,6 +764,8 @@ describe('Coherence Gate Integration', () => {
         lineCoverage: 95,
         testPassRate: 100,
         criticalVulns: 0,
+        highVulns: 0,
+        mediumVulns: 0,
         p95Latency: 50,
         targetLatency: 200,
         maintainabilityIndex: 95,
@@ -822,6 +832,8 @@ describe('Edge Cases', () => {
         lineCoverage: 100,
         testPassRate: 100,
         criticalVulns: 0,
+        highVulns: 0,
+        mediumVulns: 0,
         p95Latency: 50,
         targetLatency: 200,
         maintainabilityIndex: 100,
@@ -958,6 +970,8 @@ describe('4-Tier Response System', () => {
       lineCoverage: 95,
       testPassRate: 100,
       criticalVulns: 0,
+      highVulns: 0,
+      mediumVulns: 0,
       p95Latency: 50,
       targetLatency: 200,
       maintainabilityIndex: 95,
@@ -984,6 +998,8 @@ describe('4-Tier Response System', () => {
       lineCoverage: 95,
       testPassRate: 100,
       criticalVulns: 0,
+      highVulns: 0,
+      mediumVulns: 0,
       p95Latency: 50,
       targetLatency: 200,
       maintainabilityIndex: 95,

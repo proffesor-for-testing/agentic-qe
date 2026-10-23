@@ -32,12 +32,16 @@ import {
   createCoherenceGateController,
 } from '../coherence/gate-controller';
 import { toError } from '../../../shared/error-utils.js';
+import { isMeasuredMetricValue } from '../evidence-sufficiency.js';
 import {
   PartitionDetector,
   createPartitionDetector,
   PartitionDetectionResult,
 } from '../coherence/partition-detector';
 
+
+/** #996: the sentinel for an input with no measured value. */
+const UNMEASURED = -1;
 /**
  * Extended gate result with coherence information
  */
@@ -281,13 +285,23 @@ export class CoherenceGateService extends QualityGateService {
     metrics: QualityMetrics,
     previousLambda?: number
   ): QualityMetricsInput {
+    // #1020: QualityMetrics carries no latency or flaky-test data, so those
+    // inputs are unmeasured (-1) instead of an invented "fast, not flaky"
+    // value. The total vulnerability count is weighted as critical, so the
+    // high/medium breakdown adds nothing when the total was measured.
+    const vulns = isMeasuredMetricValue(metrics.securityVulnerabilities) ? 0 : UNMEASURED;
     return {
       lineCoverage: metrics.coverage,
       testPassRate: metrics.testsPassing,
       criticalVulns: metrics.securityVulnerabilities,
-      p95Latency: 100, // Default if not provided
+      highVulns: vulns,
+      mediumVulns: vulns,
+      p95Latency: UNMEASURED,
       targetLatency: 200, // Default target
-      maintainabilityIndex: 100 - metrics.technicalDebt * 10, // Convert debt hours to index
+      maintainabilityIndex: isMeasuredMetricValue(metrics.technicalDebt)
+        ? 100 - metrics.technicalDebt * 10 // Convert debt hours to index
+        : UNMEASURED,
+      flakyTestRatio: UNMEASURED,
       duplicationPercent: metrics.duplications,
       previousLambda,
     };

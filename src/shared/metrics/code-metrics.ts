@@ -103,6 +103,17 @@ function isGeneratedSource(content: string): boolean {
   return GO_GENERATED_LINE.test(head) || GENERATED_TAG.test(firstCommentBlock(head));
 }
 
+/** Extensions parsed as TypeScript/JavaScript; anything else is only estimated. */
+const PARSED_EXTENSIONS = ['ts', 'tsx', 'mts', 'cts', 'js', 'jsx', 'mjs', 'cjs'];
+
+/**
+ * A UTF-16 file read as UTF-8: its byte-order mark becomes two replacement
+ * characters (#1020). It is source in an unsupported encoding, not binary.
+ */
+function isUtf16Source(content: string): boolean {
+  return content.startsWith('\uFFFD\uFFFD') && content.slice(0, BINARY_SNIFF_CHARS).includes('\u0000');
+}
+
 /** Exclusion decided from the file name alone. */
 function excludedByName(filePath: string): string | undefined {
   const name = filePath.split(/[\\/]/).pop() ?? filePath;
@@ -157,6 +168,9 @@ export class CodeMetricsAnalyzer {
         ? { status: 'excluded', metrics: null, reason: `${filePath} was refused by the file reader (${readError.message})` }
         : { status: 'failed', metrics: null, reason: `${filePath} could not be read (${readError.message})` };
     }
+    if (content !== undefined && isUtf16Source(content)) {
+      return { status: 'failed', metrics: null, reason: `${filePath} is UTF-16 encoded; only UTF-8 source can be analysed` };
+    }
     // git-style sniff, except that TS/JS which parses cleanly is source even
     // with a raw NUL inside a string literal (seen in real repos).
     const sourceDespiteNul = parsedAsSource && !parseFailure;
@@ -167,6 +181,11 @@ export class CodeMetricsAnalyzer {
       return { status: 'excluded', metrics: null, reason: `${filePath} is a generated file` };
     }
     if (parseFailure) return { status: 'failed', metrics, reason: `${filePath} could not be parsed (${parseFailure})` };
+    // #1020: without a parse, complexity is a regex estimate — the same
+    // estimate a TS parse failure falls back to — so it is not a measurement.
+    if (!parsedAsSource) {
+      return { status: 'failed', metrics, reason: `${filePath} was not parsed (no parser for this file type); its complexity would only be a regex estimate` };
+    }
     return { status: 'measured', metrics };
   }
 
@@ -199,10 +218,11 @@ export class CodeMetricsAnalyzer {
     let classCount = 0;
 
     // Only parse TypeScript/JavaScript files
-    if (['ts', 'tsx', 'js', 'jsx'].includes(ext)) {
+    const parsedAsSource = PARSED_EXTENSIONS.includes(ext);
+    if (parsedAsSource) {
       try {
         const ast = this.parser.parseFile(fileName, content);
-        const syntaxErrors = (ast as typeof ast & { parseDiagnostics?: readonly unknown[] }).parseDiagnostics?.length ?? 0;
+        const syntaxErrors = this.parser.countSyntaxErrors(ast);
         if (syntaxErrors > 0) {
           parseFailure = `${syntaxErrors} syntax error${syntaxErrors === 1 ? '' : 's'}`;
         }
@@ -285,7 +305,7 @@ export class CodeMetricsAnalyzer {
       classCount,
       maxNestingDepth,
     };
-    return { metrics, content, parseFailure, parsedAsSource: ['ts', 'tsx', 'js', 'jsx'].includes(ext) };
+    return { metrics, content, parseFailure, parsedAsSource };
   }
 
   /**
