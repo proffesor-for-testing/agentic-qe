@@ -211,9 +211,18 @@ It sets `AQE_MCP_DAEMON=1` for that process. The server writes its output to
 minute with the worker run counts. Stop it with
 `node .agentic-qe/workers/stop-daemon.cjs`, which sends SIGTERM.
 
+`daemon.log` is capped (#1207). On each heartbeat the server checks its size;
+once it is over the cap the server copies it to `daemon.log.1`, replacing the
+previous copy, and empties `daemon.log`, which it keeps writing. The script does
+the same, by renaming, for an oversized log when it starts. The two files
+together stay near twice the cap, plus whatever is logged between two
+heartbeats. Neither file is ever written through a symlink.
+
 | Variable | Default | Effect |
 |----------|---------|--------|
 | `AQE_MCP_DAEMON` | unset | `1`, `true`, `yes` or `on`: daemon mode. The server keeps running when its stdin closes and stops only on SIGTERM or SIGINT. Without it, a stdio MCP server exits when its stdin closes, so it never outlives the client that started it (#513). The setting is honoured only when stdin is not a pipe or socket, which an MCP client always uses, so it has no effect on a server started by Claude Code or another client; the server logs a warning and keeps the normal behaviour. You do not need to set it yourself. |
+| `AQE_DAEMON_LOG_MAX_SIZE` | `5M` | Size at which `daemon.log` is rotated to `daemon.log.1`: bytes, or a number with a `K`, `M` or `G` suffix (binary units, an optional trailing `B` is allowed), at least 1024 bytes. `0`, `off`, `false`, `no`, `none`, `disable` or `disabled` turns rotation off. Any other value is rejected with a warning in `daemon.log`, and the 5M default applies. |
+| `AQE_DAEMON_HEARTBEAT_SECONDS` | `60` | Seconds between two `Daemon heartbeat` lines, which is also how often the size of `daemon.log` is checked. A whole number from 1 to 86400; any other value is rejected with a warning in `daemon.log`, and 60 applies. |
 
 Scripts written by an older `aqe init` (3.15.11 and earlier) do not set
 `AQE_MCP_DAEMON`, and their daemon exits within seconds of starting. Re-run
