@@ -4,7 +4,7 @@
  * such as "semantic search for auth code" for lacking files to index.
  */
 import { describe, expect, it } from 'vitest';
-import { inferTaskType, isCodeSearch } from '../../../../src/mcp/handlers/task-inference.js';
+import { inferTaskType, isCodeSearch, namesTestGeneration } from '../../../../src/mcp/handlers/task-inference.js';
 
 describe('inferTaskType: learning wording (#1146)', () => {
   it.each([
@@ -46,5 +46,16 @@ describe('code search descriptions (#1146)', () => {
   it('leaves descriptions that ask for other work alone', () => {
     expect(inferTaskType('search for security vulnerabilities')).toBe('scan-security');
     expect(isCodeSearch('generate tests for src/a.ts')).toBe(false);
+  });
+});
+
+describe('namesTestGeneration (#1225)', () => {
+  it.each(['Generate unit tests for the user service', 'write tests for auth', 'add integration tests', 'generate tests'])(
+    'recognises a test generation request: "%s"', (description) => {
+      expect(namesTestGeneration(description)).toBe(true);
+    });
+
+  it.each(['improve the login page performance', '', 'regression sentinel'])('does not for "%s"', (description) => {
+    expect(namesTestGeneration(description)).toBe(false);
   });
 });

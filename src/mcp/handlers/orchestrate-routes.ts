@@ -16,7 +16,7 @@ import type { DomainName } from '../../shared/types/index.js';
 import { findProjectRoot } from '../../kernel/project-root.js';
 import { confineIndexPaths } from '../../domains/code-intelligence/index-path-guard.js';
 import { requirePayloadPath } from '../../shared/io/payload-path-guard.js';
-import { isCodeSearch } from './task-inference.js';
+import { isCodeSearch, namesTestGeneration } from './task-inference.js';
 
 export interface OrchestrateRequest {
   task: string;
@@ -100,6 +100,30 @@ async function coverageRoute(request: OrchestrateRequest): Promise<OrchestrateRo
   };
 }
 
+/**
+ * #1225: test generation reads source files. Without filePaths, the files the
+ * description names are used; with none, the task is refused up front instead
+ * of being accepted and failing with "missing sourceFiles". `generate-tests`
+ * is also the fallback for a description that names no task, which the
+ * refusal says.
+ */
+async function testGenerationRoute(request: OrchestrateRequest): Promise<OrchestrateRoute> {
+  const type: TaskType = 'generate-tests';
+  if ((request.filePaths ?? []).length > 0) return { kind: 'as-inferred' };
+  const named = pathsInDescription(request.task);
+  if (named.length === 0) {
+    const why = namesTestGeneration(request.task)
+      ? 'no source files were given and the description names none.'
+      : 'no task type could be inferred from the description, and test generation (the fallback) needs ' +
+        'source files: none were given and the description names none.';
+    return needs(type, `${why} Pass filePaths with the source files to generate tests for, or use ` +
+      'test_generate_enhanced, or task_submit with a task type and its payload.');
+  }
+  const confined = await projectFiles(type, named);
+  if ('kind' in confined) return confined;
+  return { kind: 'route', type, domain: 'test-generation', payload: { sourceFiles: confined.files } };
+}
+
 /** Decide how task_orchestrate runs an inferred task type. */
 export async function routeInferredTask(type: TaskType, request: OrchestrateRequest): Promise<OrchestrateRoute> {
   const filePaths = request.filePaths ?? [];
@@ -176,6 +200,9 @@ export async function routeInferredTask(type: TaskType, request: OrchestrateRequ
       return needs(type, 'requirement validation needs a structured requirement (title, description, ' +
         'acceptance criteria). Use requirements_validate, or task_submit with type validate and ' +
         'payload.requirement in domain requirements-validation.');
+
+    case 'generate-tests':
+      return testGenerationRoute(request);
 
     default:
       return { kind: 'as-inferred' };

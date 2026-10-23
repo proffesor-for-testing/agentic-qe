@@ -90,6 +90,15 @@ export function isCodeSearch(description: string): boolean {
 }
 
 /**
+ * #1225: the description asks for test generation ("generate unit tests"),
+ * rather than reaching generate-tests as the fallback. Used for the refusal
+ * message only; inference keeps its own rules.
+ */
+export function namesTestGeneration(description: string): boolean {
+  return /\b(?:generat\w*|create|write|add)\s+(?:\w+\s+){0,2}tests?\b/i.test(description);
+}
+
+/**
  * Infer task type from description
  */
 export function inferTaskType(description: string): TaskType {

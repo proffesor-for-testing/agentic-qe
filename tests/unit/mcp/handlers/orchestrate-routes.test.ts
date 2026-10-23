@@ -58,6 +58,37 @@ describe('routeInferredTask (#1125)', () => {
     expect(route.kind === 'needs-input' && route.error).not.toContain('no files to index');
   });
 
+  // #1225: generate-tests without source files used to be accepted and then
+  // fail with "missing sourceFiles"; it is refused up front.
+  describe('generate-tests (#1225)', () => {
+    it('refuses a fallback description without files, saying no task type was inferred', async () => {
+      const route = await routeInferredTask('generate-tests', { task: 'improve the login page performance' });
+      expect(route).toEqual({ kind: 'needs-input', error: expect.stringContaining('no task type could be inferred from the description') });
+      expect(route.kind === 'needs-input' && route.error).toContain('Pass filePaths with the source files to generate tests for');
+    });
+
+    it('refuses a test generation request without files, without claiming nothing was inferred', async () => {
+      const route = await routeInferredTask('generate-tests', { task: 'generate tests for the user service', filePaths: [] });
+      expect(route).toEqual({ kind: 'needs-input', error: expect.stringContaining('no source files were given and the description names none') });
+      expect(route.kind === 'needs-input' && route.error).not.toContain('could be inferred');
+    });
+
+    it('uses the source files the description names', async () => {
+      expect(await routeInferredTask('generate-tests', { task: `generate tests for ${file}` })).toEqual({
+        kind: 'route', type: 'generate-tests', domain: 'test-generation', payload: { sourceFiles: [file] },
+      });
+    });
+
+    it('refuses named files that cannot be read, naming them', async () => {
+      const route = await routeInferredTask('generate-tests', { task: `generate tests for ${join(root, 'src/missing.ts')}` });
+      expect(route).toEqual({ kind: 'needs-input', error: expect.stringContaining('missing.ts (not-found)') });
+    });
+
+    it('leaves a request with filePaths as inferred, as before', async () => {
+      expect(await routeInferredTask('generate-tests', { task: 'anything', filePaths: [file] })).toEqual({ kind: 'as-inferred' });
+    });
+  });
+
   it('refuses files outside the project or missing, naming each', async () => {
     const route = await routeInferredTask('scan-security', {
       task: 'scan', filePaths: [file, join(root, 'src/missing.js'), join(root, '..', 'outside.js')],

@@ -61,7 +61,7 @@ vi.mock('../../../../src/mcp/services/reasoning-bank-service', () => ({
 
 import { handleTaskOrchestrate } from '../../../../src/mcp/handlers/task-handlers';
 
-const TASK = { task: 'Generate unit tests for the authentication module' };
+const TASK = { task: 'Generate unit tests for the authentication module', filePaths: ['src/auth.ts'] };
 const NO_EMBEDDER = 'In-process embeddings require the optional package "@huggingface/transformers"';
 
 describe('task_orchestrate without an embedding runtime (#1022)', () => {

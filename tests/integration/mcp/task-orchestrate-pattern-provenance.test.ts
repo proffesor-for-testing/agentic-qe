@@ -143,7 +143,7 @@ describe('task_orchestrate measured pattern evidence over JSON-RPC', () => {
   it('forwards compatible vector evidence and lexical-only hints to the task queue without upgrading reuse', async () => {
     const queen = getFleetState().queen!;
     const submit = vi.spyOn(queen, 'submitTask').mockResolvedValue({ success: true, value: 'fixture-task' });
-    const result = await callTool('task_orchestrate', { task: 'regression sentinel', context: { project: 'test-generation' } });
+    const result = await callTool('task_orchestrate', { task: 'regression sentinel', filePaths: ['src/a.ts'], context: { project: 'test-generation' } });
     expect(result.success).toBe(true);
     expect(submit).toHaveBeenCalledOnce();
     assertEvidence(submit.mock.calls[0][0].payload);
