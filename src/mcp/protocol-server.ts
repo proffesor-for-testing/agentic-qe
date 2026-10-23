@@ -132,6 +132,15 @@ import { BEHAVIOR_EXAMPLE_ITEM_SCHEMA } from '../domains/test-generation/service
 import { SAVE_RESULTS_HINT, saveResultsParameter } from './handlers/save-results-option';
 import { requestOwnedShutdown } from '../kernel/process-lifecycle.js';
 
+/**
+ * Read-only status tools a client polls while work runs. Repeating one is
+ * the status protocol, not a loop, so loop detection skips them (#1227).
+ */
+const LOOP_EXEMPT_STATUS_TOOLS: ReadonlySet<string> = new Set([
+  'pipeline_status', 'task_status', 'task_list', 'fleet_status', 'fleet_health',
+  'agent_status', 'team_health', 'infra_healing_status', 'migration_status', 'aqe_health',
+]);
+
 import { createRequire } from 'module';
 const _require = createRequire(import.meta.url);
 const _pkg = _require('../../package.json') as { version: string };
@@ -643,8 +652,10 @@ export class MCPProtocolServer {
     let loopSteeringPrefix = '';
     // Polling a known execution is a normal status protocol, not a repeated
     // action loop. The default three-strike detector would block the third
-    // pipeline_status call within 30 seconds while a workflow is running.
-    if (process.env.AQE_LOOP_DETECTION_ENABLED !== 'false' && name !== 'pipeline_status') {
+    // identical status call within 30 seconds while the work is running
+    // (pipeline_status; #1227: task_status after task_submit, and the other
+    // read-only status tools a client polls).
+    if (process.env.AQE_LOOP_DETECTION_ENABLED !== 'false' && !LOOP_EXEMPT_STATUS_TOOLS.has(name)) {
       try {
         const loopResult = this.loopTracker.trackCall('mcp-client', name, args);
         if (loopResult.action === 'steer') {
