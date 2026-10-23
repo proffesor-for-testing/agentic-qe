@@ -212,6 +212,26 @@ if (workersSetting !== undefined && ['false', '0', 'off', 'no'].includes(workers
   process.exit(0);
 }
 
+// #1207: keep daemon.log bounded. The server truncates it on its heartbeat once
+// it passes AQE_DAEMON_LOG_MAX_SIZE (default 5M, 0 or off disables); a log left
+// over that size by an earlier run is moved to daemon.log.1 here, before
+// anything writes to it. rename() replaces daemon.log.1 and never follows it.
+function logMaxBytes() {
+  const text = String(process.env.AQE_DAEMON_LOG_MAX_SIZE || '').trim().toLowerCase();
+  if (['0', 'off', 'false', 'no', 'none', 'disable', 'disabled'].includes(text)) return 0;
+  const m = /^(\\d+)\\s*([kmg]?)b?$/.exec(text);
+  const bytes = m ? Number(m[1]) * { '': 1, k: 1024, m: 1048576, g: 1073741824 }[m[2]] : NaN;
+  return Number.isSafeInteger(bytes) && bytes >= 1024 ? bytes : 5 * 1048576;
+}
+function rotateLogAtStart(file) {
+  const max = logMaxBytes();
+  try {
+    const s = fs.lstatSync(file);
+    if (max > 0 && s.isFile() && s.size > max) fs.renameSync(file, file + '.1');
+  } catch {}
+}
+rotateLogAtStart(logFile);
+
 const ts = new Date().toISOString();
 appendFileSync(logFile, '[' + ts + '] Starting AQE v3 Worker Daemon...\\n');
 
@@ -281,6 +301,8 @@ function openLogFd(file) {
   try { return fs.openSync(file, c.O_APPEND | c.O_CREAT | c.O_WRONLY | (c.O_NOFOLLOW || 0), 0o644); } catch { return 'ignore'; }
 }
 const logFd = openLogFd(logFile);
+// #1207: name the file behind the server's stdout/stderr so it can rotate it.
+if (typeof logFd === 'number') env.AQE_MCP_DAEMON_LOG = logFile; else delete env.AQE_MCP_DAEMON_LOG;
 let child;
 try {
   child = spawn(mcpCmd, mcpArgs, { cwd: projectRoot, env, detached: true, stdio: ['ignore', logFd, logFd] });

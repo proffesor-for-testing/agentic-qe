@@ -14,6 +14,8 @@
  *   AQE_VERBOSE: Enable verbose logging
  *   AQE_MCP_DAEMON: 1 = daemon mode (#1158): stdin EOF does not shut the
  *     server down; only honoured when stdin is not a pipe. See daemon-mode.ts.
+ *   AQE_DAEMON_HEARTBEAT_SECONDS / AQE_DAEMON_LOG_MAX_SIZE: daemon mode only,
+ *     heartbeat interval and daemon.log size cap (#1207).
  */
 
 import { quickStart, MCPProtocolServer } from './protocol-server';
@@ -30,8 +32,9 @@ import { resetSharedRvfDualWriter } from '../integrations/ruvector/shared-rvf-du
 import { claimProcessLifecycle, closeRegisteredStores } from '../kernel/process-lifecycle.js';
 import { getBackgroundWorkersState, startBackgroundWorkers } from './background-workers.js';
 import {
-  DAEMON_MODE_ENV, detectStdinKind, resolveStdinGuardMode, startDaemonHeartbeat,
-  type DaemonHeartbeatStatus,
+  DAEMON_HEARTBEAT_ENV, DAEMON_LOG_MAX_SIZE_ENV, DAEMON_LOG_PATH_ENV, DAEMON_MODE_ENV,
+  createDaemonLogRotator, detectStdinKind, parseDaemonHeartbeatMs, parseDaemonLogMaxBytes,
+  resolveStdinGuardMode, startDaemonHeartbeat, type DaemonHeartbeatStatus,
 } from './daemon-mode.js';
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
@@ -97,6 +100,7 @@ async function main(): Promise<void> {
   let shuttingDown = false;
   let stopDaemonHeartbeat: (() => void) | null = null;
   let daemonStatus: (() => DaemonHeartbeatStatus | undefined) | null = null;
+  const daemonWarnings: string[] = [];
   const shutdown = async (reason: string): Promise<void> => {
     if (shuttingDown) return;
     shuttingDown = true;
@@ -146,7 +150,9 @@ async function main(): Promise<void> {
   // #1158: start-daemon.cjs runs the server with no stdin and AQE_MCP_DAEMON=1;
   // that daemon mode skips this guard (only when stdin is not a client pipe).
   const stdinGuard = resolveStdinGuardMode(process.env, detectStdinKind(process.stdin));
+  const daemonLogPath = process.env[DAEMON_LOG_PATH_ENV];
   delete process.env[DAEMON_MODE_ENV]; // never inherited by processes we spawn
+  delete process.env[DAEMON_LOG_PATH_ENV];
   if (stdinGuard.mode === 'stdio') {
     process.stdin.on('end', () => { void shutdown('stdin-eof'); });
     process.stdin.on('close', () => { void shutdown('stdin-close'); });
@@ -154,9 +160,16 @@ async function main(): Promise<void> {
     // Worker timers are unref'd (#513), so a daemon with no stdin needs its
     // own ref'd timer to stay up, from the start of boot; it also logs
     // liveness to daemon.log.
+    // #1207: each heartbeat also keeps daemon.log under its size cap.
+    const heartbeat = parseDaemonHeartbeatMs(process.env[DAEMON_HEARTBEAT_ENV]);
+    const logCap = parseDaemonLogMaxBytes(process.env[DAEMON_LOG_MAX_SIZE_ENV]);
+    for (const parsed of [heartbeat, logCap]) if (parsed.warning) daemonWarnings.push(parsed.warning);
+    const log = (message: string): void => { originalStderrWrite(message); }; // declared further down
     stopDaemonHeartbeat = startDaemonHeartbeat(
-      (message) => originalStderrWrite(message), // declared further down
+      log,
       () => daemonStatus?.(),
+      heartbeat.value,
+      createDaemonLogRotator(daemonLogPath, logCap.value, log),
     );
   }
 
@@ -355,6 +368,7 @@ async function main(): Promise<void> {
     await startBackgroundWorkers(originalStderrWrite);
 
     if (stdinGuard.warning) originalStderrWrite(stdinGuard.warning);
+    for (const warning of daemonWarnings) originalStderrWrite(warning);
     if (stdinGuard.mode === 'daemon') {
       if (getBackgroundWorkersState().state !== 'disabled') {
         const { getDaemon } = await import('../workers/daemon.js');
