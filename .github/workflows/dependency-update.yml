@@ -35,7 +35,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: '24.13.0'
+  NODE_VERSION: '24.22.1'
   BRANCH: deps/auto-security-update
 
 jobs:

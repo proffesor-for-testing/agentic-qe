@@ -52,10 +52,10 @@ describe('Node support policy', () => {
     expect(read('.claude/hooks/aqe-hook.cjs')).toContain('CLI is Node >= 22.13');
   });
 
-  it('uses Node 24 for the production container', () => {
+  it('uses the patched Node 24 release for the production container', () => {
     expect(read('Dockerfile').match(/^FROM node:([^\s]+)/gm)).toEqual([
-      'FROM node:24-alpine',
-      'FROM node:24-alpine',
+      'FROM node:24.22.1-alpine',
+      'FROM node:24.22.1-alpine',
     ]);
   });
 
@@ -68,10 +68,10 @@ describe('Node support policy', () => {
     expect(workflows).not.toMatch(/(?:NODE_VERSION|node-version):\s*['"]?(?:18|20)(?:['".]|$)/m);
   });
 
-  it('runs a compatibility gate on the Node 22 floor', () => {
+  it('runs a compatibility gate on the patched Node 22 line', () => {
     const workflow = read('.github/workflows/optimized-ci.yml');
 
-    expect(workflow).toContain('node-version: \'22.13.0\'');
+    expect(workflow).toContain('node-version: \'22.23.4\'');
     expect(workflow).toContain('npm run test:unit:fast');
   });
 
@@ -94,7 +94,7 @@ describe('Node support policy', () => {
     }
   });
 
-  it('pins the default developer runtime to Node 24', () => {
-    expect(read('.nvmrc').trim()).toBe('24');
+  it('pins the default developer runtime to the patched Node 24 release', () => {
+    expect(read('.nvmrc').trim()).toBe('24.22.1');
   });
 });

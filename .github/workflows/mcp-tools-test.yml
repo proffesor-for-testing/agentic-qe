@@ -45,7 +45,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
-        with: { node-version: '24.13.0', cache: 'npm' }
+        with: { node-version: '24.22.1', cache: 'npm' }
       - run: npm ci
       - run: npm run build
       - name: Run handler tests
@@ -66,7 +66,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
-        with: { node-version: '24.13.0', cache: 'npm' }
+        with: { node-version: '24.22.1', cache: 'npm' }
       - run: npm ci
       - run: npm run build
       - name: Run security tests
@@ -87,7 +87,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
-        with: { node-version: '24.13.0', cache: 'npm' }
+        with: { node-version: '24.22.1', cache: 'npm' }
       - run: npm ci
       - run: npm run build
       - name: Run tools, transport, metrics tests
@@ -114,7 +114,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
-        with: { node-version: '24.13.0', cache: 'npm' }
+        with: { node-version: '24.22.1', cache: 'npm' }
       - run: npm ci
       - run: npm run build
       - name: Run root-level MCP tests
@@ -144,7 +144,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
-        with: { node-version: '24.13.0', cache: 'npm' }
+        with: { node-version: '24.22.1', cache: 'npm' }
       - run: npm ci
       # C3: integration tests under tests/integration/mcp drive the BUILT
       # bundles (dist/cli + dist/mcp). Without this build step they were
@@ -186,7 +186,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
-        with: { node-version: '24.13.0', cache: 'npm' }
+        with: { node-version: '24.22.1', cache: 'npm' }
       - run: npm ci
       - run: npm run build
 
