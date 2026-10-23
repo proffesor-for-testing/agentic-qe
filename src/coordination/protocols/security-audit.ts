@@ -363,10 +363,15 @@ export class SecurityAuditProtocol {
         const dastResult = await this.runDASTScan(this.config.targetUrl);
         if (dastResult.success) {
           this.currentAudit = { ...this.currentAudit, dastResult: dastResult.value };
+          if (dastResult.value.status !== 'complete') {
+            this.recordIncompleteCheck(`DAST scan is incomplete: ${dastResult.value.error ?? 'some requests were not answered'}`);
+          }
           this.recordIncompleteCheck('DAST coverage is unverified: the scanner returned no execution receipt');
           await this.publishVulnerabilities(dastResult.value.vulnerabilities);
         } else {
-          this.recordIncompleteCheck('DAST scan did not complete');
+          // #1135: keep the scanner's reason (DAST_AUTHENTICATION_FAILED, DAST_TARGET_UNAVAILABLE, ...).
+          const code = (dastResult.error as { code?: unknown }).code;
+          this.recordIncompleteCheck(`DAST scan did not complete${typeof code === 'string' ? ` (${code})` : ''}: ${dastResult.error.message}`);
         }
       } else if (auditOptions.includeDAST) {
         this.recordIncompleteCheck('DAST requested without a target URL');
@@ -590,6 +595,8 @@ export class SecurityAuditProtocol {
         if (scanResult.success) {
           return ok(scanResult.value);
         }
+        // #1135: the scanner's own failure, with its code, not a generic "unavailable".
+        return err(scanResult.error);
       } catch (scannerError) {
         // Scanner unavailable - log error
         await this.memory.set(

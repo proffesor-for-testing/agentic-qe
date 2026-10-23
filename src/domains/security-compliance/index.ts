@@ -118,6 +118,8 @@ export type {
   // Scan Results
   SASTResult,
   DASTResult,
+  DASTScanStatus,
+  DASTRequestFailure,
   DASTOptions,
   DependencyScanResult,
   SecretScanResult,

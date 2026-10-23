@@ -129,17 +129,14 @@ describe('DASTScanner', () => {
       }
     });
 
-    it('should_reportInvalidUrl_when_malformedUrlProvided', async () => {
+    it('should_failValidation_when_malformedUrlProvided', async () => {
       // Act
       const result = await scanner.scanUrl('not-a-valid-url');
 
-      // Assert
-      expect(result.success).toBe(true);
-      if (result.success) {
-        const invalidVulns = result.value.vulnerabilities.filter(
-          (v) => v.title === 'Invalid Target URL'
-        );
-        expect(invalidVulns.length).toBe(1);
+      // Assert: #1135 — a validation error, not a completed scan with a synthetic finding
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toMatchObject({ code: 'DAST_INVALID_TARGET' });
       }
     });
 
@@ -163,7 +160,8 @@ describe('DASTScanner', () => {
         expect.any(String),
         'dast',
         expect.any(Array),
-        expect.any(Object)
+        expect.any(Object),
+        { status: 'complete', failedRequests: [] }
       );
     });
 

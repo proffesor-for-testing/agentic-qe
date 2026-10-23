@@ -237,12 +237,34 @@ export interface DASTOptions {
   readonly timeout?: number;
 }
 
+/**
+ * Completeness of a DAST scan (#1135), on the model of DependencyScanStatus (#1049).
+ * - complete: every planned request was answered; the findings (or none) are a measurement.
+ * - incomplete: the target answered, some probes did not; the findings are real, the rest is unmeasured.
+ * - failed: the target could not be scanned. Never read as "no findings".
+ */
+export type DASTScanStatus = 'complete' | 'incomplete' | 'failed';
+
+/** A DAST request the target did not answer (#1135). */
+export interface DASTRequestFailure {
+  /** Origin and path of the request; query strings and credentials are not kept. */
+  readonly url: string;
+  /** DAST_REQUEST_FAILED, DAST_REQUEST_TIMEOUT, DAST_TLS_FAILED, DAST_RATE_LIMITED, ... */
+  readonly code: string;
+  readonly reason: string;
+}
+
 export interface DASTResult {
   readonly scanId: string;
   readonly targetUrl: string;
   readonly vulnerabilities: Vulnerability[];
   readonly summary: ScanSummary;
   readonly crawledUrls: number;
+  readonly status: DASTScanStatus;
+  /** Requests the target did not answer; non-empty means the scan is not complete. */
+  readonly failedRequests: DASTRequestFailure[];
+  /** Why the scan is incomplete/failed; absent when complete. */
+  readonly error?: string;
 }
 
 export interface AuthCredentials {
@@ -316,8 +338,13 @@ export interface PackageSecurityInfo {
   readonly name: string;
   readonly version: string;
   readonly vulnerabilities: Vulnerability[];
-  readonly latestVersion: string;
-  readonly isDeprecated: boolean;
+  /** null when the registry lookup failed (#1052). */
+  readonly latestVersion: string | null;
+  /** null when deprecation could not be checked, never `false` (#1052). */
+  readonly isDeprecated: boolean | null;
+  /** incomplete when a registry lookup failed; `unchecked` says which and why. */
+  readonly status: 'complete' | 'incomplete';
+  readonly unchecked?: string[];
 }
 
 export interface OutdatedPackage {
@@ -330,9 +357,13 @@ export interface OutdatedPackage {
 export interface UpgradeRecommendation {
   readonly package: string;
   readonly fromVersion: string;
-  readonly toVersion: string;
+  /** null when the registry lookup failed; see `unchecked` (#1052). */
+  readonly toVersion: string | null;
   readonly fixesVulnerabilities: string[];
-  readonly breakingChanges: boolean;
+  /** null when the target version is unknown. */
+  readonly breakingChanges: boolean | null;
+  /** Why no target version could be looked up; absent when it was. */
+  readonly unchecked?: string;
 }
 
 /**
@@ -450,6 +481,8 @@ export interface SecurityAuditReport {
   readonly secretScanResults?: SecretScanResult;
   readonly overallRiskScore: RiskScore;
   readonly recommendations: string[];
+  /** Checks that ran but could not complete (#1052); absent when every included check completed. */
+  readonly incompleteChecks?: string[];
 }
 
 export interface SecretScanResult {

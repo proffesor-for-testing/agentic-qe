@@ -50,13 +50,21 @@ describe('DAST execution completeness on owned loopback targets', () => {
     await assertFailed(scanner, await scanner.scanAuthenticated(url, { type: 'bearer', token: 'fixture' }), 'DAST_TARGET_UNAVAILABLE');
   });
 
-  it('fails the scan when the target disappears after its initial response', async () => {
+  // #1135: the findings from the initial response are kept; the scan is incomplete, not discarded.
+  it('reports the scan incomplete when the target disappears after its initial response', async () => {
     await serve((path, response) => {
       if (path === '/') response.end('<html><a href="/next">next</a></html>');
       else response.destroy();
     });
     const scanner = new DASTScanner(config, memory);
-    await assertFailed(scanner, await scanner.scanUrl(url, { activeScanning: true }), 'DAST_REQUEST_FAILED');
+    const result = await scanner.scanUrl(url, { activeScanning: true });
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.value.status).toBe('incomplete');
+    expect(result.value.failedRequests.length).toBeGreaterThan(0);
+    expect(result.value.failedRequests.every(failure => failure.code === 'DAST_REQUEST_FAILED')).toBe(true);
+    expect(result.value.failedRequests.map(failure => failure.url)).toContain(`${url}/next`);
+    expect(result.value.vulnerabilities).toContainEqual(expect.objectContaining({ title: 'Missing HSTS Header' }));
   });
 
   it('retains successful scans when optional paths respond with HTTP 404', async () => {

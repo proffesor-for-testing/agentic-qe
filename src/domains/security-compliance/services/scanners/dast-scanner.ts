@@ -13,6 +13,7 @@ import type {
   AuthCredentials,
   MemoryBackend,
   ScanStatus,
+  DASTRequestFailure,
 } from './scanner-types.js';
 import { toError } from '@shared/error-utils.js';
 import { fetchWithResponseDeadline } from '@shared/llm/providers/response-deadline.js';
@@ -33,20 +34,30 @@ import {
   calculateSummary,
   storeScanResults,
 } from './dast-helpers.js';
+import {
+  assertScannableResponse,
+  dastError,
+  dastRequestFailure,
+  isDastError,
+  parseDastTarget,
+  summarizeFailures,
+  unansweredStatus,
+} from './dast-requests.js';
 
 // ============================================================================
 // DAST Scanner Service
 // ============================================================================
 
-/** Transport failures are execution errors, not absence of vulnerabilities. */
-function dastRequestFailure(error: unknown): Error {
-  if (error instanceof Error && 'code' in error && ['DAST_AUTHENTICATION_FAILED', 'DAST_TARGET_UNAVAILABLE'].includes(String(error.code))) return error;
-  const timeout = error instanceof Error && /timeout|abort/i.test(error.message);
-  return Object.assign(new Error(timeout
-    ? 'DAST target request timeout; dynamic analysis is incomplete'
-    : 'DAST target request failed; dynamic analysis is incomplete'), {
-    code: timeout ? 'DAST_REQUEST_TIMEOUT' : 'DAST_REQUEST_FAILED',
-  });
+/** A bug in the analysis code is not a request failure (#1135). */
+function dastAnalysisFailure(error: unknown): Error {
+  if (isDastError(error)) return error;
+  return dastError(`DAST analysis failed (${toError(error).message}); dynamic analysis is incomplete`, 'DAST_ANALYSIS_FAILED', error);
+}
+
+interface DynamicScanOutcome {
+  vulnerabilities: Vulnerability[];
+  crawledUrls: number;
+  failedRequests: DASTRequestFailure[];
 }
 
 
@@ -122,18 +133,13 @@ export class DASTScanner {
         scanDurationMs
       );
 
-      // Store results
-      await storeScanResults(this.memory, scanId, 'dast', result.vulnerabilities, summary);
+      const dastResult = this.toResult(scanId, targetUrl, result, summary);
+      await storeScanResults(this.memory, scanId, 'dast', result.vulnerabilities, summary,
+        { status: dastResult.status, failedRequests: dastResult.failedRequests });
 
       this.activeScans.set(scanId, 'completed');
 
-      return ok({
-        scanId,
-        targetUrl,
-        vulnerabilities: result.vulnerabilities,
-        summary,
-        crawledUrls: result.crawledUrls,
-      });
+      return ok(dastResult);
     } catch (error) {
       this.activeScans.set(scanId, 'failed');
       return err(toError(error));
@@ -183,17 +189,13 @@ export class DASTScanner {
       );
 
       // Store results (without credentials)
-      await storeScanResults(this.memory, scanId, 'dast-auth', result.vulnerabilities, summary);
+      const dastResult = this.toResult(scanId, targetUrl, result, summary);
+      await storeScanResults(this.memory, scanId, 'dast-auth', result.vulnerabilities, summary,
+        { status: dastResult.status, failedRequests: dastResult.failedRequests });
 
       this.activeScans.set(scanId, 'completed');
 
-      return ok({
-        scanId,
-        targetUrl,
-        vulnerabilities: result.vulnerabilities,
-        summary,
-        crawledUrls: result.crawledUrls,
-      });
+      return ok(dastResult);
     } catch (error) {
       this.activeScans.set(scanId, 'failed');
       return err(toError(error));
@@ -207,6 +209,24 @@ export class DASTScanner {
     return this.activeScans.get(scanId) ?? 'pending';
   }
 
+  /**
+   * #1135: probes the target did not answer leave the scan incomplete. The
+   * findings already collected are real and kept; the failed URLs are listed.
+   */
+  private toResult(scanId: string, targetUrl: string, outcome: DynamicScanOutcome, summary: DASTResult['summary']): DASTResult {
+    const { failedRequests } = outcome;
+    return {
+      scanId,
+      targetUrl,
+      vulnerabilities: outcome.vulnerabilities,
+      summary,
+      crawledUrls: outcome.crawledUrls,
+      status: failedRequests.length > 0 ? 'incomplete' : 'complete',
+      failedRequests,
+      ...(failedRequests.length > 0 ? { error: summarizeFailures(failedRequests) } : {}),
+    };
+  }
+
   // ==========================================================================
   // Private Methods - Dynamic Scanning
   // ==========================================================================
@@ -217,105 +237,76 @@ export class DASTScanner {
   private async performDynamicScan(
     targetUrl: string,
     options: DASTOptions
-  ): Promise<{ vulnerabilities: Vulnerability[]; crawledUrls: number }> {
+  ): Promise<DynamicScanOutcome> {
     const vulnerabilities: Vulnerability[] = [];
-    let crawledUrls = 0;
+    const failedRequests: DASTRequestFailure[] = [];
+    const parsedUrl = parseDastTarget(targetUrl);
+    const timeout = options.timeout ?? this.config.timeout;
+    const maxDepth = options.maxDepth ?? this.config.dastMaxDepth;
+    const activeScanning = options.activeScanning ?? this.config.dastActiveScanning;
 
+    // Perform main page scan. #980: the deadline must cover the body too —
+    // the target is untrusted and may send headers and then stall the body,
+    // so it stays armed until `response.text()` below has finished.
+    const deadlineMs = Math.min(timeout, 30000);
+    let response: Response;
+    let responseText = '';
     try {
-      // Validate and parse URL
-      let parsedUrl: URL;
-      try {
-        parsedUrl = new URL(targetUrl);
-      } catch {
-        vulnerabilities.push(this.createInvalidUrlVuln(targetUrl));
-        return { vulnerabilities, crawledUrls: 0 };
-      }
-
-      const timeout = options.timeout ?? this.config.timeout;
-      const maxDepth = options.maxDepth ?? this.config.dastMaxDepth;
-
-      // Perform main page scan. #980: the deadline must cover the body too —
-      // the target is untrusted and may send headers and then stall the body,
-      // so it stays armed until `response.clone().text()` below has finished.
-      const deadlineMs = Math.min(timeout, 30000);
-
-      try {
-        const response = await fetchWithResponseDeadline(
-          targetUrl,
-          {
-            method: 'GET',
-            headers: {
-              'User-Agent': 'AgenticQE-DAST-Scanner/3.0',
-              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            },
-            redirect: 'follow',
+      response = await fetchWithResponseDeadline(
+        targetUrl,
+        {
+          method: 'GET',
+          headers: {
+            'User-Agent': 'AgenticQE-DAST-Scanner/3.0',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           },
-          deadlineMs,
-          () => new Error(`DAST request timeout after ${deadlineMs}ms: ${targetUrl}`),
-        );
-
-        if (response.status === 401 || response.status === 403 || response.status >= 500) {
-          await response.body?.cancel().catch(() => undefined);
-          throw Object.assign(new Error(`DAST ${response.status < 500 ? 'authentication rejected' : 'target unavailable'} (HTTP ${response.status}); dynamic analysis is incomplete`), {
-            code: response.status < 500 ? 'DAST_AUTHENTICATION_FAILED' : 'DAST_TARGET_UNAVAILABLE',
-          });
-        }
-
-        crawledUrls++;
-
-        // Security header analysis
-        analyzeSecurityHeaders(response.headers, targetUrl, vulnerabilities);
-
-        // Check for insecure protocol
-        if (parsedUrl.protocol === 'http:') {
-          vulnerabilities.push(this.createInsecureProtocolVuln(targetUrl));
-        }
-
-        // Check for cookie security
-        analyzeCookieSecurity(response.headers, targetUrl, vulnerabilities);
-
-        // Check for server version disclosure
-        analyzeServerHeaders(response.headers, targetUrl, vulnerabilities);
-
-        // Active scanning features
-        if (options.activeScanning ?? this.config.dastActiveScanning) {
-          // Read the page body first, inside the request deadline (#980), so the
-          // slower probes below cannot use up the deadline of a healthy target.
-          const responseText = await response.text();
-
-          crawledUrls = await scanSensitiveFiles(parsedUrl, crawledUrls, maxDepth, vulnerabilities);
-          await analyzeCORS(targetUrl, vulnerabilities);
-
-          // Enhanced DAST: Link crawling, injection testing, form analysis
-
-          crawledUrls = await extractAndCrawlLinks(
-            responseText,
-            parsedUrl,
-            crawledUrls,
-            maxDepth,
-            vulnerabilities
-          );
-
-          if (parsedUrl.search) {
-            await this.testInjectionVulnerabilities(targetUrl, parsedUrl, vulnerabilities);
-          }
-
-          analyzeFormsForSecurityIssues(responseText, targetUrl, vulnerabilities);
-        } else {
-          // Passive scan: headers only. Release the connection instead of
-          // leaving an unread body to the deadline timer.
-          await response.body?.cancel().catch(() => undefined);
-        }
-
-      } catch (fetchError) {
-        throw dastRequestFailure(fetchError);
+          redirect: 'follow',
+        },
+        deadlineMs,
+        () => new Error(`DAST request timeout after ${deadlineMs}ms: ${targetUrl}`),
+      );
+      if (unansweredStatus(response.status)) {
+        await response.body?.cancel().catch(() => undefined);
+        assertScannableResponse(response.status);
       }
-
-    } catch (error) {
-      throw toError(error);
+      if (activeScanning) {
+        // Read the page body first, inside the request deadline (#980), so the
+        // slower probes below cannot use up the deadline of a healthy target.
+        responseText = await response.text();
+      } else {
+        // Passive scan: headers only. Release the connection instead of
+        // leaving an unread body to the deadline timer.
+        await response.body?.cancel().catch(() => undefined);
+      }
+    } catch (fetchError) {
+      throw dastRequestFailure(fetchError);
     }
 
-    return { vulnerabilities, crawledUrls };
+    let crawledUrls = 1;
+    try {
+      analyzeSecurityHeaders(response.headers, targetUrl, vulnerabilities);
+      if (parsedUrl.protocol === 'http:') {
+        vulnerabilities.push(this.createInsecureProtocolVuln(targetUrl));
+      }
+      analyzeCookieSecurity(response.headers, targetUrl, vulnerabilities);
+      analyzeServerHeaders(response.headers, targetUrl, vulnerabilities);
+
+      if (activeScanning) {
+        // #1135: a probe the target does not answer is recorded and the scan
+        // continues; the result is then incomplete, not discarded.
+        crawledUrls = await scanSensitiveFiles(parsedUrl, crawledUrls, maxDepth, vulnerabilities, failedRequests);
+        await analyzeCORS(targetUrl, vulnerabilities, failedRequests);
+        crawledUrls = await extractAndCrawlLinks(responseText, parsedUrl, crawledUrls, maxDepth, vulnerabilities, failedRequests);
+        if (parsedUrl.search) {
+          await this.testInjectionVulnerabilities(targetUrl, parsedUrl, vulnerabilities, failedRequests);
+        }
+        analyzeFormsForSecurityIssues(responseText, targetUrl, vulnerabilities);
+      }
+    } catch (error) {
+      throw dastAnalysisFailure(error);
+    }
+
+    return { vulnerabilities, crawledUrls, failedRequests };
   }
 
   /**
@@ -325,99 +316,68 @@ export class DASTScanner {
     targetUrl: string,
     credentials: AuthCredentials,
     options: DASTOptions
-  ): Promise<{ vulnerabilities: Vulnerability[]; crawledUrls: number }> {
+  ): Promise<DynamicScanOutcome> {
     const vulnerabilities: Vulnerability[] = [];
-    let crawledUrls = 0;
+    const failedRequests: DASTRequestFailure[] = [];
+    const authHeaders = buildAuthHeaders(credentials);
+    const parsedUrl = parseDastTarget(targetUrl);
+    const timeout = options.timeout ?? this.config.timeout;
+    const maxDepth = options.maxDepth ?? this.config.dastMaxDepth;
 
+    // #980 review N8: same deadline treatment as the unauthenticated scan.
+    // This path reads headers only; the unread body is cancelled below so
+    // a target that stalls it cannot hold the connection open.
+    const deadlineMs = Math.min(timeout, 30000);
+    let response: Response;
     try {
-      const authHeaders = buildAuthHeaders(credentials);
-
-      let parsedUrl: URL;
-      try {
-        parsedUrl = new URL(targetUrl);
-      } catch {
-        vulnerabilities.push(this.createInvalidUrlVuln(targetUrl));
-        return { vulnerabilities, crawledUrls: 0 };
-      }
-
-      const timeout = options.timeout ?? this.config.timeout;
-      const maxDepth = options.maxDepth ?? this.config.dastMaxDepth;
-
-      // #980 review N8: same deadline treatment as the unauthenticated scan.
-      // This path reads headers only; the unread body is cancelled below so
-      // a target that stalls it cannot hold the connection open.
-      const deadlineMs = Math.min(timeout, 30000);
-
-      try {
-        const response = await fetchWithResponseDeadline(
-          targetUrl,
-          {
-            method: 'GET',
-            headers: {
-              'User-Agent': 'AgenticQE-DAST-Scanner/3.0',
-              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-              ...authHeaders,
-            },
-            redirect: 'follow',
+      response = await fetchWithResponseDeadline(
+        targetUrl,
+        {
+          method: 'GET',
+          headers: {
+            'User-Agent': 'AgenticQE-DAST-Scanner/3.0',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            ...authHeaders,
           },
-          deadlineMs,
-          () => new Error(`DAST request timeout after ${deadlineMs}ms: ${targetUrl}`),
-        );
-        await response.body?.cancel().catch(() => undefined);
-
-        if (response.status === 401 || response.status === 403 || response.status >= 500) {
-          await response.body?.cancel().catch(() => undefined);
-          throw Object.assign(new Error(`DAST ${response.status < 500 ? 'authentication rejected' : 'target unavailable'} (HTTP ${response.status}); dynamic analysis is incomplete`), {
-            code: response.status < 500 ? 'DAST_AUTHENTICATION_FAILED' : 'DAST_TARGET_UNAVAILABLE',
-          });
-        }
-
-        crawledUrls++;
-
-        // Standard security header checks
-        analyzeSecurityHeaders(response.headers, targetUrl, vulnerabilities, true);
-
-        // Check for session token in URL
-        if (parsedUrl.search.includes('token=') || parsedUrl.search.includes('session=') || parsedUrl.search.includes('auth=')) {
-          vulnerabilities.push(this.createTokenInUrlVuln(targetUrl, parsedUrl.search));
-        }
-
-        // Active scanning for authenticated endpoints
-        if (options.activeScanning ?? this.config.dastActiveScanning) {
-          crawledUrls = await testAuthorizationBypass(parsedUrl, authHeaders, crawledUrls, maxDepth, vulnerabilities);
-          crawledUrls = await testIDOR(parsedUrl, authHeaders, crawledUrls, maxDepth, vulnerabilities);
-        }
-
-        // Enhanced cookie security for authenticated sessions
-        analyzeCookieSecurity(response.headers, targetUrl, vulnerabilities, true);
-
-      } catch (fetchError) {
-        throw dastRequestFailure(fetchError);
-      }
-
-    } catch (error) {
-      throw toError(error);
+          redirect: 'follow',
+        },
+        deadlineMs,
+        () => new Error(`DAST request timeout after ${deadlineMs}ms: ${targetUrl}`),
+      );
+      await response.body?.cancel().catch(() => undefined);
+      assertScannableResponse(response.status);
+    } catch (fetchError) {
+      throw dastRequestFailure(fetchError);
     }
 
-    return { vulnerabilities, crawledUrls };
+    let crawledUrls = 1;
+    try {
+      // Standard security header checks
+      analyzeSecurityHeaders(response.headers, targetUrl, vulnerabilities, true);
+
+      // Check for session token in URL
+      if (parsedUrl.search.includes('token=') || parsedUrl.search.includes('session=') || parsedUrl.search.includes('auth=')) {
+        vulnerabilities.push(this.createTokenInUrlVuln(targetUrl, parsedUrl.search));
+      }
+
+      // Active scanning for authenticated endpoints
+      if (options.activeScanning ?? this.config.dastActiveScanning) {
+        crawledUrls = await testAuthorizationBypass(parsedUrl, authHeaders, crawledUrls, maxDepth, vulnerabilities, failedRequests);
+        crawledUrls = await testIDOR(parsedUrl, authHeaders, crawledUrls, maxDepth, vulnerabilities, failedRequests);
+      }
+
+      // Enhanced cookie security for authenticated sessions
+      analyzeCookieSecurity(response.headers, targetUrl, vulnerabilities, true);
+    } catch (error) {
+      throw dastAnalysisFailure(error);
+    }
+
+    return { vulnerabilities, crawledUrls, failedRequests };
   }
 
   // ==========================================================================
   // Private Methods - Vulnerability Factories
   // ==========================================================================
-
-  private createInvalidUrlVuln(targetUrl: string): Vulnerability {
-    return {
-      id: uuidv4(),
-      title: 'Invalid Target URL',
-      description: 'The provided target URL is not valid',
-      severity: 'informational',
-      category: 'security-misconfiguration',
-      location: { file: targetUrl },
-      remediation: { description: 'Provide a valid URL', estimatedEffort: 'trivial', automatable: false },
-      references: [],
-    };
-  }
 
   private createInsecureProtocolVuln(targetUrl: string): Vulnerability {
     return {
@@ -455,7 +415,8 @@ export class DASTScanner {
   private async testInjectionVulnerabilities(
     targetUrl: string,
     parsedUrl: URL,
-    vulnerabilities: Vulnerability[]
+    vulnerabilities: Vulnerability[],
+    failures: DASTRequestFailure[]
   ): Promise<void> {
     const params = new URLSearchParams(parsedUrl.search);
     const paramNames = Array.from(params.keys());
@@ -473,8 +434,8 @@ export class DASTScanner {
     ];
 
     for (const paramName of paramNames.slice(0, 3)) {
-      await testXSS(targetUrl, parsedUrl, paramName, xssPayloads, vulnerabilities);
-      await testSQLi(targetUrl, parsedUrl, paramName, sqliPayloads, vulnerabilities);
+      await testXSS(targetUrl, parsedUrl, paramName, xssPayloads, vulnerabilities, failures);
+      await testSQLi(targetUrl, parsedUrl, paramName, sqliPayloads, vulnerabilities, failures);
     }
   }
 }

@@ -4,7 +4,8 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import type { Vulnerability } from './scanner-types.js';
+import type { Vulnerability, DASTRequestFailure } from './scanner-types.js';
+import { probe } from './dast-requests.js';
 
 // ============================================================================
 // Injection Testing
@@ -18,21 +19,22 @@ export async function testXSS(
   parsedUrl: URL,
   paramName: string,
   payloads: Array<{ payload: string; name: string }>,
-  vulnerabilities: Vulnerability[]
+  vulnerabilities: Vulnerability[],
+  failures?: DASTRequestFailure[]
 ): Promise<void> {
   for (const xss of payloads) {
     const testParams = new URLSearchParams(parsedUrl.search);
     testParams.set(paramName, xss.payload);
     const testUrl = `${parsedUrl.origin}${parsedUrl.pathname}?${testParams.toString()}`;
 
-    const response = await fetch(testUrl, {
+    const response = await probe(testUrl, {
       method: 'GET',
       headers: { 'User-Agent': 'AgenticQE-DAST-Scanner/3.0' },
       signal: AbortSignal.timeout(5000),
-    });
+    }, failures);
 
-    if (response.ok) {
-      const text = await response.text();
+    if (response?.ok) {
+      const text = response.text;
       const escapedPayload = xss.payload
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
@@ -68,7 +70,8 @@ export async function testSQLi(
   parsedUrl: URL,
   paramName: string,
   payloads: Array<{ payload: string; name: string }>,
-  vulnerabilities: Vulnerability[]
+  vulnerabilities: Vulnerability[],
+  failures?: DASTRequestFailure[]
 ): Promise<void> {
   const sqlErrorPatterns = [
     /SQL syntax.*MySQL/i,
@@ -86,13 +89,15 @@ export async function testSQLi(
     testParams.set(paramName, sqli.payload);
     const testUrl = `${parsedUrl.origin}${parsedUrl.pathname}?${testParams.toString()}`;
 
-    const response = await fetch(testUrl, {
+    // SQL errors often come back as HTTP 500: that body is analysed.
+    const response = await probe(testUrl, {
       method: 'GET',
       headers: { 'User-Agent': 'AgenticQE-DAST-Scanner/3.0' },
       signal: AbortSignal.timeout(5000),
-    });
+    }, failures, { analyzeServerErrors: true });
+    if (!response) continue;
 
-    const text = await response.text();
+    const text = response.text;
 
     for (const pattern of sqlErrorPatterns) {
       if (pattern.test(text)) {
