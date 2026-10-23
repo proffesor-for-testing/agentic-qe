@@ -171,10 +171,14 @@ Examples:
           });
 
           if (result.success && result.value) {
-            const search = result.value as { results: Array<{ file: string; line?: number; snippet: string; score: number }>; total: number; searchTime: number };
+            const search = result.value as { results: Array<{ file: string; line?: number; snippet: string; score: number }>; total: number; searchTime: number; mode?: string; reason?: string };
             if (format === 'json') {
               writeOutput(toJSON(search), options.output);
             } else {
+              // #1224: say when no embedding model ranked the results.
+              if (search.mode === 'lexical-only') {
+                console.log(chalk.yellow(`  Text match only (no vector search): ${search.reason}\n`));
+              }
               console.log(chalk.green(`Found ${search.total} results (${search.searchTime}ms)\n`));
 
               for (const r of search.results) {
@@ -185,7 +189,9 @@ Examples:
               }
             }
           } else {
+            // #1224: a search that could not run (e.g. nothing indexed) is a failed command.
             console.log(chalk.red(`Failed: ${result.error?.message || 'Unknown error'}`));
+            return await cleanupAndExit(1);
           }
 
         } else if (action === 'impact') {

@@ -16,8 +16,8 @@ import type { KnowledgeGraphService } from '../../domains/code-intelligence';
 import type { ICodeIntelligenceCoordinator } from '../../domains/code-intelligence/coordinator';
 import type { QualityAnalyzerService } from '../../domains/quality-assessment';
 
-/** The coordinator surface the MCP index-code handler needs (#999). */
-export type ProjectMetricsCollector = Pick<ICodeIntelligenceCoordinator, 'collectProjectMetrics'>;
+/** The coordinator surface the MCP index-code handler needs (#999, #1224). */
+export type ProjectMetricsCollector = Pick<ICodeIntelligenceCoordinator, 'collectProjectMetrics' | 'indexForSearch'>;
 
 /** Signature of a single task handler */
 export type InstanceTaskHandler = (task: QueenTask) => Promise<Result<unknown, Error>>;

@@ -48,7 +48,6 @@ import {
   DependencyMap,
   KGQueryRequest,
   KGQueryResult,
-  SearchResult,
 } from './interfaces';
 import {
   KnowledgeGraphService,
@@ -151,6 +150,13 @@ export interface ICodeIntelligenceCoordinator extends CodeIntelligenceAPI {
    * @param projectPath - Path to the project root
    */
   collectProjectMetrics(projectPath: string): Promise<Result<ProjectMetrics, Error>>;
+
+  /**
+   * #1224: make indexed files searchable by `search()`. Indexing paths that
+   * only fill the knowledge graph (MCP code_index) call this so a later search
+   * reads the same project.
+   */
+  indexForSearch(paths: string[]): Promise<SearchIndexSummary>;
 
   /**
    * V3: Find untested functions using hypergraph analysis (GOAP Action 7)
@@ -272,6 +278,15 @@ type CodeIntelligenceWorkflowType = 'index' | 'search' | 'impact' | 'dependency'
  * CQ-002: Extends BaseDomainCoordinator
  */
 const logger = LoggerFactory.create('code-intelligence');
+
+/** Files made searchable per index run (content, plus vectors with an embedding model). */
+const SEARCH_INDEX_FILE_LIMIT = 100;
+
+/** #1224: what an index run made searchable. */
+export interface SearchIndexSummary {
+  searchable: number;
+  warnings: string[];
+}
 
 export class CodeIntelligenceCoordinator
   extends BaseDomainCoordinator<CoordinatorConfig, CodeIntelligenceWorkflowType>
@@ -604,9 +619,12 @@ export class CodeIntelligenceCoordinator
 
         this.updateWorkflowProgress(workflowId, 70);
 
-        // Index content for semantic search
+        // Index content for search
         if (indexedPaths.length > 0) {
-          await this.indexForSemanticSearch(indexedPaths);
+          const searchIndex = await this.indexForSearch(indexedPaths);
+          if (searchIndex.warnings.length > 0) {
+            result.value.warnings = [...(result.value.warnings ?? []), ...searchIndex.warnings];
+          }
         }
 
         this.updateWorkflowProgress(workflowId, 85);
@@ -696,24 +714,11 @@ export class CodeIntelligenceCoordinator
         }
       }
 
-      // V3: Use GNN for enhanced code similarity search
-      let gnnResults: Array<{ file: string; similarity: number }> = [];
-      if (this.config.enableGNN && this.gnnIndex) {
-        gnnResults = await this.searchCodeWithGNN(request);
-      }
-
-      // Perform search
+      // Perform search. #1224: GNN feature-hash neighbours are not merged in;
+      // they do not depend on the query and carried no file name or snippet.
       const result = await this.semanticAnalyzer.search(request);
 
       if (result.success) {
-        // Merge GNN results with semantic search results
-        if (gnnResults.length > 0) {
-          result.value.results = this.mergeSearchResults(
-            result.value.results,
-            gnnResults
-          );
-        }
-
         this.completeWorkflow(workflowId);
 
         // Publish events
@@ -879,13 +884,6 @@ export class CodeIntelligenceCoordinator
     await GNNHelpers.indexCodeEmbeddings(this.gnnIndex, this.fileReader, paths);
   }
 
-  private async searchCodeWithGNN(
-    request: SearchRequest
-  ): Promise<Array<{ file: string; similarity: number }>> {
-    if (!this.gnnIndex || !this.rlInitialized) return [];
-    return GNNHelpers.searchCodeWithGNN(this.gnnIndex, request.query);
-  }
-
   private async enhanceImpactAnalysisWithGNN(request: ImpactRequest): Promise<void> {
     if (!this.gnnIndex || !this.rlInitialized) return;
     await GNNHelpers.enhanceImpactAnalysisWithGNN(this.gnnIndex, this.fileReader, request);
@@ -996,16 +994,6 @@ export class CodeIntelligenceCoordinator
   // ============================================================================
   // Helper Methods
   // ============================================================================
-
-  /**
-   * Merge search results from semantic search and GNN
-   */
-  private mergeSearchResults(
-    semanticResults: SearchResult[],
-    gnnResults: Array<{ file: string; similarity: number }>
-  ): SearchResult[] {
-    return GNNHelpers.mergeSearchResults(semanticResults, gnnResults);
-  }
 
   private hashCode(str: string): number {
     return GNNHelpers.hashCode(str);
@@ -1188,22 +1176,35 @@ export class CodeIntelligenceCoordinator
   // Helper Methods
   // ============================================================================
 
-  private async indexForSemanticSearch(paths: string[]): Promise<void> {
-    // Index a subset of files for semantic search
+  async indexForSearch(paths: string[]): Promise<SearchIndexSummary> {
+    // Index a subset of files for search
     // Limit to 100 files for performance in a single batch
-    const filesToIndex = paths.slice(0, 100);
+    const filesToIndex = paths.slice(0, SEARCH_INDEX_FILE_LIMIT);
+    let searchable = 0;
 
     for (const path of filesToIndex) {
       try {
         // Read actual file content
         const result = await this.fileReader.readFile(path);
         if (result.success && result.value) {
-          await this.semanticAnalyzer.indexCode(path, result.value);
+          const indexed = await this.semanticAnalyzer.indexCode(path, result.value);
+          if (indexed.success) searchable++;
         }
       } catch {
         // Continue on error - file may not exist or be unreadable
       }
     }
+
+    // #1224: say when search will not see every indexed file.
+    const warnings: string[] = [];
+    if (searchable < paths.length) {
+      warnings.push(
+        `Search covers ${searchable} of ${paths.length} indexed files` +
+        (paths.length > SEARCH_INDEX_FILE_LIMIT ? ` (at most ${SEARCH_INDEX_FILE_LIMIT} per index run)` : '') +
+        '; code in the other files is not found by search.',
+      );
+    }
+    return { searchable, warnings };
   }
 
   // ============================================================================

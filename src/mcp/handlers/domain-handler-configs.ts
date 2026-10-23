@@ -333,6 +333,11 @@ export interface CodeIndexResult {
     toolsUsed: string[];
   };
   /**
+   * #1224: non-fatal indexing warnings, e.g. that code search does not cover
+   * every indexed file. Absent when there are none.
+   */
+  warnings?: string[];
+  /**
    * #1096: discovered paths that were not indexed (missing, not a regular
    * file, outside the project root, filtered out), with the reason. Absent
    * when every discovered file was indexed.
@@ -1204,6 +1209,9 @@ export const codeIndexConfig: DomainHandlerConfig<CodeIndexParams, CodeIndexResu
     symbolsExtracted: (data.symbolsExtracted as number) || 0,
     relationsFound: (data.relationsFound as number) || 0,
     ...(data.projectMetrics ? { projectMetrics: data.projectMetrics as CodeIndexResult['projectMetrics'] } : {}),
+    ...(Array.isArray(data.warnings) && data.warnings.length > 0
+      ? { warnings: data.warnings as string[] }
+      : {}),
     ...(Array.isArray(data.skipped) && data.skipped.length > 0
       ? { skipped: data.skipped as CodeIndexResult['skipped'] }
       : {}),

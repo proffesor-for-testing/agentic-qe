@@ -67,6 +67,23 @@ async function confineTarget(taskType: string, target: string | undefined): Prom
   return requirePayloadPath(taskType, 'target', target, { allowDirectory: true, allowMissing: true });
 }
 
+/**
+ * #1224: index the files for the code-intelligence search (the index the
+ * Queen's `search` task reads), not only the knowledge graph. Returns warnings
+ * for the index result.
+ */
+async function indexFilesForSearch(ctx: TaskHandlerContext, indexedFiles: string[]): Promise<string[]> {
+  const unavailable = 'Search index not updated: the code-intelligence domain is unavailable, so a code search will not find these files.';
+  if (!ctx.getCodeIntelligenceCoordinator) return [unavailable];
+  try {
+    const coordinator = await ctx.getCodeIntelligenceCoordinator();
+    if (!coordinator) return [unavailable];
+    return (await coordinator.indexForSearch(indexedFiles)).warnings;
+  } catch (error) {
+    return [`Search index not updated: ${toError(error).message}`];
+  }
+}
+
 export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void {
   // Register code indexing handler - REAL IMPLEMENTATION
   ctx.registerHandler('index-code', async (task) => {
@@ -135,6 +152,7 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
       // caller's target the way #997 resolves it. Best-effort: indexing has
       // already succeeded, so a metric failure only omits projectMetrics.
       const projectMetrics = await collectProjectMetricsForTarget(ctx, targetPath, indexedFiles);
+      const searchWarnings = await indexFilesForSearch(ctx, indexedFiles);
 
       // Detect languages from files
       const detectedLanguages = new Set<string>();
@@ -168,7 +186,7 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
         languages: Array.from(detectedLanguages),
         duration: indexResult.duration,
         errors: indexResult.errors,
-        warnings: indexResult.warnings,
+        warnings: [...(indexResult.warnings ?? []), ...searchWarnings],
         skipped: indexResult.skipped ?? [],
         ...(projectMetrics ? { projectMetrics } : {}),
       });

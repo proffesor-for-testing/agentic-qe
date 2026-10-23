@@ -2,7 +2,7 @@
  * Code Intelligence - GNN Integration
  * Extracted from coordinator.ts for CQ-004 (file size reduction)
  *
- * Contains: GNN embedding indexing, code embedding generation, GNN search
+ * Contains: GNN embedding indexing, code embedding generation
  */
 
 import { LoggerFactory } from '../../logging/index.js';
@@ -15,7 +15,7 @@ import type {
   IEmbedding,
   EmbeddingNamespace,
 } from '../../integrations/embeddings/base/types';
-import type { ImpactRequest, SearchResult } from './interfaces';
+import type { ImpactRequest } from './interfaces';
 import { FileReader } from '../../shared/io';
 import {
   isGraphMAEEnabled,
@@ -203,40 +203,6 @@ export async function generateCodeEmbedding(
 }
 
 /**
- * Search code with GNN for enhanced similarity
- */
-export async function searchCodeWithGNN(
-  gnnIndex: QEGNNEmbeddingIndex,
-  query: string
-): Promise<Array<{ file: string; similarity: number }>> {
-  try {
-    const queryEmbedding = await generateCodeEmbedding('query', query);
-
-    const queryIEmbedding: IEmbedding = {
-      vector: queryEmbedding,
-      dimension: 384,
-      namespace: 'code' as EmbeddingNamespace,
-      text: query,
-      timestamp: Date.now(),
-      quantization: 'none',
-    };
-
-    const results = gnnIndex.search(queryIEmbedding, {
-      limit: 10,
-      namespace: 'code' as EmbeddingNamespace,
-    });
-
-    return results.map((r: { id: number; distance: number; metadata?: { path?: string } }) => ({
-      file: r.metadata?.path ?? `file-${r.id}`,
-      similarity: 1 - r.distance,
-    }));
-  } catch (error) {
-    logger.error('Failed to search with GNN:', error instanceof Error ? error : undefined);
-    return [];
-  }
-}
-
-/**
  * Enhance impact analysis with GNN semantic similarity
  */
 export async function enhanceImpactAnalysisWithGNN(
@@ -271,45 +237,6 @@ export async function enhanceImpactAnalysisWithGNN(
   } catch (error) {
     logger.error('Failed to enhance impact analysis:', error instanceof Error ? error : undefined);
   }
-}
-
-/**
- * Merge search results from semantic search and GNN
- */
-export function mergeSearchResults(
-  semanticResults: SearchResult[],
-  gnnResults: Array<{ file: string; similarity: number }>
-): SearchResult[] {
-  const scoreMap = new Map<string, number>();
-  const resultMap = new Map<string, SearchResult>();
-
-  for (const result of semanticResults) {
-    scoreMap.set(result.file, result.score);
-    resultMap.set(result.file, result);
-  }
-
-  for (const gnnResult of gnnResults) {
-    const existingScore = scoreMap.get(gnnResult.file);
-    if (existingScore !== undefined) {
-      scoreMap.set(gnnResult.file, (existingScore + gnnResult.similarity) / 2);
-    } else {
-      scoreMap.set(gnnResult.file, gnnResult.similarity * 0.8);
-      resultMap.set(gnnResult.file, {
-        file: gnnResult.file,
-        snippet: '',
-        score: gnnResult.similarity * 0.8,
-        highlights: [],
-      });
-    }
-  }
-
-  return Array.from(resultMap.values())
-    .map(result => ({
-      ...result,
-      score: scoreMap.get(result.file) ?? result.score,
-    }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 20);
 }
 
 // R6: ColdTier trainer singleton (lazy-initialized)
