@@ -332,7 +332,10 @@ jobs:
     # journey artifacts. Start alongside them rather than extending the PR path.
     # Full serial V8 instrumentation exceeds ten minutes as the suite grows.
     # Keep a finite bound while allowing the report and threshold steps to run.
-    timeout-minutes: 30
+    # #1201: whole-job runs reached 28 min with the vitest step at its old
+    # 25-min cap, failing PRs whose tests had all passed. Raised until the
+    # coverage run is sharded.
+    timeout-minutes: 40
     if: success() && github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v7
@@ -353,7 +356,7 @@ jobs:
           NODE_OPTIONS: '--max-old-space-size=1024'
           CI: 'true'
           AQE_COVERAGE: 'true'
-          CI_VITEST_TIMEOUT: '1500'
+          CI_VITEST_TIMEOUT: '2100'
       - uses: actions/upload-artifact@v7
         if: always()
         with:
