@@ -35,8 +35,11 @@ const NEEDS_INPUT = [
   ['validate the api contract', 'validate-contracts', 'Use contract_validate'],
   ['validate requirements for login', 'validate-requirements', 'Use requirements_validate'],
   ['test accessibility of https://example.com', 'test-accessibility', 'Use accessibility_test'],
-  // #1125 review: a vague description must not overwrite learned strategies.
-  ['improve the login page performance', 'optimize-learning', 'Use task_submit with type optimize-strategies'],
+  // #1125 review: a description must not overwrite learned strategies.
+  // #1146: only learning wording infers it; "improve ..." alone no longer does.
+  ['optimize the learning strategies', 'optimize-learning', 'Use task_submit with type optimize-strategies'],
+  // #1146: a search is refused as a search, not for lacking files to index.
+  ['semantic search for auth code', 'index-code', 'the description asks for a code search'],
 ] as const;
 
 describe.skipIf(!existsSync(bundle) && !process.env.CI)('MCP task_orchestrate leaves no task running that nothing executes (#1081)', () => {

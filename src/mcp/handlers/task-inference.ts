@@ -67,9 +67,6 @@ export function inferDomainFromDescription(description: string): string {
   return 'test-generation'; // Default
 }
 
-/**
- * Infer task type from description
- */
 // #1130: chaos named as the activity of a test run. The lookaheads keep a
 // path segment or file name (resilience tests/unit/…, src/fault-injection/…,
 // fault-injection.ts) from counting, and "fault injector" names a component.
@@ -79,6 +76,22 @@ const CHAOS_ACTIVITY = new RegExp([
   String.raw`\binject(?:s|ing)?\s+(?:\w+\s+)?faults?\b(?![./\w])`,
 ].join('|'));
 
+// #1146: learning named as the subject ("optimize learning", "learned
+// patterns", "learn from failures"), not any use of "learn/optimize/improve".
+const LEARNING_ACTIVITY = /\b(?:learning|learned|learnt)\b|\blearn\s+from\b/;
+
+/** #1146: a request to search code ("semantic search for auth code", "search the codebase for X"). */
+const CODE_SEARCH = /\b(?:semantic|code)\s+search\b|\bsearch\s+(?:the\s+)?(?:code(?:base)?|repo(?:sitory)?|source(?:\s+code)?)\b|\bsearch\s+for\b/;
+
+/** #1146: a code search that is not also an indexing request. */
+export function isCodeSearch(description: string): boolean {
+  const lower = description.toLowerCase();
+  return CODE_SEARCH.test(lower) && !/\bindex|knowledge\s+graph/.test(lower);
+}
+
+/**
+ * Infer task type from description
+ */
 export function inferTaskType(description: string): TaskType {
   const lower = description.toLowerCase();
 
@@ -125,7 +138,14 @@ export function inferTaskType(description: string): TaskType {
   if (lower.includes('chaos') || lower.includes('resilience') || lower.includes('fault')) {
     return 'run-chaos';
   }
-  if (lower.includes('learn') || lower.includes('optimize') || lower.includes('improve')) {
+  // #1146: a code search is code-intelligence work; routeInferredTask refuses
+  // it with a search-specific reason rather than "no files to index".
+  if (CODE_SEARCH.test(lower)) {
+    return 'index-code';
+  }
+  // #1146: only wording about learning itself. "improve" or "optimize" alone
+  // ("improve test coverage", "optimize the login page") names no learning task.
+  if (LEARNING_ACTIVITY.test(lower)) {
     return 'optimize-learning';
   }
   // QCSD Ideation phase - quality criteria, testability, risk assessment

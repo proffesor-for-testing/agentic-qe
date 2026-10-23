@@ -16,6 +16,7 @@ import type { DomainName } from '../../shared/types/index.js';
 import { findProjectRoot } from '../../kernel/project-root.js';
 import { confineIndexPaths } from '../../domains/code-intelligence/index-path-guard.js';
 import { requirePayloadPath } from '../../shared/io/payload-path-guard.js';
+import { isCodeSearch } from './task-inference.js';
 
 export interface OrchestrateRequest {
   task: string;
@@ -114,7 +115,16 @@ export async function routeInferredTask(type: TaskType, request: OrchestrateRequ
       return { kind: 'route', type: 'sast-scan', domain: 'security-compliance', payload: { files: confined.files } };
     }
 
-    case 'index-code':
+    case 'index-code': {
+      // #1146: a search description ("semantic search for auth code") is not
+      // an index request. Running the domain's search could answer "no
+      // results" for code that exists (#1224), so it is refused with what to
+      // use instead of the misleading "no files to index".
+      if (isCodeSearch(request.task)) {
+        return needs(type, 'the description asks for a code search, which task_orchestrate does not run: the ' +
+          'code-intelligence search can report no results for code that exists (#1224). Search the source ' +
+          'directly (e.g. grep), or use code_index with a target for dependency and impact analysis.');
+      }
       // #1134: indexing reads exactly the files it is given; without them the
       // task could only fail after it was accepted. The indexer confines the
       // paths to the project itself (#1096).
@@ -123,6 +133,7 @@ export async function routeInferredTask(type: TaskType, request: OrchestrateRequ
           'or use code_index with a target.');
       }
       return { kind: 'as-inferred' };
+    }
 
     case 'assess-quality': {
       if (filePaths.length === 0) {
@@ -147,8 +158,8 @@ export async function routeInferredTask(type: TaskType, request: OrchestrateRequ
 
     case 'optimize-learning':
       // optimize-strategies overwrites the stored learned strategies
-      // (persist: true). Words like "improve" or "optimize" in a description
-      // must not change learning data as a side effect.
+      // (persist: true), so learning wording alone does not run it (#1146:
+      // "improve"/"optimize" alone no longer infer it at all).
       return needs(type, 'learning optimization overwrites the stored learned strategies, so it is not run from ' +
         'a description. Use task_submit with type optimize-strategies in domain learning-optimization.');
 

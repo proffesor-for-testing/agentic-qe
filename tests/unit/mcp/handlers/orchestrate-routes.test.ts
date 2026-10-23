@@ -51,6 +51,13 @@ describe('routeInferredTask (#1125)', () => {
     expect(route).toEqual({ kind: 'needs-input', error: expect.stringContaining(hint) });
   });
 
+  // #1146: a search description used to be refused for lacking files to index.
+  it.each([true, false])('refuses a code search description as a search, not an index (with filePaths: %s)', async (withFiles) => {
+    const route = await routeInferredTask('index-code', { task: 'semantic search for auth code', ...(withFiles ? { filePaths: [file] } : {}) });
+    expect(route).toEqual({ kind: 'needs-input', error: expect.stringContaining('the description asks for a code search') });
+    expect(route.kind === 'needs-input' && route.error).not.toContain('no files to index');
+  });
+
   it('refuses files outside the project or missing, naming each', async () => {
     const route = await routeInferredTask('scan-security', {
       task: 'scan', filePaths: [file, join(root, 'src/missing.js'), join(root, '..', 'outside.js')],
