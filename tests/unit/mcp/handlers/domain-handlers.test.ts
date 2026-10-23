@@ -670,14 +670,15 @@ describe('Domain Handlers', { timeout: 30000 }, () => {
       expect(typeof result.data!.passed).toBe('boolean');
     }, 30000);
 
-    it('should return accessibility score', async () => {
+    it('should return score -1 (unmeasured), not a 0-100 grade, when nothing was audited (#1145)', async () => {
       const result = await handleAccessibilityTest({
         url: 'https://example.com',
       });
 
       expect(result.success).toBe(true);
-      expect(result.data!.score).toBeGreaterThanOrEqual(0);
-      expect(result.data!.score).toBeLessThanOrEqual(100);
+      expect(result.data!.measured).toBe(false);
+      expect(result.data!.status).toBe('not-measured');
+      expect(result.data!.score).toBe(-1);
     }, 30000);
 
     it('should report violations', async () => {

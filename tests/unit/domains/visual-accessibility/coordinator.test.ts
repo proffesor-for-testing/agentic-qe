@@ -143,6 +143,126 @@ describe('VisualAccessibilityCoordinator', () => {
         expect(typeof coordinator.runAccessibilityAudit).toBe('function');
       });
     });
+
+    // #1145: a page no browser could load is not a pass, a fail or a finding
+    describe('runAccessibilityAudit() without a measurement', () => {
+      const axeJson = JSON.stringify({
+        violations: [{
+          id: 'image-alt', impact: 'critical', description: 'Images must have alternate text',
+          help: 'Images must have alternate text', tags: ['wcag2a', 'wcag111'],
+          nodes: [{ selector: 'img', html: '<img>', target: ['img'], failureSummary: 'no alt' }],
+        }],
+        passes: ['html-has-lang'], incomplete: [], inapplicable: [],
+      });
+
+      function browserClient() {
+        return {
+          tool: 'vibium',
+          launch: vi.fn().mockResolvedValue({ success: true, value: { id: 's' } }),
+          navigate: vi.fn(async (url: string) => url.includes('.invalid')
+            ? { success: false, error: new Error('net::ERR_NAME_NOT_RESOLVED') }
+            : { success: true, value: { url, title: 't', statusCode: 200, loadTime: 1 } }),
+          evaluate: vi.fn().mockResolvedValue({ success: true, value: axeJson }),
+          quit: vi.fn().mockResolvedValue({ success: true, value: undefined }),
+          isAvailable: vi.fn().mockResolvedValue(true),
+          dispose: vi.fn().mockResolvedValue(undefined),
+        } as never;
+      }
+
+      async function coordinatorWith(accessibilityConfig: Record<string, unknown>) {
+        const coord = new VisualAccessibilityCoordinator(
+          ctx.eventBus, ctx.memory, ctx.agentCoordinator, defaultConfig, {},
+          { preferAgentBrowser: false, ...accessibilityConfig }
+        );
+        await coord.initialize();
+        return coord;
+      }
+
+      it('should report not-measured with no findings when no browser is available', async () => {
+        const coord = await coordinatorWith({});
+        const result = await coord.runAccessibilityAudit(['https://example.invalid/'], 'AA');
+        await coord.dispose();
+
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.value.status).toBe('not-measured');
+          expect(result.value.measuredUrls).toBe(0);
+          expect(result.value.passingUrls).toBe(0);
+          expect(result.value.averageScore).toBe(-1);
+          expect(result.value.reports.map((r) => r.score)).toEqual([-1]);
+          expect(result.value.totalViolations).toBe(0);
+          expect(result.value.topIssues).toEqual([]);
+          expect(result.value.notMeasured?.[0].url).toBe('https://example.invalid/');
+          expect(result.value.message).toContain('NOT MEASURED for 1 of 1 URL(s)');
+        }
+        expect(ctx.eventBus.getPublishedEvents()
+          .filter((e) => e.type === 'visual-accessibility.AccessibilityAuditCompleted')).toEqual([]);
+      });
+
+      it('should count only the measured URL when another host does not resolve', async () => {
+        const coord = await coordinatorWith({ browserClient: browserClient() });
+        const result = await coord.runAccessibilityAudit(
+          ['https://example.invalid/', 'http://127.0.0.1:18145/'], 'AA'
+        );
+        await coord.dispose();
+
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.value.status).toBe('partial');
+          expect(result.value.measuredUrls).toBe(1);
+          expect(result.value.totalViolations).toBe(1);
+          // The unmeasured URL's -1 is not averaged in
+          const measuredScore = result.value.reports.find((r) => r.measured)!.score;
+          expect(measuredScore).toBeGreaterThanOrEqual(0);
+          expect(result.value.averageScore).toBe(measuredScore);
+          expect(result.value.topIssues.map((i) => i.affectedUrls)).toEqual([['http://127.0.0.1:18145/']]);
+          expect(result.value.notMeasured).toEqual([
+            { url: 'https://example.invalid/', reason: expect.stringContaining('ERR_NAME_NOT_RESOLVED') },
+          ]);
+          const invalid = result.value.reports.find((r) => r.url === 'https://example.invalid/');
+          expect(invalid?.measured).toBe(false);
+          expect(invalid?.violations).toEqual([]);
+          expect(invalid?.score).toBe(-1);
+        }
+      });
+
+      it('should list a URL whose audit errored instead of dropping it', async () => {
+        const coord = await coordinatorWith({ browserClient: browserClient() });
+        // The measured report cannot be stored, so the tester returns an error
+        vi.spyOn(ctx.memory, 'set').mockImplementation(async (key: string) => {
+          if (key.startsWith('visual-accessibility:report:')) throw new Error('Storage failed');
+        });
+        const result = await coord.runAccessibilityAudit(['http://127.0.0.1:18145/'], 'AA');
+        await coord.dispose();
+
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.value.status).toBe('not-measured');
+          expect(result.value.reports).toEqual([]);
+          expect(result.value.notMeasured).toEqual([
+            { url: 'http://127.0.0.1:18145/', reason: 'Storage failed' },
+          ]);
+        }
+      });
+
+      it('should not turn a missing report into a clean single-URL pass', async () => {
+        const coord = await coordinatorWith({});
+        const result = await coord.runAccessibilityAuditSingle({ url: 'https://example.invalid/', wcagLevel: 'AA' });
+        await coord.dispose();
+
+        expect(result.success).toBe(false);
+        if (!result.success) expect(result.error.message).toContain('NOT MEASURED');
+      });
+
+      it('should not invent contrast issues for an unmeasured page', async () => {
+        const coord = await coordinatorWith({});
+        const result = await coord.analyzeColorContrast({ url: 'https://example.invalid/' });
+        await coord.dispose();
+
+        expect(result.success).toBe(false);
+        if (!result.success) expect(result.error.message).toContain('Color contrast NOT MEASURED');
+      });
+    });
   });
 
   // ===========================================================================

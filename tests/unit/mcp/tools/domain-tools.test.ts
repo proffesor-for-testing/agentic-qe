@@ -20,6 +20,7 @@ import {
   ChaosInjectTool,
   LearningOptimizeTool,
 } from '../../../../src/mcp/tools';
+import { AccessibilityTesterService } from '../../../../src/domains/visual-accessibility/services/accessibility-tester';
 
 // Mock shared memory backend to prevent real SQLite initialization in unit tests
 vi.mock('../../../../src/mcp/tools/base', async (importOriginal) => {
@@ -710,6 +711,30 @@ describe('A11yAuditTool', () => {
     // Heuristic mode should return success
     expect(result.success).toBe(true);
   }, 60000); // Allow 60s — CI runners are slower with memory backend initialization
+
+  it('should report an unmeasured URL with no findings and no verdict (#1145)', async () => {
+    const store = new Map<string, unknown>();
+    const memory = {
+      get: async (k: string) => store.get(k), set: async (k: string, v: unknown) => { store.set(k, v); },
+    } as unknown as ConstructorParameters<typeof AccessibilityTesterService>[0];
+    // No browser: the audit cannot load the page
+    (tool as unknown as { accessibilityTester: AccessibilityTesterService }).accessibilityTester =
+      new AccessibilityTesterService(memory, { useBrowserMode: false, preferAgentBrowser: false });
+
+    const result = await tool.invoke({ urls: ['https://example.invalid/'] });
+
+    expect(result.success).toBe(true);
+    const audit = result.data?.audits[0];
+    expect(audit?.measured).toBe(false);
+    expect(audit?.notMeasuredReason).toContain('browser mode is disabled');
+    expect(audit?.violations).toEqual([]);
+    expect(audit?.score).toBe(-1);
+    expect(result.data?.summary.measuredUrls).toBe(0);
+    expect(result.data?.summary.avgScore).toBe(-1);
+    expect(result.data?.summary.passingUrls).toBe(0);
+    expect(result.data?.summary.totalViolations).toBe(0);
+    expect(result.data?.topIssues).toEqual([]);
+  });
 });
 
 // ============================================================================
