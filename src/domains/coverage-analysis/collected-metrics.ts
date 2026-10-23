@@ -21,6 +21,33 @@ export function fileCoverageKey(filePath: string, projectRoot?: string): string 
   return path.isAbsolute(filePath) ? path.normalize(filePath) : path.resolve(projectRoot ?? findProjectRoot(), filePath);
 }
 
+/**
+ * #1030: the per-file record key of each path in ONE report, keyed by the
+ * path as the report wrote it. A path is left out when its record would not
+ * be a measurement of a project file: it resolves outside the project root
+ * (lcov `SF:../../outside.ts`), it is a Windows absolute path read on POSIX
+ * (it would resolve to a junk key), or the report lists the same file under
+ * two spellings (`./src/a.ts` and `src/a.ts`), so which entry is right is
+ * unknown.
+ */
+export function projectFileCoverageKeys(paths: readonly string[], projectRoot?: string): Map<string, string> {
+  const root = path.resolve(projectRoot ?? findProjectRoot());
+  const keys = new Map<string, string>();
+  const spellings = new Map<string, number>();
+  for (const filePath of paths) {
+    if (!path.isAbsolute(filePath) && path.win32.isAbsolute(filePath)) continue;
+    const key = fileCoverageKey(filePath, root);
+    const relative = path.relative(root, key);
+    if (relative === '' || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) continue;
+    keys.set(filePath, key);
+    spellings.set(key, (spellings.get(key) ?? 0) + 1);
+  }
+  for (const [filePath, key] of keys) {
+    if ((spellings.get(key) ?? 0) > 1) keys.delete(filePath);
+  }
+  return keys;
+}
+
 /** Read the canonical key first, then a measured legacy relative key if present. */
 export function fileCoverageLookupKeys(filePath: string, projectRoot?: string): string[] {
   const canonical = `coverage:file:${fileCoverageKey(filePath, projectRoot)}`;

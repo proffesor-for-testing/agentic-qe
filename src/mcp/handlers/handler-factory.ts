@@ -360,6 +360,9 @@ async function recordDomainFeedback(
         coverageMethod: data.coverageMethod ?? 'instrumented-report',
         branchDataCollected: data.branchCoverage !== null && data.branchCoverage !== undefined,
         functionDataCollected: data.functionCoverage !== null && data.functionCoverage !== undefined,
+        // #1030: coverage from a run whose tests failed says so, as
+        // coverage:latest and the per-file records already do (#1027 N4).
+        ...(data.runStatus === 'passed' || data.runStatus === 'failed' ? { runStatus: data.runStatus } : {}),
       },
     };
     await loop.recordCoverageSession(session);

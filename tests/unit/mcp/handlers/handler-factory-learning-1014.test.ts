@@ -77,6 +77,20 @@ describe('#1014 — handler-factory learning gates', () => {
       context: expect.objectContaining({ measured: true, coverageMethod: 'instrumented-report', branchDataCollected: false }),
     }));
   });
+
+  // #1030: coverage from a run whose tests failed is labelled in its session row.
+  it.each(['failed', 'passed'] as const)('records the run status (%s) of the measured run in the session context', async (runStatus) => {
+    await runCoverage({ lineCoverage: 72.7, measured: true, estimated: false, coverageMethod: 'instrumented-report', gaps: [], runStatus });
+    expect(loop.recordCoverageSession).toHaveBeenCalledWith(expect.objectContaining({
+      context: expect.objectContaining({ measured: true, runStatus }),
+    }));
+  });
+
+  it('records no run status when the coverage came from no test run', async () => {
+    await runCoverage({ lineCoverage: 72.7, measured: true, estimated: false, coverageMethod: 'instrumented-report', gaps: [] });
+    const session = (loop.recordCoverageSession.mock.calls[0] as unknown[])[0] as { context: Record<string, unknown> };
+    expect(session.context).not.toHaveProperty('runStatus');
+  });
 });
 
 describe('caller-input errors before the task runs (#1021 follow-up)', () => {

@@ -27,7 +27,7 @@ import { safeJsonParse } from '../../../shared/safe-json.js';
 import { secureRandom, secureRandomInt } from '../../../shared/utils/crypto-random.js';
 import { writeTestRunEvidence } from '../../quality-assessment/quality-evidence.js';
 import { istanbulLineHits } from '../../../coordination/handlers/handler-utils.js';
-import { fileCoverageKey } from '../../coverage-analysis/collected-metrics.js';
+import { fileCoverageKey, projectFileCoverageKeys } from '../../coverage-analysis/collected-metrics.js';
 import { mergeTestCases, redactFailedTests, redactFailureText, testCasesFromRunnerReport } from './runner-test-cases.js';
 import { capDiagnostics, getTestRunnerExecutionError, TestRunnerExecutionError } from '../../../shared/test-runner-verdict.js';
 import { createVitestJsonReport, type VitestJsonReport } from '../../../shared/vitest-json-report.js';
@@ -257,6 +257,16 @@ export class TestExecutorService implements ITestExecutionService {
     } catch (error) {
       return err(toError(error));
     }
+  }
+
+  /**
+   * #1176: record a run again after its retries changed the outcome, so the
+   * stored run, its testsPassing evidence and its coverage runStatus are the
+   * final ones rather than the first attempt's.
+   */
+  async recordFinalOutcome(run: TestRunResult, testFiles?: readonly string[]): Promise<void> {
+    this.runResults.set(run.runId, run);
+    await this.storeResults(run.runId, run, testFiles);
   }
 
   /**
@@ -1492,10 +1502,13 @@ Provide:
 
       // Store per-file coverage via memory.set() (not storeVector) so that
       // quality-analyzer's getStoredCoverage() can read it with memory.get()
+      // #1027 N7: one key form — the absolute path. #1030: only files inside
+      // the project, each listed once.
+      const keys = projectFileCoverageKeys((result.fileCoverages ?? []).map(fc => fc.path));
       for (const fc of result.fileCoverages ?? []) {
-        if (!Number.isFinite(fc.line)) continue;
-        // #1027 N7: one key form — the absolute path.
-        await this.memory.set(`coverage:file:${fileCoverageKey(fc.path)}`, {
+        const key = keys.get(fc.path);
+        if (!key || !Number.isFinite(fc.line)) continue;
+        await this.memory.set(`coverage:file:${key}`, {
           line: fc.line,
           branch: fc.branch ?? null,
           function: fc.function ?? null,

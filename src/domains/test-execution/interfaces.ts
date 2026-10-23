@@ -170,6 +170,11 @@ export interface IExecuteTestsRequest {
   timeout?: number;
   env?: Record<string, string>;
   reporters?: string[];
+  /**
+   * #1176: retries of each failed test. They run before the run is recorded
+   * or TestRunCompleted is published, so both carry the final outcome.
+   */
+  retryCount?: number;
 }
 
 export interface IParallelExecutionRequest extends IExecuteTestsRequest {

@@ -72,6 +72,8 @@ export interface TestRunCompletedPayload {
   failed: number;
   skipped: number;
   duration: number;
+  /** #1176: tests that passed on a retry; already counted in `passed`. */
+  flaky?: number;
 }
 
 export interface FlakyTestDetectedPayload {
