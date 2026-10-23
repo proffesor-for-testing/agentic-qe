@@ -5,6 +5,155 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.15.12] - 2026-10-23
+
+A coverage verdict now needs evidence for the whole target. A report that
+leaves out source files, or is older than the code, gives INSUFFICIENT
+EVIDENCE instead of PASSED. Coverage tasks sent through `task_orchestrate`
+work. The worker daemon started by `start-daemon.cjs` stays running and keeps
+its log small. When the embedder fails after startup, pattern learning falls
+back to text search instead of failing, and retries the embedder without
+stalling anyone. Redaction catches more secrets and stops redacting plain
+prose. CI and the Docker image use the patched October Node releases.
+
+### Changed
+
+- **Coverage verdicts need complete, current evidence** ([#1154], [#1199]):
+  `aqe fleet run analyze`, `aqe coverage`, `aqe ci` and MCP
+  `coverage_analyze_sublinear` no longer report a pass from a coverage report
+  that covers only part of the target or is older than the sources. Source
+  files under the target that the report doesn't list are counted as
+  unmeasured and named, and a stale report is flagged. Either one gives
+  **INSUFFICIENT EVIDENCE**: `aqe coverage` and `aqe ci` exit with 3, and the
+  fleet verdict is FAILED. Only production source files inside the project's
+  own coverage scope count. That scope is read from the include/exclude
+  settings in vitest/vite, jest, nyc or c8 config, so files you exclude there
+  are not required. To fix a failing verdict, regenerate the report for the
+  whole target (for example `npm test -- --coverage`), or exclude the files
+  that are not meant to be measured. JSON output carries `evidenceStatus`,
+  `unmeasuredFiles` and `staleReport`.
+- **Invalid task priorities are rejected** ([#1117], [#1131], by
+  @rudycelekli): `task_orchestrate` used to turn any unknown priority into
+  `p1`, including `""` and `null`, and could downgrade a requested `p0`. It
+  now accepts `critical`, `high`, `medium`, `low` and `p0`–`p3` and rejects
+  anything else with a message. `aqe task list --priority` and MCP
+  `task_list` validate their filter the same way, instead of silently
+  listing nothing.
+
+### Fixed
+
+- **Coverage tasks from `task_orchestrate` work** ([#1200], [#1202]): they
+  always failed with "Invalid analyze-coverage payload: missing
+  coverageData". They now run through the same code as
+  `coverage_analyze_sublinear`, with the same figures and evidence checks.
+  The target is the single `filePaths` entry, else a path named in the task
+  text, else the project. A task that names more than one target is refused
+  and asked for one.
+- **The worker daemon stays running** ([#1158], [#1208]): `start-daemon.cjs`
+  started the MCP server with no stdin, and the server read that as a
+  disconnected client and shut down within seconds. The script now starts
+  the server in daemon mode (`AQE_MCP_DAEMON=1`). It ignores stdin EOF, logs a
+  heartbeat each minute and stops on SIGTERM, which `stop-daemon.cjs` sends.
+  Daemon mode is honoured only when nothing is attached to stdin, so a
+  normal MCP client still shuts its server down when it disconnects.
+  **Re-run `aqe init` once** so the project's `start-daemon.cjs` is
+  regenerated.
+- **`daemon.log` stays small** ([#1207], [#1214]): the daemon moves the log
+  to `daemon.log.1` when it passes 5 MB. Set `AQE_DAEMON_LOG_MAX_SIZE` to
+  change the cap (`0` or `off` disables it), and
+  `AQE_DAEMON_HEARTBEAT_SECONDS` to change the heartbeat interval.
+- **An embedder that fails after startup no longer breaks pattern learning**
+  ([#1187], [#1203], [#1204], [#1215]): when the embedding endpoint went down
+  mid-session, pattern search threw and lost its text matches, storing a
+  pattern failed, and the status still said `vector`. Now:
+  - search returns its text matches, labelled `lexical-only` with the reason;
+  - patterns are stored without a vector (`aqe learning backfill-embeddings`
+    adds it later);
+  - `aqe hooks learn` and `aqe hooks search` work in text-only mode instead
+    of exiting 1, and the hint names the configured endpoint and why it
+    failed.
+
+  The embedder is retried every 60 s (`embedderRetryIntervalMs`), in the
+  background, so the call that triggers a retry never waits for it. Recovery
+  takes about one interval, down from two. `task_orchestrate` reports
+  experience guidance the same way, in `learning.experienceGuidance`.
+- **Experience guidance reports only measured similarity** ([#1192],
+  [#1215]): reservoir samples, picked without looking at the task, were
+  blended in with a similarity derived from their coherence score. A sample
+  is now included only when its similarity to the task was actually computed
+  and meets the threshold. Some tasks get less guidance as a result.
+- **Slow stream consumers no longer time out** ([#962], [#1197]): a
+  streaming LLM call's idle deadline fired when the caller paused between
+  chunks, even after the server had sent everything. It now measures network
+  silence, reading up to 1 MiB ahead of the consumer.
+- **One interrupt reaches the host once** ([#992], [#1198]): when a test
+  count was interrupted, AQE re-raised the signal even if the program
+  embedding it had its own handler, so a host that counts Ctrl-C presses saw
+  two.
+- **Cached code analyses belong to the right code** ([#1190], by
+  @rudycelekli): the semantic analyzer keyed its analysis and embedding
+  caches with a weak 32-bit hash, so two different snippets could share an
+  entry and get each other's results or embeddings. Entries are now keyed by
+  SHA-256 of the content.
+- **Infra health with a custom agent prefix** ([#1189], by @rudycelekli): a
+  prefix containing regex characters recovered the wrong service name, so a
+  service that was down reported as healthy. The prefix is now stripped
+  literally.
+
+### Security
+
+- **More secrets are redacted** ([#740], [#1195], [#1213]): logs, MCP tool
+  errors, the CLI fatal handler and kernel errors now redact:
+  - Hugging Face (`hf_`), npm (`npm_`) and Cognitum (`cog_`) tokens;
+  - `Authorization: Token …` headers;
+  - private-key blocks that are missing their END line;
+  - whole objects and arrays stored under a sensitive key (for example
+    `"apiKey": {…}`), not only plain values.
+
+  `.agentic-qe/hooks-health.log` and the OpenCode plugin's output are
+  redacted too. Error logs show the error's `code` and `status` again.
+- **Less over-redaction** ([#740], [#1195], [#1196], [#1213]): prose such as
+  "Basic authentication" or "use Bearer authorization" is no longer replaced.
+  Real Basic credentials and Bearer tokens, and any value in an
+  `Authorization:` header, still are.
+- **Patched Node releases** ([#1206]): CI, the release workflow, the Docker
+  image and `.nvmrc` use Node 24.22.1, and the Node 22 compatibility job uses
+  22.23.4. Both include the October 2026 Node security fixes. The supported
+  minimum stays `>=22.13.0`.
+
+### Changed (development)
+
+- `vitest` and `@vitest/coverage-v8` 5.0.1 → 5.0.5 (dev dependencies), which
+  clears two `@vitest/mocker` advisories ([#1210]).
+
+[#740]: https://github.com/proffesor-for-testing/agentic-qe/issues/740
+[#962]: https://github.com/proffesor-for-testing/agentic-qe/issues/962
+[#992]: https://github.com/proffesor-for-testing/agentic-qe/issues/992
+[#1117]: https://github.com/proffesor-for-testing/agentic-qe/issues/1117
+[#1131]: https://github.com/proffesor-for-testing/agentic-qe/pull/1131
+[#1154]: https://github.com/proffesor-for-testing/agentic-qe/issues/1154
+[#1158]: https://github.com/proffesor-for-testing/agentic-qe/issues/1158
+[#1187]: https://github.com/proffesor-for-testing/agentic-qe/issues/1187
+[#1189]: https://github.com/proffesor-for-testing/agentic-qe/pull/1189
+[#1190]: https://github.com/proffesor-for-testing/agentic-qe/pull/1190
+[#1192]: https://github.com/proffesor-for-testing/agentic-qe/issues/1192
+[#1195]: https://github.com/proffesor-for-testing/agentic-qe/pull/1195
+[#1196]: https://github.com/proffesor-for-testing/agentic-qe/issues/1196
+[#1197]: https://github.com/proffesor-for-testing/agentic-qe/pull/1197
+[#1198]: https://github.com/proffesor-for-testing/agentic-qe/pull/1198
+[#1199]: https://github.com/proffesor-for-testing/agentic-qe/pull/1199
+[#1200]: https://github.com/proffesor-for-testing/agentic-qe/issues/1200
+[#1202]: https://github.com/proffesor-for-testing/agentic-qe/pull/1202
+[#1203]: https://github.com/proffesor-for-testing/agentic-qe/pull/1203
+[#1204]: https://github.com/proffesor-for-testing/agentic-qe/issues/1204
+[#1206]: https://github.com/proffesor-for-testing/agentic-qe/pull/1206
+[#1207]: https://github.com/proffesor-for-testing/agentic-qe/issues/1207
+[#1208]: https://github.com/proffesor-for-testing/agentic-qe/pull/1208
+[#1210]: https://github.com/proffesor-for-testing/agentic-qe/pull/1210
+[#1213]: https://github.com/proffesor-for-testing/agentic-qe/pull/1213
+[#1214]: https://github.com/proffesor-for-testing/agentic-qe/pull/1214
+[#1215]: https://github.com/proffesor-for-testing/agentic-qe/pull/1215
+
 ## [3.15.11] - 2026-10-22
 
 AQE now works on npm 12 and on a plain install without the optional
