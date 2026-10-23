@@ -112,13 +112,13 @@ async function resolveAnalysisScope(
     const stat = await fsp.stat(target).catch(() => null);
     if (!stat) throw new CallerInputError(`target ${JSON.stringify(payload.target)} does not exist.`);
     if (stat.isFile()) return { sourceFiles: [target], explicitFiles: [target], scope: target };
-    return { sourceFiles: await discoverSourceFiles(target, { includeTests: false }), explicitFiles: [], scope: target };
+    return { sourceFiles: await discoverSourceFiles(target, { includeTests: false, completeScope: true }), explicitFiles: [], scope: target };
   }
   // Default to src/ — scanning the entire project root is too slow
   // (node_modules, dist, .git, etc. make it hang on large projects)
   const srcDir = nodePath.join(root, 'src');
   const targetDir = existsSync(srcDir) ? srcDir : root;
-  return { sourceFiles: await discoverSourceFiles(targetDir, { includeTests: false }), explicitFiles: [], scope: targetDir };
+  return { sourceFiles: await discoverSourceFiles(targetDir, { includeTests: false, completeScope: true }), explicitFiles: [], scope: targetDir };
 }
 
 /** #1021: one line per partially measured metric, naming the gap. */

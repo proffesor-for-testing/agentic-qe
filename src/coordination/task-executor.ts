@@ -17,6 +17,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { DomainName, Result } from '../shared/types';
 import { isCallerInputError, toErrorMessage } from '../shared/error-utils.js';
 import { InsufficientQualityEvidenceError } from '../domains/quality-assessment/quality-evidence.js';
+import { isLearnableResult } from '../learning/learnable-result.js';
 import { EventBus, QEKernel, MemoryBackend } from '../kernel/interfaces';
 import { TaskType, QueenTask } from './queen-coordinator';
 import { ResultSaver, createResultSaver, SaveOptions } from './result-saver';
@@ -649,8 +650,12 @@ export class DomainTaskExecutor implements TaskHandlerContext {
 
       await this.publishTaskCompleted(task.id, result.value, domain);
 
-      // ADR-051: Record successful outcome
-      this.recordOutcome(task, routingTier, true, Date.now() - startTime).catch((e) => { logger.warn('recordOutcome failed', { error: e instanceof Error ? e.message : String(e), taskId: task.id }); });
+      // ADR-051: Record successful outcome. #1020: a run without evidence (a
+      // coverage estimate, an insufficient-evidence quality run) completed as a
+      // task but is not a success to learn routing from.
+      if (isLearnableResult(domain, result.value)) {
+        this.recordOutcome(task, routingTier, true, Date.now() - startTime).catch((e) => { logger.warn('recordOutcome failed', { error: e instanceof Error ? e.message : String(e), taskId: task.id }); });
+      }
 
       // Save results to files if enabled. A task can opt out per call with
       // payload.saveResults === false (#925); the executor-wide config still

@@ -57,7 +57,9 @@ export interface GateResult {
   gateName: string;
   passed: boolean;
   checks: GateCheck[];
+  /** 0-100; -1 when any configured check is unmeasured (#1020). */
   overallScore: number;
+  /** Measured checks that failed their threshold; unmeasured checks are not listed (#1020). */
   failedChecks: string[];
   /** Gate service evidence state; absent for other gate implementations. */
   evidenceStatus?: 'measured' | 'insufficient-evidence';

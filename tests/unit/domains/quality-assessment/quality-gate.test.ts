@@ -129,7 +129,9 @@ describe('QualityGateService', () => {
         expect(result.value.passed).toBe(false);
         expect(result.value.evidenceStatus).toBe('insufficient-evidence');
         expect(result.value.unmeasured).toEqual(['criticalBugs', 'securityVulnerabilities']);
-        expect(result.value.failedChecks).toEqual(expect.arrayContaining(['criticalBugs', 'securityVulnerabilities']));
+        // #1020: unmeasured is not failed, and there is no score over partial data.
+        expect(result.value.failedChecks).toEqual([]);
+        expect(result.value.overallScore).toBe(-1);
       }
     });
 
@@ -146,9 +148,25 @@ describe('QualityGateService', () => {
           expect(result.value.passed).toBe(false);
           expect(result.value.evidenceStatus).toBe('insufficient-evidence');
           expect(result.value.unmeasured).toEqual(['duplications']);
-          expect(result.value.failedChecks).toContain('duplications');
+          expect(result.value.failedChecks).not.toContain('duplications');
+          expect(result.value.overallScore).toBe(-1);
         }
       }
+    });
+
+    it('lists only measured failures as failed checks when other inputs are unmeasured (#1020)', async () => {
+      const result = await service.evaluateGate({
+        gateName: 'mixed-gate',
+        metrics: createMetrics({ coverage: 50, criticalBugs: -1 }),
+        thresholds: createThresholds(),
+      });
+
+      expect(result.success && result.value).toMatchObject({
+        passed: false,
+        failedChecks: ['coverage'],
+        unmeasured: ['criticalBugs'],
+        overallScore: -1,
+      });
     });
 
     it('rejects a gate with no configured checks instead of approving it vacuously', async () => {

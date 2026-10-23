@@ -122,6 +122,12 @@ export class CoherenceGateController {
       reasons.push(criticalFailure);
     }
 
+    // Check 7 (#1020): an unmeasured input is never read as passing, so no
+    // decision can allow. Measured failures above stay the primary reason.
+    if ((lambda.unmeasured?.length ?? 0) > 0) {
+      reasons.push('insufficientEvidence');
+    }
+
     // Determine tier based on reasons
     return this.determineDecision(lambda, reasons);
   }
@@ -138,6 +144,8 @@ export class CoherenceGateController {
    */
   canDeploy(lambda: QualityLambda): boolean {
     const decision = this.evaluate(lambda);
+    // #1020: allowDeployWhenUnstable never covers missing evidence.
+    if ((lambda.unmeasured?.length ?? 0) > 0) return false;
     return decision.decision === 'allow' ||
            (decision.decision === 'reduceScope' && this.config.policy.allowDeployWhenUnstable);
   }
@@ -199,18 +207,18 @@ export class CoherenceGateController {
    * Check critical dimensions for failures
    */
   private checkCriticalDimensions(dimensions: QualityDimensions): QualityGateReason | null {
-    // Security is critical
-    if (dimensions.security < 0.5) {
+    // Security is critical (an absent dimension is unmeasured, see #1020)
+    if (dimensions.security !== undefined && dimensions.security < 0.5) {
       return 'securityCritical';
     }
 
     // Test pass rate is critical
-    if (dimensions.passRate < 0.8) {
+    if (dimensions.passRate !== undefined && dimensions.passRate < 0.8) {
       return 'testFailureSpike';
     }
 
     // Coverage drop is concerning (if previously high)
-    if (dimensions.coverage < 0.5) {
+    if (dimensions.coverage !== undefined && dimensions.coverage < 0.5) {
       return 'coverageDrop';
     }
 
@@ -435,6 +443,10 @@ export class CoherenceGateController {
       parts.push(`Additional concerns: ${additionalStr}.`);
     }
 
+    if (lambda.unmeasured && lambda.unmeasured.length > 0) {
+      parts.push(`Not measured: ${lambda.unmeasured.join(', ')}.`);
+    }
+
     // Dimension summary
     const summary = this.getDimensionSummary(lambda.dimensions);
     parts.push(
@@ -478,6 +490,7 @@ export class CoherenceGateController {
       'securityCritical': 'critical security vulnerability detected',
       'coverageDrop': 'significant test coverage decrease',
       'testFailureSpike': 'sudden increase in test failures',
+      'insufficientEvidence': 'one or more quality inputs were not measured',
     };
 
     return reasonStrings[reason] || reason;

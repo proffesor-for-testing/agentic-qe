@@ -485,15 +485,23 @@ export function parseCoberturaXml(content: string): CoverageData {
  */
 export async function discoverSourceFiles(
   targetPath: string,
-  options: { includeTests?: boolean; languages?: string[]; maxFiles?: number } = {}
+  options: {
+    includeTests?: boolean; languages?: string[]; maxFiles?: number;
+    /**
+     * #1020: also include component files (.vue, .svelte) and symlinked files.
+     * For callers that judge the whole source scope (quality assessment) and
+     * read through a reader that contains symlinks to the project root.
+     */
+    completeScope?: boolean;
+  } = {}
 ): Promise<string[]> {
   const files: string[] = [];
-  const { includeTests = true, languages, maxFiles = 5000 } = options;
+  const { includeTests = true, languages, maxFiles = 5000, completeScope = false } = options;
 
   // Determine file extensions to include
   // Default: scan ALL common source languages unless explicitly filtered
   let extensions = [
-    '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',  // JavaScript/TypeScript
+    '.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs',  // JavaScript/TypeScript
     '.py', '.pyw',                                   // Python
     '.go',                                           // Go
     '.rs',                                           // Rust
@@ -508,7 +516,7 @@ export async function discoverSourceFiles(
   if (languages && languages.length > 0) {
     extensions = [];
     for (const lang of languages) {
-      if (lang === 'typescript') extensions.push('.ts', '.tsx');
+      if (lang === 'typescript') extensions.push('.ts', '.tsx', '.mts', '.cts');
       if (lang === 'javascript') extensions.push('.js', '.jsx', '.mjs', '.cjs');
       if (lang === 'python') extensions.push('.py', '.pyw');
       if (lang === 'go') extensions.push('.go');
@@ -523,6 +531,7 @@ export async function discoverSourceFiles(
       if (lang === 'scala') extensions.push('.scala');
     }
   }
+  if (completeScope && (!languages || languages.length === 0)) extensions.push('.vue', '.svelte');
 
   async function walkDir(dir: string): Promise<void> {
     try {
@@ -547,7 +556,7 @@ export async function discoverSourceFiles(
           if (isAqeManagedDir(dir, entry.name, dir === targetPath)) continue;
           if (files.length >= maxFiles) return; // Cap reached
           await walkDir(fullPath);
-        } else if (entry.isFile()) {
+        } else if (entry.isFile() || (completeScope && entry.isSymbolicLink() && await isFileTarget(fullPath))) {
           const ext = path.extname(entry.name);
 
           // Check extension
@@ -571,6 +580,14 @@ export async function discoverSourceFiles(
       }
     } catch {
       // Directory not accessible
+    }
+  }
+
+  async function isFileTarget(linkPath: string): Promise<boolean> {
+    try {
+      return (await fs.stat(linkPath)).isFile();
+    } catch {
+      return false; // dangling link
     }
   }
 

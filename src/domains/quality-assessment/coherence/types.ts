@@ -37,29 +37,38 @@ export interface QualityLambda {
 
   /** Individual dimension values (normalized 0-1) */
   dimensions: QualityDimensions;
+
+  /**
+   * #1020: inputs with no measured value (missing, negative or non-finite).
+   * While any is listed the gate never allows.
+   */
+  unmeasured?: string[];
 }
 
 /**
  * Quality dimensions normalized to 0-1 scale
  */
 export interface QualityDimensions {
+  // #1020: a dimension is absent when its inputs were not measured
+  // (see QualityLambda.unmeasured); it is never filled with a passing value.
+
   /** Line/statement coverage (0-1) */
-  coverage: number;
+  coverage?: number;
 
   /** Test pass rate (0-1) */
-  passRate: number;
+  passRate?: number;
 
   /** Security score (0-1, where 1 = no vulnerabilities) */
-  security: number;
+  security?: number;
 
   /** Performance score (0-1, based on P95 latency vs target) */
-  performance: number;
+  performance?: number;
 
   /** Maintainability index (0-1) */
-  maintainability: number;
+  maintainability?: number;
 
   /** Reliability score (0-1, based on flaky test ratio) */
-  reliability: number;
+  reliability?: number;
 
   /** Technical debt ratio (0-1, where 1 = no debt) */
   technicalDebt?: number;
@@ -176,7 +185,8 @@ export type QualityGateReason =
   | 'forcedByFlag'                 // Forced by control flag
   | 'securityCritical'             // Critical security vulnerability
   | 'coverageDrop'                 // Significant coverage decrease
-  | 'testFailureSpike';            // Sudden increase in test failures
+  | 'testFailureSpike'             // Sudden increase in test failures
+  | 'insufficientEvidence';        // #1020: an input was not measured
 
 /**
  * Quality actions to take based on decision

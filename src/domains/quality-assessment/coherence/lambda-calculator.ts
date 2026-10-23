@@ -14,6 +14,7 @@ import {
   CoherenceGatePolicy,
   DEFAULT_COHERENCE_GATE_POLICY,
 } from './types';
+import { isMeasuredMetricValue } from '../evidence-sufficiency.js';
 
 /**
  * Configuration for lambda calculation
@@ -96,40 +97,81 @@ export class LambdaCalculator {
       flags,
       calculatedAt: new Date(),
       dimensions,
+      unmeasured: this.findUnmeasuredInputs(metrics),
     };
+  }
+
+  /**
+   * #1020: inputs with no measured value — missing, negative or non-finite.
+   * highVulns, mediumVulns and flakyTestRatio feed the always-scored security
+   * and reliability dimensions, so leaving them out is missing evidence, not
+   * "none". Optional dimensions (technical debt, duplication, branch coverage)
+   * count only when supplied.
+   */
+  findUnmeasuredInputs(metrics: QualityMetricsInput): string[] {
+    const unmeasured: string[] = [];
+    const required: (keyof QualityMetricsInput)[] = [
+      'lineCoverage', 'testPassRate', 'criticalVulns', 'highVulns', 'mediumVulns',
+      'maintainabilityIndex', 'flakyTestRatio',
+    ];
+    if (!(metrics.targetLatency <= 0)) required.push('p95Latency', 'targetLatency');
+    for (const name of required) {
+      if (!isMeasuredMetricValue(metrics[name])) unmeasured.push(name);
+    }
+    const optional: (keyof QualityMetricsInput)[] = ['branchCoverage', 'technicalDebtHours', 'duplicationPercent'];
+    for (const name of optional) {
+      if (metrics[name] !== undefined && !isMeasuredMetricValue(metrics[name])) unmeasured.push(name);
+    }
+    return unmeasured;
   }
 
   /**
    * Normalize raw metrics to 0-1 scale dimensions
    */
   normalizeMetrics(metrics: QualityMetricsInput): QualityDimensions {
+    // #1020: a dimension whose inputs are unmeasured (missing, negative,
+    // non-finite) is left out, never filled with a passing value; the inputs
+    // are listed in `unmeasured` and the gate never allows on them.
+    const measured = isMeasuredMetricValue;
+
     // Coverage: Direct percentage to 0-1
-    const coverage = Math.min(Math.max(metrics.lineCoverage / 100, 0), 1);
+    const coverage = measured(metrics.lineCoverage) ? Math.min(metrics.lineCoverage / 100, 1) : undefined;
 
     // Pass rate: Direct percentage to 0-1
-    const passRate = Math.min(Math.max(metrics.testPassRate / 100, 0), 1);
+    const passRate = measured(metrics.testPassRate) ? Math.min(metrics.testPassRate / 100, 1) : undefined;
 
     // Security: Inverse of vulnerability count, capped at 5 critical vulns
-    // 0 vulns = 1.0, 5+ critical vulns = 0.0
-    const criticalImpact = Math.min(metrics.criticalVulns / 5, 1);
-    const highImpact = Math.min((metrics.highVulns || 0) / 10, 0.3);
-    const mediumImpact = Math.min((metrics.mediumVulns || 0) / 20, 0.1);
-    const security = Math.max(1 - criticalImpact - highImpact - mediumImpact, 0);
+    // 0 vulns = 1.0, 5+ critical vulns = 0.0. Unmeasured high/medium counts can
+    // only lower it further, so the score is then an upper bound: a failing
+    // value is conclusive, a passing one is not (they are listed as unmeasured).
+    let security: number | undefined;
+    if (measured(metrics.criticalVulns)) {
+      const criticalImpact = Math.min(metrics.criticalVulns / 5, 1);
+      const highImpact = measured(metrics.highVulns) ? Math.min(metrics.highVulns / 10, 0.3) : 0;
+      const mediumImpact = measured(metrics.mediumVulns) ? Math.min(metrics.mediumVulns / 20, 0.1) : 0;
+      security = Math.max(1 - criticalImpact - highImpact - mediumImpact, 0);
+    }
 
     // Performance: Ratio of target to actual P95 latency, capped at 1
-    const performance = metrics.targetLatency > 0
-      ? Math.min(metrics.targetLatency / Math.max(metrics.p95Latency, 1), 1)
-      : 1;
+    // (a target of 0 means no latency target is set)
+    let performance: number | undefined = 1;
+    if (!(metrics.targetLatency <= 0)) {
+      performance = measured(metrics.targetLatency) && measured(metrics.p95Latency)
+        ? Math.min(metrics.targetLatency / Math.max(metrics.p95Latency, 1), 1)
+        : undefined;
+    }
 
     // Maintainability: Direct index to 0-1
-    const maintainability = Math.min(Math.max(metrics.maintainabilityIndex / 100, 0), 1);
+    const maintainability = measured(metrics.maintainabilityIndex)
+      ? Math.min(metrics.maintainabilityIndex / 100, 1)
+      : undefined;
 
     // Reliability: Inverse of flaky test ratio
-    const reliability = 1 - (metrics.flakyTestRatio || 0);
+    const reliability = measured(metrics.flakyTestRatio) ? Math.max(1 - metrics.flakyTestRatio, 0) : undefined;
 
     // Technical debt: Inverse ratio of debt to max acceptable
     let technicalDebt: number | undefined;
-    if (metrics.technicalDebtHours !== undefined && metrics.maxAcceptableDebtHours) {
+    if (isMeasuredMetricValue(metrics.technicalDebtHours) && metrics.maxAcceptableDebtHours) {
       technicalDebt = Math.max(
         1 - metrics.technicalDebtHours / metrics.maxAcceptableDebtHours,
         0
@@ -138,7 +180,7 @@ export class LambdaCalculator {
 
     // Duplication: Inverse of duplication percentage (capped at 20%)
     let duplication: number | undefined;
-    if (metrics.duplicationPercent !== undefined) {
+    if (isMeasuredMetricValue(metrics.duplicationPercent)) {
       duplication = Math.max(1 - metrics.duplicationPercent / 20, 0);
     }
 

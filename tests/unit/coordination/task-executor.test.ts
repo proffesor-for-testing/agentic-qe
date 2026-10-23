@@ -959,3 +959,54 @@ describe('TaskExecutor integration', () => {
     expect(index.results.length).toBe(testTasks.length);
   }, 30000); // Reduced timeout since we avoid file system walking
 });
+
+// #1020: routing_outcomes records success=1 only for a run that produced
+// evidence. A coverage estimate or an insufficient-evidence quality run
+// completed as a task, but is not a routing success to learn from.
+describe('DomainTaskExecutor routing outcomes and evidence (#1020)', () => {
+  let kernel: MockQEKernel;
+  let executor: DomainTaskExecutor;
+  let recordRoutingOutcome: ReturnType<typeof vi.fn>;
+
+  const settle = async () => {
+    for (let i = 0; i < 5; i++) await new Promise((resolve) => setTimeout(resolve, 0));
+  };
+
+  beforeEach(async () => {
+    vi.stubEnv('AQE_LLM_ROUTER_DISABLED', '1');
+    kernel = new MockQEKernel();
+    await kernel.initialize();
+    executor = createTaskExecutor(kernel, { saveResults: false });
+    recordRoutingOutcome = vi.fn(async () => {});
+    executor.setQualityFeedbackLoop({ recordRoutingOutcome } as never);
+    // A router stand-in: recordOutcome only needs one to exist.
+    (executor as unknown as { taskRouter: object }).taskRouter = {};
+  });
+
+  afterEach(async () => {
+    await kernel.dispose();
+    vi.unstubAllEnvs();
+  });
+
+  it.each([
+    ['an insufficient-evidence quality run', 'assess-quality', { status: 'insufficient-evidence', passed: false }],
+    ['a coverage estimate', 'analyze-coverage', { measured: false, lineCoverage: 50 }],
+  ] as const)('records no routing outcome for %s', async (_label, type, data) => {
+    executor.registerHandler(type as TaskType, async () => ok(data));
+
+    const result = await executor.execute(createTestTask(type as TaskType));
+    await settle();
+
+    expect(result.success).toBe(true);
+    expect(recordRoutingOutcome).not.toHaveBeenCalled();
+  });
+
+  it('records a successful routing outcome for a measured run', async () => {
+    executor.registerHandler('assess-quality', async () => ok({ status: 'completed', evidenceStatus: 'measured', passed: true }));
+
+    await executor.execute(createTestTask('assess-quality'));
+    await settle();
+
+    expect(recordRoutingOutcome).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+  });
+});
