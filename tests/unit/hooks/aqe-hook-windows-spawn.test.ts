@@ -276,8 +276,13 @@ describe('aqe-hook.cjs under simulated win32 (end-to-end)', () => {
     mkdirSync(pkgCli, { recursive: true });
     writeFileSync(join(npmDir, 'aqe.cmd'), NPM_CMD_SHIM);
     writeFileSync(join(pkgCli, 'bundle.js'),
-      `if (process.argv[2] === 'brain') console.log('Patterns: 7');
-       else console.log(JSON.stringify({ argv: process.argv.slice(2) }));`);
+      // brain export writes its -o path, as the real CLI does (#1238: the hook
+      // renames that file over aqe.rvf, so an export must produce it).
+      `if (process.argv[2] === 'brain') {
+         const out = process.argv[process.argv.indexOf('-o') + 1];
+         require('fs').writeFileSync(out, 'RVF');
+         console.log('Patterns: 7');
+       } else console.log(JSON.stringify({ argv: process.argv.slice(2) }));`);
     const project = join(tmp, 'project');
     mkdirSync(project);
     return { preload, npmDir, project, argvLog: join(tmp, 'argv.log'), bundle: join(pkgCli, 'bundle.js') };
