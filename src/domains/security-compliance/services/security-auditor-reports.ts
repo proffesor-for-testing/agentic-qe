@@ -137,7 +137,9 @@ export function generateRecommendations(
   }
 
   // #1052: an incomplete or failed check cannot support a "posture is good" verdict.
-  const unmeasured = (dast !== undefined && dast.status !== 'complete') || (deps !== undefined && deps.status !== 'complete');
+  const unmeasured = (dast !== undefined && dast.status !== 'complete') || (deps !== undefined && deps.status !== 'complete')
+    // #1221: so can an outdated-package check whose registry lookups failed.
+    || (deps !== undefined && (deps.outdatedStatus === 'incomplete' || deps.outdatedStatus === 'failed'));
   if (recommendations.length === 0 && !unmeasured) {
     recommendations.push('Security posture is good. Continue regular scanning.');
   }
