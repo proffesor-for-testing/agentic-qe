@@ -79,6 +79,8 @@ export interface CoverageAnalyzeResult {
   language?: string;
   /** Coverage format used for parsing */
   format?: string;
+  /** Parts of the coverage report that could not be attributed to a file and are not reported (#1232). */
+  warnings?: string[];
 }
 
 export interface CoverageSummary {
@@ -128,6 +130,8 @@ export interface CoverageGapsResult {
   criticalGaps: number;
   suggestedTests: TestSuggestion[];
   ghostGaps?: Array<{ category: string; severity: string; description: string; confidence: number }>;
+  /** Parts of the coverage report that could not be attributed to a file and are not reported (#1232). */
+  warnings?: string[];
 }
 
 export interface CoverageGap {
@@ -144,6 +148,11 @@ export interface TestSuggestion {
   description: string;
   estimatedCoverageGain: number;
   priority: number;
+}
+
+/** The parser's warnings as an error-message suffix (#1232), or ''. */
+function describeWarnings(report: ParsedCoverageReport | null): string {
+  return report?.warnings?.length ? ` ${report.warnings.join('. ')}.` : '';
 }
 
 // ============================================================================
@@ -296,7 +305,7 @@ export class CoverageAnalyzeTool extends MCPToolBase<CoverageAnalyzeParams, Cove
       if (!parsedReport || parsedReport.files.size === 0) {
         return {
           success: false,
-          error: `No coverage data found in '${target}'. Run your test suite with coverage enabled (e.g., 'npm test -- --coverage') and ensure coverage reports are generated (lcov.info, coverage-final.json, etc.)`,
+          error: `No coverage data found in '${target}'. Run your test suite with coverage enabled (e.g., 'npm test -- --coverage') and ensure coverage reports are generated (lcov.info, coverage-final.json, etc.)${describeWarnings(parsedReport)}`,
         };
       }
 
@@ -405,6 +414,7 @@ export class CoverageAnalyzeTool extends MCPToolBase<CoverageAnalyzeParams, Cove
           trends,
           language: detectedLanguage,
           format: detectedFormat,
+          ...(parsedReport.warnings ? { warnings: parsedReport.warnings } : {}),
         },
       };
     } catch (error) {
@@ -561,7 +571,7 @@ export class CoverageGapsTool extends MCPToolBase<CoverageGapsParams, CoverageGa
         if (coverageFile) {
           return {
             success: false,
-            error: `Coverage file '${coverageFile}' contains no usable coverage data (parsed 0 files). Verify the file is a non-empty Istanbul/LCOV/JaCoCo/etc. report.`,
+            error: `Coverage file '${coverageFile}' contains no usable coverage data (parsed 0 files). Verify the file is a non-empty Istanbul/LCOV/JaCoCo/etc. report.${describeWarnings(parsedReport)}`,
           };
         }
         return {
@@ -664,6 +674,7 @@ export class CoverageGapsTool extends MCPToolBase<CoverageGapsParams, CoverageGa
           criticalGaps: gaps.filter((g) => g.severity === 'critical').length,
           suggestedTests,
           ...(ghostGaps ? { ghostGaps } : {}),
+          ...(parsedReport.warnings ? { warnings: parsedReport.warnings } : {}),
         },
       };
     } catch (error) {

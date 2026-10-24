@@ -124,6 +124,42 @@ describe('dotcover XML Parser', () => {
     const file = Array.from(report.files.values())[0];
     expect(file.statements.total).toBe(100);
     expect(file.statements.covered).toBe(80);
+    expect(report.warnings?.join(' ')).toMatch(/no per-file statements.*'aggregate'/);
+  });
+
+  // #1232: a FileIndex missing from the file table is not a file named `file-N`.
+  const UNKNOWN_INDEX_XML = `<Root CoveredStatements="3" TotalStatements="5">
+  <File Index="1" Name="/src/UserService.cs"/>
+  <Statement FileIndex="1" Line="10" Column="5" EndLine="10" EndColumn="30" Covered="True"/>
+  <Statement FileIndex="1" Line="11" Column="5" EndLine="11" EndColumn="25" Covered="False"/>
+  <Statement FileIndex="7" Line="20" Column="5" EndLine="20" EndColumn="25" Covered="False"/>
+  <Statement FileIndex="7" Line="21" Column="5" EndLine="21" EndColumn="25" Covered="True"/>
+  <Statement FileIndex="9" Line="3" Column="5" EndLine="3" EndColumn="25" Covered="True"/>
+</Root>`;
+
+  it('skips statements whose FileIndex is not in the file table and says so (#1232)', () => {
+    const report = parseDotcoverContent(UNKNOWN_INDEX_XML, '/project');
+
+    expect([...report.files.keys()]).toEqual(['/src/UserService.cs']);
+    expect([...report.files.keys()].some((f) => /file-\d+/.test(f))).toBe(false);
+    expect(report.summary.statements).toMatchObject({ total: 2, covered: 1 });
+    expect(report.warnings).toEqual([
+      'dotCover report references FileIndex 7, 9 missing from its file table; 3 statement(s) skipped and their coverage is not reported',
+    ]);
+  });
+
+  it('reports no files, not the root totals, when every statement has an unknown FileIndex (#1232)', () => {
+    const xml = `<Root CoveredStatements="1" TotalStatements="1">
+  <Statement FileIndex="4" Line="1" Column="1" EndLine="1" EndColumn="9" Covered="True"/>
+</Root>`;
+    const report = parseDotcoverContent(xml, '/project');
+
+    expect(report.files.size).toBe(0);
+    expect(report.warnings?.[0]).toMatch(/FileIndex 4 missing from its file table; 1 statement\(s\) skipped/);
+  });
+
+  it('has no warnings when every statement resolves to a file', () => {
+    expect(parseDotcoverContent(DOTCOVER_XML, '/project').warnings).toBeUndefined();
   });
 });
 
