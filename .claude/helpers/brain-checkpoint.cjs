@@ -17,6 +17,12 @@ const AQE_DIR = path.join(PROJECT_ROOT, '.agentic-qe');
 const RVF_PATH = path.join(AQE_DIR, 'aqe.rvf');
 const DB_PATH = path.join(AQE_DIR, 'memory.db');
 const MAX_AGE_HOURS = 24;
+// #1238: an export the native RVF writer cannot hold fails the same way every
+// turn. After one such failure, skip the Stop-hook export for this long, unless
+// a newer aqe.rvf shows that a manual export has succeeded since.
+const SKIP_PATH = path.join(AQE_DIR, 'brain-checkpoint.skip.json');
+const RETRY_ENV = Number.parseFloat(process.env.AQE_BRAIN_CHECKPOINT_RETRY_HOURS || '');
+const TOO_LARGE_RETRY_HOURS = Number.isFinite(RETRY_ENV) && RETRY_ENV >= 0 ? RETRY_ENV : 6;
 /**
  * How to run `aqe`. POSIX: the `aqe` binary. Windows (#872): never execFile
  * `aqe.cmd` (EINVAL without a shell since CVE-2024-27980, and a shell is unsafe);
@@ -66,11 +72,47 @@ function removeEntry(p) {
   try { fs.unlinkSync(p); } catch (e) { if (!e || e.code !== 'ENOENT') throw e; }
 }
 
+/**
+ * The skip marker left by a too-large export, or null once it has expired or
+ * a newer aqe.rvf shows that an export has succeeded since.
+ */
+function activeSkip() {
+  let st;
+  try { st = fs.lstatSync(SKIP_PATH); } catch { return null; }
+  let skip = null;
+  if (st.isFile()) { try { skip = JSON.parse(fs.readFileSync(SKIP_PATH, 'utf8')); } catch { /* unreadable */ } }
+  const at = skip ? Date.parse(skip.at) : NaN;
+  let rvfMtime = 0;
+  try { rvfMtime = fs.lstatSync(RVF_PATH).mtimeMs; } catch { /* absent */ }
+  if (!Number.isFinite(at) || Date.now() >= at + TOO_LARGE_RETRY_HOURS * 3600000 || rvfMtime > at) {
+    try { removeEntry(SKIP_PATH); } catch { /* best-effort */ }
+    return null;
+  }
+  return skip;
+}
+
+function writeSkip(reason) {
+  const at = new Date();
+  const skip = {
+    reason,
+    at: at.toISOString(),
+    retryAfter: new Date(at.getTime() + TOO_LARGE_RETRY_HOURS * 3600000).toISOString(),
+  };
+  // 'wx' after unlink: never write through a planted symlink (#970).
+  try { removeEntry(SKIP_PATH); fs.writeFileSync(SKIP_PATH, JSON.stringify(skip) + '\n', { flag: 'wx' }); } catch { /* best-effort */ }
+  return skip;
+}
+
 function exportBrain() {
   if (!fs.existsSync(DB_PATH)) { log('No memory.db, skipping'); return { exported: false }; }
   if (!isRealDir(AQE_DIR)) {
     const reason = '.agentic-qe is a symlink; refusing to write through it';
     log('Export skipped: ' + reason); return { exported: false, reason };
+  }
+  const skip = activeSkip();
+  if (skip) {
+    log('Export skipped until ' + skip.retryAfter + ': ' + skip.reason);
+    return { exported: false, skipped: true, reason: skip.reason, retryAfter: skip.retryAfter };
   }
   const aqe = aqeInvocation();
   if (!aqe.cmd) { log('Export skipped: ' + aqe.reason); return { exported: false, reason: aqe.reason }; }
@@ -79,13 +121,20 @@ function exportBrain() {
     removeEntry(RVF_PATH + '.idmap.json');
     const result = execFileSync(
       aqe.cmd, [...aqe.args, 'brain', 'export', '-o', RVF_PATH, '--format', 'rvf'],
-      { timeout: 60000, encoding: 'utf-8', windowsHide: true }
+      { timeout: 60000, encoding: 'utf-8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }
     );
     const m = result.match(/Patterns:\s+(\d+)/);
     const p = m ? m[1] : '0';
     log('Exported ' + p + ' patterns to aqe.rvf');
     return { exported: true, patterns: parseInt(p) };
   } catch (e) {
+    const tooLarge = (String(e.stderr || '') + String(e.stdout || '')).match(/RVF_KERNEL_TOO_LARGE:[^\n]*/);
+    if (tooLarge) {
+      const skip = writeSkip(tooLarge[0].trim());
+      log('Export failed: ' + skip.reason);
+      log('Skipping the checkpoint export until ' + skip.retryAfter + ' (AQE_BRAIN_CHECKPOINT_RETRY_HOURS sets the wait).');
+      return { exported: false, tooLarge: true, reason: skip.reason, retryAfter: skip.retryAfter };
+    }
     log('Export failed: ' + e.message);
     return { exported: false, reason: e.message };
   }
@@ -93,6 +142,11 @@ function exportBrain() {
 
 function verifyBrain() {
   if (!fs.existsSync(RVF_PATH)) {
+    const skip = activeSkip();
+    if (skip) {
+      log('No aqe.rvf found; checkpoint export paused until ' + skip.retryAfter + ': ' + skip.reason);
+      return { valid: false, reason: 'missing', skippedUntil: skip.retryAfter };
+    }
     log('No aqe.rvf found');
     return { valid: false, reason: 'missing' };
   }

@@ -52,6 +52,8 @@ export interface RvfBrainManifest {
     readonly totalRecords?: number;
     /** Per-table row counts used by the recovery-mirror richness guard. */
     readonly tableCounts?: Readonly<Record<string, number>>;
+    /** Regenerable cache rows left out of the kernel, per table (#1238). */
+    readonly skippedCacheRows?: Readonly<Record<string, number>>;
   };
   readonly domains: readonly string[];
   readonly checksum: string;
@@ -82,6 +84,8 @@ export interface RvfBrainExportOptions {
   readonly signerKeyId?: string;
   /** Explicit operator acknowledgement that a richer existing mirror may be replaced. */
   readonly allowOverwriteRicher?: boolean;
+  /** Kernel size ceiling in bytes. Defaults to RVF_MAX_KERNEL_BYTES; lowered only by tests. */
+  readonly maxKernelBytes?: number;
 }
 
 export interface RvfBrainImportOptions {
@@ -97,6 +101,59 @@ export interface RvfBrainImportResult {
 }
 
 // --- Export ---
+
+/**
+ * Largest kernel image @ruvector/rvf-node accepts. One byte more and
+ * `embedKernel` fails with a misleading `RVF error 0x0303: FsyncFailed`
+ * (#1238; measured 134,217,728 B ok, 134,217,729 B fails).
+ */
+export const RVF_MAX_KERNEL_BYTES = 128 * 1024 * 1024;
+
+/**
+ * Vector ids written by the code-intelligence domain (KG nodes, semantic code
+ * index, C4 diagrams). They are derived from source code and rebuilt by
+ * `aqe code index`, so they stay out of the brain kernel (#1238).
+ */
+export const CODE_INDEX_VECTOR_ID_PREFIX = 'code-intelligence:';
+
+const CODE_INDEX_VECTOR_MATCH = `substr(id, 1, ${CODE_INDEX_VECTOR_ID_PREFIX.length}) = ?`;
+
+function isCodeIndexVectorRow(tableName: string, row: unknown): boolean {
+  if (tableName !== 'vectors') return false;
+  const id = (row as { id?: unknown }).id;
+  return typeof id === 'string' && id.startsWith(CODE_INDEX_VECTOR_ID_PREFIX);
+}
+
+/** Thrown before any native call when the kernel would exceed the RVF limit. */
+export class RvfKernelTooLargeError extends Error {
+  readonly code = 'RVF_KERNEL_TOO_LARGE';
+
+  constructor(
+    readonly kernelBytes: number,
+    readonly limitBytes: number,
+    readonly tableBytes: Readonly<Record<string, number>>,
+    readonly complete: boolean,
+  ) {
+    const largest = Object.entries(tableBytes)
+      .filter(([, bytes]) => bytes >= 1024 * 1024)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([table, bytes]) => `${table} ${formatMb(bytes)}`)
+      .join(', ');
+    super(
+      `RVF_KERNEL_TOO_LARGE: the brain kernel needs ${complete ? '' : 'at least '}` +
+      `${formatMb(kernelBytes)}, over the ${formatMb(limitBytes)} limit of the native RVF writer.` +
+      (largest ? ` Largest tables: ${largest}.` : '') +
+      ' Nothing was written. ' +
+      `Use --format jsonl (no size limit), or reduce the largest learning tables first.`,
+    );
+    this.name = 'RvfKernelTooLargeError';
+  }
+}
+
+function formatMb(bytes: number): string {
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 /**
  * Sidecar suffixes that make up a complete store on disk. `''` is the store
@@ -194,63 +251,109 @@ export function exportBrainToRvf(
   sweepStaleTmpFiles(outPath);
   removeStoreFiles(tmpPath);
 
+  // --- Serialize all tables using TABLE_CONFIGS, before any native call ---
+  // Issue #1238: the native writer has a hard kernel ceiling, so each table is
+  // serialized once and measured as it goes. An oversized brain fails here,
+  // without creating a store or spending time on the rest of the tables.
+  const maxKernelBytes = options.maxKernelBytes ?? RVF_MAX_KERNEL_BYTES;
+  const allTableData: Record<string, unknown[]> = {};
+  const tableJson: Array<[string, string]> = [];
+  const tableBytes: Record<string, number> = {};
+  const tableCounts: Record<string, number> = {};
+  const skippedCacheRows: Record<string, number> = {};
+  const domainSet = new Set<string>();
+  let totalRecords = 0;
+  let kernelBytes = 0;
+
+  for (const config of TABLE_CONFIGS) {
+    let [where, params]: [string | undefined, unknown[]] = config.domainColumn
+      ? domainFilterForColumn(options.domains, config.domainColumn)
+      : [undefined, []];
+
+    if (config.tableName === 'vectors' && tableExists(db, 'vectors')) {
+      const { n } = db.prepare(
+        `SELECT COUNT(*) AS n FROM vectors WHERE ${CODE_INDEX_VECTOR_MATCH}`
+      ).get(CODE_INDEX_VECTOR_ID_PREFIX) as { n: number };
+      if (n > 0) skippedCacheRows.vectors = n;
+      where = `(id IS NULL OR NOT ${CODE_INDEX_VECTOR_MATCH})`;
+      params = [CODE_INDEX_VECTOR_ID_PREFIX];
+    }
+
+    let rows = queryAll(db, config.tableName, where, params);
+
+    if (options.domains && options.domains.length > 0) {
+      const manifestIds = new Set(
+        (allTableData.learning_evidence_manifests ?? []).map(
+          row => (row as { id: string }).id
+        )
+      );
+      const patternIds = new Set(
+        (allTableData.qe_patterns ?? []).map(row => (row as { id: string }).id)
+      );
+      if (['learning_evidence_segments', 'learning_segment_edges', 'learning_evidence_admissions'].includes(config.tableName)) {
+        rows = rows.filter(row => manifestIds.has((row as { manifest_id: string }).manifest_id));
+      } else if (config.tableName === 'pattern_manifest_lineage') {
+        rows = rows.filter(row => {
+          const lineage = row as { manifest_id: string; pattern_id: string };
+          return manifestIds.has(lineage.manifest_id) && patternIds.has(lineage.pattern_id);
+        });
+      } else if (config.tableName === 'pattern_segment_lineage') {
+        rows = rows.filter(row => {
+          const lineage = row as { manifest_id: string; pattern_id: string };
+          return manifestIds.has(lineage.manifest_id) && patternIds.has(lineage.pattern_id);
+        });
+      }
+    }
+
+    if (config.tableName === 'qe_patterns') {
+      for (const p of rows as Array<{ qe_domain?: string }>) {
+        if (p.qe_domain) domainSet.add(p.qe_domain);
+      }
+    }
+
+    // Serialize BLOBs to Base64 for JSON storage
+    const blobCols = TABLE_BLOB_COLUMNS[config.tableName];
+    if (blobCols && blobCols.length > 0) {
+      rows = rows.map(r => serializeRowBlobs(r as Record<string, unknown>, blobCols));
+    }
+
+    // Only these two tables are read back (domain-filtered lineage above).
+    if (config.tableName === 'qe_patterns' || config.tableName === 'learning_evidence_manifests') {
+      allTableData[config.tableName] = rows;
+    }
+    tableCounts[config.tableName] = rows.length;
+    totalRecords += rows.length;
+
+    const json = JSON.stringify(rows);
+    tableJson.push([config.tableName, json]);
+    tableBytes[config.tableName] = Buffer.byteLength(json);
+    kernelBytes += tableBytes[config.tableName];
+    if (kernelBytes > maxKernelBytes) {
+      throw new RvfKernelTooLargeError(kernelBytes, maxKernelBytes, tableBytes, false);
+    }
+  }
+
+  // Same bytes JSON.stringify would produce for { version, format, exportedAt,
+  // sourceDb, domains, tables }, assembled from the per-table JSON above.
+  const exportedAt = new Date().toISOString();
+  const domains = [...domainSet].sort();
+  const brainJson =
+    `{"version":"3.0","format":"rvf","exportedAt":${JSON.stringify(exportedAt)},` +
+    `"sourceDb":${JSON.stringify(sourceDbLabel)},"domains":${JSON.stringify(domains)},"tables":{` +
+    tableJson.map(([tableName, json]) => `${JSON.stringify(tableName)}:${json}`).join(',') +
+    '}}';
+  tableJson.length = 0;
+  const kernelBuffer = Buffer.from(brainJson);
+  if (kernelBuffer.length > maxKernelBytes) {
+    throw new RvfKernelTooLargeError(kernelBuffer.length, maxKernelBytes, tableBytes, true);
+  }
+  const checksum = sha256(brainJson);
+
   // Create RVF container via adapter (handles idmap automatically)
   const rvf = createRvfStore(tmpPath, dimension);
   let closed = false;
 
   try {
-    // --- Export all tables using TABLE_CONFIGS ---
-    const allTableData: Record<string, unknown[]> = {};
-    const domainSet = new Set<string>();
-    let totalRecords = 0;
-
-    for (const config of TABLE_CONFIGS) {
-      const [where, params] = config.domainColumn
-        ? domainFilterForColumn(options.domains, config.domainColumn)
-        : [undefined, [] as string[]];
-
-      let rows = queryAll(db, config.tableName, where, params);
-
-      if (options.domains && options.domains.length > 0) {
-        const manifestIds = new Set(
-          (allTableData.learning_evidence_manifests ?? []).map(
-            row => (row as { id: string }).id
-          )
-        );
-        const patternIds = new Set(
-          (allTableData.qe_patterns ?? []).map(row => (row as { id: string }).id)
-        );
-        if (['learning_evidence_segments', 'learning_segment_edges', 'learning_evidence_admissions'].includes(config.tableName)) {
-          rows = rows.filter(row => manifestIds.has((row as { manifest_id: string }).manifest_id));
-        } else if (config.tableName === 'pattern_manifest_lineage') {
-          rows = rows.filter(row => {
-            const lineage = row as { manifest_id: string; pattern_id: string };
-            return manifestIds.has(lineage.manifest_id) && patternIds.has(lineage.pattern_id);
-          });
-        } else if (config.tableName === 'pattern_segment_lineage') {
-          rows = rows.filter(row => {
-            const lineage = row as { manifest_id: string; pattern_id: string };
-            return manifestIds.has(lineage.manifest_id) && patternIds.has(lineage.pattern_id);
-          });
-        }
-      }
-
-      if (config.tableName === 'qe_patterns') {
-        for (const p of rows as Array<{ qe_domain?: string }>) {
-          if (p.qe_domain) domainSet.add(p.qe_domain);
-        }
-      }
-
-      // Serialize BLOBs to Base64 for JSON storage
-      const blobCols = TABLE_BLOB_COLUMNS[config.tableName];
-      if (blobCols && blobCols.length > 0) {
-        rows = rows.map(r => serializeRowBlobs(r as Record<string, unknown>, blobCols));
-      }
-
-      allTableData[config.tableName] = rows;
-      totalRecords += rows.length;
-    }
-
     // --- Ingest vector embeddings into HNSW ---
     let embeddingCount = 0;
     const embeddingEntries: RvfIngestEntry[] = [];
@@ -288,18 +391,6 @@ export function exportBrainToRvf(
     }
 
     // --- Embed full brain data as kernel ---
-    const brainData = {
-      version: '3.0' as const,
-      format: 'rvf' as const,
-      exportedAt: new Date().toISOString(),
-      sourceDb: sourceDbLabel,
-      domains: [...domainSet].sort(),
-      tables: allTableData,
-    };
-
-    const brainJson = JSON.stringify(brainData);
-    const checksum = sha256(brainJson);
-    const kernelBuffer = Buffer.from(brainJson);
     rvf.embedKernel(kernelBuffer);
 
     // Optional Ed25519 signing
@@ -317,20 +408,19 @@ export function exportBrainToRvf(
     const manifest: RvfBrainManifest = {
       version: '3.0',
       format: 'rvf',
-      exportedAt: brainData.exportedAt,
+      exportedAt,
       sourceDb: sourceDbLabel,
       stats: {
-        patternCount: (allTableData['qe_patterns'] || []).length,
+        patternCount: tableCounts['qe_patterns'] ?? 0,
         embeddingCount,
-        qValueCount: (allTableData['rl_q_values'] || []).length,
-        dreamInsightCount: (allTableData['dream_insights'] || []).length,
-        witnessChainLength: (allTableData['witness_chain'] || []).length,
+        qValueCount: tableCounts['rl_q_values'] ?? 0,
+        dreamInsightCount: tableCounts['dream_insights'] ?? 0,
+        witnessChainLength: tableCounts['witness_chain'] ?? 0,
         totalRecords,
-        tableCounts: Object.fromEntries(
-          TABLE_CONFIGS.map(({ tableName }) => [tableName, allTableData[tableName]?.length ?? 0]),
-        ),
+        tableCounts,
+        ...(Object.keys(skippedCacheRows).length > 0 ? { skippedCacheRows } : {}),
       },
-      domains: brainData.domains,
+      domains,
       checksum,
       rvfStatus: {
         totalVectors: status.totalVectors,
@@ -364,7 +454,9 @@ export function exportBrainToRvf(
     if (existsSync(outPath) && !options.allowOverwriteRicher) {
       let existing: RvfBrainManifest | undefined;
       try {
-        existing = brainInfoFromRvf(outPath);
+        // Code-index vectors are no longer exported (#1238), so an older mirror
+        // that still holds them is compared on the rows both exports carry.
+        existing = readBrainInfo(outPath, true);
       } catch (error) {
         if (hasReadableBrainKernel(outPath) || !isKnownUnusableRvfError(error)) {
           const detail = error instanceof Error ? error.message : String(error);
@@ -622,6 +714,14 @@ export function importBrainFromRvf(
 
 /** Read brain info from an RVF file without importing. */
 export function brainInfoFromRvf(rvfPath: string): RvfBrainManifest {
+  return readBrainInfo(rvfPath, false);
+}
+
+/**
+ * `excludeCodeIndex` drops code-index vector rows from `tableCounts`, which
+ * makes them comparable with the counts of a current export.
+ */
+function readBrainInfo(rvfPath: string, excludeCodeIndex: boolean): RvfBrainManifest {
   if (!isRvfNativeAvailable()) {
     throw new Error('@ruvector/rvf-node is not available.');
   }
@@ -663,7 +763,12 @@ export function brainInfoFromRvf(rvfPath: string): RvfBrainManifest {
       ? Object.fromEntries(
           Object.entries(t)
             .filter((entry): entry is [string, Record<string, unknown>[]] => Array.isArray(entry[1]))
-            .map(([tableName, rows]) => [tableName, rows.length]),
+            .map(([tableName, rows]) => [
+              tableName,
+              excludeCodeIndex
+                ? rows.filter(row => !isCodeIndexVectorRow(tableName, row)).length
+                : rows.length,
+            ]),
         )
       : undefined;
 
