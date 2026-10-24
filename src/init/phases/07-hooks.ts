@@ -464,6 +464,7 @@ console.log(\`\\x1b[1m\\x1b[35m▊ Agentic QE v3\\x1b[0m\${branchStr}\${patStr}\
  *   node brain-checkpoint.cjs verify   # Verify aqe.rvf exists (session-start)
  */
 const { execFileSync } = require('child_process');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
@@ -472,6 +473,11 @@ const AQE_DIR = path.join(PROJECT_ROOT, '.agentic-qe');
 const RVF_PATH = path.join(AQE_DIR, 'aqe.rvf');
 const DB_PATH = path.join(AQE_DIR, 'memory.db');
 const MAX_AGE_HOURS = 24;
+// #1238: after a too-large export, skip the Stop-hook export for a while
+// unless a newer aqe.rvf shows that an export has succeeded since.
+const SKIP_PATH = path.join(AQE_DIR, 'brain-checkpoint.skip.json');
+const RETRY_ENV = Number.parseFloat(process.env.AQE_BRAIN_CHECKPOINT_RETRY_HOURS || '');
+const TOO_LARGE_RETRY_HOURS = Number.isFinite(RETRY_ENV) && RETRY_ENV >= 0 ? RETRY_ENV : 6;
 // Windows (#872): never execFile aqe.cmd (EINVAL without a shell); reuse the
 // hook shim's resolver, which runs the AQE bundle via node instead.
 function aqeInvocation() {
@@ -492,32 +498,110 @@ function aqeInvocation() {
 
 function log(msg) { process.stderr.write('[brain-checkpoint] ' + msg + '\\n'); }
 
+function activeSkip() {
+  let st; try { st = fs.lstatSync(SKIP_PATH); } catch { return null; }
+  let skip = null;
+  if (st.isFile()) { try { skip = JSON.parse(fs.readFileSync(SKIP_PATH, 'utf8')); } catch { /* unreadable */ } }
+  const at = skip ? Date.parse(skip.at) : NaN;
+  let rvfMtime = 0; try { rvfMtime = fs.lstatSync(RVF_PATH).mtimeMs; } catch { /* absent */ }
+  if (!Number.isFinite(at) || Date.now() >= at + TOO_LARGE_RETRY_HOURS * 3600000 || rvfMtime > at) {
+    try { fs.unlinkSync(SKIP_PATH); } catch { /* best-effort */ }
+    return null;
+  }
+  return skip;
+}
+
+function writeSkip(reason) {
+  const at = new Date();
+  const skip = { reason, at: at.toISOString(), retryAfter: new Date(at.getTime() + TOO_LARGE_RETRY_HOURS * 3600000).toISOString() };
+  // 'wx' after unlink: never write through a planted symlink (#970).
+  try { try { fs.unlinkSync(SKIP_PATH); } catch { /* absent */ } fs.writeFileSync(SKIP_PATH, JSON.stringify(skip) + '\\n', { flag: 'wx' }); } catch { /* best-effort */ }
+  return skip;
+}
+
+// Export to a temp store next to aqe.rvf; rename it over aqe.rvf only on
+// success, so a failed, too-large or killed export keeps the last checkpoint.
+const RVF_SIDECARS = ['.idmap.json', '.manifest.json'];
+const TMP_PREFIX = path.basename(RVF_PATH) + '.tmp-';
+function removeEntry(p) { try { fs.unlinkSync(p); } catch (e) { if (!e || e.code !== 'ENOENT') throw e; } }
+function isPidAlive(pid) { try { process.kill(pid, 0); return true; } catch (e) { return !!e && e.code === 'EPERM'; } }
+function removeByPrefix(prefix, keep) {
+  let entries = []; try { entries = fs.readdirSync(AQE_DIR); } catch { return; }
+  for (const entry of entries) {
+    if (!entry.startsWith(prefix) || (keep && keep(entry))) continue;
+    try { removeEntry(path.join(AQE_DIR, entry)); } catch { /* best-effort */ }
+  }
+}
+function sweepStaleTmp() {
+  removeByPrefix(TMP_PREFIX, (entry) => {
+    const pid = Number.parseInt(entry.slice(TMP_PREFIX.length).split('-')[0], 10);
+    return !Number.isInteger(pid) || pid <= 0 || isPidAlive(pid);
+  });
+}
+function lexists(p) { try { fs.lstatSync(p); return true; } catch { return false; } }
+// rename() replaces a planted symlink without writing through it (#970). The
+// store goes first: if that fails nothing changed. If a sidecar rename fails
+// afterwards, the stale sidecar is removed, so the new store is never read
+// with the previous export's idmap.
+function promote(tmp) {
+  fs.renameSync(tmp, RVF_PATH);
+  for (const suffix of RVF_SIDECARS) {
+    try {
+      if (lexists(tmp + suffix)) fs.renameSync(tmp + suffix, RVF_PATH + suffix);
+      else removeEntry(RVF_PATH + suffix);
+    } catch { try { removeEntry(RVF_PATH + suffix); } catch { /* best-effort */ } }
+  }
+}
+
 function exportBrain() {
   if (!fs.existsSync(DB_PATH)) { log('No memory.db, skipping'); return { exported: false }; }
   const aqe = aqeInvocation();
   if (!aqe.cmd) { log('Export skipped: ' + aqe.reason); return { exported: false, reason: aqe.reason }; }
-  // Never write through a committed symlink: .agentic-qe must be a real dir, and
-  // unlink (not existsSync) drops a planted aqe.rvf link, even a dangling one.
+  // Never write through a committed symlink: .agentic-qe must be a real dir.
   let st; try { st = fs.lstatSync(AQE_DIR); } catch { /* missing */ }
   if (!st || !st.isDirectory()) { log('Export skipped: .agentic-qe is a symlink'); return { exported: false }; }
-  for (const f of [RVF_PATH, RVF_PATH + '.idmap.json']) { try { fs.unlinkSync(f); } catch { /* absent */ } }
+  const skip = activeSkip();
+  if (skip) {
+    log('Export skipped until ' + skip.retryAfter + ': ' + skip.reason);
+    return { exported: false, skipped: true, reason: skip.reason, retryAfter: skip.retryAfter };
+  }
+  sweepStaleTmp();
+  const tmp = path.join(AQE_DIR, TMP_PREFIX + process.pid + '-' + crypto.randomBytes(4).toString('hex'));
   try {
+    for (const suffix of ['', ...RVF_SIDECARS]) removeEntry(tmp + suffix);
     const result = execFileSync(
-      aqe.cmd, [...aqe.args, 'brain', 'export', '-o', RVF_PATH, '--format', 'rvf'],
-      { timeout: 60000, encoding: 'utf-8', windowsHide: true }
+      aqe.cmd, [...aqe.args, 'brain', 'export', '-o', tmp, '--format', 'rvf'],
+      { timeout: 60000, encoding: 'utf-8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }
     );
+    // A zero exit without a store is a failure, not an empty checkpoint.
+    if (!lexists(tmp)) throw new Error('brain export exited 0 but wrote no store');
+    promote(tmp);
     const m = result.match(/Patterns:\\s+(\\d+)/);
     const p = m ? m[1] : '0';
     log('Exported ' + p + ' patterns to aqe.rvf');
     return { exported: true, patterns: parseInt(p) };
   } catch (e) {
-    log('Export failed: ' + e.message);
+    const tooLarge = (String(e.stderr || '') + String(e.stdout || '')).match(/RVF_KERNEL_TOO_LARGE:[^\\n]*/);
+    if (tooLarge) {
+      const skip = writeSkip(tooLarge[0].trim());
+      log('Export failed: ' + skip.reason);
+      log('Skipping the checkpoint export until ' + skip.retryAfter + ' (AQE_BRAIN_CHECKPOINT_RETRY_HOURS sets the wait).');
+      return { exported: false, tooLarge: true, reason: skip.reason, retryAfter: skip.retryAfter };
+    }
+    log('Export failed: ' + e.message + ' (previous aqe.rvf kept)');
     return { exported: false, reason: e.message };
+  } finally {
+    removeByPrefix(path.basename(tmp));
   }
 }
 
 function verifyBrain() {
   if (!fs.existsSync(RVF_PATH)) {
+    const skip = activeSkip();
+    if (skip) {
+      log('No aqe.rvf found; checkpoint export paused until ' + skip.retryAfter + ': ' + skip.reason);
+      return { valid: false, reason: 'missing', skippedUntil: skip.retryAfter };
+    }
     log('No aqe.rvf found');
     return { valid: false, reason: 'missing' };
   }
