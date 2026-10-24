@@ -7,6 +7,7 @@
  *   node brain-checkpoint.cjs verify   # Verify aqe.rvf exists (session-start)
  */
 const { execFileSync } = require('child_process');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
@@ -103,6 +104,62 @@ function writeSkip(reason) {
   return skip;
 }
 
+// The export is written to a temp store next to aqe.rvf and renamed over it
+// only once it succeeded, so a failed, too-large or killed export keeps the
+// previous checkpoint. The CLI writes these sidecars next to its -o path.
+const RVF_SIDECARS = ['.idmap.json', '.manifest.json'];
+const TMP_PREFIX = path.basename(RVF_PATH) + '.tmp-';
+
+function isPidAlive(pid) {
+  try { process.kill(pid, 0); return true; } catch (e) { return !!e && e.code === 'EPERM'; }
+}
+
+/** Remove entries in .agentic-qe that start with `prefix` (unlink: never follows a symlink). */
+function removeByPrefix(prefix, keep) {
+  let entries = [];
+  try { entries = fs.readdirSync(AQE_DIR); } catch { return; }
+  for (const entry of entries) {
+    if (!entry.startsWith(prefix) || (keep && keep(entry))) continue;
+    try { removeEntry(path.join(AQE_DIR, entry)); } catch { /* best-effort: a leftover tmp is inert */ }
+  }
+}
+
+/** Temp stores of earlier hook runs that were killed: their owning pid is gone. */
+function sweepStaleTmp() {
+  removeByPrefix(TMP_PREFIX, (entry) => {
+    const pid = Number.parseInt(entry.slice(TMP_PREFIX.length).split('-')[0], 10);
+    return !Number.isInteger(pid) || pid <= 0 || isPidAlive(pid);
+  });
+}
+
+function lexists(p) {
+  try { fs.lstatSync(p); return true; } catch { return false; }
+}
+
+/**
+ * Promote a completed temp store over aqe.rvf. rename() replaces whatever
+ * sits at the destination, a planted symlink included, without writing
+ * through it (#970).
+ *
+ * The store goes first, then the sidecars: until the store rename succeeds
+ * nothing has changed, so a failure there leaves the old store with its own
+ * idmap. If a sidecar rename fails after that, the stale destination sidecar
+ * is removed, so the new store is never read with the previous export's
+ * idmap. A store without an idmap is consistent; one with another export's
+ * idmap is not.
+ */
+function promote(tmp) {
+  fs.renameSync(tmp, RVF_PATH);
+  for (const suffix of RVF_SIDECARS) {
+    try {
+      if (lexists(tmp + suffix)) fs.renameSync(tmp + suffix, RVF_PATH + suffix);
+      else removeEntry(RVF_PATH + suffix);
+    } catch {
+      try { removeEntry(RVF_PATH + suffix); } catch { /* best-effort */ }
+    }
+  }
+}
+
 function exportBrain() {
   if (!fs.existsSync(DB_PATH)) { log('No memory.db, skipping'); return { exported: false }; }
   if (!isRealDir(AQE_DIR)) {
@@ -116,13 +173,18 @@ function exportBrain() {
   }
   const aqe = aqeInvocation();
   if (!aqe.cmd) { log('Export skipped: ' + aqe.reason); return { exported: false, reason: aqe.reason }; }
+  sweepStaleTmp();
+  const tmp = path.join(AQE_DIR, TMP_PREFIX + process.pid + '-' + crypto.randomBytes(4).toString('hex'));
   try {
-    removeEntry(RVF_PATH);
-    removeEntry(RVF_PATH + '.idmap.json');
+    // The name is fresh, but drop anything already there without following it.
+    for (const suffix of ['', ...RVF_SIDECARS]) removeEntry(tmp + suffix);
     const result = execFileSync(
-      aqe.cmd, [...aqe.args, 'brain', 'export', '-o', RVF_PATH, '--format', 'rvf'],
+      aqe.cmd, [...aqe.args, 'brain', 'export', '-o', tmp, '--format', 'rvf'],
       { timeout: 60000, encoding: 'utf-8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }
     );
+    // A zero exit without a store is a failure, not an empty checkpoint.
+    if (!lexists(tmp)) throw new Error('brain export exited 0 but wrote no store');
+    promote(tmp);
     const m = result.match(/Patterns:\s+(\d+)/);
     const p = m ? m[1] : '0';
     log('Exported ' + p + ' patterns to aqe.rvf');
@@ -135,8 +197,11 @@ function exportBrain() {
       log('Skipping the checkpoint export until ' + skip.retryAfter + ' (AQE_BRAIN_CHECKPOINT_RETRY_HOURS sets the wait).');
       return { exported: false, tooLarge: true, reason: skip.reason, retryAfter: skip.retryAfter };
     }
-    log('Export failed: ' + e.message);
+    log('Export failed: ' + e.message + ' (previous aqe.rvf kept)');
     return { exported: false, reason: e.message };
+  } finally {
+    // The temp store, its sidecars and the CLI's own tmp files under it.
+    removeByPrefix(path.basename(tmp));
   }
 }
 
