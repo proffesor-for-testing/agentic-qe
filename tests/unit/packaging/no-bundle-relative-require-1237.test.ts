@@ -55,7 +55,7 @@ function findBundleRelativeRequires(source: string): string[] {
   source.split(/\r?\n/).forEach((raw, i) => {
     const line = stripComments(raw);
     if (!line) return;
-    const callees = [...names].map((n) => n.replace(/\$/g, '\\$')).join('|');
+    const callees = [...names].map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
     const patterns = [/createRequire\s*\([^)]*\)\s*\(\s*(['"`])(\.\.?\/[^'"`]+)\1/g];
     if (callees) patterns.push(new RegExp(`\\b(?:${callees})\\s*\\(\\s*(['"\`])(\\.\\.?\\/[^'"\`]+)\\1`, 'g'));
     for (const re of patterns) {
