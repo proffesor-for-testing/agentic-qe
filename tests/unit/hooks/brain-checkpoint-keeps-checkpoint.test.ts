@@ -58,7 +58,8 @@ function project(variant: Variant, fake: keyof typeof FAKES) {
   writeFileSync(fakeAqe, `#!/bin/sh\n${FAKES[fake]}`);
   chmodSync(fakeAqe, 0o755);
 
-  const exportBrain = () => JSON.parse(execFileSync(process.execPath, [helper, 'export', '--json'], {
+  const exportBrain = (preload?: string) => JSON.parse(execFileSync(process.execPath,
+    [...(preload ? ['-r', preload] : []), helper, 'export', '--json'], {
     env: { PATH: process.env.PATH ?? '', AQE_HOOK_BIN: fakeAqe }, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'],
   }));
   const tmpFiles = () => readdirSync(aqeDir).filter(f => f.includes('.tmp'));
@@ -107,6 +108,21 @@ describe.skipIf(process.platform === 'win32').each(variants)('brain-checkpoint $
     expect(p.exportBrain()).toEqual({ exported: true, patterns: 3 });
     expect(p.read('aqe.rvf')).toBe('NEW-RVF');
     expect(p.read('aqe.rvf.idmap.json')).toBe('NEW-IDMAP');
+    expect(p.read('aqe.rvf.manifest.json')).toBe('NEW-MANIFEST');
+    expect(p.tmpFiles()).toEqual([]);
+  });
+
+  it('should_dropTheStaleIdmap_when_itsRenameFailsAfterTheStoreWasReplaced', () => {
+    const p = project(variant, 'ok');
+    p.seedCheckpoint();
+    // Fail only the idmap rename, after the store rename has gone through.
+    const preload = join(tmp, 'fail-idmap-rename.cjs');
+    writeFileSync(preload, `const fs = require('fs'); const rename = fs.renameSync;
+fs.renameSync = (from, to) => { if (String(to).endsWith('aqe.rvf.idmap.json')) throw new Error('EIO'); return rename(from, to); };`);
+
+    expect(p.exportBrain(preload)).toEqual({ exported: true, patterns: 3 });
+    expect(p.read('aqe.rvf')).toBe('NEW-RVF');
+    expect(readdirSync(p.aqeDir)).not.toContain('aqe.rvf.idmap.json');
     expect(p.read('aqe.rvf.manifest.json')).toBe('NEW-MANIFEST');
     expect(p.tmpFiles()).toEqual([]);
   });
