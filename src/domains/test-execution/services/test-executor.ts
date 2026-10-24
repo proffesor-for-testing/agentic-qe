@@ -1355,6 +1355,7 @@ Provide:
             branch: ratio(branches),
             function: ratio(fns),
             statement: ratio(statements),
+            lines: { covered: lines[0], total: lines[1] },
           });
           for (const [key, [covered, count]] of [['line', lines], ['branch', branches], ['function', fns], ['statement', statements]] as const) {
             totals[key][0] += covered;
@@ -1417,12 +1418,15 @@ Provide:
             const line = summaryPct(entry?.lines);
             if (line !== null) {
               // #1015: a metric with total 0 is not collected (null), not its 100 pct.
+              const counts = entry.lines;
               perFile.push({
                 path: normalizedPath,
                 line,
                 branch: summaryPct(entry.branches),
                 function: summaryPct(entry.functions),
                 statement: summaryPct(entry.statements),
+                ...(typeof counts?.covered === 'number' && typeof counts.total === 'number'
+                  ? { lines: { covered: counts.covered, total: counts.total } } : {}),
               });
             }
           }
@@ -1514,6 +1518,8 @@ Provide:
           function: fc.function ?? null,
           statement: fc.statement ?? null,
           measured: true,
+          // #1219: the counts behind `line`, so several files can be line-weighted.
+          ...(fc.lines ? { lines: fc.lines } : {}),
           runStatus,
         }, { persist: true });
       }
@@ -1551,6 +1557,8 @@ interface CoverageFigures {
 
 interface FileCoverageFigures extends CoverageFigures {
   path: string;
+  /** #1219: the line counts behind `line`, when the report has them. */
+  lines?: { covered: number; total: number };
 }
 
 interface SummaryMetric { total?: number; covered?: number; pct?: number }

@@ -81,20 +81,20 @@ const legacy = {
 describe('#1014.3 — per-file / latest coverage readers ignore unstamped records', () => {
   it('quality-analyzer reports no stored coverage (null) instead of the legacy 10', async () => {
     const analyzer = new QualityAnalyzerService(kv(legacy) as never);
-    const read = (analyzer as unknown as { getStoredCoverage(f: string): Promise<number | null> }).getStoredCoverage.bind(analyzer);
+    const read = (analyzer as unknown as { getStoredCoverage(f: string): Promise<{ line: number } | null> }).getStoredCoverage.bind(analyzer);
     expect(await read('src/a.ts')).toBeNull();
   });
 
   it('quality-analyzer reads a measured per-file record', async () => {
     const analyzer = new QualityAnalyzerService(kv({ 'coverage:file:src/a.ts': { line: 64, branch: null, measured: true } }) as never);
-    const read = (analyzer as unknown as { getStoredCoverage(f: string): Promise<number | null> }).getStoredCoverage.bind(analyzer);
-    expect(await read('src/a.ts')).toBe(64);
+    const read = (analyzer as unknown as { getStoredCoverage(f: string): Promise<{ line: number } | null> }).getStoredCoverage.bind(analyzer);
+    expect((await read('src/a.ts'))?.line).toBe(64);
   });
 
   it('#1030: quality-analyzer finds an absolute-key record for a relative source path', async () => {
     const analyzer = new QualityAnalyzerService(kv({ [`coverage:file:${resolve(process.env.AQE_PROJECT_ROOT ?? process.cwd(), 'src/a.ts')}`]: { line: 72, measured: true } }) as never);
-    const read = (analyzer as unknown as { getStoredCoverage(f: string): Promise<number | null> }).getStoredCoverage.bind(analyzer);
-    expect(await read('src/a.ts')).toBe(72);
+    const read = (analyzer as unknown as { getStoredCoverage(f: string): Promise<{ line: number } | null> }).getStoredCoverage.bind(analyzer);
+    expect((await read('src/a.ts'))?.line).toBe(72);
   });
 
   it('#1030: canonical coverage wins over an older measured relative key', async () => {
@@ -102,8 +102,8 @@ describe('#1014.3 — per-file / latest coverage readers ignore unstamped record
       [`coverage:file:${resolve(process.env.AQE_PROJECT_ROOT ?? process.cwd(), 'src/a.ts')}`]: { line: 72, measured: true },
       'coverage:file:src/a.ts': { line: 34, measured: true },
     }) as never);
-    const read = (analyzer as unknown as { getStoredCoverage(f: string): Promise<number | null> }).getStoredCoverage.bind(analyzer);
-    expect(await read('src/a.ts')).toBe(72);
+    const read = (analyzer as unknown as { getStoredCoverage(f: string): Promise<{ line: number } | null> }).getStoredCoverage.bind(analyzer);
+    expect((await read('src/a.ts'))?.line).toBe(72);
   });
 
   it('#1027 NB4: defect-investigation reports an uncollected branch metric as null, not the line figure', async () => {

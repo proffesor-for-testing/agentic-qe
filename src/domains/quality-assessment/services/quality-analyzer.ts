@@ -30,7 +30,7 @@ import type { HybridRouter, ChatResponse } from '../../../shared/llm';
 import { toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { getClaudeModelForTier } from '../../../shared/llm/model-registry.js';
-import { measuredCoverageSummary, measuredFileCoverage } from '../coverage-report-event.js';
+import { measuredFileCoverage, type MeasuredFileCoverage } from '../coverage-report-event.js';
 import { fileCoverageLookupKeys } from '../../coverage-analysis/collected-metrics.js';
 
 /**
@@ -91,9 +91,30 @@ const UNMEASURED = -1;
 /** Per-file metric values plus how each requested metric counts as evidence. */
 interface CollectedMetrics {
   fileMetrics: Map<string, Record<string, number>>;
+  /**
+   * #1219: a metric's value over the whole scope when it is not the mean of
+   * the per-file values (coverage is covered lines over total lines).
+   */
+  scopeValues: Record<string, number>;
   unmeasured: UnmeasuredQualityMetric[];
   excluded: ExcludedQualityFile[];
   partial: PartialQualityMetric[];
+}
+
+/**
+ * #1219: covered lines over total lines across the files, or `null` when a
+ * record has no line counts (a mean of percentages would weight a 10-line
+ * file like a 1000-line one).
+ */
+function lineWeightedCoverage(records: readonly MeasuredFileCoverage[]): number | null {
+  let covered = 0;
+  let total = 0;
+  for (const record of records) {
+    if (!record.lines) return null;
+    covered += record.lines.covered;
+    total += record.lines.total;
+  }
+  return total > 0 ? (covered / total) * 100 : null;
 }
 
 /** First reasons of a failure list, for a one-line explanation. */
@@ -381,11 +402,11 @@ Focus on:
       }
 
       // Analyze metrics for each file; failures become unmeasured (#1011)
-      const { fileMetrics, unmeasured, excluded, partial } = await this.collectFileMetrics(
+      const { fileMetrics, scopeValues, unmeasured, excluded, partial } = await this.collectFileMetrics(
         sourceFiles, includeMetrics, request.explicitFiles ?? []);
 
       // Calculate aggregated metrics
-      const metricDetails = this.aggregateMetrics(fileMetrics);
+      const metricDetails = this.aggregateMetrics(fileMetrics, scopeValues);
 
       // Calculate overall quality score
       const score = this.calculateQualityScore(metricDetails);
@@ -552,6 +573,8 @@ Focus on:
     const unreadable: ExcludedQualityFile[] = [];
     const readable: string[] = [];
     const missingCoverage: string[] = [];
+    const coverageRecords: MeasuredFileCoverage[] = [];
+    const scopeValues: Record<string, number> = {};
     const explicit = new Set(explicitFiles);
     const needsAnalysis = requested.some((m) => PARSED_METRICS.has(m) || m === 'duplication');
 
@@ -586,7 +609,8 @@ Focus on:
         // Coverage requires external data (from test runners) — never fabricate a number
         const storedCoverage = await this.getStoredCoverage(file);
         if (storedCoverage !== null) {
-          metrics.coverage = storedCoverage;
+          metrics.coverage = storedCoverage.line;
+          coverageRecords.push(storedCoverage);
         } else {
           missingCoverage.push(file);
         }
@@ -597,10 +621,29 @@ Focus on:
     const total = fileMetrics.size;
     if (missingCoverage.length > 0) {
       for (const metrics of fileMetrics.values()) delete metrics.coverage;
+      // #1219: the project-wide summary is not a measurement of these files.
       unmeasured.push({
         metric: 'coverage',
-        reason: `no measured coverage recorded for ${missingCoverage.length} of ${total} file(s)`,
+        reason: `no measured coverage recorded for ${missingCoverage.length} of ${total} file(s) `
+          + `(${missingCoverage.slice(0, 3).join(', ')}${missingCoverage.length > 3 ? ', …' : ''}); `
+          + 'a project-wide coverage figure is not a measurement of these files',
+        files: missingCoverage,
       });
+    } else if (coverageRecords.length > 1) {
+      const weighted = lineWeightedCoverage(coverageRecords);
+      if (weighted === null) {
+        for (const metrics of fileMetrics.values()) delete metrics.coverage;
+        const legacy = coverageRecords.filter((r) => !r.lines).length;
+        // #1219: a plain mean of per-file percentages is not the scope's coverage.
+        unmeasured.push({
+          metric: 'coverage',
+          reason: `${legacy} of ${coverageRecords.length} per-file coverage record(s) carry no line counts `
+            + '(written before 3.15.13), so the files cannot be weighted by size and a mean of their '
+            + 'percentages is not the coverage of the scope; re-run coverage to record line counts',
+        });
+      } else {
+        scopeValues.coverage = weighted;
+      }
     }
 
     /** Decide whether a metric with these failures is measured, partial or unmeasured. */
@@ -656,28 +699,24 @@ Focus on:
       }
     }
 
-    return { fileMetrics, unmeasured, excluded, partial };
+    return { fileMetrics, scopeValues, unmeasured, excluded, partial };
   }
 
-  private async getStoredCoverage(file: string): Promise<number | null> {
+  /**
+   * The file's own measured coverage record, or `null`. #1219: never the
+   * project-wide `coverage:latest` summary — that is not this file's coverage.
+   */
+  private async getStoredCoverage(file: string): Promise<MeasuredFileCoverage | null> {
     try {
       // 1. Try per-file coverage stored by test executor
       // #1014: only measured records count. Legacy unstamped estimate
       // records (written by <= 3.15.4, never expiring) are ignored.
       for (const key of fileCoverageLookupKeys(file)) {
         const fileCoverage = measuredFileCoverage(await this.memory.get<unknown>(key));
-        if (fileCoverage) return fileCoverage.line;
+        if (fileCoverage) return fileCoverage;
       }
 
-      // 2. Fall back to project-wide summary from coverage-analyzer
-      const summary = measuredCoverageSummary(await this.memory.get<unknown>(
-        'coverage:latest'
-      ));
-      if (summary) {
-        return summary.line;
-      }
-
-      // No coverage data available — return null (never fabricate)
+      // No coverage data for this file — return null (never fabricate)
       return null;
     } catch {
       return null;
@@ -685,7 +724,8 @@ Focus on:
   }
 
   private aggregateMetrics(
-    fileMetrics: Map<string, Record<string, number>>
+    fileMetrics: Map<string, Record<string, number>>,
+    scopeValues: Record<string, number> = {}
   ): QualityMetricDetail[] {
     const aggregated: Map<string, number[]> = new Map();
 
@@ -702,7 +742,7 @@ Focus on:
     const details: QualityMetricDetail[] = [];
 
     for (const [name, values] of aggregated.entries()) {
-      const average = values.reduce((a, b) => a + b, 0) / values.length;
+      const average = scopeValues[name] ?? values.reduce((a, b) => a + b, 0) / values.length;
       const rating = this.getMetricRating(average, name);
       const trend = this.estimateTrend(values);
 
