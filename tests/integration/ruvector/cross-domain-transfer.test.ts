@@ -552,7 +552,12 @@ describe('Cross-Domain Transfer: Verification Gates', () => {
 // ============================================================================
 
 describe('Cross-Domain Transfer: Coherence Gate', () => {
-  it('should use the stub coherence gate that always approves', () => {
+  afterEach(() => {
+    resetRuVectorFeatureFlags();
+  });
+
+  it('should return the real coherence gate when useCoherenceGate is on (#1237)', () => {
+    setRuVectorFeatureFlags({ useCoherenceGate: true });
     const gate = createTransferCoherenceGate();
 
     const result = gate.validateTransfer(
@@ -560,6 +565,20 @@ describe('Cross-Domain Transfer: Coherence Gate', () => {
       TARGET_DOMAIN,
     );
 
+    expect(gate).not.toBeInstanceOf(TransferCoherenceStub);
+    expect(typeof result.energy).toBe('number'); // The real gate computes energy
+  });
+
+  it('should return the pass-through stub when useCoherenceGate is off', () => {
+    setRuVectorFeatureFlags({ useCoherenceGate: false });
+    const gate = createTransferCoherenceGate();
+
+    const result = gate.validateTransfer(
+      { domain: SOURCE_DOMAIN, confidence: 0.9 },
+      TARGET_DOMAIN,
+    );
+
+    expect(gate).toBeInstanceOf(TransferCoherenceStub);
     expect(result.approved).toBe(true);
     expect(result.energy).toBeUndefined(); // Stub does not compute energy
     expect(result.rejectionReason).toBeUndefined();
