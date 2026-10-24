@@ -12,10 +12,11 @@
  * @module integrations/ruvector/transfer-coherence-stub
  */
 
-import { createRequire } from 'module';
 import { getRuVectorFeatureFlags } from './feature-flags.js';
-
-const esmRequire = createRequire(import.meta.url);
+// Static import so the bundlers inline the gate. A runtime
+// require('./coherence-gate.js') resolves against the bundle file instead,
+// fails, and silently returned the approve-everything stub (#1237).
+import { CoherenceGate } from './coherence-gate-core.js';
 
 // ============================================================================
 // Interface
@@ -97,13 +98,7 @@ export class TransferCoherenceStub implements ITransferCoherenceGate {
  */
 export function createTransferCoherenceGate(): ITransferCoherenceGate {
   if (getRuVectorFeatureFlags().useCoherenceGate) {
-    try {
-      // Dynamic require to avoid circular dependency at module level
-      const { CoherenceGate } = esmRequire('./coherence-gate.js');
-      return new CoherenceGate();
-    } catch {
-      // Fall through to stub if CoherenceGate fails to load
-    }
+    return new CoherenceGate();
   }
   return new TransferCoherenceStub();
 }
