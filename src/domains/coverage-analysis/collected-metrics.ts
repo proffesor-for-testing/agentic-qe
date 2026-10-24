@@ -7,6 +7,7 @@
  * null — never as 0% (a fake low figure) nor as istanbul's 0/0 = 100%.
  */
 
+import * as fs from 'fs';
 import * as path from 'path';
 import type { CoverageSummary, FileCoverage } from './interfaces';
 import { findProjectRoot } from '../../kernel/project-root.js';
@@ -21,31 +22,71 @@ export function fileCoverageKey(filePath: string, projectRoot?: string): string 
   return path.isAbsolute(filePath) ? path.normalize(filePath) : path.resolve(projectRoot ?? findProjectRoot(), filePath);
 }
 
+/** Why a report entry is not a measurement of a project file (#1030, #1219). */
+export type ExcludedCoverageReason = 'outside-project' | 'windows-path' | 'duplicate-spelling';
+
+/** A report entry left out of per-file records and of the report's summary. */
+export interface ExcludedCoverageEntry {
+  /** The path as the report wrote it. */
+  path: string;
+  reason: ExcludedCoverageReason;
+  /** For `duplicate-spelling`: the project file both spellings name. */
+  file?: string;
+}
+
+function isInside(root: string, key: string): boolean {
+  const relative = path.relative(root, key);
+  return relative !== '' && relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+}
+
+function realRoot(root: string): string {
+  try { return fs.realpathSync(root); } catch { return root; }
+}
+
 /**
- * #1030: the per-file record key of each path in ONE report, keyed by the
- * path as the report wrote it. A path is left out when its record would not
- * be a measurement of a project file: it resolves outside the project root
- * (lcov `SF:../../outside.ts`), it is a Windows absolute path read on POSIX
- * (it would resolve to a junk key), or the report lists the same file under
+ * #1030, #1219: sort the paths of ONE report into project files (with their
+ * per-file record key, keyed by the path as the report wrote it) and entries
+ * that are not a measurement of a project file: a path that resolves outside
+ * the project root (lcov `SF:../../outside.ts`), a Windows absolute path read
+ * on POSIX (it would resolve to a junk key), or a file the report lists under
  * two spellings (`./src/a.ts` and `src/a.ts`), so which entry is right is
- * unknown.
+ * unknown. A path under the root's realpath (macOS `/private/var` for
+ * `/var`) is inside.
  */
-export function projectFileCoverageKeys(paths: readonly string[], projectRoot?: string): Map<string, string> {
+export function classifyProjectCoveragePaths(
+  paths: readonly string[],
+  projectRoot?: string
+): { keys: Map<string, string>; excluded: ExcludedCoverageEntry[] } {
   const root = path.resolve(projectRoot ?? findProjectRoot());
+  const canonicalRoot = realRoot(root);
   const keys = new Map<string, string>();
+  const excluded: ExcludedCoverageEntry[] = [];
   const spellings = new Map<string, number>();
   for (const filePath of paths) {
-    if (!path.isAbsolute(filePath) && path.win32.isAbsolute(filePath)) continue;
+    if (!path.isAbsolute(filePath) && path.win32.isAbsolute(filePath)) {
+      excluded.push({ path: filePath, reason: 'windows-path' });
+      continue;
+    }
     const key = fileCoverageKey(filePath, root);
-    const relative = path.relative(root, key);
-    if (relative === '' || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) continue;
+    if (!isInside(root, key) && !isInside(canonicalRoot, key)) {
+      excluded.push({ path: filePath, reason: 'outside-project' });
+      continue;
+    }
     keys.set(filePath, key);
     spellings.set(key, (spellings.get(key) ?? 0) + 1);
   }
   for (const [filePath, key] of keys) {
-    if ((spellings.get(key) ?? 0) > 1) keys.delete(filePath);
+    if ((spellings.get(key) ?? 0) > 1) {
+      keys.delete(filePath);
+      excluded.push({ path: filePath, reason: 'duplicate-spelling', file: key });
+    }
   }
-  return keys;
+  return { keys, excluded };
+}
+
+/** #1030: the per-file record key of each project file in ONE report (see `classifyProjectCoveragePaths`). */
+export function projectFileCoverageKeys(paths: readonly string[], projectRoot?: string): Map<string, string> {
+  return classifyProjectCoveragePaths(paths, projectRoot).keys;
 }
 
 /** Read the canonical key first, then a measured legacy relative key if present. */

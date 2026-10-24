@@ -6,6 +6,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { QualityAnalyzerService } from '../../../../src/domains/quality-assessment/services/quality-analyzer';
 import { MemoryBackend, StoreOptions, VectorSearchResult } from '../../../../src/kernel/interfaces';
 import { QualityAnalysisRequest, ComplexityRequest } from '../../../../src/domains/quality-assessment/interfaces';
+import { fileCoverageKey } from '../../../../src/domains/coverage-analysis/collected-metrics';
 
 /**
  * Mock MemoryBackend implementation for testing
@@ -108,9 +109,10 @@ describe('QualityAnalyzerService', () => {
     });
 
     it('should include only requested metrics when specified', async () => {
-      // Pre-populate coverage data so the metric is included
-      await mockMemory.set('coverage:latest', {
-        line: 80, branch: 70, function: 85, statement: 78, files: 1, measured: true, // #1014: stamped
+      // Pre-populate the file's own coverage so the metric is included
+      // (#1219: never the project-wide coverage:latest).
+      await mockMemory.set(`coverage:file:${fileCoverageKey(FIXTURE_INDEX)}`, {
+        line: 80, branch: 70, function: 85, statement: 78, measured: true, // #1014: stamped
       });
 
       const request: QualityAnalysisRequest = {
@@ -174,9 +176,9 @@ describe('QualityAnalyzerService', () => {
     });
 
     it('should assign proper ratings (A-E) based on metric values', async () => {
-      // Pre-populate coverage data so the metric appears
-      await mockMemory.set('coverage:latest', {
-        line: 80, branch: 70, function: 85, statement: 78, files: 1, measured: true, // #1014: stamped
+      // Pre-populate the file's own coverage so the metric appears (#1219)
+      await mockMemory.set(`coverage:file:${fileCoverageKey('src/app.ts')}`, {
+        line: 80, branch: 70, function: 85, statement: 78, measured: true, // #1014: stamped
       });
 
       const request: QualityAnalysisRequest = {
