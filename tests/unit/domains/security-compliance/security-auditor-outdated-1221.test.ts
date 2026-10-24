@@ -82,7 +82,20 @@ describe('outdated-package check (#1221)', () => {
     expect(result.value.incompleteChecks).toEqual([
       'Outdated-package check failed: latest version unknown for 2 package(s): registry lookup failed: fetch failed',
     ]);
-    expect(result.value.recommendations.join(' ')).toMatch(/Whether they are outdated is unknown/);
+    expect(result.value.recommendations.join(' ')).toMatch(/Whether packages are outdated is unknown/);
+    expect(result.value.recommendations.join(' ')).not.toContain('Security posture is good');
+  });
+
+  it('runAudit says why when the dependency scan itself failed, with no packages to list', async () => {
+    vi.spyOn(process, 'cwd').mockReturnValue(path.join(root, 'missing'));
+    const result = await service.runAudit({ includeSAST: false, includeDAST: false, includeDependencies: true, includeSecrets: false });
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.value.dependencyResults).toMatchObject({ status: 'failed', outdatedStatus: 'failed' });
+    const outdatedCheck = result.value.incompleteChecks?.find((c) => c.startsWith('Outdated-package check'));
+    expect(outdatedCheck).toMatch(/^Outdated-package check failed: no latest version was looked up: Dependency scan of .*missing.*package\.json failed: /);
+    expect(outdatedCheck).not.toMatch(/0 package\(s\)|: $/);
     expect(result.value.recommendations.join(' ')).not.toContain('Security posture is good');
   });
 });

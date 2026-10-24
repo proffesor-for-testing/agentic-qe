@@ -289,10 +289,13 @@ export class SecurityAuditorService implements ISecurityAuditorService {
       // #1221: a package whose latest version could not be looked up is not "up to date".
       if (dependencyResults && dependencyResults.outdatedStatus !== 'complete' && dependencyResults.outdatedStatus !== 'not-run') {
         const unchecked = dependencyResults.outdatedUnchecked;
-        const reasons = [...new Set(unchecked.map((p) => p.reason))].slice(0, 3).join('; ');
-        incompleteChecks.push(`Outdated-package check ${dependencyResults.outdatedStatus}: latest version unknown for ${unchecked.length} package(s): ${reasons}`);
+        const reasons = [...new Set(unchecked.map((p) => p.reason))].slice(0, 3).join('; ') || 'no reason was recorded';
+        // A planning entry (the scan itself failed) is not a package.
+        const packages = unchecked.filter((p) => p.name !== PLANNING_ENTRY).length;
+        const what = packages > 0 ? `latest version unknown for ${packages} package(s)` : 'no latest version was looked up';
+        incompleteChecks.push(`Outdated-package check ${dependencyResults.outdatedStatus}: ${what}: ${reasons}`);
         recommendations.unshift(
-          `Latest versions could not be looked up for ${unchecked.length} package(s) (${reasons}). Whether they are outdated is unknown.`
+          `${packages > 0 ? `Latest versions could not be looked up for ${packages} package(s)` : 'No latest versions were looked up'} (${reasons}). Whether packages are outdated is unknown.`
         );
       }
       // #1052: a DAST target that could not be (fully) scanned is not a clean target.
@@ -754,11 +757,13 @@ export class SecurityAuditorService implements ISecurityAuditorService {
     } catch (error) {
       logger.error('Dependency scan failed:', error instanceof Error ? error : undefined);
       // #1049: a scan that could not run is failed, never an empty clean result.
+      const reason = `Dependency scan of ${manifestPath} failed: ${toError(error).message}`;
       return {
         vulnerabilities: [],
         outdatedPackages: [],
         outdatedStatus: 'failed',
-        outdatedUnchecked: [],
+        // #1221: no package list to look up; the planning entry says why.
+        outdatedUnchecked: [{ name: PLANNING_ENTRY, version: 'unknown', reason }],
         summary: {
           critical: 0, high: 0, medium: 0, low: 0, informational: 0,
           totalFiles: 0, scanDurationMs: Date.now() - startTime,
@@ -767,7 +772,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
         measured: false,
         packagesChecked: 0,
         uncheckedPackages: [],
-        error: `Dependency scan of ${manifestPath} failed: ${toError(error).message}`,
+        error: reason,
       };
     }
   }
