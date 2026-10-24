@@ -95,6 +95,13 @@ const logger = LoggerFactory.create('security-compliance/security-auditor');
 /** Name of an unchecked entry that stands for a planning error (malformed lockfile, workspace root #1057). */
 const PLANNING_ENTRY = '(dependency plan)';
 
+/** Outcome of looking up the latest version of each dependency (#1221). */
+interface OutdatedOutcome {
+  outdatedPackages: OutdatedPackage[];
+  outdatedStatus: 'complete' | 'incomplete' | 'failed';
+  outdatedUnchecked: UncheckedDependency[];
+}
+
 /** Outcome of checking dependencies against OSV advisories (#1049). */
 interface DependencyAdvisoryOutcome {
   vulnerabilities: Vulnerability[];
@@ -130,19 +137,12 @@ export class SecurityAuditorService implements ISecurityAuditorService {
         return err(new Error(`Unknown manifest format: ${manifest}`));
       }
 
-      const outdatedPackages: OutdatedPackage[] = [];
       const { dependencies, preUnchecked } = await this.parseDependenciesForScan(manifest, ecosystem);
       const advisories = await this.checkDependencyAdvisories(dependencies, preUnchecked);
-
-      for (const dep of dependencies) {
-        const outdated = await this.checkOutdated(dep);
-        if (outdated) {
-          outdatedPackages.push(outdated);
-        }
-      }
+      const outdated = await this.checkOutdatedPackages(dependencies);
 
       const summary = this.createDependencySummary(advisories.vulnerabilities, dependencies.length);
-      const result = this.toDependencyScanResult(advisories, outdatedPackages, summary);
+      const result = this.toDependencyScanResult(advisories, outdated, summary);
 
       await this.memory.set(
         `security:deps:${manifestPath.filename}`,
@@ -284,6 +284,18 @@ export class SecurityAuditorService implements ISecurityAuditorService {
         incompleteChecks.push(`Dependency scan ${dependencyResults.status}: ${dependencyResults.error ?? 'advisories could not be checked'}`);
         recommendations.unshift(
           `${dependencyResults.error ?? 'Dependency advisories could not be checked'}. Dependency risk is unmeasured; re-run the scan when the OSV API is reachable.`
+        );
+      }
+      // #1221: a package whose latest version could not be looked up is not "up to date".
+      if (dependencyResults && dependencyResults.outdatedStatus !== 'complete' && dependencyResults.outdatedStatus !== 'not-run') {
+        const unchecked = dependencyResults.outdatedUnchecked;
+        const reasons = [...new Set(unchecked.map((p) => p.reason))].slice(0, 3).join('; ') || 'no reason was recorded';
+        // A planning entry (the scan itself failed) is not a package.
+        const packages = unchecked.filter((p) => p.name !== PLANNING_ENTRY).length;
+        const what = packages > 0 ? `latest version unknown for ${packages} package(s)` : 'no latest version was looked up';
+        incompleteChecks.push(`Outdated-package check ${dependencyResults.outdatedStatus}: ${what}: ${reasons}`);
+        recommendations.unshift(
+          `${packages > 0 ? `Latest versions could not be looked up for ${packages} package(s)` : 'No latest versions were looked up'} (${reasons}). Whether packages are outdated is unknown.`
         );
       }
       // #1052: a DAST target that could not be (fully) scanned is not a clean target.
@@ -536,12 +548,14 @@ export class SecurityAuditorService implements ISecurityAuditorService {
 
   private toDependencyScanResult(
     advisories: DependencyAdvisoryOutcome,
-    outdatedPackages: OutdatedPackage[],
+    outdated: OutdatedOutcome,
     summary: ScanSummary
   ): DependencyScanResult {
     return {
       vulnerabilities: advisories.vulnerabilities,
-      outdatedPackages,
+      outdatedPackages: outdated.outdatedPackages,
+      outdatedStatus: outdated.outdatedStatus,
+      outdatedUnchecked: outdated.outdatedUnchecked,
       summary,
       status: advisories.status,
       measured: advisories.status === 'complete',
@@ -609,20 +623,29 @@ export class SecurityAuditorService implements ISecurityAuditorService {
     return 'vulnerable-components';
   }
 
-  private async checkOutdated(dep: DependencyInfo): Promise<OutdatedPackage | null> {
-    const latestVersion = await this.getLatestVersion(dep.name, dep.ecosystem);
-
-    // A failed registry lookup ('unknown') is not evidence the package is outdated.
-    if (latestVersion !== 'unknown' && latestVersion !== dep.version) {
-      return {
-        name: dep.name,
-        currentVersion: dep.version,
-        latestVersion,
-        updateType: this.determineUpdateType(dep.version, latestVersion),
-      };
+  /**
+   * Look up the latest version of each dependency (#1221). A failed lookup is
+   * listed in `outdatedUnchecked` with its reason, never counted as up to date.
+   */
+  private async checkOutdatedPackages(dependencies: DependencyInfo[]): Promise<OutdatedOutcome> {
+    const outdatedPackages: OutdatedPackage[] = [];
+    const outdatedUnchecked: UncheckedDependency[] = [];
+    for (const dep of dependencies) {
+      const registry = await this.lookupRegistry(dep.name, dep.ecosystem);
+      if (!registry.ok) {
+        outdatedUnchecked.push({ name: dep.name, version: dep.version, reason: registry.reason });
+      } else if (registry.version !== dep.version) {
+        outdatedPackages.push({
+          name: dep.name,
+          currentVersion: dep.version,
+          latestVersion: registry.version,
+          updateType: this.determineUpdateType(dep.version, registry.version),
+        });
+      }
     }
-
-    return null;
+    const outdatedStatus = outdatedUnchecked.length === 0 ? 'complete'
+      : outdatedUnchecked.length === dependencies.length ? 'failed' : 'incomplete';
+    return { outdatedPackages, outdatedStatus, outdatedUnchecked };
   }
 
   private async queryVulnerabilityDatabase(
@@ -635,14 +658,6 @@ export class SecurityAuditorService implements ISecurityAuditorService {
       throw new Error(outcome.error ?? `Dependency advisories could not be checked for ${name}@${version}`);
     }
     return outcome.vulnerabilities;
-  }
-
-  private async getLatestVersion(
-    name: string,
-    ecosystem: DependencyInfo['ecosystem']
-  ): Promise<string> {
-    const registry = await this.lookupRegistry(name, ecosystem);
-    return registry.ok ? registry.version : 'unknown';
   }
 
   /**
@@ -730,28 +745,25 @@ export class SecurityAuditorService implements ISecurityAuditorService {
 
   private async performDependencyScan(): Promise<DependencyScanResult> {
     const startTime = Date.now();
-    const outdatedPackages: OutdatedPackage[] = [];
     const manifestPath = path.join(process.cwd(), 'package.json');
 
     try {
       const { dependencies, preUnchecked } = await this.parseDependenciesForScan(manifestPath, 'npm');
       const advisories = await this.checkDependencyAdvisories(dependencies, preUnchecked);
-
-      for (const dep of dependencies) {
-        const outdated = await this.checkOutdated(dep);
-        if (outdated) {
-          outdatedPackages.push(outdated);
-        }
-      }
+      const outdated = await this.checkOutdatedPackages(dependencies);
 
       const baseSummary = this.createDependencySummary(advisories.vulnerabilities, dependencies.length);
-      return this.toDependencyScanResult(advisories, outdatedPackages, { ...baseSummary, scanDurationMs: Date.now() - startTime });
+      return this.toDependencyScanResult(advisories, outdated, { ...baseSummary, scanDurationMs: Date.now() - startTime });
     } catch (error) {
       logger.error('Dependency scan failed:', error instanceof Error ? error : undefined);
       // #1049: a scan that could not run is failed, never an empty clean result.
+      const reason = `Dependency scan of ${manifestPath} failed: ${toError(error).message}`;
       return {
         vulnerabilities: [],
         outdatedPackages: [],
+        outdatedStatus: 'failed',
+        // #1221: no package list to look up; the planning entry says why.
+        outdatedUnchecked: [{ name: PLANNING_ENTRY, version: 'unknown', reason }],
         summary: {
           critical: 0, high: 0, medium: 0, low: 0, informational: 0,
           totalFiles: 0, scanDurationMs: Date.now() - startTime,
@@ -760,7 +772,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
         measured: false,
         packagesChecked: 0,
         uncheckedPackages: [],
-        error: `Dependency scan of ${manifestPath} failed: ${toError(error).message}`,
+        error: reason,
       };
     }
   }

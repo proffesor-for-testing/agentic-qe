@@ -50,6 +50,19 @@ describe('security audit execution evidence', () => {
   });
 
 
+  it('#1221: its dependency scan does not look up latest versions, so the outdated check is not-run, not "up to date"', async () => {
+    const { protocol } = setup(false);
+    vi.mocked(protocol.scanDependencies).mockRestore();
+    vi.spyOn(protocol as any, 'findPackageJsonPath').mockReturnValue('/fixture/package.json');
+    vi.spyOn(protocol as any, 'getSecurityScanner').mockReturnValue({
+      scanPackageJson: vi.fn().mockResolvedValue(ok({
+        vulnerabilities: [], summary, status: 'complete', measured: true, packagesChecked: 1, uncheckedPackages: [],
+      })),
+    });
+    const result = await protocol.scanDependencies();
+    expect(result.success && result.value).toMatchObject({ outdatedPackages: [], outdatedStatus: 'not-run', outdatedUnchecked: [] });
+  });
+
   it('does not approve when no audit has run', async () => {
     const { protocol } = setup(false);
     expect((await protocol.generateReport()).deploymentDecision.allowed).toBe(false);
