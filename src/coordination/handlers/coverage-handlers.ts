@@ -30,7 +30,7 @@ import {
   type CoverageEvaluation,
   type NoDataReason,
 } from './coverage-target';
-import { describeEvidence, type CoverageEvidence } from './coverage-evidence';
+import { describeEvidence, describeExcludedEntries, type CoverageEvidence } from './coverage-evidence';
 import { randomUUID } from 'crypto';
 import * as path from 'path';
 import { describeRunFailure, runJsCoverage, testRunStatus } from './coverage-runner';
@@ -367,6 +367,8 @@ export function registerCoverageHandlers(ctx: TaskHandlerContext): void {
       if (evidenceReasons.length > 0) {
         warnings.push(`INSUFFICIENT EVIDENCE — the threshold is not met on this report: ${evidenceReasons.join('; ').replace(/\.?$/, '.')}`);
       }
+      // #1219: entries that are not project files are named, not silently dropped.
+      warnings.push(...describeExcludedEntries(evidence));
 
       // #569: the analyzer generates recommendations from the summary numbers.
       // When branch or function data was never collected, those numbers are 0
@@ -405,6 +407,8 @@ export function registerCoverageHandlers(ctx: TaskHandlerContext): void {
           evidenceStatus: evidence.status,
           unmeasuredFiles: evidence.unmeasuredFiles,
           ...(evidence.stale ? { staleReport: evidence.stale } : {}),
+          ...(evidence.conflictingFiles ? { conflictingFiles: evidence.conflictingFiles } : {}),
+          ...(evidence.excludedEntries ? { excludedReportEntries: evidence.excludedEntries } : {}),
         } : {}),
         delta: report.delta,
         recommendations,

@@ -31,7 +31,7 @@ import type { HybridRouter, ChatResponse } from '../../../shared/llm';
 import { toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { getClaudeModelForTier } from '../../../shared/llm/model-registry.js';
-import { measuredCoverageSummary, measuredFileCoverage } from '../../quality-assessment/coverage-report-event.js';
+import { measuredFileCoverage } from '../../quality-assessment/coverage-report-event.js';
 import { fileCoverageLookupKeys } from '../../coverage-analysis/collected-metrics.js';
 
 /**
@@ -837,11 +837,8 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
         }
       }
 
-      // Fall back to project-wide coverage
-      const summary = measuredCoverageSummary(await this.memory.get<unknown>('coverage:latest'));
-      if (summary) {
-        return 1 - summary.line / 100;
-      }
+      // #1219: no fallback to the project-wide summary — it is not this
+      // file's coverage. A file with no record of its own gets the prior below.
     } catch {
       // Non-critical lookup
     }

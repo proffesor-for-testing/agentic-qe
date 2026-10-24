@@ -702,6 +702,8 @@ Provide thoughtful, specific analysis based on the coverage data. Do not include
           function: pct(file.functions),
           statement: pct(file.statements),
           measured: true,
+          // #1219: the counts behind `line`, so several files can be line-weighted.
+          lines: { covered: file.lines.covered, total: file.lines.total },
           ...(runStatus ? { runStatus } : {}),
         }, { persist: true });
       } catch {
