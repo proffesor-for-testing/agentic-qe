@@ -18,6 +18,10 @@ import type {
   EmbeddingNamespace,
   ISearchOptions,
 } from '../base/types.js';
+// Static import so the bundlers inline the adapter. A runtime
+// require('../../../kernel/hnsw-adapter.js') resolves against the bundle
+// file instead and fails, which silently capped the index at 10,000 (#1237).
+import { HnswAdapter } from '../../../kernel/hnsw-adapter.js';
 
 const require = createRequire(import.meta.url);
 
@@ -67,7 +71,7 @@ export class HNSWEmbeddingIndex {
   private initialized: Set<EmbeddingNamespace>;
   private nextId: Map<EmbeddingNamespace, number>;
   // ADR-071: Unified backend adapters per namespace (when useUnifiedHnsw=true)
-  private unifiedAdapters: Map<EmbeddingNamespace, import('../../../kernel/hnsw-adapter.js').HnswAdapter> | null = null;
+  private unifiedAdapters: Map<EmbeddingNamespace, HnswAdapter> | null = null;
   private readonly useUnified: boolean;
 
   constructor(config: Partial<IHNSWConfig> = {}) {
@@ -100,8 +104,6 @@ export class HNSWEmbeddingIndex {
     // ADR-071: Route through unified HnswAdapter when flag is enabled
     if (this.useUnified && this.unifiedAdapters) {
       try {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const { HnswAdapter } = require('../../../kernel/hnsw-adapter.js');
         const adapter = new HnswAdapter(`embedding-${namespace}`, {
           dimensions: this.config.dimension,
           M: this.config.M,
@@ -113,8 +115,12 @@ export class HNSWEmbeddingIndex {
         this.initialized.add(namespace);
         this.nextId.set(namespace, 0);
         return;
-      } catch {
-        // Fall through to hnswlib-node
+      } catch (error) {
+        // Fall through to hnswlib-node, which holds at most 10,000 entries.
+        console.warn(
+          `[HNSWEmbeddingIndex] Unified HNSW adapter unavailable for '${namespace}', ` +
+          `using the legacy index (max 10000 entries): ${error instanceof Error ? error.message : String(error)}`
+        );
       }
     }
 
