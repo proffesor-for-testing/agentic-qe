@@ -286,6 +286,8 @@ export interface DreamRetentionReport {
   /** False: the steps ran as a dry run and wrote nothing. */
   readonly enabled: boolean;
   readonly steps: readonly RetentionStepResult[];
+  /** Set when retention could not run (a locked database, say); nothing was deleted. */
+  readonly error?: string;
 }
 
 /**
@@ -309,6 +311,7 @@ export function runDreamRetention(
 
 /** Lines for a dream's output: what retention removed, or would remove while off. */
 export function describeDreamRetention(report: DreamRetentionReport): string[] {
+  if (report.error) return [`skipped: ${report.error}`];
   const lines = report.steps.filter(s => s.affected > 0).map(describeRetention);
   return report.enabled ? lines : lines.map(l => `${l} [off: set AQE_DREAM_RETENTION=on]`);
 }

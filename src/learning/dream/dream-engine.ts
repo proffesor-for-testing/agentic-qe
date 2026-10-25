@@ -25,6 +25,13 @@ const dreamLogger = LoggerFactory.create('dream-engine');
 /** #1239: an unreadable retention setting is reported once per process. */
 let retentionWarningsLogged = false;
 
+/**
+ * #1239: how long retention waits for a locked database. better-sqlite3 waits
+ * synchronously, and retention is optional (the next dream retries), so it
+ * gives up quickly instead of using the engine's 60 s commit wait.
+ */
+export const RETENTION_BUSY_TIMEOUT_MS = 1000;
+
 import type { Database as DatabaseType } from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -723,7 +730,7 @@ export class DreamEngine {
   private commitComputed(
     db: DatabaseType,
     computed: ComputedDream,
-  ): { durationMs: number; retention: DreamRetentionReport | undefined } {
+  ): { durationMs: number; retention: DreamRetentionReport } {
     const commit = commitDream(db, computed);
     try {
       this._witnessChain?.append('DREAM_COMMIT', {
@@ -742,13 +749,15 @@ export class DreamEngine {
    * otherwise only count what that would remove. The dream is already
    * committed, so a failure here (a locked database, say) is only logged.
    */
-  private runDefaultRetention(db: DatabaseType): DreamRetentionReport | undefined {
+  private runDefaultRetention(db: DatabaseType): DreamRetentionReport {
     const settings = resolveDefaultRetention();
     if (settings.warnings.length > 0 && !retentionWarningsLogged) {
       retentionWarningsLogged = true;
       for (const warning of settings.warnings) dreamLogger.warn(warning);
     }
+    const previousBusyTimeout = db.pragma('busy_timeout', { simple: true }) as number;
     try {
+      db.pragma(`busy_timeout = ${RETENTION_BUSY_TIMEOUT_MS}`);
       const report = runDreamRetention(db, settings);
       if (report.enabled) {
         for (const step of report.steps) {
@@ -758,7 +767,9 @@ export class DreamEngine {
       return report;
     } catch (error) {
       dreamLogger.warn('Dream retention skipped after dream commit', { error: toErrorMessage(error) });
-      return undefined;
+      return { enabled: settings.enabled, steps: [], error: toErrorMessage(error) };
+    } finally {
+      try { db.pragma(`busy_timeout = ${previousBusyTimeout}`); } catch { /* connection gone */ }
     }
   }
 

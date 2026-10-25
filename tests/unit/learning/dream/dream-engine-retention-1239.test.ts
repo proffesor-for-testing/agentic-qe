@@ -9,7 +9,8 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
-import type { Database as DatabaseType } from 'better-sqlite3';
+import Database, { type Database as DatabaseType } from 'better-sqlite3';
+import type { WitnessChain } from '../../../../src/audit/witness-chain.js';
 import { createDreamEngine, type DreamEngine } from '../../../../src/learning/dream/index.js';
 import {
   getUnifiedPersistence,
@@ -90,6 +91,7 @@ describe('#1239 retention after a committed dream', () => {
     expect(n(`SELECT COUNT(*) AS n FROM concept_nodes WHERE concept_type = 'outcome'`)).toBe(2000);
     expect(n(`SELECT COUNT(*) AS n FROM concept_nodes WHERE id = 'outcome-99'`)).toBe(0);
     expect(n(`SELECT COUNT(*) AS n FROM concept_nodes WHERE id = 'outcome-100'`)).toBe(1);
+    expect(db.pragma('busy_timeout', { simple: true })).toBe(60000);
     expect(result.retention?.enabled).toBe(true);
     expect(result.retention?.steps.map(s => [s.step, s.affected])).toEqual([
       ['failed-dream-cycles', 40],
@@ -121,5 +123,35 @@ describe('#1239 retention after a committed dream', () => {
 
     expect(n(`SELECT COUNT(*) AS n FROM dream_cycles WHERE status = 'failed'`)).toBe(41);
     expect(n(`SELECT COUNT(*) AS n FROM concept_nodes WHERE concept_type = 'outcome'`)).toBe(2100);
+  });
+
+  it('should_keepTheCommittedDream_andReportTheError_when_theDbIsLockedDuringRetention', async () => {
+    vi.stubEnv('AQE_DREAM_RETENTION', 'on');
+    const other = new Database(DB_PATH);
+    other.pragma('busy_timeout = 0');
+    // DREAM_COMMIT is appended after the commit and before retention runs:
+    // take the write lock on a second connection exactly there.
+    engine.witnessChain = {
+      append: (action: string) => { if (action === 'DREAM_COMMIT') other.exec('BEGIN EXCLUSIVE'); },
+    } as unknown as WitnessChain;
+
+    let result: Awaited<ReturnType<DreamEngine['dream']>>;
+    const started = Date.now();
+    try {
+      result = await engine.dream(300);
+    } finally {
+      if (other.inTransaction) other.exec('ROLLBACK');
+      other.close();
+    }
+
+    // Retention gave up after RETENTION_BUSY_TIMEOUT_MS, not the 60 s commit wait.
+    expect(Date.now() - started).toBeLessThan(5000);
+    expect(db.pragma('busy_timeout', { simple: true })).toBe(60000);
+    expect(result.cycle.status).toBe('completed');
+    expect(n(`SELECT COUNT(*) AS n FROM dream_cycles WHERE status = 'completed'`)).toBe(1);
+    expect(result.retention).toMatchObject({ enabled: true, steps: [], error: expect.stringMatching(/locked|busy/i) });
+    expect(n(`SELECT COUNT(*) AS n FROM dream_cycles WHERE status = 'failed'`)).toBe(40);
+    expect(n(`SELECT COUNT(*) AS n FROM concept_nodes WHERE concept_type = 'outcome'`)).toBe(2100);
+    expect(db.pragma('integrity_check', { simple: true })).toBe('ok');
   });
 });
