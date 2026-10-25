@@ -2,6 +2,9 @@
 
 Newest first. One `## <version> — <date>` heading per version, then `feat:`, `fix:`, `breaking:` and `chore:` bullets. Since 3.15.0 the plugin version tracks the `agentic-qe` npm package version (see [ADR-0001](docs/adrs/0001-agentic-qe-fleet-contract.md)). Built from git history.
 
+## 3.15.13 — 2026-10-25
+- chore: MCP server pin and mod version move to `agentic-qe@3.15.13` (experience index no longer capped at 10,000 in the bundles, real cross-domain transfer gate, unmeasured instead of guessed quality, accessibility, DAST, registry and dotCover results, code search over `code_index`, pollable `task_status`; see the root CHANGELOG). No other plugin changes.
+
 ## 3.15.12 — 2026-10-23
 - chore: MCP server pin and mod version move to `agentic-qe@3.15.12` (coverage verdicts need complete, current evidence; `task_orchestrate` coverage tasks work; worker daemon stays up with a capped log; text-only fallback and background retry when the embedder fails; wider redaction; patched Node; see the root CHANGELOG). No other plugin changes.
 
