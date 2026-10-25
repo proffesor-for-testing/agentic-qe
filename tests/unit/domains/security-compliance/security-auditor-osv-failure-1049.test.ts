@@ -59,7 +59,7 @@ function auditor() {
   const service = new SecurityAuditorService(memory, {},
     new OSVClient({ baseUrl, retries: 0, timeout: 500, enableCache: false, batchSize: 1 }));
   // The registry lookup is out of scope here; a failed one must not be an "outdated" claim.
-  vi.spyOn(service as any, 'getLatestVersion').mockResolvedValue('unknown');
+  vi.spyOn(service as any, 'lookupRegistry').mockResolvedValue({ ok: false, reason: 'registry lookup failed: offline' });
   return { service, memory };
 }
 
@@ -83,6 +83,8 @@ describe('SecurityAuditorService OSV failures (#1049)', () => {
     const result = await service.scanDependencies(manifest);
     expect(result.success && result.value.outdatedPackages).toEqual([]);
     expect(result.success && result.value.status).toBe('complete');
+    // #1221: and the empty list is not "up to date".
+    expect(result.success && result.value.outdatedStatus).toBe('failed');
   });
 
   it('partial batch: lodash finding kept, left-pad unchecked, status incomplete', async () => {

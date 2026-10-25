@@ -155,6 +155,8 @@ export interface CoverageReport {
   files: Map<string, FileCoverageData>;
   /** Summary statistics */
   summary: CoverageSummary;
+  /** Parts of the report that could not be attributed and are not in `files` (#1232). */
+  warnings?: string[];
 }
 
 /**
@@ -689,13 +691,21 @@ export function parseDotcoverContent(content: string, projectRoot: string): Cove
   // Parse <Statement> elements to build per-file coverage
   const stmtPattern = /<Statement\s+FileIndex="(\d+)"\s+Line="(\d+)"\s+Column="\d+"\s+EndLine="\d+"\s+EndColumn="\d+"\s+Covered="(\w+)"\s*\/>/g;
   const fileData = new Map<string, { lineDetails: Map<number, number>; total: number; covered: number }>();
+  // #1232: statements whose FileIndex is not in the file table, by index; never named after a made-up file.
+  const unknownIndices = new Map<string, number>();
+  let statementCount = 0;
   let sm: RegExpExecArray | null;
 
   while ((sm = stmtPattern.exec(content)) !== null) {
+    statementCount++;
     const fileIdx = sm[1];
     const lineNum = parseInt(sm[2], 10);
     const isCovered = sm[3] === 'True';
-    const filePath = fileIndex.get(fileIdx) || `file-${fileIdx}`;
+    const filePath = fileIndex.get(fileIdx);
+    if (!filePath) {
+      unknownIndices.set(fileIdx, (unknownIndices.get(fileIdx) ?? 0) + 1);
+      continue;
+    }
 
     if (!fileData.has(filePath)) {
       fileData.set(filePath, { lineDetails: new Map(), total: 0, covered: 0 });
@@ -706,14 +716,24 @@ export function parseDotcoverContent(content: string, projectRoot: string): Cove
     if (isCovered) data.covered++;
   }
 
+  const warnings: string[] = [];
+  if (unknownIndices.size > 0) {
+    const skipped = [...unknownIndices.values()].reduce((sum, n) => sum + n, 0);
+    warnings.push(
+      `dotCover report references FileIndex ${[...unknownIndices.keys()].join(', ')} missing from its file table; ` +
+      `${skipped} statement(s) skipped and their coverage is not reported`
+    );
+  }
+
   // If no Statement elements found, parse from CoveredStatements/TotalStatements attributes
-  if (fileData.size === 0) {
+  if (statementCount === 0) {
     const rootPattern = /CoveredStatements="(\d+)"\s+TotalStatements="(\d+)"/;
     const rootMatch = rootPattern.exec(content);
     if (rootMatch) {
       const covered = parseInt(rootMatch[1], 10);
       const total = parseInt(rootMatch[2], 10);
       const filePath = path.join(projectRoot, 'aggregate');
+      warnings.push("dotCover report has no per-file statements; report totals are listed under 'aggregate', which is not a project file");
       files.set(filePath, {
         path: filePath,
         relativePath: 'aggregate',
@@ -759,6 +779,7 @@ export function parseDotcoverContent(content: string, projectRoot: string): Cove
     language: 'csharp',
     files,
     summary: calculateSummary(files),
+    ...(warnings.length > 0 ? { warnings } : {}),
   };
 }
 

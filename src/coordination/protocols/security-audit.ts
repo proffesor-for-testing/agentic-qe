@@ -507,7 +507,10 @@ export class SecurityAuditProtocol {
             // Convert scanner result to protocol result format
             return ok({
               vulnerabilities: scanResult.value.vulnerabilities,
+              // #1221: this scanner does not look up latest versions; empty is not "up to date".
               outdatedPackages: [],
+              outdatedStatus: 'not-run',
+              outdatedUnchecked: [],
               summary: scanResult.value.summary,
               status: scanResult.value.status,
               measured: scanResult.value.measured,

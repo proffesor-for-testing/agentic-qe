@@ -299,6 +299,16 @@ export interface IDependencySecurityService {
 export interface DependencyScanResult {
   readonly vulnerabilities: Vulnerability[];
   readonly outdatedPackages: OutdatedPackage[];
+  /**
+   * #1221: whether the latest version of every dependency was looked up. Only
+   * 'complete' means `outdatedPackages` is the full list; 'incomplete' and
+   * 'failed' list the packages not checked in `outdatedUnchecked`, and
+   * 'not-run' means this scan does not look up latest versions. An empty
+   * `outdatedPackages` is "up to date" only when this is 'complete'.
+   */
+  readonly outdatedStatus: 'complete' | 'incomplete' | 'failed' | 'not-run';
+  /** #1221: dependencies whose latest version could not be looked up, and why. */
+  readonly outdatedUnchecked: UncheckedDependency[];
   readonly summary: ScanSummary;
   /**
    * #1049: whether the advisory lookup covered every dependency. Only
@@ -314,7 +324,7 @@ export interface DependencyScanResult {
   readonly error?: string;
 }
 
-/** A dependency whose advisories could not be checked, and why (#1049). */
+/** A dependency whose advisories (#1049) or latest version (#1221) could not be checked, and why. */
 export interface UncheckedDependency {
   readonly name: string;
   /** The spec as declared in the manifest. */
