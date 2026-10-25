@@ -11,12 +11,12 @@ import { createHash, randomUUID } from 'crypto';
 
 import { ensureAllBrainTables } from '../../../src/integrations/ruvector/brain-table-ddl.js';
 import {
-  applyDefaultRetention,
   capOutcomeConcepts,
   compactConsolidatedExperiences,
   pruneFailedDreamCycles,
   pruneRoutingOutcomes,
   resolveDefaultRetention,
+  runDreamRetention,
 } from '../../../src/learning/learning-retention.js';
 
 let db: DatabaseType;
@@ -192,15 +192,32 @@ describe('pruneRoutingOutcomes', () => {
   });
 });
 
-describe('default retention', () => {
-  it('should_neverTouchExperiencesOrRoutingOutcomes', () => {
+describe('dream retention', () => {
+  it('should_previewOnlyAndWriteNothing_when_notSwitchedOn', () => {
+    cycle('old-failed', 'failed', 30);
+    for (let i = 0; i < 2005; i++) node(`outcome-${i}`, 'outcome', 2005 - i);
+    const before = snapshot();
+
+    const report = runDreamRetention(db, resolveDefaultRetention({}));
+
+    expect(snapshot()).toBe(before);
+    expect(report.enabled).toBe(false);
+    expect(report.steps.map(s => [s.step, s.dryRun, s.affected])).toEqual([
+      ['failed-dream-cycles', true, 1],
+      ['outcome-concepts', true, 5],
+    ]);
+  });
+
+  it('should_neverTouchExperiencesOrRoutingOutcomes_when_switchedOn', () => {
     experience('archived', 'archived');
     db.prepare(`INSERT INTO routing_outcomes (id, task_json, decision_json, used_agent, followed_recommendation,
       success, quality_score, duration_ms, created_at) VALUES ('old', '{}', '{}', 'a', 1, 1, 0.5, 1, ?)`).run(sqlite(400));
     cycle('old-failed', 'failed', 30);
 
-    const steps = applyDefaultRetention(db, resolveDefaultRetention({}));
+    const report = runDreamRetention(db, resolveDefaultRetention({ AQE_DREAM_RETENTION: 'on' }));
+    const steps = report.steps;
 
+    expect(report.enabled).toBe(true);
     expect(steps.map(s => s.step)).toEqual(['failed-dream-cycles', 'outcome-concepts']);
     expect(n(`SELECT COUNT(*) AS n FROM captured_experiences WHERE result_json IS NOT NULL`)).toBe(1);
     expect(n(`SELECT COUNT(*) AS n FROM routing_outcomes`)).toBe(1);
@@ -209,10 +226,14 @@ describe('default retention', () => {
 
   it('should_useDefaults_acceptOff_andTurnAStepOffOnAnUnreadableValue', () => {
     expect(resolveDefaultRetention({})).toEqual({
-      failedDreamCycleRetentionDays: 7, outcomeConceptCap: 2000, warnings: [],
+      enabled: false, failedDreamCycleRetentionDays: 7, outcomeConceptCap: 2000, warnings: [],
     });
-    expect(resolveDefaultRetention({ AQE_FAILED_DREAM_CYCLE_RETENTION_DAYS: 'off', AQE_OUTCOME_CONCEPT_CAP: '500' }))
-      .toEqual({ failedDreamCycleRetentionDays: null, outcomeConceptCap: 500, warnings: [] });
+    expect(resolveDefaultRetention({
+      AQE_DREAM_RETENTION: 'on', AQE_FAILED_DREAM_CYCLE_RETENTION_DAYS: 'off', AQE_OUTCOME_CONCEPT_CAP: '500',
+    })).toEqual({ enabled: true, failedDreamCycleRetentionDays: null, outcomeConceptCap: 500, warnings: [] });
+    const badSwitch = resolveDefaultRetention({ AQE_DREAM_RETENTION: 'yes please' });
+    expect(badSwitch.enabled).toBe(false);
+    expect(badSwitch.warnings[0]).toMatch(/Invalid AQE_DREAM_RETENTION="yes please"/);
     const invalid = resolveDefaultRetention({ AQE_OUTCOME_CONCEPT_CAP: '50' });
     expect(invalid.outcomeConceptCap).toBeNull();
     expect(invalid.warnings[0]).toMatch(/Invalid AQE_OUTCOME_CONCEPT_CAP="50"/);

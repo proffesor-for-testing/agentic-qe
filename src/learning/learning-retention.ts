@@ -4,8 +4,10 @@
  * Bounds the learning tables that otherwise grow for as long as a project
  * lives. Two kinds of step, kept apart on purpose:
  *
- * - Default steps remove only rows that carry no learning value, and run
- *   automatically after each committed dream cycle:
+ * - Dream retention steps remove only rows that carry no learning value.
+ *   They are off by default. With `AQE_DREAM_RETENTION=on` they run after
+ *   each committed dream cycle; while off, the dream reports what they
+ *   would remove (COUNT queries only, nothing is written):
  *     - failed/interrupted `dream_cycles` past a retention window. A cycle
  *       that did not commit wrote no insights, and any cycle that still has
  *       an insight is kept.
@@ -223,6 +225,8 @@ export function pruneRoutingOutcomes(
 // ---------------------------------------------------------------------------
 
 export interface DefaultRetentionSettings {
+  /** AQE_DREAM_RETENTION: false (the default) previews the steps instead of running them. */
+  readonly enabled: boolean;
   /** null = off */
   readonly failedDreamCycleRetentionDays: number | null;
   /** null = off */
@@ -245,15 +249,31 @@ function parseSetting(
   return null;
 }
 
+const ON_VALUES = new Set(['on', 'true', 'yes', '1']);
+
+/** Unset or "off" disables; "on" enables; anything else disables with a warning. */
+function parseSwitch(name: string, raw: string | undefined, warnings: string[]): boolean {
+  if (raw === undefined || raw.trim() === '') return false;
+  const value = raw.trim().toLowerCase();
+  if (ON_VALUES.has(value)) return true;
+  if (!OFF_VALUES.has(value)) {
+    warnings.push(`Invalid ${name}=${JSON.stringify(raw)}; expected "on" or "off". ` +
+      'Dream retention stays off until this is fixed; nothing is deleted.');
+  }
+  return false;
+}
+
 /**
- * Read `AQE_FAILED_DREAM_CYCLE_RETENTION_DAYS` (default 7) and
- * `AQE_OUTCOME_CONCEPT_CAP` (default 2000). Either accepts "off".
+ * Read `AQE_DREAM_RETENTION` (off by default) and the per-step settings
+ * `AQE_FAILED_DREAM_CYCLE_RETENTION_DAYS` (default 7) and
+ * `AQE_OUTCOME_CONCEPT_CAP` (default 2000). Each step setting accepts "off".
  */
 export function resolveDefaultRetention(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): DefaultRetentionSettings {
   const warnings: string[] = [];
   return {
+    enabled: parseSwitch('AQE_DREAM_RETENTION', env.AQE_DREAM_RETENTION, warnings),
     failedDreamCycleRetentionDays: parseSetting('AQE_FAILED_DREAM_CYCLE_RETENTION_DAYS',
       env.AQE_FAILED_DREAM_CYCLE_RETENTION_DAYS, DEFAULT_FAILED_DREAM_CYCLE_RETENTION_DAYS, 1, warnings),
     outcomeConceptCap: parseSetting('AQE_OUTCOME_CONCEPT_CAP',
@@ -262,19 +282,35 @@ export function resolveDefaultRetention(
   };
 }
 
-/** Run the default steps that are switched on. */
-export function applyDefaultRetention(
+export interface DreamRetentionReport {
+  /** False: the steps ran as a dry run and wrote nothing. */
+  readonly enabled: boolean;
+  readonly steps: readonly RetentionStepResult[];
+}
+
+/**
+ * The dream retention steps that are not switched off individually: run
+ * when retention is enabled, otherwise previewed as a dry run.
+ */
+export function runDreamRetention(
   db: DatabaseType,
   settings: DefaultRetentionSettings = resolveDefaultRetention(),
-): RetentionStepResult[] {
-  const results: RetentionStepResult[] = [];
+): DreamRetentionReport {
+  const dryRun = !settings.enabled;
+  const steps: RetentionStepResult[] = [];
   if (settings.failedDreamCycleRetentionDays !== null) {
-    results.push(pruneFailedDreamCycles(db, { retentionDays: settings.failedDreamCycleRetentionDays }));
+    steps.push(pruneFailedDreamCycles(db, { retentionDays: settings.failedDreamCycleRetentionDays, dryRun }));
   }
   if (settings.outcomeConceptCap !== null) {
-    results.push(capOutcomeConcepts(db, { maxNodes: settings.outcomeConceptCap }));
+    steps.push(capOutcomeConcepts(db, { maxNodes: settings.outcomeConceptCap, dryRun }));
   }
-  return results;
+  return { enabled: settings.enabled, steps };
+}
+
+/** Lines for a dream's output: what retention removed, or would remove while off. */
+export function describeDreamRetention(report: DreamRetentionReport): string[] {
+  const lines = report.steps.filter(s => s.affected > 0).map(describeRetention);
+  return report.enabled ? lines : lines.map(l => `${l} [off: set AQE_DREAM_RETENTION=on]`);
 }
 
 /** One line per step, for logs: "outcome-concepts: 3000 removed (concept_nodes 5000 -> 2000, ...)". */

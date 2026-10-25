@@ -1,6 +1,7 @@
 /**
- * #1239: a committed dream runs the default retention steps and reports what
- * they removed. Fixture: a fresh unified-persistence SQLite file under the OS
+ * #1239: dream retention is off by default: a committed dream then deletes
+ * nothing and reports what retention would remove. With AQE_DREAM_RETENTION=on
+ * it runs the steps and reports what they removed. Fixture: a fresh unified-persistence SQLite file under the OS
  * temp dir, as in dream-engine-1060.test.ts.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -64,7 +65,24 @@ afterEach(async () => {
 });
 
 describe('#1239 retention after a committed dream', () => {
-  it('should_removeOldFailedCyclesAndCapOutcomes_andReportTheCounts', async () => {
+  it('should_deleteNothing_andReportWhatItWouldRemove_when_theSettingIsUnset', async () => {
+    vi.stubEnv('AQE_DREAM_RETENTION', '');
+
+    const result = await engine.dream(300);
+
+    expect(n(`SELECT COUNT(*) AS n FROM dream_cycles WHERE status = 'failed'`)).toBe(40);
+    expect(n(`SELECT COUNT(*) AS n FROM concept_nodes WHERE concept_type = 'outcome'`)).toBe(2100);
+    expect(n(`SELECT COUNT(*) AS n FROM concept_edges WHERE source LIKE 'outcome-%'`)).toBe(2099);
+    expect(result.retention?.enabled).toBe(false);
+    expect(result.retention?.steps.map(s => [s.step, s.dryRun, s.affected])).toEqual([
+      ['failed-dream-cycles', true, 40],
+      ['outcome-concepts', true, 100],
+    ]);
+  });
+
+  it('should_removeOldFailedCyclesAndCapOutcomes_andReportTheCounts_when_switchedOn', async () => {
+    vi.stubEnv('AQE_DREAM_RETENTION', 'on');
+
     const result = await engine.dream(300);
 
     expect(n(`SELECT COUNT(*) AS n FROM dream_cycles WHERE status = 'failed'`)).toBe(0);
@@ -72,24 +90,27 @@ describe('#1239 retention after a committed dream', () => {
     expect(n(`SELECT COUNT(*) AS n FROM concept_nodes WHERE concept_type = 'outcome'`)).toBe(2000);
     expect(n(`SELECT COUNT(*) AS n FROM concept_nodes WHERE id = 'outcome-99'`)).toBe(0);
     expect(n(`SELECT COUNT(*) AS n FROM concept_nodes WHERE id = 'outcome-100'`)).toBe(1);
-    expect(result.retention?.map(s => [s.step, s.affected])).toEqual([
+    expect(result.retention?.enabled).toBe(true);
+    expect(result.retention?.steps.map(s => [s.step, s.affected])).toEqual([
       ['failed-dream-cycles', 40],
       ['outcome-concepts', 100],
     ]);
   });
 
-  it('should_keepEverything_when_theStepsAreSwitchedOff', async () => {
+  it('should_keepEverything_when_bothStepsAreSwitchedOff', async () => {
+    vi.stubEnv('AQE_DREAM_RETENTION', 'on');
     vi.stubEnv('AQE_FAILED_DREAM_CYCLE_RETENTION_DAYS', 'off');
     vi.stubEnv('AQE_OUTCOME_CONCEPT_CAP', 'off');
 
     const result = await engine.dream(300);
 
-    expect(result.retention).toEqual([]);
+    expect(result.retention).toEqual({ enabled: true, steps: [] });
     expect(n(`SELECT COUNT(*) AS n FROM dream_cycles WHERE status = 'failed'`)).toBe(40);
     expect(n(`SELECT COUNT(*) AS n FROM concept_nodes WHERE concept_type = 'outcome'`)).toBe(2100);
   });
 
   it('should_notPrune_when_theDreamFails', async () => {
+    vi.stubEnv('AQE_DREAM_RETENTION', 'on');
     const sparse = createDreamEngine({ minConceptsRequired: 100_000 });
     await sparse.initialize();
     try {

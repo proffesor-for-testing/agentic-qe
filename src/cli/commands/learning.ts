@@ -31,7 +31,7 @@ import {
 import { openDatabase } from '../../shared/safe-db.js';
 import { backupLearningDatabase, restoreLearningDatabase } from './learning-snapshot.js';
 import { registerPruneCommand } from './learning-prune.js';
-import { describeRetention } from '../../learning/learning-retention.js';
+import { describeDreamRetention } from '../../learning/learning-retention.js';
 import { createSQLitePatternStore } from '../../learning/sqlite-persistence.js';
 import { getActiveEmbeddingSpaceIdentity } from '../../learning/real-embeddings.js';
 import { inspectEmbeddingSpaceRows } from '../../learning/embedding-space.js';
@@ -1258,7 +1258,9 @@ function registerDreamCommand(learning: Command): void {
             conceptsProcessed: result.cycle.conceptsProcessed, associationsFound: result.cycle.associationsFound,
             insightsGenerated: result.cycle.insightsGenerated, activationStats: result.activationStats,
             patternsCreated: result.patternsCreated,
-            retention: result.retention?.map(describeRetention),
+            retention: result.retention
+              ? { enabled: result.retention.enabled, steps: describeDreamRetention(result.retention) }
+              : undefined,
             insights: result.insights.map(i => ({ id: i.id, type: i.type, description: i.description, noveltyScore: i.noveltyScore, confidenceScore: i.confidenceScore, actionable: i.actionable })),
           });
         } else {
@@ -1269,8 +1271,8 @@ function registerDreamCommand(learning: Command): void {
           console.log(`  Concepts:       ${result.cycle.conceptsProcessed}`);
           console.log(`  Associations:   ${result.cycle.associationsFound}`);
           console.log(`  Insights:       ${result.cycle.insightsGenerated}`);
-          for (const step of result.retention ?? []) {
-            if (step.affected > 0) console.log(`  Retention:      ${describeRetention(step)}`);
+          for (const line of result.retention ? describeDreamRetention(result.retention) : []) {
+            console.log(`  Retention:      ${line}`);
           }
 
           if (result.activationStats) {

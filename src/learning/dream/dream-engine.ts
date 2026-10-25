@@ -56,10 +56,10 @@ import {
 } from './dream-commit.js';
 import type { WitnessChain } from '../../audit/witness-chain.js';
 import {
-  applyDefaultRetention,
   describeRetention,
   resolveDefaultRetention,
-  type RetentionStepResult,
+  runDreamRetention,
+  type DreamRetentionReport,
 } from '../learning-retention.js';
 import type {
   DreamCycle,
@@ -157,8 +157,12 @@ export interface DreamCycleResult {
   /** #1060: how long the single commit transaction held the write lock, in ms. */
   commitDurationMs?: number;
 
-  /** #1239: default retention steps run after the commit, with their row counts. */
-  retention?: RetentionStepResult[];
+  /**
+   * #1239: dream retention after the commit, with row counts. Off by default
+   * (AQE_DREAM_RETENTION); while off, the steps are a dry run showing what
+   * they would remove.
+   */
+  retention?: DreamRetentionReport;
 
   /**
    * #1060: the uncommitted results of a `dream(…, { commit: false })` run.
@@ -719,7 +723,7 @@ export class DreamEngine {
   private commitComputed(
     db: DatabaseType,
     computed: ComputedDream,
-  ): { durationMs: number; retention: RetentionStepResult[] } {
+  ): { durationMs: number; retention: DreamRetentionReport | undefined } {
     const commit = commitDream(db, computed);
     try {
       this._witnessChain?.append('DREAM_COMMIT', {
@@ -734,24 +738,27 @@ export class DreamEngine {
 
   /**
    * #1239: after a committed dream, drop failed cycles past their retention
-   * window and outcome concepts beyond the cap. The dream is already
+   * window and outcome concepts beyond the cap when AQE_DREAM_RETENTION=on;
+   * otherwise only count what that would remove. The dream is already
    * committed, so a failure here (a locked database, say) is only logged.
    */
-  private runDefaultRetention(db: DatabaseType): RetentionStepResult[] {
+  private runDefaultRetention(db: DatabaseType): DreamRetentionReport | undefined {
     const settings = resolveDefaultRetention();
     if (settings.warnings.length > 0 && !retentionWarningsLogged) {
       retentionWarningsLogged = true;
       for (const warning of settings.warnings) dreamLogger.warn(warning);
     }
     try {
-      const results = applyDefaultRetention(db, settings);
-      for (const step of results) {
-        if (step.affected > 0) dreamLogger.info(`Retention ${describeRetention(step)}`);
+      const report = runDreamRetention(db, settings);
+      if (report.enabled) {
+        for (const step of report.steps) {
+          if (step.affected > 0) dreamLogger.info(`Retention ${describeRetention(step)}`);
+        }
       }
-      return results;
+      return report;
     } catch (error) {
-      dreamLogger.warn('Default retention skipped after dream commit', { error: toErrorMessage(error) });
-      return [];
+      dreamLogger.warn('Dream retention skipped after dream commit', { error: toErrorMessage(error) });
+      return undefined;
     }
   }
 

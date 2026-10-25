@@ -19,7 +19,7 @@ import {
   createDreamEngine,
 } from '../../../learning/dream/index.js';
 import { DreamAlreadyRunningError, type DreamCycleResult } from '../../../learning/dream/dream-engine.js';
-import { describeRetention } from '../../../learning/learning-retention.js';
+import { describeDreamRetention } from '../../../learning/learning-retention.js';
 import type { DreamInsight } from '../../../learning/dream/insight-generator.js';
 import type { DreamCycle } from '../../../learning/dream/types.js';
 import { createQEReasoningBank } from '../../../learning/qe-reasoning-bank.js';
@@ -78,8 +78,11 @@ export interface DreamResultSummary {
   patternsCreated: number;
   /** #1060: how long the dream's single commit transaction held the write lock, in ms */
   commitDurationMs?: number;
-  /** #1239: default retention after the commit, one line per step with its row counts */
-  retention?: string[];
+  /**
+   * #1239: dream retention after the commit. enabled=false (the default,
+   * AQE_DREAM_RETENTION) means nothing was deleted and `steps` say what would be.
+   */
+  retention?: { enabled: boolean; steps: string[] };
 }
 
 export interface InsightSummary {
@@ -341,7 +344,9 @@ export class DreamCycleTool extends MCPToolBase<DreamCycleParams, DreamCycleTool
       activationStats: result.activationStats,
       patternsCreated: result.patternsCreated,
       commitDurationMs: result.commitDurationMs,
-      retention: result.retention?.map(describeRetention),
+      retention: result.retention
+        ? { enabled: result.retention.enabled, steps: describeDreamRetention(result.retention) }
+        : undefined,
     };
 
     const insights: InsightSummary[] = result.insights.map((i: DreamInsight) => ({
