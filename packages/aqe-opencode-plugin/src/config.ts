@@ -7,7 +7,10 @@
  * @module config
  */
 
-import { z } from 'zod';
+// zod/v4 resolves to the same API on zod 4 (shipped) and zod 3.25 (the
+// root test environment). Nested objects use .prefault({}): in zod 4,
+// .default({}) returns {} as-is and skips the inner defaults.
+import { z } from 'zod/v4';
 
 export const AQEPluginConfigSchema = z.object({
   /** Master enable/disable switch */
@@ -19,7 +22,7 @@ export const AQEPluginConfigSchema = z.object({
     onToolCallAfter: z.boolean().default(true),
     onSessionPromptBefore: z.boolean().default(true),
     onSessionPromptAfter: z.boolean().default(true),
-  }).default({}),
+  }).prefault({}),
 
   /** Memory/persistence configuration */
   memory: z.object({
@@ -27,7 +30,7 @@ export const AQEPluginConfigSchema = z.object({
     dbPath: z.string().default('.agentic-qe/memory.db'),
     /** Enable HNSW vector search for pattern matching */
     hnswEnabled: z.boolean().default(true),
-  }).default({}),
+  }).prefault({}),
 
   /** Guidance injection configuration */
   guidance: z.object({
@@ -37,7 +40,7 @@ export const AQEPluginConfigSchema = z.object({
     enableRouting: z.boolean().default(true),
     /** Minimum confidence for pattern injection */
     minPatternConfidence: z.number().min(0).max(1).default(0.6),
-  }).default({}),
+  }).prefault({}),
 
   /** Active QE domains for pattern matching */
   domains: z.array(z.string()).default([
@@ -65,7 +68,7 @@ export const AQEPluginConfigSchema = z.object({
       'dd\\s+if=.*of=/dev/',
       'chmod\\s+-R\\s+777\\s+/',
     ]),
-  }).default({}),
+  }).prefault({}),
 
   /** Pattern promotion settings */
   patternPromotion: z.object({
@@ -73,7 +76,7 @@ export const AQEPluginConfigSchema = z.object({
     threshold: z.number().min(1).default(3),
     /** Minimum success rate for promotion */
     successRateMin: z.number().min(0).max(1).default(0.7),
-  }).default({}),
+  }).prefault({}),
 });
 
 export type AQEPluginConfig = z.infer<typeof AQEPluginConfigSchema>;

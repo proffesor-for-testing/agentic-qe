@@ -565,4 +565,31 @@ describe('AQE OpenCode Plugin Hooks', () => {
       expect(metrics.endedAt).not.toBeNull();
     });
   });
+
+  // ===========================================================================
+  // Config defaults (zod 4: nested .default({}) would skip inner defaults)
+  // ===========================================================================
+
+  describe('AQEPluginConfigSchema defaults', () => {
+    it('fills nested defaults when the config is empty', () => {
+      const config = AQEPluginConfigSchema.parse({});
+      expect(config.hooks).toEqual({
+        onToolCallBefore: true,
+        onToolCallAfter: true,
+        onSessionPromptBefore: true,
+        onSessionPromptAfter: true,
+      });
+      expect(config.memory).toEqual({ dbPath: '.agentic-qe/memory.db', hnswEnabled: true });
+      expect(config.guidance.maxTokens).toBe(2000);
+      expect(config.safety.blockDbWrites).toBe(true);
+      expect(config.safety.dangerousPatterns.length).toBeGreaterThan(0);
+      expect(config.patternPromotion).toEqual({ threshold: 3, successRateMin: 0.7 });
+    });
+
+    it('keeps inner defaults next to a partial override', () => {
+      const config = AQEPluginConfigSchema.parse({ hooks: { onToolCallBefore: false } });
+      expect(config.hooks.onToolCallBefore).toBe(false);
+      expect(config.hooks.onToolCallAfter).toBe(true);
+    });
+  });
 });

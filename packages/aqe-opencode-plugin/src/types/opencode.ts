@@ -96,7 +96,7 @@ export interface PromptModification {
 export interface PluginDefinition<TConfig = unknown> {
   name: string;
   version: string;
-  config?: import('zod').ZodType<TConfig>;
+  config?: import('zod/v4').ZodType<TConfig>;
   onToolCallBefore?: (ctx: ToolCallContext) => Promise<void | PluginHookResult>;
   onToolCallAfter?: (ctx: ToolCallContext, result: ToolResult) => Promise<void>;
   onSessionPromptBefore?: (ctx: SessionPromptContext) => Promise<void | PromptModification>;
