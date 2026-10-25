@@ -5,6 +5,124 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.15.13] - 2026-10-25
+
+On projects with more than 10,000 stored experiences, ReasoningBank warm-up
+and experience consolidation failed in the published package. Both work
+again. Cross-domain transfers are now coherence-checked; in the published
+package an approve-everything stub had replaced the check. Many results that
+used to be guessed or filled with passing defaults now say plainly that they
+were not measured: quality metrics, accessibility audits, DAST scans,
+registry lookups, outdated-package checks and dotCover coverage. Code search
+finds code indexed with `code_index`, and `task_status` can be polled until a
+task finishes.
+
+### Fixed
+
+- **Experience search no longer stops at 10,000 entries** ([#1237],
+  [#1242]): the MCP and CLI bundles could not load the HNSW index adapter,
+  because a relative `require` pointed at a path that only exists in the
+  unbundled files. They fell back silently to an old index capped at 10,000
+  entries. On larger projects, ReasoningBank warm-up and experience
+  consolidation failed with `Hnswlib Error: The number of elements exceeds
+  the specified limit`. Thanks to @Jordi-Izquierdo-DDS for the precise report.
+- **Cross-domain transfers are coherence-checked** ([#1242]): the same
+  loading bug made the transfer gate fall back to a stub that approved every
+  transfer. With `useCoherenceGate` on (the default), transfers now go
+  through the real gate, which can reject a transfer it scores as
+  incoherent.
+- **Quality results report missing evidence as unmeasured** ([#1020],
+  [#1223]): the quality dashboard, reports, risk analysis, deployment
+  readiness, the simplified quality gate and the coherence (lambda) gate used
+  to fill missing metrics with passing defaults such as coverage 80, tests
+  passing 95 or 0 vulnerabilities. Missing metrics are now `-1` and listed in
+  `unmeasured`, with status `insufficient-evidence`, and deployment readiness
+  is never true without evidence. Files that are not parsed (for example
+  Python or Go) no longer count as measured complexity. Runs without evidence
+  are not recorded as routing successes.
+- **Accessibility audits say "not measured" instead of guessing**
+  ([#1145], [#1233]): without a browser, audits invented a `color-contrast`
+  violation and a missing skip link from words in the URL, and
+  `validate-wcag` gave a pass or fail computed from a hash of the URL. Pages
+  that were not loaded are now reported as `measured: false` with the reason
+  and `score: -1`, and count as neither passing nor failing. `validate-wcag`
+  fails with "NOT MEASURED" in that case.
+- **Failed or partial DAST scans are never clean** ([#1135], [#1212],
+  [#1222]): a target that is rate-limited (429), times out (408), needs proxy
+  authentication (407), has a broken TLS setup or an invalid URL now fails the
+  scan with its own error code. When only some requests go unanswered, the
+  scan keeps its findings, has status `incomplete` and lists the unanswered
+  requests. The security audit no longer calls an unscanned target healthy.
+- **Failed registry lookups are not "up to date" or "not deprecated"**
+  ([#1052], [#1221], [#1222], [#1243]): a failed lookup gives
+  `isDeprecated: null` and `latestVersion: null` with the reason, never
+  `false` or "upgrade to unknown". Dependency scan results gain
+  `outdatedStatus` and `outdatedUnchecked`, and the audit lists a failed
+  outdated check under `incompleteChecks` instead of "Security posture is
+  good". `aqe task submit --wait` exits 1 when a task's result is incomplete
+  or failed.
+- **dotCover reports no longer invent file names** ([#1232], [#1243]):
+  statements that point to a file missing from the report's file table were
+  reported as `file-N`, with gaps and suggested tests for that made-up file.
+  They are now skipped, and the coverage result carries a `warnings` entry
+  saying how many statements were skipped.
+- **Code search answers from the indexed code** ([#1224], [#1234]): after
+  indexing with MCP `code_index`, search returned no results for code that
+  exists, plus placeholder `file-0`/`file-1` hits with empty snippets.
+  `code_index` now makes code searchable, and searching before anything is
+  indexed says so. Semantic results say whether an embedding model ranked
+  them (`mode: "vector"`) or only text matched (`mode: "lexical-only"`, with
+  the reason). Exact and fuzzy search read every indexed file.
+- **`task_status` can be polled** ([#1227], [#1235]): loop detection
+  blocked the third identical call within 30 seconds, so clients polling a
+  task got "Loop detected" and never saw the result. Read-only status tools
+  (`task_status`, `task_list`, `fleet_status`, `fleet_health`,
+  `agent_status`, `team_health`, `infra_healing_status`,
+  `migration_status`, `aqe_health`, `pipeline_status`) are exempt.
+- **Test runs are recorded with their final outcome** ([#1176], [#1030],
+  [#1220]): a test that failed and then passed on retry was recorded as
+  failed in events, learning, the `test_success_rate` metric and quality
+  evidence. Retries now finish before the run is recorded. Per-file
+  coverage records are written only for project files.
+
+### Changed
+
+- **`aqe fleet run --parallel N` splits the work** ([#1146], [#1226]):
+  every worker used to repeat the same job over the whole target. `scan` and
+  `test` now give each worker its own share of the files and combine the
+  results. `aqe fleet run` gains `--format json` and `-o <file>`. A
+  `--target` that leads outside the project is refused up front.
+- **`task_orchestrate` infers tasks more carefully** ([#1225], [#1226]):
+  "improve" or "optimize" on their own no longer start a learning
+  optimisation. Test generation with no source files given or named is
+  refused up front with what to pass, instead of failing after it was
+  accepted. Code-search descriptions are refused with a pointer to the
+  search tools.
+
+[#1020]: https://github.com/proffesor-for-testing/agentic-qe/issues/1020
+[#1030]: https://github.com/proffesor-for-testing/agentic-qe/issues/1030
+[#1052]: https://github.com/proffesor-for-testing/agentic-qe/issues/1052
+[#1135]: https://github.com/proffesor-for-testing/agentic-qe/issues/1135
+[#1145]: https://github.com/proffesor-for-testing/agentic-qe/issues/1145
+[#1146]: https://github.com/proffesor-for-testing/agentic-qe/issues/1146
+[#1176]: https://github.com/proffesor-for-testing/agentic-qe/issues/1176
+[#1212]: https://github.com/proffesor-for-testing/agentic-qe/issues/1212
+[#1220]: https://github.com/proffesor-for-testing/agentic-qe/pull/1220
+[#1221]: https://github.com/proffesor-for-testing/agentic-qe/issues/1221
+[#1222]: https://github.com/proffesor-for-testing/agentic-qe/pull/1222
+[#1223]: https://github.com/proffesor-for-testing/agentic-qe/pull/1223
+[#1224]: https://github.com/proffesor-for-testing/agentic-qe/issues/1224
+[#1225]: https://github.com/proffesor-for-testing/agentic-qe/issues/1225
+[#1226]: https://github.com/proffesor-for-testing/agentic-qe/pull/1226
+[#1227]: https://github.com/proffesor-for-testing/agentic-qe/issues/1227
+[#1232]: https://github.com/proffesor-for-testing/agentic-qe/issues/1232
+[#1233]: https://github.com/proffesor-for-testing/agentic-qe/pull/1233
+[#1234]: https://github.com/proffesor-for-testing/agentic-qe/pull/1234
+[#1235]: https://github.com/proffesor-for-testing/agentic-qe/pull/1235
+[#1237]: https://github.com/proffesor-for-testing/agentic-qe/issues/1237
+[#1242]: https://github.com/proffesor-for-testing/agentic-qe/pull/1242
+[#1243]: https://github.com/proffesor-for-testing/agentic-qe/pull/1243
+
 ## [3.15.12] - 2026-10-23
 
 A coverage verdict now needs evidence for the whole target. A report that
