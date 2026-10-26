@@ -142,13 +142,24 @@ export class BrainHandler implements ICommandHandler {
         console.log(`  Segments: ${chalk.cyan(rvf.totalSegments)}`);
       }
 
+      const skippedVectors = (manifest.stats as { skippedCacheRows?: Record<string, number> })
+        .skippedCacheRows?.vectors;
+      if (skippedVectors) {
+        console.log(`  Skipped:  ${chalk.gray(`${skippedVectors} code-index vectors (regenerable: aqe code index <path>)`)}`);
+      }
+
       console.log(`  Checksum: ${chalk.gray(manifest.checksum)}`);
       console.log(`  Output:   ${chalk.cyan(path.resolve(options.output))}`);
       console.log('');
 
       await this.cleanupAndExit(0);
     } catch (error) {
-      console.error(chalk.red('\n  Brain export failed:'), error);
+      if ((error as { code?: unknown } | null)?.code === 'RVF_KERNEL_TOO_LARGE') {
+        // Expected condition, not a crash: the message names the size and the fix.
+        console.error(chalk.red('\n  Brain export failed:'), (error as Error).message);
+      } else {
+        console.error(chalk.red('\n  Brain export failed:'), error);
+      }
       await this.cleanupAndExit(1);
     }
   }

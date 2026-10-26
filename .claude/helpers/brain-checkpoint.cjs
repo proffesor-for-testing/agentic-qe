@@ -7,6 +7,7 @@
  *   node brain-checkpoint.cjs verify   # Verify aqe.rvf exists (session-start)
  */
 const { execFileSync } = require('child_process');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
@@ -17,6 +18,12 @@ const AQE_DIR = path.join(PROJECT_ROOT, '.agentic-qe');
 const RVF_PATH = path.join(AQE_DIR, 'aqe.rvf');
 const DB_PATH = path.join(AQE_DIR, 'memory.db');
 const MAX_AGE_HOURS = 24;
+// #1238: an export the native RVF writer cannot hold fails the same way every
+// turn. After one such failure, skip the Stop-hook export for this long, unless
+// a newer aqe.rvf shows that a manual export has succeeded since.
+const SKIP_PATH = path.join(AQE_DIR, 'brain-checkpoint.skip.json');
+const RETRY_ENV = Number.parseFloat(process.env.AQE_BRAIN_CHECKPOINT_RETRY_HOURS || '');
+const TOO_LARGE_RETRY_HOURS = Number.isFinite(RETRY_ENV) && RETRY_ENV >= 0 ? RETRY_ENV : 6;
 /**
  * How to run `aqe`. POSIX: the `aqe` binary. Windows (#872): never execFile
  * `aqe.cmd` (EINVAL without a shell since CVE-2024-27980, and a shell is unsafe);
@@ -66,33 +73,145 @@ function removeEntry(p) {
   try { fs.unlinkSync(p); } catch (e) { if (!e || e.code !== 'ENOENT') throw e; }
 }
 
+/**
+ * The skip marker left by a too-large export, or null once it has expired or
+ * a newer aqe.rvf shows that an export has succeeded since.
+ */
+function activeSkip() {
+  let st;
+  try { st = fs.lstatSync(SKIP_PATH); } catch { return null; }
+  let skip = null;
+  if (st.isFile()) { try { skip = JSON.parse(fs.readFileSync(SKIP_PATH, 'utf8')); } catch { /* unreadable */ } }
+  const at = skip ? Date.parse(skip.at) : NaN;
+  let rvfMtime = 0;
+  try { rvfMtime = fs.lstatSync(RVF_PATH).mtimeMs; } catch { /* absent */ }
+  if (!Number.isFinite(at) || Date.now() >= at + TOO_LARGE_RETRY_HOURS * 3600000 || rvfMtime > at) {
+    try { removeEntry(SKIP_PATH); } catch { /* best-effort */ }
+    return null;
+  }
+  return skip;
+}
+
+function writeSkip(reason) {
+  const at = new Date();
+  const skip = {
+    reason,
+    at: at.toISOString(),
+    retryAfter: new Date(at.getTime() + TOO_LARGE_RETRY_HOURS * 3600000).toISOString(),
+  };
+  // 'wx' after unlink: never write through a planted symlink (#970).
+  try { removeEntry(SKIP_PATH); fs.writeFileSync(SKIP_PATH, JSON.stringify(skip) + '\n', { flag: 'wx' }); } catch { /* best-effort */ }
+  return skip;
+}
+
+// The export is written to a temp store next to aqe.rvf and renamed over it
+// only once it succeeded, so a failed, too-large or killed export keeps the
+// previous checkpoint. The CLI writes these sidecars next to its -o path.
+const RVF_SIDECARS = ['.idmap.json', '.manifest.json'];
+const TMP_PREFIX = path.basename(RVF_PATH) + '.tmp-';
+
+function isPidAlive(pid) {
+  try { process.kill(pid, 0); return true; } catch (e) { return !!e && e.code === 'EPERM'; }
+}
+
+/** Remove entries in .agentic-qe that start with `prefix` (unlink: never follows a symlink). */
+function removeByPrefix(prefix, keep) {
+  let entries = [];
+  try { entries = fs.readdirSync(AQE_DIR); } catch { return; }
+  for (const entry of entries) {
+    if (!entry.startsWith(prefix) || (keep && keep(entry))) continue;
+    try { removeEntry(path.join(AQE_DIR, entry)); } catch { /* best-effort: a leftover tmp is inert */ }
+  }
+}
+
+/** Temp stores of earlier hook runs that were killed: their owning pid is gone. */
+function sweepStaleTmp() {
+  removeByPrefix(TMP_PREFIX, (entry) => {
+    const pid = Number.parseInt(entry.slice(TMP_PREFIX.length).split('-')[0], 10);
+    return !Number.isInteger(pid) || pid <= 0 || isPidAlive(pid);
+  });
+}
+
+function lexists(p) {
+  try { fs.lstatSync(p); return true; } catch { return false; }
+}
+
+/**
+ * Promote a completed temp store over aqe.rvf. rename() replaces whatever
+ * sits at the destination, a planted symlink included, without writing
+ * through it (#970).
+ *
+ * The store goes first, then the sidecars: until the store rename succeeds
+ * nothing has changed, so a failure there leaves the old store with its own
+ * idmap. If a sidecar rename fails after that, the stale destination sidecar
+ * is removed, so the new store is never read with the previous export's
+ * idmap. A store without an idmap is consistent; one with another export's
+ * idmap is not.
+ */
+function promote(tmp) {
+  fs.renameSync(tmp, RVF_PATH);
+  for (const suffix of RVF_SIDECARS) {
+    try {
+      if (lexists(tmp + suffix)) fs.renameSync(tmp + suffix, RVF_PATH + suffix);
+      else removeEntry(RVF_PATH + suffix);
+    } catch {
+      try { removeEntry(RVF_PATH + suffix); } catch { /* best-effort */ }
+    }
+  }
+}
+
 function exportBrain() {
   if (!fs.existsSync(DB_PATH)) { log('No memory.db, skipping'); return { exported: false }; }
   if (!isRealDir(AQE_DIR)) {
     const reason = '.agentic-qe is a symlink; refusing to write through it';
     log('Export skipped: ' + reason); return { exported: false, reason };
   }
+  const skip = activeSkip();
+  if (skip) {
+    log('Export skipped until ' + skip.retryAfter + ': ' + skip.reason);
+    return { exported: false, skipped: true, reason: skip.reason, retryAfter: skip.retryAfter };
+  }
   const aqe = aqeInvocation();
   if (!aqe.cmd) { log('Export skipped: ' + aqe.reason); return { exported: false, reason: aqe.reason }; }
+  sweepStaleTmp();
+  const tmp = path.join(AQE_DIR, TMP_PREFIX + process.pid + '-' + crypto.randomBytes(4).toString('hex'));
   try {
-    removeEntry(RVF_PATH);
-    removeEntry(RVF_PATH + '.idmap.json');
+    // The name is fresh, but drop anything already there without following it.
+    for (const suffix of ['', ...RVF_SIDECARS]) removeEntry(tmp + suffix);
     const result = execFileSync(
-      aqe.cmd, [...aqe.args, 'brain', 'export', '-o', RVF_PATH, '--format', 'rvf'],
-      { timeout: 60000, encoding: 'utf-8', windowsHide: true }
+      aqe.cmd, [...aqe.args, 'brain', 'export', '-o', tmp, '--format', 'rvf'],
+      { timeout: 60000, encoding: 'utf-8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }
     );
+    // A zero exit without a store is a failure, not an empty checkpoint.
+    if (!lexists(tmp)) throw new Error('brain export exited 0 but wrote no store');
+    promote(tmp);
     const m = result.match(/Patterns:\s+(\d+)/);
     const p = m ? m[1] : '0';
     log('Exported ' + p + ' patterns to aqe.rvf');
     return { exported: true, patterns: parseInt(p) };
   } catch (e) {
-    log('Export failed: ' + e.message);
+    const tooLarge = (String(e.stderr || '') + String(e.stdout || '')).match(/RVF_KERNEL_TOO_LARGE:[^\n]*/);
+    if (tooLarge) {
+      const skip = writeSkip(tooLarge[0].trim());
+      log('Export failed: ' + skip.reason);
+      log('Skipping the checkpoint export until ' + skip.retryAfter + ' (AQE_BRAIN_CHECKPOINT_RETRY_HOURS sets the wait).');
+      return { exported: false, tooLarge: true, reason: skip.reason, retryAfter: skip.retryAfter };
+    }
+    log('Export failed: ' + e.message + ' (previous aqe.rvf kept)');
     return { exported: false, reason: e.message };
+  } finally {
+    // The temp store, its sidecars and the CLI's own tmp files under it.
+    removeByPrefix(path.basename(tmp));
   }
 }
 
 function verifyBrain() {
   if (!fs.existsSync(RVF_PATH)) {
+    const skip = activeSkip();
+    if (skip) {
+      log('No aqe.rvf found; checkpoint export paused until ' + skip.retryAfter + ': ' + skip.reason);
+      return { valid: false, reason: 'missing', skippedUntil: skip.retryAfter };
+    }
     log('No aqe.rvf found');
     return { valid: false, reason: 'missing' };
   }
