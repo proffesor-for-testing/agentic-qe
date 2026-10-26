@@ -439,7 +439,7 @@ export function formatWebhookTestResults(summary: WebhookTestSummary): string {
  */
 export function webhookTestResultsToJson(summary: WebhookTestSummary): string {
   return JSON.stringify({
-    $schema: 'https://raw.githubusercontent.com/anthropics/agentic-qe/main/packages/n8n-validator/schema/webhook-test.json',
+    $schema: 'https://raw.githubusercontent.com/proffesor-for-testing/agentic-qe/main/packages/n8n-validator/schema/webhook-test.json',
     version: '1.0.0',
     generatedAt: new Date().toISOString(),
     summary: {

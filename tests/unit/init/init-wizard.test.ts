@@ -903,8 +903,8 @@ describe('InitOrchestrator', () => {
       const mcpConfig = JSON.parse(mcpCall![1] as string);
       expect(mcpConfig.mcpServers).toBeDefined();
       expect(mcpConfig.mcpServers['agentic-qe']).toBeDefined();
-      expect(mcpConfig.mcpServers['agentic-qe'].command).toBe('npx');
-      expect(mcpConfig.mcpServers['agentic-qe'].args).toEqual(['@anthropics/agentic-qe', 'mcp', 'start']);
+      expect(mcpConfig.mcpServers['agentic-qe'].command).toBe('aqe-mcp');
+      expect(mcpConfig.mcpServers['agentic-qe'].args).toEqual([]);
     });
   });
 });

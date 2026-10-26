@@ -212,11 +212,59 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 /**
+ * A package name earlier AQE versions wrote into `permissions.allow` and
+ * `.mcp.json` (GHSA-chjc-8q37-52fg). AQE does not publish or control it, so
+ * init removes any entry naming it instead of leaving a standing grant.
+ */
+const UNTRUSTED_AQE_PACKAGE = /@anthropics\/agentic-qe\b/i;
+
+/** Drop allow-list entries that pre-approve the untrusted package. */
+export function removeUntrustedAqePermissions(allow: string[]): string[] {
+  return allow.filter((entry) => typeof entry !== 'string' || !UNTRUSTED_AQE_PACKAGE.test(entry));
+}
+
+/**
+ * Remove MCP servers that launch the untrusted package.
+ * Mutates `servers` and returns the removed server names.
+ */
+export function removeUntrustedAqeMcpServers(servers: Record<string, unknown>): string[] {
+  const removed: string[] = [];
+  for (const [name, server] of Object.entries(servers)) {
+    const { command, args } = (isPlainObject(server) ? server : {}) as { command?: unknown; args?: unknown };
+    const parts = [command, ...(Array.isArray(args) ? args : [])];
+    if (parts.some((part) => typeof part === 'string' && UNTRUSTED_AQE_PACKAGE.test(part))) {
+      delete servers[name];
+      removed.push(name);
+    }
+  }
+  return removed;
+}
+
+/**
+ * Remove untrusted-package servers from an existing `.mcp.json`, leaving the
+ * rest of the file alone. Used where init does not write its own entry.
+ */
+export function scrubUntrustedAqeMcpFile(mcpPath: string): string[] {
+  if (!existsSync(mcpPath)) return [];
+  let config: unknown;
+  try {
+    config = JSON.parse(readFileSync(mcpPath, 'utf-8'));
+  } catch {
+    return [];
+  }
+  if (!isPlainObject(config) || !isPlainObject(config.mcpServers)) return [];
+  const removed = removeUntrustedAqeMcpServers(config.mcpServers);
+  if (removed.length > 0) writeFileSync(mcpPath, JSON.stringify(config, null, 2), 'utf-8');
+  return removed;
+}
+
+/**
  * Apply the generated v3 settings sections onto an existing settings object
  * WITHOUT clobbering configuration the user already set:
  *
  * - `_aqePermissions`: union-merge into `permissions.allow`, preserving the
  *   user's existing allow/deny entries (#362).
+ *   Entries naming the untrusted package are dropped (GHSA-chjc-8q37-52fg).
  * - `statusLine`: generic Claude Code setting — only written when absent or when
  *   the existing one is AQE's own (so a user's custom status line is preserved).
  * - `includeCoAuthoredBy`: generic Claude Code setting — only written when the
@@ -234,7 +282,7 @@ export function applyV3Sections(
   for (const [key, value] of Object.entries(sections)) {
     if (key === '_aqePermissions') {
       const existingPerms = (settings.permissions as { allow?: string[]; deny?: string[] }) || {};
-      const existingAllow = existingPerms.allow || [];
+      const existingAllow = removeUntrustedAqePermissions(existingPerms.allow || []);
       const merged = [...new Set([...existingAllow, ...(value as string[])])];
       settings.permissions = { ...existingPerms, allow: merged };
     } else if (key === 'statusLine') {
@@ -291,7 +339,6 @@ export function generateV3SettingsSections(
     // permissions are union-merged in 07-hooks.ts — not set here to avoid overwriting user entries (#362)
     _aqePermissions: [
       'Bash(npx agentic-qe:*)',
-      'Bash(npx @anthropics/agentic-qe:*)',
       'mcp__agentic-qe__*',
     ],
     includeCoAuthoredBy: true,
