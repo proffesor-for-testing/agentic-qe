@@ -5,6 +5,52 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.15.15] - 2026-10-26
+
+`aqe init` no longer gives Claude Code standing permission to run
+`@anthropics/agentic-qe`, a package name AQE does not own, and re-running it
+removes that permission from projects that already have it. Agent Booster's
+WASM transforms work from the published package again, and a dream waiting
+on a locked database no longer freezes the MCP server.
+
+### Security
+
+- **`aqe init` no longer pre-approves or launches `@anthropics/agentic-qe`**
+  ([GHSA-chjc-8q37-52fg], [#1265]): init added
+  `Bash(npx @anthropics/agentic-qe:*)` to `permissions.allow` in
+  `.claude/settings.json`, and interactive `aqe init` registered an MCP
+  server running `npx @anthropics/agentic-qe mcp start`. AQE does not
+  publish or control that name, so if anyone published it, Claude Code would
+  run it without asking. Init no longer writes either entry (the interactive
+  wizard now registers `aqe-mcp`, like `aqe init --auto`), and re-running
+  `aqe init` removes any allow entry or `.mcp.json` server naming the
+  package, keeping your other entries. If you run init with `--no-mcp`,
+  delete a leftover `@anthropics/agentic-qe` server from `.mcp.json` by
+  hand. Reported by BrasaStudios.
+
+### Fixed
+
+- **Agent Booster WASM ships in the package** ([#1241], [#1262]): the WASM
+  module was missing from the published package, so code transforms always
+  fell back to pattern matching (`source: "pattern"`). The package now
+  includes it and finds it from the package root, so transforms run as WASM
+  (`source: "wasm"`) from both the library and the bundled CLI.
+- **A dream no longer freezes the MCP server on a locked database**
+  ([#1253], [#1264]): the dream engine set a 60-second lock wait on the
+  database connection the whole process shares, so while another process
+  held the write lock, every tool call could stall for up to a minute. Dream
+  writes now retry in the background without blocking other calls, and
+  still complete once the lock is released. A shorter stall that happens
+  without a dream is tracked in [#1263].
+
+[GHSA-chjc-8q37-52fg]: https://github.com/proffesor-for-testing/agentic-qe/security/advisories/GHSA-chjc-8q37-52fg
+[#1241]: https://github.com/proffesor-for-testing/agentic-qe/issues/1241
+[#1253]: https://github.com/proffesor-for-testing/agentic-qe/issues/1253
+[#1262]: https://github.com/proffesor-for-testing/agentic-qe/pull/1262
+[#1263]: https://github.com/proffesor-for-testing/agentic-qe/issues/1263
+[#1264]: https://github.com/proffesor-for-testing/agentic-qe/pull/1264
+[#1265]: https://github.com/proffesor-for-testing/agentic-qe/pull/1265
+
 ## [3.15.14] - 2026-10-26
 
 Large learning databases can be exported as RVF again, and the brain

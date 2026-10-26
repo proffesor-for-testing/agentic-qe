@@ -2,6 +2,9 @@
 
 Newest first. One `## <version> — <date>` heading per version, then `feat:`, `fix:`, `breaking:` and `chore:` bullets. Since 3.15.0 the plugin version tracks the `agentic-qe` npm package version (see [ADR-0001](docs/adrs/0001-agentic-qe-fleet-contract.md)). Built from git history.
 
+## 3.15.15 — 2026-10-26
+- chore: MCP server pin and mod version move to `agentic-qe@3.15.15` (`aqe init` no longer pre-approves or launches `@anthropics/agentic-qe` and removes it on re-init, GHSA-chjc-8q37-52fg; Agent Booster WASM ships in the package; a dream no longer freezes the MCP server on a locked database; see the root CHANGELOG). No other plugin changes.
+
 ## 3.15.14 — 2026-10-26
 - chore: MCP server pin and mod version move to `agentic-qe@3.15.14` (RVF brain export on large databases, safe checkpoint hook, opt-in learning-table retention and `aqe learning prune`, no overall quality score with unmeasured metrics, chaos faults that never ran reported as not executed, compaction keeps its summary; see the root CHANGELOG). No other plugin changes.
 
