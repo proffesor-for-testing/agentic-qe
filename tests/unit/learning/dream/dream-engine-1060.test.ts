@@ -210,11 +210,11 @@ describe('#1060 compute, then commit', () => {
     expect(count('dream_insights')).toBe(0);
     expect(activations()).toEqual(before);
 
-    const commitMs = engine.commitDreamResult(result);
+    const commitMs = await engine.commitDreamResult(result);
     expect(commitMs).toBeGreaterThanOrEqual(0);
     expect(cycles()).toEqual([{ status: 'completed', error: null }]);
     expect(count('dream_insights')).toBe(result.insights.length);
-    expect(() => engine.commitDreamResult(result)).toThrow('nothing pending');
+    await expect(engine.commitDreamResult(result)).rejects.toThrow('nothing pending');
   });
 
   it('records a failed dream as failed and writes nothing else of it', async () => {
@@ -312,8 +312,9 @@ describe('#1060 SpeculativeDreamer cancellation', () => {
     const closing = engine.close();
 
     // Both checks run before close() reaches its first await.
-    expect(() => engine.commitDreamResult(pending)).toThrow('closing');
+    const committing = engine.commitDreamResult(pending);
     const refused = engine.dream(200);
+    await expect(committing).rejects.toThrow('closing');
     await expect(refused).rejects.toThrow('closing');
     await closing;
     expect(count('dream_cycles')).toBe(0);

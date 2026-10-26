@@ -39,6 +39,13 @@ import { getUnifiedPersistence, type UnifiedPersistenceManager } from '../../ker
 import { registerStoreCloser } from '../../kernel/process-lifecycle.js';
 import { ConceptGraph } from './concept-graph.js';
 import {
+  DREAM_LOCK_WAIT_MS,
+  DREAM_SHUTDOWN_LOCK_WAIT_MS,
+  isBusyError,
+  retryWhileBusy,
+  withBusyTimeout,
+} from './dream-lock-retry.js';
+import {
   SpreadingActivation,
   type ActivationConfig,
   type ConceptGraph as SpreadingConceptGraph,
@@ -448,14 +455,15 @@ export class DreamEngine {
       }
       this.db = this.persistence.getDatabase();
 
-      // ADR-001 Option C: dynamic-import paths in checkAndTriggerDream() open
-      // a fresh handle that the hook/worker busy_timeout pragmas never reach.
-      // 60s patient timeout here keeps dream cycles from failing under WAL
-      // contention from MCP workers (was 71% failure rate observed).
-      try { this.db.pragma('busy_timeout = 60000'); } catch { /* fail-soft */ }
+      // #1253: no 60 s busy_timeout on this shared connection. better-sqlite3
+      // waits synchronously, so it froze the whole process (the MCP event loop)
+      // while another writer held the database. Dream writes instead wait
+      // briefly per attempt and retry asynchronously (dream-lock-retry.ts),
+      // which keeps the patience that avoided failures under contention (#1060).
 
-      // Migrate legacy schema: rename 'duration' → 'duration_ms' if needed
-      this.migrateSchema();
+      // Migrate legacy schema: rename 'duration' → 'duration_ms' if needed.
+      // #1253: a short lock wait only; migrateSchema() logs and carries on.
+      withBusyTimeout(this.db, DREAM_LOCK_WAIT_MS, () => this.migrateSchema());
 
       // Initialize concept graph (shares same unified persistence)
       this.graph = new ConceptGraph();
@@ -470,12 +478,20 @@ export class DreamEngine {
       }
 
       // #1060: a process that exited mid-dream left its cycle 'running'.
-      const abandoned = markAbandonedCycles(
-        this.db,
-        Math.max(this.config.maxDurationMs, MAX_TOOL_DREAM_MS) + ABANDONED_CYCLE_GRACE_MS,
-      );
-      if (abandoned > 0) {
-        dreamLogger.info('Marked abandoned dream cycles as interrupted', { abandoned });
+      // #1253: housekeeping, so a locked database skips it after a short
+      // wait instead of blocking the process; the next initialize() retries.
+      const db = this.db;
+      try {
+        const abandoned = withBusyTimeout(db, DREAM_LOCK_WAIT_MS, () => markAbandonedCycles(
+          db,
+          Math.max(this.config.maxDurationMs, MAX_TOOL_DREAM_MS) + ABANDONED_CYCLE_GRACE_MS,
+        ));
+        if (abandoned > 0) {
+          dreamLogger.info('Marked abandoned dream cycles as interrupted', { abandoned });
+        }
+      } catch (error) {
+        if (!isBusyError(error)) throw error;
+        dreamLogger.warn('Abandoned dream cycle sweep skipped: database is locked', { error: toErrorMessage(error) });
       }
 
       this.initialized = true;
@@ -616,7 +632,7 @@ export class DreamEngine {
     let committed = false;
 
     try {
-      if (commitResults) await this.saveCycle(cycle);
+      if (commitResults) await this.saveCycle(cycle, live);
       if (!live()) throw new Error('Dream cycle cancelled');
 
       // 1. Check we have enough concepts
@@ -669,7 +685,7 @@ export class DreamEngine {
         committed = true; // nothing to record: the caller decides
         return { ...result, pending: computed };
       }
-      const commit = this.commitComputed(db, computed);
+      const commit = await this.commitComputed(db, computed, live);
       committed = true;
       result.commitDurationMs = commit.durationMs;
       result.retention = commit.retention;
@@ -683,7 +699,9 @@ export class DreamEngine {
         cycle.endTime = new Date();
         cycle.durationMs = Date.now() - startTime;
         if (commitResults && this.db === db) {
-          try { this.updateCycleSync(cycle); } catch { /* best effort */ }
+          try {
+            await retryWhileBusy(db, () => this.updateCycleSync(cycle), { shouldContinue: () => this.db === db });
+          } catch { /* best effort */ }
         }
       }
       if (!committed && commitResults) {
@@ -706,9 +724,10 @@ export class DreamEngine {
    * #1060: write the results of a `dream(…, { commit: false })` run, in the
    * same single transaction a normal dream uses. Returns the commit duration
    * in ms. Throws (and writes nothing) if the engine is closed or the write
-   * fails.
+   * fails. #1253: async, because a locked database is retried without
+   * blocking the process.
    */
-  commitDreamResult(result: DreamCycleResult): number {
+  async commitDreamResult(result: DreamCycleResult): Promise<number> {
     this.ensureInitialized();
     if (this.closing) {
       throw new Error('Dream engine is closing; nothing is committed');
@@ -716,7 +735,8 @@ export class DreamEngine {
     if (!result.pending) {
       throw new Error('Dream result has nothing pending to commit (it was already committed)');
     }
-    const commit = this.commitComputed(this.db!, result.pending);
+    const db = this.db!;
+    const commit = await this.commitComputed(db, result.pending, () => !this.closing && this.db === db);
     result.pending = undefined;
     result.commitDurationMs = commit.durationMs;
     result.retention = commit.retention;
@@ -727,11 +747,16 @@ export class DreamEngine {
    * Commit a computed dream, then record it in the witness chain (#1060) and
    * run the default retention steps (#1239).
    */
-  private commitComputed(
+  private async commitComputed(
     db: DatabaseType,
     computed: ComputedDream,
-  ): { durationMs: number; retention: DreamRetentionReport } {
-    const commit = commitDream(db, computed);
+    live: () => boolean,
+  ): Promise<{ durationMs: number; retention: DreamRetentionReport }> {
+    // #1253: retry a locked database asynchronously; each attempt is short.
+    const commit = await retryWhileBusy(db, () => commitDream(db, computed), {
+      shouldContinue: live,
+      cancelledError: () => new Error('Dream cycle cancelled'),
+    });
     try {
       this._witnessChain?.append('DREAM_COMMIT', {
         cycleId: computed.cycle.id,
@@ -792,7 +817,9 @@ export class DreamEngine {
       cycle.endTime = new Date();
       cycle.durationMs = Date.now() - startTime;
       try {
-        this.updateCycleSync(cycle);
+        // #1253: a short wait only; if the database stays locked, the
+        // abandoned-cycle sweep marks the cycle interrupted later.
+        withBusyTimeout(this.db, DREAM_SHUTDOWN_LOCK_WAIT_MS, () => this.updateCycleSync(cycle));
       } catch {
         // Best effort during shutdown
       }
@@ -1129,8 +1156,9 @@ export class DreamEngine {
   // Persistence
   // ==========================================================================
 
-  private async saveCycle(cycle: DreamCycle): Promise<void> {
+  private async saveCycle(cycle: DreamCycle, live: () => boolean): Promise<void> {
     if (!this.db) return;
+    const db = this.db;
 
     const stmt = this.db.prepare(`
       INSERT INTO dream_cycles
@@ -1139,7 +1167,7 @@ export class DreamEngine {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-    stmt.run(
+    await retryWhileBusy(db, () => stmt.run(
       cycle.id,
       cycle.startTime.toISOString(),
       cycle.endTime?.toISOString() ?? null,
@@ -1150,7 +1178,7 @@ export class DreamEngine {
       cycle.status,
       cycle.error ?? null,
       cycle.startTime.toISOString()
-    );
+    ), { shouldContinue: live, cancelledError: () => new Error('Dream cycle cancelled') });
   }
 
   private updateCycleSync(cycle: DreamCycle): void {

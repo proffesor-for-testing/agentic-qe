@@ -91,7 +91,7 @@ describe('#1239 retention after a committed dream', () => {
     expect(n(`SELECT COUNT(*) AS n FROM concept_nodes WHERE concept_type = 'outcome'`)).toBe(2000);
     expect(n(`SELECT COUNT(*) AS n FROM concept_nodes WHERE id = 'outcome-99'`)).toBe(0);
     expect(n(`SELECT COUNT(*) AS n FROM concept_nodes WHERE id = 'outcome-100'`)).toBe(1);
-    expect(db.pragma('busy_timeout', { simple: true })).toBe(60000);
+    expect(db.pragma('busy_timeout', { simple: true })).toBe(5000); // #1253: the shared connection keeps its own timeout
     expect(result.retention?.enabled).toBe(true);
     expect(result.retention?.steps.map(s => [s.step, s.affected])).toEqual([
       ['failed-dream-cycles', 40],
@@ -146,7 +146,7 @@ describe('#1239 retention after a committed dream', () => {
 
     // Retention gave up after RETENTION_BUSY_TIMEOUT_MS, not the 60 s commit wait.
     expect(Date.now() - started).toBeLessThan(5000);
-    expect(db.pragma('busy_timeout', { simple: true })).toBe(60000);
+    expect(db.pragma('busy_timeout', { simple: true })).toBe(5000); // #1253: the shared connection keeps its own timeout
     expect(result.cycle.status).toBe('completed');
     expect(n(`SELECT COUNT(*) AS n FROM dream_cycles WHERE status = 'completed'`)).toBe(1);
     expect(result.retention).toMatchObject({ enabled: true, steps: [], error: expect.stringMatching(/locked|busy/i) });
