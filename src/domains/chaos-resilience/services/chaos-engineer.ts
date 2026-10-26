@@ -779,35 +779,31 @@ Provide:
     return err(new Error(`Unknown fault type: ${fault.type}`));
   }
 
+  // #1258: these fault types need infrastructure this process does not control
+  // (a network proxy, service mesh, firewall or DNS server). They used to log a
+  // note and return ok(1), so an experiment reported a fault that never ran.
+  // They now fail with the reason, and injectFault() records injected: false.
+  private notInjected(fault: FaultInjection, requirement: string): Result<number> {
+    return err(new Error(
+      `${fault.type} fault not injected into ${fault.target.selector}: requires ${requirement}, ` +
+      'which this process does not control. Nothing was changed on the target.'
+    ));
+  }
+
   private async injectLatency(fault: FaultInjection): Promise<Result<number>> {
-    // Latency injection is typically done at proxy/network level
-    // For simulation, we store the config and check during probe execution
-    const latencyMs = fault.parameters.latencyMs ?? 100;
-    logger.info(`Latency injection configured: ${latencyMs}ms for ${fault.target.selector}`);
-    logger.info(`Note: Actual latency injection requires network proxy (e.g., Toxiproxy, tc)`);
-    return ok(1);
+    return this.notInjected(fault, 'a network proxy (e.g., Toxiproxy, tc)');
   }
 
   private async injectError(fault: FaultInjection): Promise<Result<number>> {
-    // Error injection typically requires proxy/service mesh
-    const errorCode = fault.parameters.errorCode ?? 500;
-    logger.info(`Error injection configured: ${errorCode} for ${fault.target.selector}`);
-    logger.info(`Note: Actual error injection requires service mesh (e.g., Istio, Linkerd)`);
-    return ok(1);
+    return this.notInjected(fault, 'a service mesh or proxy (e.g., Istio, Linkerd, Toxiproxy)');
   }
 
   private async injectTimeout(fault: FaultInjection): Promise<Result<number>> {
-    // Timeout injection via proxy configuration
-    logger.info(`Timeout injection configured for ${fault.target.selector}`);
-    logger.info(`Note: Actual timeout injection requires network proxy configuration`);
-    return ok(1);
+    return this.notInjected(fault, 'a network proxy (e.g., Toxiproxy)');
   }
 
   private async injectPacketLoss(fault: FaultInjection): Promise<Result<number>> {
-    const lossPercent = fault.parameters.packetLossPercent ?? 10;
-    logger.info(`Packet loss configured: ${lossPercent}% for ${fault.target.selector}`);
-    logger.info(`Note: Actual packet loss requires tc/iptables (Linux) or similar`);
-    return ok(1);
+    return this.notInjected(fault, 'tc/iptables (Linux) or a network proxy');
   }
 
   private async injectCpuStress(fault: FaultInjection): Promise<Result<number>> {
@@ -875,40 +871,26 @@ Provide:
   }
 
   private async injectDiskStress(fault: FaultInjection): Promise<Result<number>> {
-    // Disk stress would require file system operations
-    logger.info(`Disk stress configured for ${fault.target.selector}`);
-    logger.info(`Note: Actual disk stress requires file system write permissions`);
-    return ok(1);
+    return this.notInjected(fault, 'file system stress tooling (e.g., stress-ng)');
   }
+
 
   private async injectNetworkPartition(fault: FaultInjection): Promise<Result<number>> {
-    // Network partition typically requires iptables or similar
-    logger.info(`Network partition configured for ${fault.target.selector}`);
-    logger.info(`Note: Actual network partition requires iptables/firewall rules`);
-    return ok(1);
+    return this.notInjected(fault, 'iptables/firewall rules');
   }
+
 
   private async injectDnsFailure(fault: FaultInjection): Promise<Result<number>> {
-    // DNS failure injection via /etc/hosts or DNS server configuration
-    logger.info(`DNS failure configured for ${fault.target.selector}`);
-    logger.info(`Note: Actual DNS failure requires DNS server or /etc/hosts modification`);
-    return ok(1);
+    return this.notInjected(fault, 'a DNS server or /etc/hosts modification');
   }
+
 
   private async injectProcessKill(fault: FaultInjection): Promise<Result<number>> {
-    // Process kill via system commands
-    const processPattern = fault.target.selector;
-    logger.info(`Process kill configured for pattern: ${processPattern}`);
-    logger.info(`Note: Actual process kill requires appropriate permissions`);
-
-    // In dry-run mode or without permissions, just log
-    if (this.config.enableDryRun) {
-      logger.info(`Would kill processes matching: ${processPattern}`);
-      return ok(0);
-    }
-
-    return ok(1);
+    // No process is signalled here, so a dry run and a real run both report
+    // the fault as not injected rather than counting a target as affected.
+    return this.notInjected(fault, 'process signalling with appropriate permissions (e.g., Chaos Monkey, Litmus)');
   }
+
 
   private async performFaultRemoval(fault: FaultInjection): Promise<void> {
     logger.info(`Removing fault: ${fault.id} (${fault.type})`);
@@ -1042,14 +1024,15 @@ Provide:
       return 'failed';
     }
 
-    if (execution.result.hypothesisValidated) {
-      return 'completed';
-    }
-
-    // Check if any faults failed to inject
+    // #1258: a fault that was not injected means the experiment did not run as
+    // designed, so a hypothesis "validated" without it is not a completed run.
     const failedFaults = execution.result.faultResults.filter((f) => !f.injected);
     if (failedFaults.length > 0) {
       return 'failed';
+    }
+
+    if (execution.result.hypothesisValidated) {
+      return 'completed';
     }
 
     return 'completed';

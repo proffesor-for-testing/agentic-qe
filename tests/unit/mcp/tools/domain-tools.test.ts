@@ -762,7 +762,9 @@ describe('ChaosInjectTool', () => {
     expect(schema.required).toContain('target');
   });
 
-  it('should inject fault in dry run mode', async () => {
+  // #1258: a dry run used to return 'completed' with simulated recovery and
+  // latency numbers. It injects nothing, so it reports not-executed.
+  it('reports a dry run as not executed, with no simulated metrics', async () => {
     const result = await tool.invoke({
       faultType: 'latency',
       target: 'api-service',
@@ -770,11 +772,15 @@ describe('ChaosInjectTool', () => {
     });
 
     expect(result.success).toBe(true);
-    expect(result.data?.status).toBeDefined();
-    expect(result.data?.faultInjected).toBe(false); // dry run
+    expect(result.data?.status).toBe('not-executed');
+    expect(result.data?.faultInjected).toBe(false);
+    expect(result.data?.metrics.recoveryTime).toBeUndefined();
+    expect(result.data?.metrics.latencyP99).toBeUndefined();
+    expect(result.data?.incidents).toEqual([]);
+    expect(result.data?.note).toMatch(/no fault was injected/);
   });
 
-  it('should validate hypothesis', async () => {
+  it('does not validate a hypothesis in a dry run', async () => {
     const result = await tool.invoke({
       faultType: 'error',
       target: 'api-service',
@@ -783,7 +789,7 @@ describe('ChaosInjectTool', () => {
     });
 
     expect(result.success).toBe(true);
-    expect(result.data?.hypothesisValidated).toBeDefined();
+    expect(result.data?.hypothesisValidated).toBeUndefined();
   });
 });
 

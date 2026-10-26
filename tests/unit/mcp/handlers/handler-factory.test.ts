@@ -734,5 +734,33 @@ describe('Handler Factory', () => {
       const timeout = chaosTestConfig.calculateTimeout!({ duration: 60000 });
       expect(timeout).toBe(120000); // duration + 60000
     });
+
+    // #1258: the run-chaos handler returns systemBehavior 'not-executed' and
+    // resilience null. The mapper used to turn that into 'completed' with
+    // recovered: false and dataLoss: false.
+    it('maps an unexecuted chaos run to not-executed with null resilience', async () => {
+      const { chaosTestConfig } = await import('../../../../src/mcp/handlers/domain-handler-configs');
+
+      const result = chaosTestConfig.mapToResult('t1', {
+        faultType: 'latency',
+        systemBehavior: 'not-executed',
+        resilience: null,
+        note: 'Chaos engineering requires infrastructure-level fault injection.',
+      }, 12);
+
+      expect(result.status).toBe('not-executed');
+      expect(result.resilience).toBeNull();
+      expect(result.note).toContain('infrastructure-level');
+    });
+
+    it('keeps a measured chaos resilience result', async () => {
+      const { chaosTestConfig } = await import('../../../../src/mcp/handlers/domain-handler-configs');
+      const resilience = { recovered: true, recoveryTime: 1200, dataLoss: false };
+
+      const result = chaosTestConfig.mapToResult('t2', { faultType: 'latency', resilience }, 12);
+
+      expect(result.status).toBe('completed');
+      expect(result.resilience).toEqual(resilience);
+    });
   });
 });

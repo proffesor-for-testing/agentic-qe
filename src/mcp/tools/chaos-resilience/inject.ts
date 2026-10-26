@@ -57,9 +57,12 @@ export interface ChaosInjectResult {
   metrics: ExperimentMetrics;
   incidents: Incident[];
   recommendations: string[];
+  /** Why nothing was measured, when status is 'not-executed' (#1258). */
+  note?: string;
 }
 
-export type ExperimentStatus = 'pending' | 'running' | 'completed' | 'failed' | 'rolled-back' | 'aborted';
+export type ExperimentStatus =
+  | 'pending' | 'running' | 'completed' | 'failed' | 'rolled-back' | 'aborted' | 'not-executed';
 
 export interface ExperimentMetrics {
   faultDuration: number;
@@ -171,11 +174,11 @@ export class ChaosInjectTool extends MCPToolBase<ChaosInjectParams, ChaosInjectR
         };
       }
 
-      // Phase 3: Inject fault (or simulate in dry run)
+      // Phase 3: Inject fault (a dry run injects nothing)
       this.emitStream(context, {
         status: 'injecting',
         message: dryRun
-          ? `[DRY RUN] Simulating ${faultType} fault`
+          ? `[DRY RUN] Planning ${faultType} fault (not injected)`
           : `Injecting ${faultType} fault`,
       });
 
@@ -188,18 +191,16 @@ export class ChaosInjectTool extends MCPToolBase<ChaosInjectParams, ChaosInjectR
         targetAffected: !dryRun,
       };
 
+      let note: string | undefined;
+
       if (dryRun) {
-        // Dry run - simulate the fault injection
+        // #1258: a dry run injects nothing, so there are no metrics, incidents
+        // or hypothesis verdict to report. It used to return 'completed' with
+        // simulated recovery/latency numbers.
         faultInjected = false;
-        status = 'completed';
-
-        // Simulate metrics based on fault type
-        metrics = this.simulateMetrics(faultType, duration, intensity);
-
-        // Validate hypothesis if provided
-        if (hypothesis) {
-          hypothesisValidated = this.validateHypothesisText(hypothesis, metrics, incidents);
-        }
+        status = 'not-executed';
+        note = `Dry run: the ${faultType} experiment was planned but no fault was injected, ` +
+          'so no metrics were measured and the hypothesis was not tested.';
       } else {
         // Real execution - run the experiment
         const runResult = await chaosEngineer.runExperiment(experimentId);
@@ -235,10 +236,6 @@ export class ChaosInjectTool extends MCPToolBase<ChaosInjectParams, ChaosInjectR
         message: 'Monitoring system behavior',
       });
 
-      // Collect any additional incidents based on intensity
-      const intensityIncidents = this.collectIntensityIncidents(faultType, intensity, dryRun);
-      incidents.push(...intensityIncidents);
-
       // Determine final status based on incidents
       if (!dryRun && incidents.some(i => i.severity === 'critical' && !i.resolved)) {
         status = rollbackOnFailure ? 'rolled-back' : 'failed';
@@ -269,6 +266,7 @@ export class ChaosInjectTool extends MCPToolBase<ChaosInjectParams, ChaosInjectR
           metrics,
           incidents,
           recommendations,
+          ...(note ? { note } : {}),
         },
       };
     } catch (error) {
@@ -406,33 +404,6 @@ export class ChaosInjectTool extends MCPToolBase<ChaosInjectParams, ChaosInjectR
     return params;
   }
 
-  private simulateMetrics(
-    faultType: FaultType,
-    duration: number,
-    intensity: number
-  ): ExperimentMetrics {
-    const metrics: ExperimentMetrics = {
-      faultDuration: duration,
-      targetAffected: false,
-      recoveryTime: 5000 + (intensity * 100), // Base recovery + intensity factor
-    };
-
-    switch (faultType) {
-      case 'latency':
-        metrics.latencyP99 = 100 + (intensity * 25); // Base + intensity factor
-        break;
-      case 'error':
-      case 'timeout':
-        metrics.errorRate = intensity * 0.5; // Half of intensity as error rate
-        break;
-      case 'cpu-stress':
-      case 'memory-stress':
-        metrics.recoveryTime = 10000 + (intensity * 200);
-        break;
-    }
-
-    return metrics;
-  }
 
   private extractMetrics(
     result: DomainExperimentResult,
@@ -479,68 +450,7 @@ export class ChaosInjectTool extends MCPToolBase<ChaosInjectParams, ChaosInjectR
     };
   }
 
-  private collectIntensityIncidents(
-    faultType: FaultType,
-    intensity: number,
-    dryRun: boolean
-  ): Incident[] {
-    const incidents: Incident[] = [];
 
-    if (dryRun) {
-      // In dry run, simulate what incidents might occur
-      if (intensity > 70) {
-        incidents.push({
-          type: 'alert',
-          severity: 'high',
-          message: `[Simulated] High ${faultType} impact would be detected`,
-          timestamp: new Date().toISOString(),
-          resolved: true,
-        });
-      }
-
-      if (intensity > 90) {
-        incidents.push({
-          type: 'degradation',
-          severity: 'critical',
-          message: '[Simulated] Service degradation would occur',
-          timestamp: new Date().toISOString(),
-          resolved: true,
-        });
-      }
-    }
-
-    return incidents;
-  }
-
-  private validateHypothesisText(
-    hypothesis: string,
-    metrics: ExperimentMetrics,
-    incidents: Incident[]
-  ): boolean {
-    const hypothesisLower = hypothesis.toLowerCase();
-
-    // Check recovery time hypothesis
-    if (hypothesisLower.includes('recover') && metrics.recoveryTime) {
-      const timeMatch = hypothesis.match(/(\d+)s/);
-      if (timeMatch) {
-        const expectedTime = parseInt(timeMatch[1]) * 1000;
-        return metrics.recoveryTime <= expectedTime;
-      }
-    }
-
-    // Check no critical incidents hypothesis
-    if (hypothesisLower.includes('no critical')) {
-      return !incidents.some(i => i.severity === 'critical' && !i.resolved);
-    }
-
-    // Check stable hypothesis
-    if (hypothesisLower.includes('stable') || hypothesisLower.includes('remain')) {
-      return !incidents.some(i => i.severity === 'critical' && !i.resolved);
-    }
-
-    // Default: validated if no unresolved critical incidents
-    return !incidents.some(i => i.severity === 'critical' && !i.resolved);
-  }
 
   private generateRecommendations(
     faultType: FaultType,
@@ -627,7 +537,7 @@ const CHAOS_INJECT_SCHEMA: MCPToolSchema = {
     },
     dryRun: {
       type: 'boolean',
-      description: 'Simulate without actual injection',
+      description: 'Plan the experiment without injecting a fault; nothing is measured',
       default: true,
     },
     hypothesis: {
