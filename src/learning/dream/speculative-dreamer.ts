@@ -196,7 +196,7 @@ export class SpeculativeDreamer {
     let commitDurationMs: number | undefined;
     if (winner?.result) {
       try {
-        commitDurationMs = this.engine.commitDreamResult(winner.result);
+        commitDurationMs = await this.engine.commitDreamResult(winner.result);
         winner.selected = true;
       } catch (error) {
         winner.error = toErrorMessage(error);
