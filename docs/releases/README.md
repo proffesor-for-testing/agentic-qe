@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.15.14](v3.15.14.md) | 2026-10-26 | RVF export on large brains; bounded learning tables; honest chaos. |
 | [v3.15.13](v3.15.13.md) | 2026-10-25 | Experience index past 10,000; real transfer gate; more "not measured". |
 | [v3.15.12](v3.15.12.md) | 2026-10-23 | Evidence-complete coverage verdicts; daemon stays up; embedder fallback. |
 | [v3.15.11](v3.15.11.md) | 2026-10-22 | Works on npm 12 and without an embedder; Copilot-ready MCP schemas. |

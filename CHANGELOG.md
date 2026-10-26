@@ -5,6 +5,84 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.15.14] - 2026-10-26
+
+Large learning databases can be exported as RVF again, and the brain
+checkpoint hook no longer retries a failing export every turn or deletes the
+last good checkpoint. The learning tables can be kept from growing without
+bound, with opt-in dream retention and an `aqe learning prune` command.
+`quality_assess` no longer gives an overall quality score when a metric it
+was asked for was not measured. Chaos tools no longer report success for
+faults they never injected, and context compaction keeps the summary it
+builds.
+
+### Fixed
+
+- **RVF brain export works on large learning databases** ([#1238],
+  [#1244]): `aqe brain export --format rvf` failed with
+  `RVF error 0x0303: FsyncFailed` once the kernel passed 128 MiB. Code-index
+  vectors are now left out of the RVF kernel (`aqe code index` rebuilds
+  them), and a brain that is still too large stops with
+  `RVF_KERNEL_TOO_LARGE`, its size and the largest tables, before anything is
+  written. `--format jsonl` is unchanged.
+- **The brain checkpoint hook keeps the last good checkpoint** ([#1238],
+  [#1244]): it used to delete `aqe.rvf` before every export, so any failure
+  left no checkpoint. It now exports to a temporary store and replaces
+  `aqe.rvf` only when the export succeeds. After a too-large failure it
+  skips the next turns for 6 hours (`AQE_BRAIN_CHECKPOINT_RETRY_HOURS`) and
+  says why.
+- **No overall quality score while a requested metric is unmeasured**
+  ([#1219], [#1246]): `quality_assess` returned a score such as 89 next to
+  "insufficient evidence". `qualityScore` is now `-1` with
+  `qualityScoreReason` (for example "not computed: coverage unmeasured"),
+  and the score over the measured metrics is reported separately as
+  `subsetScore`, which is not a verdict. Coverage is measured per file,
+  weighted by lines, and report entries outside the project are left out.
+- **Chaos tools report faults that never ran as not executed** ([#1258],
+  [#1259]): `chaos_test` returned `status: "completed"` with
+  `recovered: false` and `dataLoss: false`, none of which was measured. It
+  now returns `status: "not-executed"`, `resilience: null` and the reason.
+  Latency, error, timeout, packet-loss, disk-stress, network-partition,
+  DNS-failure and process-kill faults submitted as `inject-fault` tasks used
+  to report `injected: true` without doing anything. They now report
+  `injected: false` with what they need (a proxy, service mesh or firewall
+  rules), and an experiment whose fault was not injected ends `failed`.
+  CPU and memory stress still run in-process.
+- **Context compaction keeps its Tier-2 summary** ([#1249], [#1260]): the
+  MCP server's compaction built a summary of older tool history and then
+  dropped it, keeping only the recent messages. The summary now stays in the
+  history ahead of them, with its provenance and no extra authority, and the
+  token budget matches what is actually kept.
+
+### Added
+
+- **Opt-in dream retention and `aqe learning prune`** ([#1239], [#1245]):
+  with `AQE_DREAM_RETENTION=on`, each dream removes old failed dream cycles
+  that have no insight and caps derived `outcome` concept nodes. It is off
+  by default; a dream then deletes nothing and reports what retention would
+  remove. `aqe learning prune` is a dry run unless `--apply`, writes a
+  verified backup of `memory.db` first, and can also compact archived
+  experiences and old routing outcomes.
+
+### Security
+
+- **Dependency updates** ([#1256]): zod 4.6.7 in the OpenCode plugin and
+  fast-uri 3.1.9 in the root lockfile, closing the open Dependabot alerts.
+  The remaining dev-only `npm audit` findings are tracked in [#1255].
+
+[#1219]: https://github.com/proffesor-for-testing/agentic-qe/issues/1219
+[#1238]: https://github.com/proffesor-for-testing/agentic-qe/issues/1238
+[#1239]: https://github.com/proffesor-for-testing/agentic-qe/issues/1239
+[#1244]: https://github.com/proffesor-for-testing/agentic-qe/pull/1244
+[#1245]: https://github.com/proffesor-for-testing/agentic-qe/pull/1245
+[#1246]: https://github.com/proffesor-for-testing/agentic-qe/pull/1246
+[#1249]: https://github.com/proffesor-for-testing/agentic-qe/issues/1249
+[#1255]: https://github.com/proffesor-for-testing/agentic-qe/issues/1255
+[#1256]: https://github.com/proffesor-for-testing/agentic-qe/pull/1256
+[#1258]: https://github.com/proffesor-for-testing/agentic-qe/issues/1258
+[#1259]: https://github.com/proffesor-for-testing/agentic-qe/pull/1259
+[#1260]: https://github.com/proffesor-for-testing/agentic-qe/pull/1260
+
 ## [3.15.13] - 2026-10-25
 
 On projects with more than 10,000 stored experiences, ReasoningBank warm-up
