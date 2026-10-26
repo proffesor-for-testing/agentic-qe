@@ -251,4 +251,4 @@ v3:
 
 - [v3 Documentation](../README.md)
 - [Architecture Overview](../architecture/overview.md)
-- [GitHub Issues](https://github.com/anthropics/agentic-qe/issues)
+- [GitHub Issues](https://github.com/proffesor-for-testing/agentic-qe/issues)

@@ -21,6 +21,7 @@ import {
   detectAqeFleetPlugin,
   type PluginDetectionResult,
 } from '../claude-plugin-detection.js';
+import { removeUntrustedAqeMcpServers, scrubUntrustedAqeMcpFile } from '../settings-merge.js';
 
 import {
   BasePhase,
@@ -80,6 +81,7 @@ export class MCPPhase extends BasePhase<MCPResult> {
       const plugin = this.detectPlugin(projectRoot);
       if (plugin.enabled) {
         context.services.log(aqePluginMcpSkipMessage(projectRoot));
+        reportUntrustedMcpRemoval(context, scrubUntrustedAqeMcpFile(join(projectRoot, '.mcp.json')));
         return {
           configured: false,
           mcpPath: '',
@@ -135,6 +137,7 @@ export class MCPPhase extends BasePhase<MCPResult> {
     }
 
     const rootServers = rootMcpConfig.mcpServers as Record<string, unknown>;
+    reportUntrustedMcpRemoval(context, removeUntrustedAqeMcpServers(rootServers));
     rootServers['agentic-qe'] = aqeServerConfig;
 
     // #778: no rewrite (mtime churn) when the merged config is unchanged.
@@ -156,6 +159,13 @@ export class MCPPhase extends BasePhase<MCPResult> {
       mcpPath: rootMcpPath,
       serverName: 'agentic-qe',
     };
+  }
+}
+
+/** GHSA-chjc-8q37-52fg: say which stale server entries init removed. */
+function reportUntrustedMcpRemoval(context: InitContext, removed: string[]): void {
+  if (removed.length > 0) {
+    context.services.log(`  MCP: removed server entry launching @anthropics/agentic-qe: ${removed.join(', ')}`);
   }
 }
 
