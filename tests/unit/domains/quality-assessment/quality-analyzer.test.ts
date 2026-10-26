@@ -77,6 +77,13 @@ describe('QualityAnalyzerService', () => {
 
   describe('analyzeQuality', () => {
     it('should analyze quality for provided source files', async () => {
+      // Every default metric needs evidence for an overall score; coverage comes
+      // from each file's own record (#1219), with line counts to weight them.
+      for (const file of [FIXTURE_INDEX, FIXTURE_UTILS]) {
+        await mockMemory.set(`coverage:file:${fileCoverageKey(file)}`, {
+          line: 80, branch: null, function: null, statement: null, measured: true, lines: { covered: 8, total: 10 },
+        });
+      }
       const request: QualityAnalysisRequest = {
         sourceFiles: [FIXTURE_INDEX, FIXTURE_UTILS],
         includeMetrics: [],
@@ -154,6 +161,17 @@ describe('QualityAnalyzerService', () => {
         expect(result.value.recommendations).toBeDefined();
         expect(Array.isArray(result.value.recommendations)).toBe(true);
       }
+    });
+
+    it('reports no overall score (-1) and a labelled subsetScore when a requested metric is unmeasured', async () => {
+      const result = await service.analyzeQuality({ sourceFiles: [FIXTURE_INDEX], includeMetrics: ['coverage', 'complexity'] });
+
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(result.value.unmeasured?.map((u) => u.metric)).toEqual(['coverage']);
+      expect(result.value.score.overall).toBe(-1);
+      expect(result.value.subsetScore).toBeGreaterThanOrEqual(0);
+      expect(result.value.recommendations.some((r) => /Overall quality score is/.test(r.description))).toBe(false);
     });
 
     it('should calculate quality score with proper weighting', async () => {

@@ -64,6 +64,8 @@ interface QualityReportData {
   gateEvaluated?: boolean;
   /** #1021 round 2b: metrics a subset score was computed from. */
   scoreBasis?: string[];
+  /** The score over `scoreBasis` when `qualityScore` is -1 (insufficient evidence). */
+  subsetScore?: number;
 }
 
 export interface SaveOptions {
@@ -753,6 +755,10 @@ ${data.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
 ## Quality Score
 
 ${typeof data.qualityScore !== 'number' ? 'N/A — measured gate uses individual checks.'
+  : data.qualityScore < 0 && typeof data.subsetScore === 'number'
+    ? `Not computed — unmeasured: ${data.unmeasured?.join(', ') || 'unknown'}.\n`
+      + `Subset score over measured metrics: ${data.subsetScore.toFixed(1)} (not a verdict)`
+      + (data.scoreBasis?.length ? `\nBased on: ${data.scoreBasis.join(', ')}` : '')
   : data.qualityScore < 0 ? 'Not measured — no requested metric had measured data (#1011).'
   : data.evidenceStatus === 'insufficient-evidence'
     ? `Subset score over measured metrics: ${data.qualityScore.toFixed(1)} (not a verdict)`

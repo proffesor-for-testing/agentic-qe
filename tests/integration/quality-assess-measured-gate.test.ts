@@ -342,8 +342,11 @@ describe('registered quality_assess measured gate', () => {
       metrics: { coverage: -1 },
       riskDecision: { decision: 'escalate' },
     });
-    // The static score is still reported, but it is not a verdict.
-    expect(result.data?.qualityScore).toBeGreaterThan(80);
+    // No overall score without coverage (-1, as the gate since #1223); the
+    // score over the measured metrics is kept, labelled as a subset.
+    expect(result.data?.qualityScore).toBe(-1);
+    expect(result.data).toMatchObject({ qualityScoreReason: 'not computed: coverage unmeasured' });
+    expect((result.data as { subsetScore?: number })?.subsetScore).toBeGreaterThan(80);
     expect(result.data?.confidence).toBeLessThan(1);
     expect(result.data?.riskDecision?.confidence).toBeLessThan(0.5);
     expect(result.data?.note).toMatch(/no quality gate was evaluated/i);
@@ -354,6 +357,8 @@ describe('registered quality_assess measured gate', () => {
     const markdown = await readFile(report!, 'utf8');
     expect(markdown).toContain('INSUFFICIENT EVIDENCE');
     expect(markdown).toContain('| coverage | not measured |');
+    expect(markdown).toContain('Not computed — unmeasured: coverage.');
+    expect(markdown).toContain('Subset score over measured metrics:');
     expect(markdown).not.toContain('all quality gates passed');
   });
 

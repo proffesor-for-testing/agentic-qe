@@ -271,9 +271,17 @@ export function registerQualityHandlers(ctx: TaskHandlerContext): void {
       const insufficient = sufficiency.evidenceStatus !== 'measured';
       const passed = !insufficient && measuredFailures.length === 0 && report.score.overall >= threshold;
       const recommendations = report.recommendations.map(r => `[${r.type}] ${r.title}: ${r.description}`);
+      // A score that leaves out unmeasured metrics is not the overall score:
+      // -1 with the reason, as the gate's overallScore since #1223. The score
+      // over the measured metrics stays available, labelled as a subset.
+      const subsetScore = report.subsetScore ?? report.score.overall;
 
       return ok({
-        qualityScore: report.score.overall,
+        qualityScore: insufficient ? UNMEASURED : report.score.overall,
+        ...(insufficient ? {
+          qualityScoreReason: `not computed: ${sufficiency.unmeasured.join(', ')} unmeasured`,
+          ...(subsetScore >= 0 ? { subsetScore } : {}),
+        } : {}),
         passed,
         threshold,
         metrics: {

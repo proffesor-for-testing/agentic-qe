@@ -408,8 +408,13 @@ Focus on:
       // Calculate aggregated metrics
       const metricDetails = this.aggregateMetrics(fileMetrics, scopeValues);
 
-      // Calculate overall quality score
-      const score = this.calculateQualityScore(metricDetails);
+      // Calculate overall quality score. With a requested metric unmeasured
+      // there is no overall score (-1, as the gate's overallScore since
+      // #1223); the score over the measured metrics is kept as subsetScore.
+      const computed = this.calculateQualityScore(metricDetails);
+      const insufficient = unmeasured.length > 0;
+      const score = insufficient ? { ...computed, overall: UNMEASURED } : computed;
+      const subsetScore = insufficient && computed.overall >= 0 ? computed.overall : undefined;
 
       // Generate trends if enabled
       const trends = this.config.enableTrendAnalysis
@@ -437,6 +442,7 @@ Focus on:
         unmeasured,
         excluded,
         partial,
+        ...(subsetScore !== undefined ? { subsetScore } : {}),
       };
 
       // Store the report

@@ -52,6 +52,7 @@ function qualityReport(result: unknown): Record<string, unknown> {
     : [];
   return {
     ...(typeof score.overall === 'number' ? { qualityScore: score.overall } : {}),
+    ...(typeof data.subsetScore === 'number' ? { subsetScore: data.subsetScore } : {}),
     passed: false,
     gateEvaluated: false,
     metrics: Object.fromEntries(metrics.filter(m => m.name && typeof m.value === 'number').map(m => [m.name, m.value])),

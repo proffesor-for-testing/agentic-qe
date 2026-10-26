@@ -160,6 +160,10 @@ export interface QualityAssessResult {
    * files (partial metrics). Such a score is not a verdict.
    */
   scoreBasis?: string[];
+  /** Why `qualityScore` is -1: the requested metrics that were unmeasured. */
+  qualityScoreReason?: string;
+  /** The score over the measured metrics (`scoreBasis`) when `qualityScore` is -1. Not a verdict. */
+  subsetScore?: number;
   /** #996: measured metrics that fail their own limit; any entry blocks. */
   measuredFailures?: MeasuredFailure[];
   /** #996: false for static analysis (runGate omitted/false) — no quality gate ran. */
@@ -888,7 +892,7 @@ export const qualityAssessConfig: DomainHandlerConfig<QualityAssessParams, Quali
       passed: insufficient || failedMetrics.length > 0
         ? false
         : typeof data.passed === 'boolean' ? data.passed : undefined,
-      qualityScore: measuredScore,
+      qualityScore: insufficient ? undefined : measuredScore,
       recommendations: (data.recommendations as string[]) || [],
       unmeasured: insufficient ? (unmeasured?.length ? unmeasured : ['unknown']) : [],
       failedMetrics,
@@ -898,7 +902,13 @@ export const qualityAssessConfig: DomainHandlerConfig<QualityAssessParams, Quali
     return {
       taskId,
       status: insufficient ? INSUFFICIENT_EVIDENCE : 'completed',
-      ...(typeof data.qualityScore === 'number' ? { qualityScore: data.qualityScore } : {}),
+      // An insufficient-evidence result has no overall score (-1); a number
+      // from a producer that did not apply that rule is kept only as a subset.
+      ...(typeof data.qualityScore === 'number'
+        ? { qualityScore: insufficient && !Array.isArray(data.checks) ? -1 : data.qualityScore } : {}),
+      ...(typeof data.qualityScoreReason === 'string' ? { qualityScoreReason: data.qualityScoreReason } : {}),
+      ...(typeof data.subsetScore === 'number' ? { subsetScore: data.subsetScore }
+        : insufficient && measuredScore !== undefined && !Array.isArray(data.checks) ? { subsetScore: measuredScore } : {}),
       ...(Array.isArray(data.checks) ? { checks: data.checks as EvaluatedQualityCheck[] } : {}),
       passed,
       metrics: (data.metrics as Record<string, number>) || {},

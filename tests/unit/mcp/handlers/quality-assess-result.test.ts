@@ -24,7 +24,9 @@ describe('qualityAssessConfig.mapToResult evidence fields (#996)', () => {
     expect(result).toMatchObject({
       status: 'insufficient-evidence',
       passed: false,
-      qualityScore: 88,
+      // No overall score without coverage; a producer's number is kept as a subset.
+      qualityScore: -1,
+      subsetScore: 88,
       evidenceStatus: 'insufficient-evidence',
       unmeasured: ['coverage'],
       gateEvaluated: false,
@@ -152,7 +154,7 @@ describe('quality_assess scope and partial evidence at the MCP boundary (#1021)'
       evidenceStatus: 'insufficient-evidence', unmeasured: ['complexity'], scoreBasis: ['duplication'],
     });
 
-    expect(result).toMatchObject({ qualityScore: 100, scoreBasis: ['duplication'], status: 'insufficient-evidence' });
+    expect(result).toMatchObject({ qualityScore: -1, subsetScore: 100, scoreBasis: ['duplication'], status: 'insufficient-evidence' });
   });
 });
 
