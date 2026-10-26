@@ -259,6 +259,21 @@ describe('ChaosEngineerService', () => {
       }
     });
 
+    // #1258: the default experiment injects latency, which is never applied, so
+    // the run must not end 'completed' even if the hypothesis checks pass.
+    it('does not report an experiment completed when its fault was not injected', async () => {
+      const experiment = createValidExperiment();
+      await service.createExperiment(experiment);
+
+      const result = await service.runExperiment(experiment.id);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.value.status).not.toBe('completed');
+        expect(result.value.faultResults.every((f) => !f.injected)).toBe(true);
+      }
+    });
+
     it('should not allow running the same experiment twice concurrently', async () => {
       const experiment = createValidExperiment();
       await service.createExperiment(experiment);
@@ -331,8 +346,8 @@ describe('ChaosEngineerService', () => {
   });
 
   describe('injectFault', () => {
-    it('should inject a valid fault successfully', async () => {
-      const fault = createValidFault();
+    it('should inject a valid in-process fault successfully', async () => {
+      const fault = createValidFault({ type: 'cpu-stress', parameters: { cpuPercent: 10 }, duration: 0 });
 
       const result = await service.injectFault(fault);
 
@@ -341,6 +356,22 @@ describe('ChaosEngineerService', () => {
         expect(result.value.faultId).toBe(fault.id);
         expect(result.value.injected).toBe(true);
         expect(result.value.errors).toHaveLength(0);
+      }
+      await service.removeFault(fault.id);
+    });
+
+    // #1258: latency needs a network proxy this process does not control. It
+    // used to log a note and report injected: true with one affected target.
+    it('reports a latency fault as not injected, with the reason', async () => {
+      const fault = createValidFault();
+
+      const result = await service.injectFault(fault);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.value.injected).toBe(false);
+        expect(result.value.affectedTargets).toBe(0);
+        expect(result.value.errors[0]).toMatch(/latency fault not injected into api-gateway: requires a network proxy/);
       }
     });
 
@@ -403,8 +434,8 @@ describe('ChaosEngineerService', () => {
       // Create service with low limit
       const limitedService = new ChaosEngineerService({ memory: mockMemory }, { maxConcurrentFaults: 1 });
 
-      const fault1 = createValidFault({ id: 'fault-1', duration: 0 });
-      const fault2 = createValidFault({ id: 'fault-2', duration: 0 });
+      const fault1 = createValidFault({ id: 'fault-1', type: 'cpu-stress', parameters: { cpuPercent: 10 }, duration: 0 });
+      const fault2 = createValidFault({ id: 'fault-2', type: 'cpu-stress', parameters: { cpuPercent: 10 }, duration: 0 });
 
       // First fault should succeed
       const result1 = await limitedService.injectFault(fault1);
@@ -436,10 +467,28 @@ describe('ChaosEngineerService', () => {
       }
     });
 
-    it('should inject different fault types', async () => {
+    it('should inject the in-process fault types', async () => {
+      const faults: FaultInjection[] = [
+        createValidFault({ id: 'fault-cpu', type: 'cpu-stress', parameters: { cpuPercent: 10 }, duration: 0 }),
+        createValidFault({ id: 'fault-mem', type: 'memory-stress', parameters: { memoryBytes: 1024 }, duration: 0 }),
+      ];
+
+      for (const fault of faults) {
+        const result = await service.injectFault(fault);
+
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.value.injected).toBe(true);
+        }
+
+        await service.removeFault(fault.id);
+      }
+    });
+
+    // #1258: these handlers only logged a note and returned ok(1).
+    it('reports infrastructure fault types as not injected', async () => {
       const faultTypes: FaultInjection['type'][] = [
-        'latency', 'error', 'timeout', 'packet-loss',
-        'cpu-stress', 'memory-stress', 'disk-stress',
+        'latency', 'error', 'timeout', 'packet-loss', 'disk-stress',
         'network-partition', 'dns-failure', 'process-kill',
       ];
 
@@ -449,11 +498,10 @@ describe('ChaosEngineerService', () => {
 
         expect(result.success).toBe(true);
         if (result.success) {
-          expect(result.value.injected).toBe(true);
+          expect(result.value.injected, type).toBe(false);
+          expect(result.value.affectedTargets, type).toBe(0);
+          expect(result.value.errors[0], type).toContain(`${type} fault not injected`);
         }
-
-        // Clean up
-        await service.removeFault(fault.id);
       }
     });
   });

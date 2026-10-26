@@ -1221,7 +1221,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'chaos_test',
-        description: `Inject faults (latency, errors, CPU) for chaos engineering resilience testing. ${SAVE_RESULTS_HINT} Example: chaos_test({ faultType: "latency", target: "api-service" })`,
+        description: `Chaos resilience request; injects no faults itself (returns not-executed, null resilience, guidance). ${SAVE_RESULTS_HINT} Example: chaos_test({ faultType: "latency", target: "api-service" })`,
         category: 'domain',
         parameters: [
           { name: 'faultType', type: 'string', description: 'Type of fault to inject' },

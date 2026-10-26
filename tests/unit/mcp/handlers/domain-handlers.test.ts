@@ -728,16 +728,17 @@ describe('Domain Handlers', { timeout: 30000 }, () => {
       expect(result.data!.faultType).toBeDefined();
     }, 30000);
 
-    it('should return resilience metrics', async () => {
+    // #1258: no fault is injected, so there is no resilience measurement to
+    // return. It used to report recovered: false and dataLoss: false.
+    it('reports the run as not executed with no resilience verdict', async () => {
       const result = await handleChaosTest({
         target: 'api-service',
         faultType: 'latency',
       });
 
       expect(result.success).toBe(true);
-      expect(result.data!.resilience).toBeDefined();
-      expect(typeof result.data!.resilience.recovered).toBe('boolean');
-      expect(result.data!.resilience.recoveryTime).toBeGreaterThanOrEqual(0);
+      expect(result.data!.status).toBe('not-executed');
+      expect(result.data!.resilience).toBeNull();
     }, 30000);
 
     it('should respect faultType parameter', async () => {

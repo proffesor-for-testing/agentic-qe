@@ -240,13 +240,17 @@ export interface AccessibilityTestResult {
 
 export interface ChaosTestResult {
   taskId: string;
+  /** #1258: 'not-executed' when no fault was injected, so nothing was observed. */
   status: string;
   faultType: string;
+  /** #1258: null when not measured; never a default recovered/dataLoss verdict. */
   resilience: {
     recovered: boolean;
     recoveryTime: number;
     dataLoss: boolean;
-  };
+  } | null;
+  /** Why the fault was not executed, when status is 'not-executed'. */
+  note?: string;
   duration: number;
   savedFiles?: string[];
   /** #933: true when result files were written; see savedFiles for their paths. */
@@ -1104,18 +1108,22 @@ export const chaosTestConfig: DomainHandlerConfig<ChaosTestParams, ChaosTestResu
 
   calculateTimeout: (params) => (params.duration || 30000) + 60000,
 
-  mapToResult: (taskId, data, duration, savedFiles) => ({
-    taskId,
-    status: 'completed',
-    faultType: (data.faultType as string) || 'latency',
-    resilience: (data.resilience as { recovered: boolean; recoveryTime: number; dataLoss: boolean }) || {
-      recovered: false,
-      recoveryTime: 0,
-      dataLoss: false,
-    },
-    duration,
-    savedFiles,
-  }),
+  mapToResult: (taskId, data, duration, savedFiles) => {
+    // #1258: the run-chaos handler injects nothing and says so (systemBehavior
+    // 'not-executed', resilience null). Report that instead of 'completed' with
+    // a made-up recovered/dataLoss result.
+    const resilience = (data.resilience as ChaosTestResult['resilience']) ?? null;
+    const executed = data.systemBehavior !== 'not-executed' && resilience !== null;
+    return {
+      taskId,
+      status: executed ? 'completed' : 'not-executed',
+      faultType: (data.faultType as string) || 'latency',
+      resilience: executed ? resilience : null,
+      ...(typeof data.note === 'string' ? { note: data.note } : {}),
+      duration,
+      savedFiles,
+    };
+  },
 };
 
 // ============================================================================
