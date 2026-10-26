@@ -68,8 +68,9 @@
   "scripts": {
     "preinstall": "node scripts/preinstall.cjs || true",
     "postinstall": "node scripts/postinstall.cjs",
-    "build": "tsc && npm run build:esm && npm run build:cli && npm run build:mcp",
+    "build": "tsc && npm run build:esm && npm run build:wasm-assets && npm run build:cli && npm run build:mcp",
     "build:esm": "node scripts/fix-esm-specifiers.mjs",
+    "build:wasm-assets": "node scripts/copy-wasm-assets.mjs",
     "build:cli": "node scripts/build-cli.mjs",
     "build:mcp": "node scripts/build-mcp.mjs",
     "prepublishOnly": "node scripts/sync-agents.cjs && node scripts/prepare-assets.cjs",
@@ -301,6 +302,7 @@
     "dist/**/*.d.ts",
     "dist/**/*.json",
     "dist/**/*.node",
+    "dist/**/*.wasm",
     "assets/**",
     "schemas/**",
     "scripts/postinstall.cjs",
