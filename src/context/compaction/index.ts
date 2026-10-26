@@ -177,10 +177,22 @@ export class CompactionPipeline {
         tiersExecuted.push(2);
         totalTokensSaved += t2.tokensSaved;
 
-        // Replace conversation history with preserved messages
+        // #1249: keep the Tier-2 summary in history ahead of the preserved
+        // tail. It used to be dropped, so the summarized messages had no
+        // representation left and Tier 3 saw only the tail.
         if (t2.removedMessageCount > 0) {
-          this.conversationHistory = [...t2.preservedMessages];
-          this.budget.releaseTokens(t2.tokensSaved);
+          const summaryMessage: ConversationMessage[] = t2.summary
+            ? [{
+                role: 'assistant',
+                content: t2.summary,
+                timestamp: Date.now(),
+                estimatedTokens: t2.summaryTokens,
+                id: t2.summaryItem?.id,
+                provenance: t2.summaryItem,
+              }]
+            : [];
+          this.conversationHistory = [...summaryMessage, ...t2.preservedMessages];
+          this.reconcileBudget();
         }
       }
 
@@ -201,7 +213,7 @@ export class CompactionPipeline {
             id: t3.summaryItem?.id,
             provenance: t3.summaryItem,
           }];
-          this.budget.releaseTokens(t3.tokensSaved);
+          this.reconcileBudget();
         }
       }
 
@@ -214,7 +226,7 @@ export class CompactionPipeline {
 
         if (t4.droppedCount > 0) {
           this.conversationHistory = [...t4.survivingMessages];
-          this.budget.releaseTokens(t4.tokensSaved);
+          this.reconcileBudget();
         }
       }
     } finally {
@@ -238,10 +250,27 @@ export class CompactionPipeline {
 
     if (result.droppedCount > 0) {
       this.conversationHistory = [...result.survivingMessages];
-      this.budget.releaseTokens(result.tokensSaved);
+      this.reconcileBudget();
     }
 
     return result;
+  }
+
+  /** Get the active conversation history (a copy) as the next tier would see it. */
+  getConversationHistory(): ConversationMessage[] {
+    return [...this.conversationHistory];
+  }
+
+  /**
+   * Set the budget to the token estimate of the retained history (#1249), so
+   * it describes what is actually kept rather than a tier's reported saving.
+   */
+  private reconcileBudget(): void {
+    const retained = this.conversationHistory.reduce(
+      (sum, m) => sum + (m.estimatedTokens ?? estimateTokensPadded(m.content)),
+      0,
+    );
+    this.budget.setUsedTokens(retained);
   }
 
   /** Get compaction statistics for the session_cache_stats tool. */
