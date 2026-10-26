@@ -22,6 +22,16 @@ import { LoggerFactory } from '../../logging/index.js';
 
 const dreamLogger = LoggerFactory.create('dream-engine');
 
+/** #1239: an unreadable retention setting is reported once per process. */
+let retentionWarningsLogged = false;
+
+/**
+ * #1239: how long retention waits for a locked database. better-sqlite3 waits
+ * synchronously, and retention is optional (the next dream retries), so it
+ * gives up quickly instead of using the engine's 60 s commit wait.
+ */
+export const RETENTION_BUSY_TIMEOUT_MS = 1000;
+
 import type { Database as DatabaseType } from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -52,6 +62,12 @@ import {
   type ComputedDream,
 } from './dream-commit.js';
 import type { WitnessChain } from '../../audit/witness-chain.js';
+import {
+  describeRetention,
+  resolveDefaultRetention,
+  runDreamRetention,
+  type DreamRetentionReport,
+} from '../learning-retention.js';
 import type {
   DreamCycle,
   DreamCycleStatus,
@@ -147,6 +163,13 @@ export interface DreamCycleResult {
 
   /** #1060: how long the single commit transaction held the write lock, in ms. */
   commitDurationMs?: number;
+
+  /**
+   * #1239: dream retention after the commit, with row counts. Off by default
+   * (AQE_DREAM_RETENTION); while off, the steps are a dry run showing what
+   * they would remove.
+   */
+  retention?: DreamRetentionReport;
 
   /**
    * #1060: the uncommitted results of a `dream(…, { commit: false })` run.
@@ -646,8 +669,10 @@ export class DreamEngine {
         committed = true; // nothing to record: the caller decides
         return { ...result, pending: computed };
       }
-      result.commitDurationMs = this.commitComputed(db, computed);
+      const commit = this.commitComputed(db, computed);
       committed = true;
+      result.commitDurationMs = commit.durationMs;
+      result.retention = commit.retention;
       return result;
     } catch (error) {
       // Nothing of the dream was committed. An interrupted cycle was already
@@ -691,14 +716,21 @@ export class DreamEngine {
     if (!result.pending) {
       throw new Error('Dream result has nothing pending to commit (it was already committed)');
     }
-    const duration = this.commitComputed(this.db!, result.pending);
+    const commit = this.commitComputed(this.db!, result.pending);
     result.pending = undefined;
-    result.commitDurationMs = duration;
-    return duration;
+    result.commitDurationMs = commit.durationMs;
+    result.retention = commit.retention;
+    return commit.durationMs;
   }
 
-  /** Commit a computed dream, then record it in the witness chain (#1060). */
-  private commitComputed(db: DatabaseType, computed: ComputedDream): number {
+  /**
+   * Commit a computed dream, then record it in the witness chain (#1060) and
+   * run the default retention steps (#1239).
+   */
+  private commitComputed(
+    db: DatabaseType,
+    computed: ComputedDream,
+  ): { durationMs: number; retention: DreamRetentionReport } {
     const commit = commitDream(db, computed);
     try {
       this._witnessChain?.append('DREAM_COMMIT', {
@@ -708,7 +740,37 @@ export class DreamEngine {
         commitDurationMs: commit.commitDurationMs,
       }, 'dream-engine');
     } catch { /* best-effort witness */ }
-    return commit.commitDurationMs;
+    return { durationMs: commit.commitDurationMs, retention: this.runDefaultRetention(db) };
+  }
+
+  /**
+   * #1239: after a committed dream, drop failed cycles past their retention
+   * window and outcome concepts beyond the cap when AQE_DREAM_RETENTION=on;
+   * otherwise only count what that would remove. The dream is already
+   * committed, so a failure here (a locked database, say) is only logged.
+   */
+  private runDefaultRetention(db: DatabaseType): DreamRetentionReport {
+    const settings = resolveDefaultRetention();
+    if (settings.warnings.length > 0 && !retentionWarningsLogged) {
+      retentionWarningsLogged = true;
+      for (const warning of settings.warnings) dreamLogger.warn(warning);
+    }
+    const previousBusyTimeout = db.pragma('busy_timeout', { simple: true }) as number;
+    try {
+      db.pragma(`busy_timeout = ${RETENTION_BUSY_TIMEOUT_MS}`);
+      const report = runDreamRetention(db, settings);
+      if (report.enabled) {
+        for (const step of report.steps) {
+          if (step.affected > 0) dreamLogger.info(`Retention ${describeRetention(step)}`);
+        }
+      }
+      return report;
+    } catch (error) {
+      dreamLogger.warn('Dream retention skipped after dream commit', { error: toErrorMessage(error) });
+      return { enabled: settings.enabled, steps: [], error: toErrorMessage(error) };
+    } finally {
+      try { db.pragma(`busy_timeout = ${previousBusyTimeout}`); } catch { /* connection gone */ }
+    }
   }
 
   /**
