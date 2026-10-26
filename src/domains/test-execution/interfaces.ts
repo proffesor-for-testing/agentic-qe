@@ -243,6 +243,8 @@ export interface IFileCoverageData {
   /** `null` = no functions in the file (istanbul 0/0): not collected, not 100% (#1015). */
   function: number | null;
   statement: number | null;
+  /** #1219: the line counts behind `line`, when the report has them. */
+  lines?: { covered: number; total: number };
 }
 
 export interface IFailedTest {

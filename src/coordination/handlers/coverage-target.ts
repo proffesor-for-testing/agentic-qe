@@ -34,6 +34,7 @@ import {
 import { isTestPath } from './coverage-collection';
 import { assessCoverageEvidence, type CoverageEvidence } from './coverage-evidence';
 import { findProjectRoot } from '../../kernel/project-root.js';
+import { classifyProjectCoveragePaths } from '../../domains/coverage-analysis/collected-metrics.js';
 
 // ============================================================================
 // Project root
@@ -450,7 +451,12 @@ export function evaluateCoverageForTarget(
 ): CoverageEvaluation {
   if (options.numTotalTests === 0) return { status: 'no-data', reason: 'no-tests-ran' };
 
-  const scoped = scopeCoverageToTarget(report, projectRoot, target);
+  // #1219: an entry that is not a measurement of a project file (outside the
+  // root, a Windows path on POSIX, one file under two spellings) is not part
+  // of the figures — the same rule as the per-file records (#1030).
+  const inTarget = scopeCoverageToTarget(report, projectRoot, target);
+  const { keys, excluded } = classifyProjectCoveragePaths(inTarget.map(f => f.path), projectRoot);
+  const scoped = inTarget.filter(f => keys.has(f.path));
   if (scoped.length === 0) return { status: 'no-data', reason: 'target-not-covered' };
 
   // Coverage OF a test file is not production coverage (#569). A report with
@@ -460,6 +466,7 @@ export function evaluateCoverageForTarget(
 
   const evidence = assessCoverageEvidence(report, production, projectRoot, target, {
     reportPath: options.reportPath, checkCompleteness: options.checkCompleteness,
+    excluded: excluded.filter(e => !e.file || !isTestPath(e.file, projectRoot)),
   });
   return { status: 'measured', files: production, evidence };
 }

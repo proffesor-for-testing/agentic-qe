@@ -109,6 +109,12 @@ export interface QualityReport {
    * value covers `analysedFiles` of `totalFiles`; `failed` lists the gaps.
    */
   partial?: PartialQualityMetric[];
+  /**
+   * The weighted score over the measured metrics only, present when a
+   * requested metric is unmeasured. `score.overall` is then -1: a score that
+   * leaves out unmeasured metrics is not the overall score (#1223 convention).
+   */
+  subsetScore?: number;
 }
 
 /** #1021: a file excluded from static analysis, with the reason. */

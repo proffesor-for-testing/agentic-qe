@@ -30,7 +30,7 @@ import {
   thresholdVerdict,
   type NoDataReason,
 } from '../../coordination/handlers/coverage-target.js';
-import { describeEvidence, type CoverageEvidence } from '../../coordination/handlers/coverage-evidence.js';
+import { describeEvidence, describeExcludedEntries, type CoverageEvidence } from '../../coordination/handlers/coverage-evidence.js';
 
 /** `aqe coverage` exit code when no coverage measurement exists for the target (#995). */
 export const EXIT_UNMEASURED = 3;
@@ -233,6 +233,14 @@ export function coverageExitCode(outcome: CliCoverageOutcome, threshold: number)
   }
 }
 
+/** The JSON `warning`: the evidence gaps, then the report entries left out (#1219). */
+function coverageWarning(insufficient: string[], excludedNotes: string[]): { warning?: string } {
+  if (insufficient.length === 0 && excludedNotes.length === 0) return {};
+  const gaps = insufficient.length > 0 ? `INSUFFICIENT EVIDENCE: ${insufficient.join('; ')}` : '';
+  if (excludedNotes.length === 0) return { warning: gaps };
+  return { warning: [gaps && gaps.replace(/\.?$/, '.'), ...excludedNotes].filter(Boolean).join(' ') };
+}
+
 /** The `-F json` document for an outcome (same shape in every case). */
 export function coverageJson(outcome: CliCoverageOutcome, threshold: number, target: string): Record<string, unknown> {
   const nulls = { line: null, branch: null, function: null, statement: null };
@@ -252,8 +260,10 @@ export function coverageJson(outcome: CliCoverageOutcome, threshold: number, tar
         ...(outcome.data.unmeasuredFiles?.length ? { unmeasuredFiles: outcome.data.unmeasuredFiles } : {}),
         ...(outcome.evidence ? { evidenceStatus: outcome.evidence.status } : {}),
         ...(outcome.evidence?.stale ? { staleReport: outcome.evidence.stale } : {}),
-        ...(outcome.insufficientEvidence.length > 0
-          ? { warning: `INSUFFICIENT EVIDENCE: ${outcome.insufficientEvidence.join('; ')}` } : {}),
+        // #1219: report entries that are not project files, left out of the figures.
+        ...(outcome.evidence?.conflictingFiles ? { conflictingFiles: outcome.evidence.conflictingFiles } : {}),
+        ...(outcome.evidence?.excludedEntries ? { excludedReportEntries: outcome.evidence.excludedEntries } : {}),
+        ...coverageWarning(outcome.insufficientEvidence, describeExcludedEntries(outcome.evidence)),
       };
     case 'estimate':
       return {

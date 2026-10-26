@@ -128,7 +128,11 @@ describe('assess-quality handler evidence sufficiency (#996)', () => {
     expect(result.success).toBe(true);
     const data = (result as { value: Data }).value;
     expect(data).toMatchObject({
-      qualityScore: 88,
+      // No overall score without coverage (-1, as the gate since #1223); the
+      // static score over the measured metrics is kept as a labelled subset.
+      qualityScore: -1,
+      qualityScoreReason: 'not computed: coverage unmeasured',
+      subsetScore: 88,
       passed: false,
       evidenceStatus: 'insufficient-evidence',
       unmeasured: ['coverage'],
@@ -418,7 +422,7 @@ describe('assess-quality labels a subset score (#1021 round 2b)', () => {
       metrics: ['complexity', 'duplication'] });
 
     expect((result as { value: Basis }).value).toMatchObject({
-      evidenceStatus: 'insufficient-evidence', qualityScore: 100, scoreBasis: ['duplication'],
+      evidenceStatus: 'insufficient-evidence', qualityScore: -1, subsetScore: 100, scoreBasis: ['duplication'],
     });
   });
 

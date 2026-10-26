@@ -62,6 +62,9 @@ describe('registered quality_assess measured gate', () => {
     return JSON.parse(response.content[0].text) as ToolResult<T>;
   }
 
+  /** The fixture's one source file; its own coverage record is what the analyzer reads (#1219). */
+  let mathFile: string;
+
   async function seed(values: QualityEvidenceValues = passing, ageMs = 0): Promise<void> {
     await evidence.writeQualityEvidence(memory, values, {
       measuredAt: new Date(Date.now() - ageMs).toISOString(), source: 'regression-fixture',
@@ -72,6 +75,7 @@ describe('registered quality_assess measured gate', () => {
     // Set cwd/root BEFORE product imports: none of the fleet's stores may touch
     // a developer's project database, even incidental learning infrastructure.
     const root = await mkdtemp(join(tmpdir(), 'aqe-measured-gate-'));
+    mathFile = join(root, 'src', 'math.ts');
     process.chdir(root);
     embedder = createServer((request, response) => {
       let body = '';
@@ -119,12 +123,16 @@ describe('registered quality_assess measured gate', () => {
       await memory.delete(`quality-evidence:${metric}:latest`, { namespace: evidence.QUALITY_EVIDENCE_NAMESPACE });
     }
     await memory.delete('coverage:latest');
+    await memory.delete(`coverage:file:${mathFile}`);
   });
 
   /** Measured coverage the static analyzer reads (written by coverage analysis). */
   async function seedStaticCoverage(line = 90): Promise<void> {
     // #1014: measured records carry the provenance stamp; unstamped ones are legacy.
     await memory.set('coverage:latest', { line, branch: line, function: line, statement: line, files: 1, measured: true });
+    // #1219: the analyzer reads each file's own record, never the project-wide one.
+    await memory.set(`coverage:file:${mathFile}`,
+      { line, branch: line, function: line, statement: line, measured: true });
   }
 
   afterAll(async () => {
@@ -334,8 +342,11 @@ describe('registered quality_assess measured gate', () => {
       metrics: { coverage: -1 },
       riskDecision: { decision: 'escalate' },
     });
-    // The static score is still reported, but it is not a verdict.
-    expect(result.data?.qualityScore).toBeGreaterThan(80);
+    // No overall score without coverage (-1, as the gate since #1223); the
+    // score over the measured metrics is kept, labelled as a subset.
+    expect(result.data?.qualityScore).toBe(-1);
+    expect(result.data).toMatchObject({ qualityScoreReason: 'not computed: coverage unmeasured' });
+    expect((result.data as { subsetScore?: number })?.subsetScore).toBeGreaterThan(80);
     expect(result.data?.confidence).toBeLessThan(1);
     expect(result.data?.riskDecision?.confidence).toBeLessThan(0.5);
     expect(result.data?.note).toMatch(/no quality gate was evaluated/i);
@@ -346,6 +357,8 @@ describe('registered quality_assess measured gate', () => {
     const markdown = await readFile(report!, 'utf8');
     expect(markdown).toContain('INSUFFICIENT EVIDENCE');
     expect(markdown).toContain('| coverage | not measured |');
+    expect(markdown).toContain('Not computed — unmeasured: coverage.');
+    expect(markdown).toContain('Subset score over measured metrics:');
     expect(markdown).not.toContain('all quality gates passed');
   });
 

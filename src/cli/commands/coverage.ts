@@ -16,6 +16,7 @@ import {
   coverageJson,
   evaluateCliCoverage,
 } from '../utils/coverage-verdict.js';
+import { describeExcludedEntries } from '../../coordination/handlers/coverage-evidence.js';
 
 // #1012 / #1010: resolution and verdict are shared with `aqe ci` (and built on
 // the same functions as MCP); re-exported here for existing importers.
@@ -159,6 +160,10 @@ missing coverage evidence.`)
           console.log(chalk.green('  Using instrumented coverage data (V8/istanbul)\n'));
           if (coverageData.unmeasuredFiles?.length) {
             console.log(chalk.yellow(`  ${coverageData.unmeasuredFiles.length} file(s) not in the coverage report — UNMEASURED, excluded from the figures\n`));
+          }
+          // #1219: report entries that are not project files are named, not counted.
+          if (outcome.kind === 'measured') {
+            for (const note of describeExcludedEntries(outcome.evidence)) console.log(chalk.yellow(`  ${note}\n`));
           }
         } else {
           console.log(chalk.yellow('  No coverage report found — showing a heuristic STATIC ESTIMATE (UNMEASURED)'));

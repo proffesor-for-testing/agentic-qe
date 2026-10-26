@@ -36,6 +36,11 @@ export interface MeasuredFileCoverage {
   function: number | null;
   statement: number | null;
   measured: true;
+  /**
+   * #1219: the line counts behind `line`, so a reader can weight several
+   * files by size. Absent on records written before 3.15.13.
+   */
+  lines?: { covered: number; total: number };
 }
 
 const isPercent = (v: unknown): v is number =>
@@ -78,5 +83,24 @@ export function measuredFileCoverage(record: unknown): MeasuredFileCoverage | nu
   const r = record as Record<string, unknown>;
   if (r.measured !== true || !isPercent(r.line)) return null;
   const opt = (v: unknown): number | null => (isPercent(v) ? v : null);
-  return { line: r.line, branch: opt(r.branch), function: opt(r.function), statement: opt(r.statement), measured: true };
+  const lines = lineCounts(r.lines, r.line);
+  return {
+    line: r.line, branch: opt(r.branch), function: opt(r.function), statement: opt(r.statement), measured: true,
+    ...(lines ? { lines } : {}),
+  };
+}
+
+/**
+ * #1219: whole, consistent line counts (`covered / total` within rounding of
+ * the stored percentage), or `undefined` when the record has none or they do
+ * not describe its own percentage.
+ */
+function lineCounts(value: unknown, line: number): { covered: number; total: number } | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const { covered, total } = value as Record<string, unknown>;
+  if (!Number.isSafeInteger(covered) || !Number.isSafeInteger(total)) return undefined;
+  const c = covered as number;
+  const t = total as number;
+  if (t <= 0 || c < 0 || c > t || Math.abs((c / t) * 100 - line) > 0.01) return undefined;
+  return { covered: c, total: t };
 }

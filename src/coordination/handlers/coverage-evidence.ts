@@ -19,6 +19,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import type { FileCoverage } from '../../domains/coverage-analysis/interfaces';
+import type { ExcludedCoverageEntry } from '../../domains/coverage-analysis/collected-metrics.js';
 import { walkSourceFiles } from './coverage-collection';
 import { inCoverageScope, readCoverageScope } from './coverage-scope';
 
@@ -39,6 +40,17 @@ export interface CoverageEvidence {
   stale?: StaleReport;
   /** The coverage config whose include/exclude scoped `unmeasuredFiles`, if any. */
   coverageScope?: { source: string; readable: boolean };
+  /**
+   * #1219: report entries left out of the figures because they are not a
+   * measurement of a project file (outside the root, a Windows path on POSIX,
+   * or one file under two spellings).
+   */
+  excludedEntries?: ExcludedCoverageEntry[];
+  /**
+   * #1219: project files the report lists under two spellings. Which entry is
+   * right is unknown, so they are UNMEASURED and the evidence is insufficient.
+   */
+  conflictingFiles?: string[];
 }
 
 /** Source files that share a coverage tool with each other (one report covers one family). */
@@ -127,7 +139,7 @@ export function assessCoverageEvidence(
   measuredFiles: FileCoverage[],
   projectRoot: string,
   target: string,
-  options: { reportPath?: string; checkCompleteness?: boolean } = {},
+  options: { reportPath?: string; checkCompleteness?: boolean; excluded?: ExcludedCoverageEntry[] } = {},
 ): CoverageEvidence {
   const { targetFiles, unmeasured, coverageScope } = options.checkCompleteness === false
     ? { targetFiles: [], unmeasured: [], coverageScope: undefined }
@@ -138,12 +150,16 @@ export function assessCoverageEvidence(
     ? findStaleness(options.reportPath, [...sources].filter(file => fs.existsSync(file)))
     : undefined;
 
+  const excluded = options.excluded ?? [];
+  const conflicting = [...new Set(excluded.flatMap(e => (e.file ? [e.file] : [])))].sort();
   return {
-    status: unmeasured.length > 0 || stale ? 'insufficient-evidence' : 'complete',
+    status: unmeasured.length > 0 || stale || conflicting.length > 0 ? 'insufficient-evidence' : 'complete',
     unmeasuredFiles: unmeasured,
-    targetFiles: sources.size,
+    targetFiles: sources.size + conflicting.filter(file => !sources.has(file)).length,
     ...(stale ? { stale } : {}),
     ...(coverageScope ? { coverageScope } : {}),
+    ...(excluded.length > 0 ? { excludedEntries: excluded } : {}),
+    ...(conflicting.length > 0 ? { conflictingFiles: conflicting } : {}),
   };
 }
 
@@ -173,6 +189,12 @@ export function describeEvidence(evidence: CoverageEvidence | undefined, project
       'the report with coverage for the whole target, or exclude files that are not meant to be measured in the ' +
       `coverage tool's include/exclude config.${scopeNote}`);
   }
+  const conflicting = evidence.conflictingFiles ?? [];
+  if (conflicting.length > 0) {
+    reasons.push(`${conflicting.length} source file${conflicting.length === 1 ? ' is' : 's are'} listed in the coverage ` +
+      'report under two spellings (e.g. `./src/a.ts` and `src/a.ts`), so which entry is right is unknown; ' +
+      `they are UNMEASURED and left out of the figures: ${listFiles(conflicting, projectRoot)}`);
+  }
   if (evidence.stale) {
     const m = evidence.stale.newerFiles.length;
     reasons.push(`the coverage report ${path.relative(projectRoot, evidence.stale.reportPath) || evidence.stale.reportPath} ` +
@@ -180,4 +202,24 @@ export function describeEvidence(evidence: CoverageEvidence | undefined, project
       `(${evidence.stale.reportModified}): ${listFiles(evidence.stale.newerFiles, projectRoot)}`);
   }
   return reasons;
+}
+
+const EXCLUDED_WHY: Record<ExcludedCoverageEntry['reason'], string> = {
+  'outside-project': 'outside the project root',
+  'windows-path': 'a Windows path, which cannot name a file here',
+  'duplicate-spelling': 'a second spelling of a file the report already lists',
+};
+
+/**
+ * #1219: one line naming the report entries left out of the figures as not
+ * project files (empty when none were). A note, not an evidence gap: those
+ * entries never were the project's coverage. Shared by MCP and CLI.
+ */
+export function describeExcludedEntries(evidence: CoverageEvidence | undefined): string[] {
+  const outside = (evidence?.excludedEntries ?? []).filter(e => e.reason !== 'duplicate-spelling');
+  if (outside.length === 0) return [];
+  const shown = outside.slice(0, MAX_LISTED).map(e => `${e.path} (${EXCLUDED_WHY[e.reason]})`);
+  const more = outside.length > MAX_LISTED ? `, … ${outside.length - MAX_LISTED} more` : '';
+  return [`${outside.length} coverage report entr${outside.length === 1 ? 'y is' : 'ies are'} not a project file and ` +
+    `${outside.length === 1 ? 'is' : 'are'} left out of the figures: ${shown.join(', ')}${more}.`];
 }
