@@ -21,9 +21,7 @@ const repoRoot = join(__dirname, '..', '..', '..');
 const srcRoot = join(repoRoot, 'src');
 
 // Known offenders with a tracking issue. Remove an entry when it is fixed.
-const ALLOWED: Record<string, string> = {
-  'src/integrations/agent-booster-wasm/index.ts': '#1241',
-};
+const ALLOWED: Record<string, string> = {};
 
 function listTsFiles(dir: string): string[] {
   const out: string[] = [];

@@ -9,7 +9,11 @@
  */
 
 import { createRequire } from 'module';
+import { existsSync } from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 import { LoggerFactory } from '../../logging/index.js';
+import { findPackageRoot } from '../../init/find-package-root.js';
 
 const logger = LoggerFactory.create('agent-booster-wasm');
 
@@ -112,6 +116,22 @@ let wasmModule: WasmModule | null = null;
 let wasmBooster: WasmAgentBooster | null = null;
 let loadError: Error | null = null;
 
+const GLUE_FILE = 'agent_booster_wasm.js';
+
+/**
+ * Locate the wasm-bindgen glue (#1241). A relative require resolved against
+ * the bundle's directory (dist/mcp/ or dist/cli/chunks/), where the glue does
+ * not exist, so WASM never loaded from the published package. Look next to
+ * this module first (unbundled src/ or dist/), then in the copy the build
+ * places under dist/integrations/agent-booster-wasm/ in the package root.
+ */
+export function resolveWasmGlue(metaUrl: string = import.meta.url): string | null {
+  const candidates = [join(dirname(fileURLToPath(metaUrl)), GLUE_FILE)];
+  const root = findPackageRoot(metaUrl);
+  if (root) candidates.push(join(root, 'dist', 'integrations', 'agent-booster-wasm', GLUE_FILE));
+  return candidates.find((p) => existsSync(p)) ?? null;
+}
+
 /**
  * Load the WASM module
  */
@@ -120,9 +140,13 @@ async function loadWasm(): Promise<boolean> {
   if (loadError) return false;
 
   try {
-    // Use createRequire for ESM compatibility
+    const gluePath = resolveWasmGlue();
+    if (!gluePath) {
+      throw new Error(`${GLUE_FILE} not found next to the module or under dist/integrations/agent-booster-wasm/`);
+    }
+    // The glue is CommonJS (it reads the .wasm via __dirname), so load it with require.
     const require = createRequire(import.meta.url);
-    wasmModule = require('./agent_booster_wasm.js') as WasmModule;
+    wasmModule = require(gluePath) as WasmModule;
     if (!wasmModule) {
       throw new Error('WASM module loaded but is null');
     }
