@@ -6,6 +6,7 @@
 import { DomainName, DomainEvent, Result, err } from '../../shared/types';
 import { BaseDomainPlugin, TaskHandler } from '../domain-interface';
 import { requirePayloadFiles } from '../../shared/io/payload-path-guard.js';
+import { requireTestRunTargets } from '../../shared/test-runner-project.js';
 import { EventBus, MemoryBackend } from '../../kernel/interfaces';
 import { TestExecutionAPI, IExecuteTestsRequest, ISimpleTestRequest } from './interfaces';
 import { TestExecutionCoordinator, createTestExecutionCoordinator } from './coordinator';
@@ -83,12 +84,13 @@ export class TestExecutionPlugin extends BaseDomainPlugin {
         // directories (#909 Jest targets) inside the project, passed on as the
         // real paths that were checked. A missing one is still reported by the
         // runner.
+        // #1247: an explicit projectRoot is confined the same way.
         let testFiles: string[] | undefined;
+        let projectRoot: string | undefined;
         if (payload.testFiles !== undefined) {
-          const confined = await requirePayloadFiles('execute-tests', 'testFiles', payload.testFiles,
-            { allowMissing: true, allowDirectory: true });
+          const confined = await requireTestRunTargets('execute-tests', payload.testFiles, payload.projectRoot);
           if (!confined.success) return confined;
-          testFiles = confined.value;
+          ({ testFiles, projectRoot } = confined.value);
         }
 
         // Support both simple and full request formats
@@ -100,6 +102,7 @@ export class TestExecutionPlugin extends BaseDomainPlugin {
             retryCount: payload.retryCount as number | undefined,
             timeout: payload.timeout as number | undefined,
             workers: payload.workers as number | undefined,
+            projectRoot,
           };
           return this.coordinator.runTests(request);
         } else if (payload.framework) {

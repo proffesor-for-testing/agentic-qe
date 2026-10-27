@@ -7,7 +7,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs/promises';
-import { ok, err } from '../../shared/types';
+import { ok, err, type Result } from '../../shared/types';
 import { toError } from '../../shared/error-utils.js';
 import type { TaskHandlerContext } from './handler-types';
 import { capDiagnostics, getTestRunnerExecutionError, TestRunnerExecutionError } from '../../shared/test-runner-verdict.js';
@@ -16,6 +16,7 @@ import { jestExactPathPattern, runnerFilePath } from '../../shared/test-runner-a
 import { testCasesFromRunnerReport } from '../../domains/test-execution/services/runner-test-cases.js';
 import { runTestRunnerProcess } from '../../shared/test-runner-process.js';
 import { MAX_PAYLOAD_FILE_BYTES, requirePayloadFiles } from '../../shared/io/payload-path-guard.js';
+import { groupByRunnerProject, requireTestRunTargets } from '../../shared/test-runner-project.js';
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -65,6 +66,77 @@ export function rewriteTempPathsInGeneratedTest(
     : testCode;
   const newRef = sourceFile === tempPath ? (originalFilePath || sourceFile) : sourceFile;
   return { testCode: newCode, sourceFile: newRef };
+}
+
+type ProjectRun = {
+  total: number;
+  passed: number;
+  failed: number;
+  skipped: number;
+  testCases?: ReturnType<typeof testCasesFromRunnerReport>;
+};
+
+/**
+ * Run `testFiles` (paths relative to the process cwd, or absolute) with the
+ * runner started in `cwd`.
+ */
+async function runProjectTests(testFiles: string[], cwd: string): Promise<Result<ProjectRun, Error>> {
+  // #1074: run the runner asynchronously so the MCP server keeps serving
+  // other requests (task_status, task_cancel, ...) during the test run.
+  const options = { cwd, timeout: 120000 };
+  let runner = 'vitest';
+  // Vitest 5 writes the JSON report to a file rather than stdout; an explicit
+  // --outputFile gives Vitest 4 and 5 the same contract.
+  const report = createVitestJsonReport();
+  let execution;
+  let output: string;
+  try {
+    // #909: absolute paths cannot be read as flags (e.g. a "--watch" entry).
+    execution = await runTestRunnerProcess('npx', ['vitest', 'run', ...testFiles.map(file => runnerFilePath(file)), '--reporter=json', ...report.args], options);
+    output = execution.error || execution.signal
+      ? ''
+      : report.read(execution.stdout || '') ?? '';
+  } finally {
+    report.cleanup();
+  }
+  // Preserve the existing Jest fallback when Vitest cannot produce a report.
+  if (!output.includes('{') && execution.status !== 0 && !execution.error && !execution.signal) {
+    runner = 'jest';
+    execution = await runTestRunnerProcess('npx', ['jest', ...testFiles.map(file => jestExactPathPattern(file)), '--json'], options);
+    output = execution.stdout || '';
+  }
+  const diagnostics = [execution.error?.message, execution.signal && `Terminated by ${execution.signal}`, execution.stderr, output].filter(Boolean).join('\n');
+  if (execution.error) {
+    return err(new TestRunnerExecutionError(`${runner} could not complete: ${capDiagnostics(diagnostics)}`));
+  }
+
+  try {
+    const jsonStart = output.indexOf('{');
+    if (jsonStart >= 0) {
+      const json = JSON.parse(output.slice(jsonStart));
+      if (json.testResults) {
+        const total = json.numTotalTests || 0;
+        const passed = json.numPassedTests || 0;
+        const failed = json.numFailedTests || 0;
+        const skipped = total - passed - failed;
+        const executionError = getTestRunnerExecutionError(runner, testFiles.join(', '),
+          execution.status, { passed, failed, skipped }, diagnostics, json);
+        if (executionError) return err(executionError);
+        // #1110: per-test entries come from the runner report itself, or are left out.
+        const testCases = testCasesFromRunnerReport(json, testFiles.join(', '));
+        return ok({
+          total, passed, failed, skipped,
+          ...(testCases && testCases.length === total ? { testCases } : {}),
+        });
+      }
+    }
+  } catch {
+    // A malformed report cannot establish that the requested tests completed.
+  }
+
+  return err(new TestRunnerExecutionError(
+    `Could not parse ${runner} results (exit code ${execution.status ?? 'unknown'}):\n${capDiagnostics(diagnostics)}`
+  ));
 }
 
 export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
@@ -219,6 +291,7 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
       retryCount: number;
       timeout?: number;
       parallelism?: number;
+      projectRoot?: string;
     };
 
     try {
@@ -236,10 +309,10 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
       // #1126: a runner executes what it is given, so only files and
       // directories (#909 Jest targets) inside the project, run as the real
       // paths that were checked. A missing file is still reported by the runner.
-      const confined = await requirePayloadFiles('execute-tests', 'testFiles', requestedFiles,
-        { allowMissing: true, allowDirectory: true });
+      // #1247: an explicit projectRoot is confined the same way.
+      const confined = await requireTestRunTargets('execute-tests', requestedFiles, payload.projectRoot);
       if (!confined.success) return confined;
-      const testFiles = confined.value;
+      const { testFiles, projectRoot } = confined.value;
 
       // A caller-owned MCP task skips the Queen's plugin dispatch. Run through
       // that same domain API here: it owns persistence, measured quality evidence
@@ -254,70 +327,37 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
           workers: payload.parallelism,
           // The domain owns requested retries; Queen dispatch must not replay it.
           retryCount: payload.retryCount ?? 0,
+          projectRoot,
         });
         if (!result.success) return result;
         return ok({ ...result.value, coverage: result.value.coverage?.line ?? null });
       }
 
-      // #1074: run the runner asynchronously so the MCP server keeps serving
-      // other requests (task_status, task_cancel, ...) during the test run.
-      const options = { cwd: process.cwd(), timeout: 120000 };
-      let runner = 'vitest';
-      // Vitest 5 writes the JSON report to a file rather than stdout; an explicit
-      // --outputFile gives Vitest 4 and 5 the same contract.
-      const report = createVitestJsonReport();
-      let execution;
-      let output: string;
-      try {
-        // #909: absolute paths cannot be read as flags (e.g. a "--watch" entry).
-        execution = await runTestRunnerProcess('npx', ['vitest', 'run', ...testFiles.map(file => runnerFilePath(file, options.cwd)), '--reporter=json', ...report.args], options);
-        output = execution.error || execution.signal
-          ? ''
-          : report.read(execution.stdout || '') ?? '';
-      } finally {
-        report.cleanup();
+      // #1247: a runner loads the config of the directory it starts in, so
+      // each runner project's files run from that project (or projectRoot).
+      const groups = projectRoot
+        ? [{ cwd: projectRoot, files: testFiles }]
+        : groupByRunnerProject(testFiles);
+      const totals = { total: 0, passed: 0, failed: 0, skipped: 0 };
+      const testCases: NonNullable<ProjectRun['testCases']> = [];
+      let everyTestCase = true;
+      for (const group of groups) {
+        const run = await runProjectTests(group.files, group.cwd);
+        if (!run.success) return run;
+        totals.total += run.value.total;
+        totals.passed += run.value.passed;
+        totals.failed += run.value.failed;
+        totals.skipped += run.value.skipped;
+        if (run.value.testCases) testCases.push(...run.value.testCases);
+        else everyTestCase = false;
       }
-      // Preserve the existing Jest fallback when Vitest cannot produce a report.
-      if (!output.includes('{') && execution.status !== 0 && !execution.error && !execution.signal) {
-        runner = 'jest';
-        execution = await runTestRunnerProcess('npx', ['jest', ...testFiles.map(file => jestExactPathPattern(file, options.cwd)), '--json'], options);
-        output = execution.stdout || '';
-      }
-      const diagnostics = [execution.error?.message, execution.signal && `Terminated by ${execution.signal}`, execution.stderr, output].filter(Boolean).join('\n');
-      if (execution.error) {
-        return err(new TestRunnerExecutionError(`${runner} could not complete: ${capDiagnostics(diagnostics)}`));
-      }
-
-      try {
-        const jsonStart = output.indexOf('{');
-        if (jsonStart >= 0) {
-          const json = JSON.parse(output.slice(jsonStart));
-          if (json.testResults) {
-            const total = json.numTotalTests || 0;
-            const passed = json.numPassedTests || 0;
-            const failed = json.numFailedTests || 0;
-            const skipped = total - passed - failed;
-            const executionError = getTestRunnerExecutionError(runner, testFiles.join(', '),
-              execution.status, { passed, failed, skipped }, diagnostics, json);
-            if (executionError) return err(executionError);
-            // #1027 N5/NB5: this handler runs the tests without --coverage, so it has no
-            // coverage figure to return (null, never 0%). For test_execute_parallel the
-            // measured coverage + testsPassing are recorded by TestExecutorService.
-            // #1110: per-test entries come from the runner report itself, or are left out.
-            const testCases = testCasesFromRunnerReport(json, testFiles.join(', '));
-            return ok({
-              total, passed, failed, skipped, duration: 0, coverage: null, failedTests: [],
-              ...(testCases && testCases.length === total ? { testCases } : {}),
-            });
-          }
-        }
-      } catch {
-        // A malformed report cannot establish that the requested tests completed.
-      }
-
-      return err(new TestRunnerExecutionError(
-        `Could not parse ${runner} results (exit code ${execution.status ?? 'unknown'}):\n${capDiagnostics(diagnostics)}`
-      ));
+      // #1027 N5/NB5: this handler runs the tests without --coverage, so it has no
+      // coverage figure to return (null, never 0%). For test_execute_parallel the
+      // measured coverage + testsPassing are recorded by TestExecutorService.
+      return ok({
+        ...totals, duration: 0, coverage: null, failedTests: [],
+        ...(everyTestCase ? { testCases } : {}),
+      });
     } catch (error) {
       return err(toError(error));
     }

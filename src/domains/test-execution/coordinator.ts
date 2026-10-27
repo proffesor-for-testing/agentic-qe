@@ -354,6 +354,7 @@ export class TestExecutionCoordinator
         workers,
         timeout,
         retryCount: request.retryCount,
+        projectRoot: request.projectRoot,
       });
     }
 
@@ -363,6 +364,7 @@ export class TestExecutionCoordinator
       framework,
       timeout,
       retryCount: request.retryCount,
+      projectRoot: request.projectRoot,
     });
   }
 
@@ -376,6 +378,7 @@ export class TestExecutionCoordinator
     run: TestRunResult,
     retryCount: number | undefined,
     testFiles: readonly string[],
+    projectRoot?: string,
   ): Promise<void> {
     if (!retryCount || retryCount <= 0) return;
     if (run.failed === 0) {
@@ -387,6 +390,7 @@ export class TestExecutionCoordinator
       failedTests: run.failedTests.map(t => t.testId),
       maxRetries: retryCount,
       backoff: 'exponential',
+      projectRoot,
     });
     if (!retried.success) return;
     applyRetryOutcome(run, retried.value);
@@ -474,7 +478,7 @@ export class TestExecutionCoordinator
         // #1176: these first-attempt failures did happen; flaky analysis
         // records them even when a retry then passes.
         const firstAttemptFailures = [...result.value.failedTests];
-        await this.retryFailures(result.value, request.retryCount, orderedTestFiles);
+        await this.retryFailures(result.value, request.retryCount, orderedTestFiles, request.projectRoot);
 
         // Record execution results for learning
         if (this.config.enablePrioritization && prioritizationResult) {
@@ -528,7 +532,7 @@ export class TestExecutionCoordinator
           const rerunResult = await this.attemptAutoRecoveryAndRerun(
             result.value.failedTests,
             request.framework,
-            { timeout: request.timeout, env: request.env, retryCount: request.retryCount },
+            { timeout: request.timeout, env: request.env, retryCount: request.retryCount, projectRoot: request.projectRoot },
           );
           if (rerunResult) return rerunResult;
         }
@@ -618,7 +622,7 @@ export class TestExecutionCoordinator
 
       if (result.success) {
         // #1176: retries finish before the run is recorded or announced.
-        await this.retryFailures(result.value, request.retryCount, orderedTestFiles);
+        await this.retryFailures(result.value, request.retryCount, orderedTestFiles, request.projectRoot);
 
         // Record execution results for learning
         if (this.config.enablePrioritization && prioritizationResult) {
@@ -678,7 +682,7 @@ export class TestExecutionCoordinator
           const rerunResult = await this.attemptAutoRecoveryAndRerun(
             result.value.failedTests,
             request.framework,
-            { timeout: request.timeout, env: request.env, retryCount: request.retryCount },
+            { timeout: request.timeout, env: request.env, retryCount: request.retryCount, projectRoot: request.projectRoot },
           );
           if (rerunResult) return rerunResult;
         }
@@ -811,6 +815,7 @@ export class TestExecutionCoordinator
       failedTests: testsToRetry,
       maxRetries: request.maxRetries,
       backoff: request.backoff ?? 'exponential',
+      projectRoot: request.projectRoot,
       onRetry: (testId, attempt) => {
         // Could publish individual retry events here
         void testId;
@@ -908,7 +913,7 @@ export class TestExecutionCoordinator
   private async attemptAutoRecoveryAndRerun(
     failedTests: readonly { testId: string; file: string; error: string }[],
     framework: string,
-    originalRequest: { timeout?: number; env?: Record<string, string>; retryCount?: number },
+    originalRequest: { timeout?: number; env?: Record<string, string>; retryCount?: number; projectRoot?: string },
   ): Promise<Result<TestRunResult, Error> | null> {
     if (!this.config.infraHealing) return null;
 
@@ -953,6 +958,7 @@ export class TestExecutionCoordinator
       timeout: originalRequest.timeout,
       env: originalRequest.env,
       retryCount: originalRequest.retryCount,
+      projectRoot: originalRequest.projectRoot,
     });
   }
 

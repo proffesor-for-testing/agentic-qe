@@ -255,6 +255,12 @@ export interface TestExecuteParams {
   reportFormat?: 'json' | 'junit' | 'html' | 'markdown';
   /** #933: write result files under .agentic-qe/results/ (default true). false skips them. */
   saveResults?: boolean;
+  /**
+   * #1247: directory inside the project to run every test file from; relative
+   * testFiles are read from it. When omitted, each file runs from its nearest
+   * runner project (the directory with its vitest/jest config).
+   */
+  projectRoot?: string;
 }
 
 /**
