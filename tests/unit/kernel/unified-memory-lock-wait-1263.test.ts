@@ -188,3 +188,59 @@ describe('background writers from the #1263 stall (MCP cap)', () => {
     expect(row.feedback).toMatch(/orphaned/);
   });
 });
+
+describe('write ordering while the database is locked (#1263)', () => {
+  beforeEach(() => setLockWaitCap(CAP_MS));
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  // The first write's backoff has grown to ~400 ms when the second is issued;
+  // the lock is released just after the second write's first attempt. Without
+  // FIFO ordering the second write lands first and the first one overwrites it.
+  async function issueSecondLate<T>(first: Promise<unknown>, second: () => Promise<T>): Promise<void> {
+    await sleep(650);
+    const later = second();
+    setTimeout(unlock, 60);
+    await Promise.allSettled([first, later]);
+  }
+
+  it('lands kvSet(k, v1) then kvSet(k, v2) in call order', async () => {
+    const um = await openMemory(3000);
+    lock();
+    const first = um.kvSet('k', 'v1', 'ns');
+    await issueSecondLate(first, () => um.kvSet('k', 'v2', 'ns'));
+    expect(await um.kvGet('k', 'ns')).toBe('v2');
+  });
+
+  it('lands kvSet then kvDelete in call order', async () => {
+    const um = await openMemory(3000);
+    lock();
+    const first = um.kvSet('k', 'v1', 'ns');
+    await issueSecondLate(first, () => um.kvDelete('k', 'ns'));
+    expect(await um.kvGet('k', 'ns')).toBeUndefined();
+  });
+
+  it('runs the next queued write after one fails', async () => {
+    const um = await openMemory(500);
+    lock();
+    const failing = um.kvSet('a', 1, 'ns');
+    const next = um.kvSet('b', 2, 'ns');
+    const [failed] = await Promise.allSettled([failing]);
+    expect(failed.status).toBe('rejected');
+    unlock();
+    await next;
+    expect(await um.kvGet('b', 'ns')).toBe(2);
+    expect(await um.kvGet('a', 'ns')).toBeUndefined();
+  });
+
+  it('does not touch the vector index when the vector write fails', async () => {
+    const um = await openMemory(300);
+    await um.vectorStore('kept', [1, 0, 0], 'ns');
+    lock();
+    await expect(um.vectorStore('new', [0, 1, 0], 'ns')).rejects.toSatisfy(isBusyError);
+    await expect(um.vectorDelete('kept')).rejects.toSatisfy(isBusyError);
+    unlock();
+    const ids = (await um.vectorSearch([0, 1, 0], 5)).map((r) => r.id);
+    expect(ids).toContain('kept');
+    expect(ids).not.toContain('new');
+  });
+});

@@ -182,6 +182,9 @@ export class UnifiedMemoryManager {
   private initialized = false;
   private vectorsLoaded = false;
   private initPromise: Promise<void> | null = null;
+  /** Tail of the FIFO write queue and how many writes are in it (#1263). */
+  private writeQueue: Promise<void> = Promise.resolve();
+  private queuedWrites = 0;
   private preparedStatements: Map<string, Statement> = new Map();
   // ADR-071 Phase 2C: Always use UnifiedHnswIndex (old implementations decommissioned)
   private vectorIndex: UnifiedHnswIndex = new UnifiedHnswIndex('qe-memory');
@@ -667,12 +670,27 @@ export class UnifiedMemoryManager {
    * asynchronously, so a locked memory.db does not freeze the event loop. The
    * write still fails with SQLITE_BUSY once the configured busyTimeout has
    * passed. Without a cap (CLI) this is one attempt with the full busyTimeout.
+   *
+   * Writes run one at a time in call order (FIFO), so a later write to the
+   * same key cannot land before an earlier one that is still retrying. A
+   * failed write does not hold up the next. With nothing queued the first
+   * attempt runs synchronously, as the write did before.
    */
   writeWhenUnlocked<T>(fn: () => T): Promise<T> {
-    return retryWhileBusy(this.db!, fn, {
+    const run = () => retryWhileBusy(this.db!, fn, {
       waitMs: capBusyTimeout(this.config.busyTimeout),
       budgetMs: this.config.busyTimeout,
     });
+    // Queued writes yield to the event loop first, so one write's last attempt
+    // and the next one's first never block back to back.
+    const result = this.queuedWrites === 0
+      ? run()
+      : this.writeQueue.then(() => new Promise<void>((r) => setImmediate(r))).then(run);
+    this.queuedWrites++;
+    const settled = result.then(() => undefined, () => undefined);
+    this.writeQueue = settled;
+    void settled.then(() => { this.queuedWrites--; });
+    return result;
   }
 
   async kvSet(key: string, value: unknown, namespace: string = 'default', ttl?: number): Promise<void> {
