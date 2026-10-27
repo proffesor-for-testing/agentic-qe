@@ -30,6 +30,7 @@ import { initFeatureFlagsFromEnv } from '../integrations/ruvector/feature-flags.
 import { resetSharedRvfAdapter } from '../integrations/ruvector/shared-rvf-adapter.js';
 import { resetSharedRvfDualWriter } from '../integrations/ruvector/shared-rvf-dual-writer.js';
 import { claimProcessLifecycle, closeRegisteredStores } from '../kernel/process-lifecycle.js';
+import { INTERACTIVE_LOCK_WAIT_MS, setLockWaitCap } from '../shared/sqlite-lock-wait.js';
 import { getBackgroundWorkersState, startBackgroundWorkers } from './background-workers.js';
 import {
   DAEMON_HEARTBEAT_ENV, DAEMON_LOG_MAX_SIZE_ENV, DAEMON_LOG_PATH_ENV, DAEMON_MODE_ENV,
@@ -75,6 +76,9 @@ function releaseProcessStores(): void {
 }
 
 async function main(): Promise<void> {
+  // #1263: a write waiting on another process's lock blocks the event loop, so
+  // memory writes wait briefly per attempt and retry asynchronously instead.
+  setLockWaitCap(INTERACTIVE_LOCK_WAIT_MS);
   initFeatureFlagsFromEnv();
   // Output startup message BEFORE suppressing stderr (Claude Code health check needs this)
   const version = pkg.version;

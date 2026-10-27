@@ -25,6 +25,8 @@
 import { type Database as DatabaseType, type Statement } from 'better-sqlite3';
 import { openDatabase as openSafeDatabase } from '../shared/safe-db.js';
 import { safeJsonParse } from '../shared/safe-json.js';
+import { capBusyTimeout } from '../shared/sqlite-lock-wait.js';
+import { isBusyError, retryWhileBusy, withBusyTimeout } from '../learning/dream/dream-lock-retry.js';
 import { toErrorMessage } from '../shared/error-utils.js';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -180,6 +182,9 @@ export class UnifiedMemoryManager {
   private initialized = false;
   private vectorsLoaded = false;
   private initPromise: Promise<void> | null = null;
+  /** Tail of the FIFO write queue and how many writes are in it (#1263). */
+  private writeQueue: Promise<void> = Promise.resolve();
+  private queuedWrites = 0;
   private preparedStatements: Map<string, Statement> = new Map();
   // ADR-071 Phase 2C: Always use UnifiedHnswIndex (old implementations decommissioned)
   private vectorIndex: UnifiedHnswIndex = new UnifiedHnswIndex('qe-memory');
@@ -659,14 +664,43 @@ export class UnifiedMemoryManager {
   // KV Store Operations (v2 compatible)
   // ============================================================================
 
+  /**
+   * Run a write on the shared connection (#1263). Under the MCP server's lock
+   * wait cap each attempt blocks for at most the cap and the write retries
+   * asynchronously, so a locked memory.db does not freeze the event loop. The
+   * write still fails with SQLITE_BUSY once the configured busyTimeout has
+   * passed. Without a cap (CLI) this is one attempt with the full busyTimeout.
+   *
+   * Writes run one at a time in call order (FIFO), so a later write to the
+   * same key cannot land before an earlier one that is still retrying. A
+   * failed write does not hold up the next. With nothing queued the first
+   * attempt runs synchronously, as the write did before.
+   */
+  writeWhenUnlocked<T>(fn: () => T): Promise<T> {
+    const run = () => retryWhileBusy(this.db!, fn, {
+      waitMs: capBusyTimeout(this.config.busyTimeout),
+      budgetMs: this.config.busyTimeout,
+    });
+    // Queued writes yield to the event loop first, so one write's last attempt
+    // and the next one's first never block back to back.
+    const result = this.queuedWrites === 0
+      ? run()
+      : this.writeQueue.then(() => new Promise<void>((r) => setImmediate(r))).then(run);
+    this.queuedWrites++;
+    const settled = result.then(() => undefined, () => undefined);
+    this.writeQueue = settled;
+    void settled.then(() => { this.queuedWrites--; });
+    return result;
+  }
+
   async kvSet(key: string, value: unknown, namespace: string = 'default', ttl?: number): Promise<void> {
     this.ensureInitialized();
     const expiresAt = ttl ? Date.now() + ttl * 1000 : null;
     const serialized = JSON.stringify(value);
-    this.db!.prepare(`
+    await this.writeWhenUnlocked(() => this.db!.prepare(`
       INSERT OR REPLACE INTO kv_store (key, namespace, value, expires_at)
       VALUES (?, ?, ?, ?)
-    `).run(key, namespace, serialized, expiresAt);
+    `).run(key, namespace, serialized, expiresAt));
     // ADR-194: tamper-evident audit (no-op unless the proof-gate is enabled).
     this.auditWrite('kvSet', namespace, key, serialized);
   }
@@ -681,7 +715,14 @@ export class UnifiedMemoryManager {
     if (!row) return undefined;
 
     if (row.expires_at && Date.now() > row.expires_at) {
-      this.db!.prepare('DELETE FROM kv_store WHERE key = ? AND namespace = ?').run(key, namespace);
+      try {
+        withBusyTimeout(this.db!, capBusyTimeout(this.config.busyTimeout), () =>
+          this.db!.prepare('DELETE FROM kv_store WHERE key = ? AND namespace = ?').run(key, namespace));
+      } catch (error) {
+        // #1263: a read must not wait on a locked DB to tidy up; the row stays
+        // expired (filtered here) and kvCleanupExpired removes it later.
+        if (!isBusyError(error)) throw error;
+      }
       return undefined;
     }
 
@@ -690,9 +731,9 @@ export class UnifiedMemoryManager {
 
   async kvDelete(key: string, namespace: string = 'default'): Promise<boolean> {
     this.ensureInitialized();
-    const result = this.db!.prepare(
+    const result = await this.writeWhenUnlocked(() => this.db!.prepare(
       'DELETE FROM kv_store WHERE key = ? AND namespace = ?'
-    ).run(key, namespace);
+    ).run(key, namespace));
     // ADR-194: audit deletes too (no-op unless the proof-gate is enabled).
     if (result.changes > 0) this.auditWrite('kvDelete', namespace, key, '');
     return result.changes > 0;
@@ -722,9 +763,9 @@ export class UnifiedMemoryManager {
 
   async kvCleanupExpired(): Promise<number> {
     this.ensureInitialized();
-    const result = this.db!.prepare(
+    const result = await this.writeWhenUnlocked(() => this.db!.prepare(
       'DELETE FROM kv_store WHERE expires_at IS NOT NULL AND expires_at < ?'
-    ).run(Date.now());
+    ).run(Date.now()));
     return result.changes;
   }
 
@@ -833,10 +874,10 @@ export class UnifiedMemoryManager {
     this.ensureInitialized();
     const buffer = this.floatArrayToBuffer(embedding);
     const metadataJson = metadata ? JSON.stringify(metadata) : null;
-    this.db!.prepare(`
+    await this.writeWhenUnlocked(() => this.db!.prepare(`
       INSERT OR REPLACE INTO vectors (id, namespace, embedding, dimensions, metadata, updated_at)
       VALUES (?, ?, ?, ?, ?, datetime('now'))
-    `).run(id, namespace, buffer, embedding.length, metadataJson);
+    `).run(id, namespace, buffer, embedding.length, metadataJson));
     this.vectorIndex.add(id, embedding);
   }
 
@@ -855,7 +896,7 @@ export class UnifiedMemoryManager {
 
   async vectorDelete(id: string): Promise<boolean> {
     this.ensureInitialized();
-    const result = this.db!.prepare('DELETE FROM vectors WHERE id = ?').run(id);
+    const result = await this.writeWhenUnlocked(() => this.db!.prepare('DELETE FROM vectors WHERE id = ?').run(id));
     this.vectorIndex.remove(id);
     return result.changes > 0;
   }

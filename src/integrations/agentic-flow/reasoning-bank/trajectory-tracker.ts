@@ -278,7 +278,7 @@ export class TrajectoryTracker {
     await this.loadRecentTrajectories();
 
     // Clean up orphaned trajectories from previous sessions (started > 1 hour ago, never completed)
-    this.cleanupOrphanedTrajectories();
+    await this.cleanupOrphanedTrajectories();
 
     this.initialized = true;
     console.log('[TrajectoryTracker] Initialized');
@@ -288,18 +288,20 @@ export class TrajectoryTracker {
    * Clean up orphaned trajectories that were started but never completed.
    * Marks them as failed with an auto-close reason. Runs at initialization.
    */
-  private cleanupOrphanedTrajectories(): void {
-    if (!this.db) return;
+  private async cleanupOrphanedTrajectories(): Promise<void> {
+    const db = this.db;
+    if (!db || !this.unifiedMemory) return;
 
     try {
-      const result = this.db.prepare(`
+      // #1263: retried asynchronously, so a locked DB does not freeze the MCP server.
+      const result = await this.unifiedMemory.writeWhenUnlocked(() => db.prepare(`
         UPDATE qe_trajectories
         SET success = 0,
             ended_at = datetime('now'),
             feedback = 'auto-closed: orphaned trajectory from previous session'
         WHERE success IS NULL
           AND started_at < datetime('now', '-1 hour')
-      `).run();
+      `).run());
 
       if (result.changes > 0) {
         this.stats.trajectoriesAbandoned += result.changes;
