@@ -176,22 +176,102 @@ describe('ExperienceReplay compares only vectors of the active embedding space (
     db.close();
   });
 
-  it('re-embeds a stored vector without provenance at start, in the active space', async () => {
+  // -- Legacy rows: a vector stored before embedding_space_id existed --
+
+  /** Insert a pre-#1217 row: a vector, no embedding_space_id. */
+  function insertLegacy(
+    db: Database.Database,
+    row: { id: string; task?: string; source: string; vector: number[] | null },
+  ): void {
+    db.prepare(`
+      INSERT INTO captured_experiences
+        (id, task, agent, domain, success, quality, steps_json, source, embedding, embedding_dimension)
+      VALUES (?, ?, ?, 'test-generation', 1, 0.9, '["analyze"]', ?, ?, ?)
+    `).run(
+      row.id, row.task ?? TASK, STRATEGY, row.source,
+      row.vector ? Buffer.from(new Float32Array(row.vector).buffer) : null,
+      row.vector?.length ?? null,
+    );
+  }
+
+  const legacyRow = (db: Database.Database, id: string) => db.prepare(
+    'SELECT embedding, embedding_dimension, embedding_space_id FROM captured_experiences WHERE id = ?',
+  ).get(id) as { embedding: Buffer | null; embedding_dimension: number | null; embedding_space_id: string | null };
+
+  /** Another model of the same dimension: a different vector for the same text. */
+  const otherModelVector = (text: string) => wordVector(`other model ${text} differs`);
+
+  async function startWithLegacyRows(rows: Parameters<typeof insertLegacy>[1][]) {
     const db = new Database(':memory:');
     space.db = db;
-    const first = new ExperienceReplay({ autoPrune: false });
-    await first.initialize();
-    insertExperience(db, 'exp-legacy', null);
-
+    // The schema comes from a first replay; the legacy rows go in after.
+    await new ExperienceReplay({ autoPrune: false }).initialize();
+    for (const row of rows) insertLegacy(db, row);
+    const before = new Map(rows.map(r => [r.id, legacyRow(db, r.id).embedding]));
+    const log = vi.mocked(console.log);
+    log.mockClear();
     const replay = new ExperienceReplay({ autoPrune: false, similarityThreshold: 0.5 });
     await replay.initialize();
+    await vi.waitFor(() => {
+      expect(log.mock.calls.some(c => /Checked \d+ experience vectors/.test(String(c[0])))).toBe(true);
+    });
+    return { db, replay, before };
+  }
+
+  it('attributes a same-space legacy vector to the active space without rewriting it', async () => {
+    const { db, replay, before } = await startWithLegacyRows([
+      // experience-capture middleware / CLI hooks recipe
+      { id: 'legacy-middleware', source: 'middleware', vector: wordVector(`test-generation: ${TASK}`) },
+      // ExperienceReplay.storeExperience recipe
+      { id: 'legacy-replay', source: 'experience-replay', vector: wordVector(`${TASK} ${STRATEGY} analyze`) },
+    ]);
+
+    for (const id of ['legacy-middleware', 'legacy-replay']) {
+      const row = legacyRow(db, id);
+      expect(row.embedding_space_id).toBe('space-a');
+      expect(row.embedding!.equals(before.get(id)!)).toBe(true);
+    }
+    const similar = await replay.findSimilarExperiences(TASK);
+    expect(similar.map(s => s.experience.id).sort()).toEqual(['legacy-middleware', 'legacy-replay']);
+  });
+
+  it('leaves a legacy vector of another space (same dimension) untouched and uncompared', async () => {
+    const { db, replay, before } = await startWithLegacyRows([
+      { id: 'legacy-other', source: 'middleware', vector: otherModelVector(`test-generation: ${TASK}`) },
+    ]);
+
+    const row = legacyRow(db, 'legacy-other');
+    expect(row.embedding!.equals(before.get('legacy-other')!)).toBe(true);
+    expect(row.embedding_dimension).toBe(384);
+    expect(row.embedding_space_id).toBeNull();
+    await expect(replay.findSimilarExperiences(TASK)).resolves.toEqual([]);
+  });
+
+  it('leaves a legacy row whose text cannot be rebuilt untouched', async () => {
+    // The CLI post-task hook embeds the full task but stores it capped at 500 chars.
+    const fullTask = `${TASK} ${'x'.repeat(600)}`;
+    const { db, before } = await startWithLegacyRows([{
+      id: 'legacy-truncated', task: fullTask.slice(0, 500), source: 'cli-hook-post-task',
+      vector: wordVector(`test-generation: ${fullTask}`.slice(0, 512) + ' lost tail'),
+    }]);
+
+    const row = legacyRow(db, 'legacy-truncated');
+    expect(row.embedding!.equals(before.get('legacy-truncated')!)).toBe(true);
+    expect(row.embedding_space_id).toBeNull();
+  });
+
+  it('backfills a row without a vector, with its embedding space', async () => {
+    const db = new Database(':memory:');
+    space.db = db;
+    await new ExperienceReplay({ autoPrune: false }).initialize();
+    insertLegacy(db, { id: 'no-vector', source: 'cli-hook-post-command', vector: null });
+
+    await new ExperienceReplay({ autoPrune: false }).initialize();
 
     await vi.waitFor(() => {
-      const row = db.prepare('SELECT embedding_space_id FROM captured_experiences WHERE id = ?')
-        .get('exp-legacy') as { embedding_space_id: string | null };
+      const row = legacyRow(db, 'no-vector');
+      expect(row.embedding_dimension).toBe(384);
       expect(row.embedding_space_id).toBe('space-a');
     });
-    const similar = await replay.findSimilarExperiences(TASK);
-    expect(similar.map(s => s.experience.id)).toEqual(['exp-legacy']);
   });
 });

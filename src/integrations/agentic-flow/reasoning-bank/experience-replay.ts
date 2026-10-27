@@ -24,6 +24,7 @@ import {
   type EmbeddingConfig,
 } from '../../../learning/real-embeddings.js';
 import { EmbedderRecovery, probeEmbedder } from '../../../learning/embedder-recovery.js';
+import { verifyLegacyExperienceSpaces } from '../../../learning/experience-space-verification.js';
 import type { Trajectory, TrajectoryMetrics } from './trajectory-tracker.js';
 import { CircularBuffer } from '../../../shared/utils/circular-buffer.js';
 import { HNSWEmbeddingIndex } from '../../embeddings/index/HNSWIndex.js';
@@ -325,11 +326,9 @@ export class ExperienceReplay {
     void (async () => {
       try {
         if (!this.db) return;
-        // #1217: rows whose vector has no embedding-space provenance are
-        // never compared, so they are re-embedded like rows without one.
         const ghosts = this.db.prepare(`
           SELECT id, domain, task FROM captured_experiences
-          WHERE (embedding IS NULL OR embedding_space_id IS NULL) AND consolidated_into IS NULL
+          WHERE embedding IS NULL AND consolidated_into IS NULL
           LIMIT 200
         `).all() as Array<{ id: string; domain: string | null; task: string }>;
         if (ghosts.length === 0) return;
@@ -356,6 +355,30 @@ export class ExperienceReplay {
         console.log(`[ExperienceReplay] Backfilled ${written} captured_experiences embeddings`);
       } catch (err) {
         console.warn('[ExperienceReplay] Embedding backfill failed:', err instanceof Error ? err.message : err);
+      }
+    })();
+
+    // #1217: vectors stored before embedding-space provenance existed are
+    // never compared. Attribute those the active embedder reproduces to its
+    // space; the vectors themselves are never rewritten. Same cap per boot.
+    void (async () => {
+      try {
+        if (!this.db) return;
+        const result = await verifyLegacyExperienceSpaces(this.db, {
+          embed: (text) => computeRealEmbedding(text, this.config.embedding),
+          activeSpaceId: () => getActiveEmbeddingSpaceIdentity()?.spaceId,
+          write: (fn) => this.unifiedMemory!.writeWhenUnlocked(fn),
+        });
+        if (result.checked === 0) return;
+        if (result.stamped.length > 0 && result.spaceId) {
+          await this.loadEmbeddingIndex(result.spaceId);
+        }
+        console.log(
+          `[ExperienceReplay] Checked ${result.checked} experience vectors without an embedding space: ` +
+            `${result.stamped.length} match the active embedder, ${result.left} left uncompared`
+        );
+      } catch (err) {
+        console.warn('[ExperienceReplay] Embedding-space check failed:', err instanceof Error ? err.message : err);
       }
     })();
 
