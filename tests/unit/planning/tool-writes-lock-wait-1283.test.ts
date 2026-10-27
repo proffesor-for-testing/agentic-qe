@@ -184,6 +184,40 @@ describe('GOAP writes inside tool calls (#1283)', () => {
   });
 });
 
+describe('behaviour changes that come with queueing (#1283)', () => {
+  it('PlanExecutor: the step rows of one execution are written all-or-nothing, so a retried attempt cannot duplicate them', async () => {
+    const um = await openMemory();
+    const planner = new GOAPPlanner();
+    await planner.initialize();
+    const executor = new PlanExecutor(planner, new MockAgentSpawner({ executionDelay: 0 }));
+    await executor.initialize();
+    const persist = (executor as unknown as {
+      persistExecutionResult(id: string, result: unknown): Promise<void>;
+    }).persistExecutionResult.bind(executor);
+    const step = { id: 'dup', action: { id: 'a1' }, status: 'completed', retries: 0, startedAt: new Date() };
+
+    await expect(persist('exec-dup', { planId: 'plan-1', status: 'completed', totalDurationMs: 5, steps: [step, step] }))
+      .rejects.toThrow(/UNIQUE|constraint/i);
+    expect(count(um.getDatabase(), "SELECT COUNT(*) AS n FROM goap_execution_steps WHERE execution_id = 'exec-dup'")).toBe(0);
+  });
+
+  it('EmbeddingCache: a failed persisted delete is logged, not thrown, and the in-memory entry is still removed', async () => {
+    const um = await openMemory();
+    const cache = new EmbeddingCache();
+    await vi.waitFor(() => expect((cache as unknown as { db: unknown }).db).toBeTruthy());
+    cache.set('k2', { vector: [0.1], dimension: 1, namespace: 'text', text: 'k2', timestamp: Date.now(), quantization: 'none' } as never);
+    um.getDatabase().exec('DROP TABLE embeddings');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    expect(cache.delete('k2')).toBe(true);
+    await um.writeWhenUnlocked(() => undefined);
+
+    expect(cache.has('k2')).toBe(false);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('embedding cache'), expect.anything());
+    warn.mockRestore();
+  });
+});
+
 describe('learning writes inside tool calls (#1283)', () => {
   it('TrajectoryTracker.startTrajectory (task_orchestrate) does not block and stores the trajectory', async () => {
     const um = await openMemory();
