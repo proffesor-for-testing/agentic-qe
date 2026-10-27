@@ -31,6 +31,7 @@ import {
   AccessibilityReport,
 } from '../interfaces.js';
 import { toError } from '../../../shared/error-utils.js';
+import { runAxeCore, mapAxeResultToReport } from './accessibility-tester-browser.js';
 import {
   getBrowserClientForUseCase,
   type IBrowserClient,
@@ -495,9 +496,8 @@ export class BrowserSwarmCoordinator {
   /**
    * Run accessibility audit across all viewports
    *
-   * Navigates to the URL and runs accessibility audits in each viewport.
-   * Note: This is a placeholder implementation. Real accessibility auditing
-   * would require integration with axe-core or similar tools.
+   * Navigates to the URL and runs axe-core in each viewport. A viewport whose
+   * audit did not run is listed under failures, never as a clean report (#1228).
    *
    * @param url - URL to audit
    * @returns Accessibility audit results by viewport
@@ -522,17 +522,11 @@ export class BrowserSwarmCoordinator {
           await session.client.setViewport(viewport.width, viewport.height);
         }
 
-        // TODO: Integrate with axe-core or similar accessibility testing tool
-        // For now, return a placeholder report
-        const report: AccessibilityReport = {
-          url,
-          timestamp: new Date(),
-          violations: [],
-          passes: [],
-          incomplete: [],
-          score: 100,
-          wcagLevel: 'AA',
-        };
+        const axeResult = await runAxeCore(session.client, 'AA');
+        if (!axeResult.success) {
+          throw new Error(`Accessibility NOT MEASURED in this viewport: ${axeResult.error.message}`);
+        }
+        const report: AccessibilityReport = { ...mapAxeResultToReport(url, axeResult.value, 'AA'), measured: true };
 
         return report;
       });

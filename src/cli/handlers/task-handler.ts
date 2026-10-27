@@ -18,6 +18,7 @@ import { createTimedSpinner } from '../utils/progress.js';
 import { parseJsonOption } from '../helpers/safe-json.js';
 import { validateIndexTaskPayload } from '../../domains/code-intelligence/index-path-guard.js';
 import { type OutputFormat, writeOutput, toJSON } from '../utils/ci-output.js';
+import { taskResultLines } from '../utils/task-result.js';
 
 // ============================================================================
 // Task Handler
@@ -26,13 +27,20 @@ import { type OutputFormat, writeOutput, toJSON } from '../utils/ci-output.js';
 /**
  * What a completed task's result says it could not check (#1135, #1052):
  * `incompleteChecks`, or a top-level status of incomplete/failed with its reason.
+ * #1228: a result whose top-level status is not-measured or partial (part of what was
+ * asked was not measured) is not a clean run either. `measured: false` alone is not
+ * flagged: analyze-coverage sets it for caller-supplied coverage it did analyze.
  */
 export function incompleteResultReasons(result: unknown): string[] {
   if (!result || typeof result !== 'object') return [];
-  const { status, error, incompleteChecks } = result as { status?: unknown; error?: unknown; incompleteChecks?: unknown };
+  const { status, error, incompleteChecks, message, notMeasuredReason } = result as Record<string, unknown>;
   const reasons = Array.isArray(incompleteChecks) ? incompleteChecks.filter((reason): reason is string => typeof reason === 'string') : [];
   if (reasons.length === 0 && (status === 'incomplete' || status === 'failed')) {
     reasons.push(typeof error === 'string' ? error : `result status is ${status}`);
+  }
+  if (reasons.length === 0 && (status === 'not-measured' || status === 'partial')) {
+    const why = [message, notMeasuredReason].find((text): text is string => typeof text === 'string');
+    reasons.push(why ?? `result status is ${status}`);
   }
   return reasons;
 }
@@ -66,6 +74,7 @@ export class TaskHandler implements ICommandHandler {
       .option('-t, --timeout <ms>', 'Task timeout in ms', '300000')
       .option('--payload <json>', 'Task payload as JSON', '{}')
       .option('--wait', 'Wait for task completion (required: CLI tasks are not persisted)')
+      .option('-o, --output <file>', 'Write the full task result as JSON to a file')
       .option('--no-progress', 'Disable progress indicator')
       .action(async (type: string, options) => {
         await this.executeSubmit(type, options, context);
@@ -200,9 +209,11 @@ export class TaskHandler implements ICommandHandler {
                 const incomplete = incompleteResultReasons(taskStatus.result);
                 if (incomplete.length > 0) {
                   waitSpinner.fail(`Task completed, but its result is incomplete: ${incomplete.join('; ')}`);
+                  this.printResult(taskStatus.result, options.output);
                   return this.cleanupAndExit(1);
                 }
                 waitSpinner.succeed('Task completed successfully');
+                this.printResult(taskStatus.result, options.output);
                 completed = true;
               } else if (taskStatus.status === 'failed' || taskStatus.status === 'cancelled') {
                 waitSpinner.fail(`Task ${taskStatus.status}: ${taskStatus.error || 'No successful result'}`);
@@ -233,6 +244,13 @@ export class TaskHandler implements ICommandHandler {
       console.error(chalk.red('\n  Failed to submit task:'), error);
       await this.cleanupAndExit(1);
     }
+  }
+
+  /** #1228, #1146: show what a completed task returned, not only that it completed. */
+  private printResult(result: unknown, outputPath?: string): void {
+    console.log('');
+    for (const line of taskResultLines(result)) console.log(`  ${line}`);
+    if (outputPath) writeOutput(toJSON(result ?? null), outputPath);
   }
 
   private async executeList(options: ListOptions, context: CLIContext): Promise<void> {
@@ -407,6 +425,7 @@ Submit Options:
   --payload <json>            Task payload as JSON
   --wait                      Wait for task completion (required; CLI-submitted
                               tasks run in this process and are not persisted)
+  -o, --output <file>         Write the full task result as JSON to a file
   --no-progress               Disable progress indicator
 
 List Options:
@@ -434,6 +453,7 @@ interface SubmitOptions {
   timeout: string;
   payload: string;
   wait?: boolean;
+  output?: string;
   progress?: boolean;
 }
 

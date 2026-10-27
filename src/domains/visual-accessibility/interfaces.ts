@@ -225,6 +225,20 @@ export interface ViolationNode {
   readonly target: string[];
   readonly failureSummary: string;
   readonly fixSuggestion?: string;
+  /** Colours and ratio axe-core reported for a contrast violation (#1228). */
+  readonly contrast?: ContrastValues;
+}
+
+/**
+ * Colours and contrast ratio as the browser measured them (#1228).
+ * A value the browser did not report is null, never a default colour or ratio.
+ */
+export interface ContrastValues {
+  readonly foreground: string | null;
+  readonly background: string | null;
+  readonly ratio: number | null;
+  /** The ratio axe-core required for this element (3:1 for large text), when reported. */
+  readonly requiredRatio: number | null;
 }
 
 /**
@@ -232,12 +246,17 @@ export interface ViolationNode {
  */
 export interface ContrastAnalysis {
   readonly element: string;
-  readonly foreground: string;
-  readonly background: string;
+  /** null when the browser did not report the colour (#1228). */
+  readonly foreground: string | null;
+  readonly background: string | null;
+  /** -1 when the browser did not report the ratio (#1228). */
   readonly ratio: number;
   readonly requiredRatio: number;
   readonly passes: boolean;
   readonly wcagLevel: 'A' | 'AA' | 'AAA';
+  /** false when the colours or ratio were not reported; see notMeasuredReason (#1228). */
+  readonly measured?: boolean;
+  readonly notMeasuredReason?: string;
 }
 
 // ============================================================================
@@ -433,13 +452,19 @@ export interface KeyboardNavigationReport {
   readonly tabOrder: TabOrderItem[];
   readonly issues: KeyboardIssue[];
   readonly traps: FocusTrap[];
+  /**
+   * What this report did not measure (#1228). An empty `traps` list, or a
+   * null `hasVisibleFocus`, is not a clean result for an aspect listed here.
+   */
+  readonly notMeasured?: string[];
 }
 
 export interface TabOrderItem {
   readonly index: number;
   readonly selector: string;
   readonly elementType: string;
-  readonly hasVisibleFocus: boolean;
+  /** null: the focus indicator was not measured (#1228). */
+  readonly hasVisibleFocus: boolean | null;
 }
 
 export interface KeyboardIssue {

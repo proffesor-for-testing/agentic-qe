@@ -198,20 +198,16 @@ export class SecurityVisualTestingSkill implements ISecurityVisualTestingSkill {
         }
       }
 
-      // Step 4: Detect PII in screenshots if enabled
+      // Step 4: Detect PII in screenshots if enabled. #1228: no scanner exists,
+      // so each screenshot is reported as not scanned, never as free of PII.
       if (this.config.pii.enabled && options.detectPII !== false) {
-        // In a real implementation, this would scan all captured screenshots
-        // For now, we'll generate a placeholder result
         for (const url of secureUrls) {
-          piiDetections.push({
-            detected: false,
-            types: [],
-            locations: [],
-            screenshot: { original: `${url}-screenshot.png` },
-            confidence: 0.95,
-          });
+          const screenshot = visualReport.results.find((r) => r.url === url)?.screenshot.path.value ?? '';
+          const detection = await this.detectPII(screenshot);
+          if (detection.success) piiDetections.push(detection.value);
         }
       }
+      const piiScanned = piiDetections.filter((p) => p.measured);
 
       // Step 5: Generate recommendations
       const recommendations = this.generateRecommendations(
@@ -229,7 +225,7 @@ export class SecurityVisualTestingSkill implements ISecurityVisualTestingSkill {
           visualTestsPassed: visualReport.passed,
           visualTestsFailed: visualReport.failed,
           accessibilityIssues: accessibilityReport?.totalViolations ?? 0,
-          piiDetections: piiDetections.filter((p) => p.detected).length,
+          piiDetections: piiScanned.length > 0 ? piiScanned.filter((p) => p.detected === true).length : -1,
           duration: Date.now() - startTime,
         },
         urlValidations,
@@ -290,15 +286,21 @@ export class SecurityVisualTestingSkill implements ISecurityVisualTestingSkill {
 
       const screenshot = screenshotResult.value;
 
-      // Step 5: Detect PII if enabled
-      let piiDetected = false;
+      // Step 5: Detect PII if enabled. #1228: unscanned is null, not false.
+      let piiDetected: boolean | null = null;
+      let piiNotMeasuredReason: string | undefined = 'PII NOT MEASURED: no PII scan was requested';
       let piiTypes: PIIType[] = [];
       let maskedPath: string | undefined;
 
       if (this.config.pii.enabled && (options.maskPII ?? this.config.pii.autoMask)) {
-        const piiResult = await this.detectPII(screenshot.path || 'screenshot.png');
-        if (piiResult.success && piiResult.value.detected) {
-          piiDetected = true;
+        const piiResult = await this.detectPII(screenshot.path || '');
+        if (!piiResult.success) {
+          piiNotMeasuredReason = `PII NOT MEASURED: ${piiResult.error.message}`;
+        } else if (!piiResult.value.measured) {
+          piiNotMeasuredReason = piiResult.value.notMeasuredReason;
+        } else {
+          piiDetected = piiResult.value.detected;
+          piiNotMeasuredReason = undefined;
           piiTypes = piiResult.value.types;
           maskedPath = piiResult.value.screenshot.masked;
         }
@@ -318,6 +320,7 @@ export class SecurityVisualTestingSkill implements ISecurityVisualTestingSkill {
           masked: maskedPath,
         },
         piiDetected,
+        ...(piiNotMeasuredReason ? { piiNotMeasuredReason } : {}),
         piiTypes,
         securityValidation: validation,
         timestamp: new Date(),
@@ -357,25 +360,19 @@ export class SecurityVisualTestingSkill implements ISecurityVisualTestingSkill {
         timestamp: result.screenshot.timestamp,
       }));
 
+      // #1228: a missing diff is -1 and a new baseline is `new`, not a 0% pass or a failure
       const visualRegressions = visualReport.results.map((result) => ({
         viewport: result.viewport,
-        diffPercentage: result.diff?.diffPercentage ?? 0,
-        status: result.status === 'passed' ? 'passed' as const : 'failed' as const,
+        diffPercentage: result.diff?.diffPercentage ?? -1,
+        status: result.status,
       }));
 
-      // Detect layout shifts if enabled
+      // #1228: element positions are not compared across viewports, so layout
+      // shifts are reported as not measured instead of "no shifts detected".
       const layoutShifts: LayoutShift[] = [];
-      if (options.detectLayoutShifts) {
-        // In a real implementation, this would analyze element positions across viewports
-        // For now, we'll generate placeholder data
-        layoutShifts.push({
-          viewport: options.viewports[0],
-          affectedElements: [],
-          score: 0,
-          severity: 'low',
-          description: 'No significant layout shifts detected',
-        });
-      }
+      const layoutShiftsNotMeasured = options.detectLayoutShifts
+        ? { layoutShiftsMeasured: false, layoutShiftsNotMeasuredReason: 'layout shift detection is not implemented: element positions were not compared across viewports' }
+        : {};
 
       // Generate recommendations
       const recommendations: string[] = [];
@@ -393,6 +390,7 @@ export class SecurityVisualTestingSkill implements ISecurityVisualTestingSkill {
         viewports: options.viewports,
         screenshots,
         layoutShifts,
+        ...layoutShiftsNotMeasured,
         visualRegressions,
         recommendations,
       };
@@ -465,20 +463,22 @@ export class SecurityVisualTestingSkill implements ISecurityVisualTestingSkill {
   }
 
   /**
-   * Detect PII in screenshot
+   * Detect PII in screenshot.
+   * No OCR scanner is available, so the result says the screenshot was not
+   * scanned (#1228): detected is null and confidence -1, never "no PII found".
    */
   async detectPII(screenshotPath: string): Promise<Result<PIIDetectionResult, Error>> {
     try {
-      // In a real implementation, this would use OCR and pattern matching
-      // For now, we'll return a placeholder result
       const result: PIIDetectionResult = {
-        detected: false,
+        detected: null,
         types: [],
         locations: [],
         screenshot: {
           original: screenshotPath,
         },
-        confidence: 0.95,
+        confidence: -1,
+        measured: false,
+        notMeasuredReason: 'PII NOT MEASURED: no screenshot PII scanner (OCR) is available, so the screenshot was not scanned',
       };
 
       return ok(result);
@@ -566,6 +566,18 @@ export class SecurityVisualTestingSkill implements ISecurityVisualTestingSkill {
         description: `PII detected in ${piiFound.length} screenshot(s)`,
         action: 'Ensure sensitive data is masked before sharing screenshots',
         affectedUrls: [], // Would need to track which URLs had PII
+      });
+    }
+
+    // #1228: an unscanned screenshot needs a manual check, it is not clean
+    const piiUnscanned = piiDetections.filter((p) => !p.measured);
+    if (piiUnscanned.length > 0) {
+      recommendations.push({
+        type: 'pii',
+        severity: 'medium',
+        description: `PII NOT MEASURED for ${piiUnscanned.length} screenshot(s): ${piiUnscanned[0].notMeasuredReason ?? 'not scanned'}`,
+        action: 'Review the screenshots for PII manually before sharing them',
+        affectedUrls: [],
       });
     }
 

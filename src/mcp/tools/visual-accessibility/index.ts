@@ -446,18 +446,20 @@ export class A11yAuditTool extends MCPToolBase<A11yAuditParams, A11yAuditResult>
           if (contrastResult.success) {
             const failingContrast = contrastResult.value.filter((c) => !c.passes);
             if (failingContrast.length > 0) {
+              // #1228: a ratio the browser did not report (-1) is shown as not measured
+              const ratioText = (c: { ratio: number }) => (c.ratio >= 1 ? `${c.ratio}:1` : 'not measured');
               contrastViolations = failingContrast.map((c) => ({
                 id: 'color-contrast',
                 impact: 'serious' as const,
                 description: 'Elements must have sufficient color contrast',
-                help: `Element ${c.element} has contrast ratio ${c.ratio}:1 but requires ${c.requiredRatio}:1`,
+                help: `Element ${c.element} has contrast ratio ${ratioText(c)} but requires ${c.requiredRatio}:1`,
                 helpUrl: 'https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum',
                 wcagCriteria: ['1.4.3'],
                 nodes: [
                   {
                     selector: c.element,
                     html: `<${c.element.replace('.', ' class="')}>...</${c.element.split('.')[0]}>`,
-                    failureSummary: `Contrast ratio ${c.ratio}:1 is below required ${c.requiredRatio}:1`,
+                    failureSummary: `Contrast ratio ${ratioText(c)} is below required ${c.requiredRatio}:1`,
                     fixSuggestion: `Change foreground color to achieve at least ${c.requiredRatio}:1 contrast`,
                   },
                 ],
@@ -474,6 +476,10 @@ export class A11yAuditTool extends MCPToolBase<A11yAuditParams, A11yAuditResult>
           const keyboardResult = await service.checkKeyboardNavigation(url);
           if (keyboardResult.success) {
             const kbReport = keyboardResult.value;
+            if (kbReport.notMeasured && kbReport.notMeasured.length > 0) {
+              // #1228: no keyboard finding here is not a clean result for these aspects
+              notMeasuredWarnings.push({ id: 'keyboard-not-measured', description: `Keyboard check did not measure: ${kbReport.notMeasured.join('; ')}`, nodes: 0 });
+            }
 
             // Convert keyboard issues to violations
             for (const issue of kbReport.issues) {

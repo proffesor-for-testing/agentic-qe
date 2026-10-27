@@ -29,6 +29,13 @@ import type {
   IAgentBrowserClient,
 } from '../../../integrations/browser/index.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
+import {
+  AXE_CONTRAST_DATA_JS,
+  contrastValues,
+  isContrastRule,
+  toContrastAnalysis,
+  type AxeContrastData,
+} from './accessibility-contrast.js';
 
 /**
  * Axe-core result structure from browser evaluation
@@ -46,6 +53,8 @@ export interface AxeCoreResult {
       html: string;
       target: string[];
       failureSummary?: string;
+      /** color-contrast check data: the measured colours and ratio (#1228) */
+      contrast?: AxeContrastData;
     }>;
   }>;
   passes: string[];
@@ -134,18 +143,10 @@ export function getErrorMessage<T, E extends Error>(result: Result<T, E>): strin
 // ============================================================================
 
 /**
- * Inject and run axe-core in the browser context
+ * Browser-side statements that load axe-core into the page when it is not
+ * loaded yet. For use inside an async function.
  */
-export async function runAxeCore(
-  client: IBrowserClient,
-  wcagLevel: 'A' | 'AA' | 'AAA',
-  options?: AuditOptions
-): Promise<Result<AxeCoreResult, Error>> {
-  const tags = getAxeTagsForWcagLevel(wcagLevel);
-  const excludeSelectors = options?.excludeSelectors ?? [];
-
-  const axeScript = `
-    (async function() {
+export const AXE_LOADER_JS = `
       // Check if axe is already loaded
       if (typeof axe === 'undefined') {
         // Inject axe-core from CDN
@@ -160,7 +161,22 @@ export async function runAxeCore(
           script.onerror = () => reject(new Error('Failed to load axe-core'));
           setTimeout(() => reject(new Error('Timeout loading axe-core')), 10000);
         });
-      }
+      }`;
+
+/**
+ * Inject and run axe-core in the browser context
+ */
+export async function runAxeCore(
+  client: IBrowserClient,
+  wcagLevel: 'A' | 'AA' | 'AAA',
+  options?: AuditOptions
+): Promise<Result<AxeCoreResult, Error>> {
+  const tags = getAxeTagsForWcagLevel(wcagLevel);
+  const excludeSelectors = options?.excludeSelectors ?? [];
+
+  const axeScript = `
+    (async function() {
+      ${AXE_LOADER_JS}
 
       // Configure and run axe
       const config = {
@@ -185,7 +201,8 @@ export async function runAxeCore(
             selector: n.target.join(' > '),
             html: n.html,
             target: n.target,
-            failureSummary: n.failureSummary
+            failureSummary: n.failureSummary,
+            contrast: (${AXE_CONTRAST_DATA_JS})(n)
           }))
         })),
         passes: results.passes.map(p => p.id),
@@ -262,6 +279,8 @@ export function mapAxeResultToReport(
       html: n.html,
       target: n.target,
       failureSummary: n.failureSummary ?? '',
+      // #1228: keep the colours and ratio axe-core measured
+      ...(isContrastRule(v.id) ? { contrast: contrastValues(n.contrast, n.failureSummary) } : {}),
     })),
   }));
 
@@ -359,51 +378,32 @@ export function mapVibiumResultToReport(
 }
 
 /**
- * Extract contrast analysis from Vibium accessibility result
+ * Extract contrast analysis from Vibium accessibility result.
+ * Only elements the audit reported are listed, with the values it reported
+ * (#1228). An error means the contrast rule produced no result.
  */
 export function extractContrastFromVibiumResult(
   vibiumResult: VibiumAccessibilityResult,
   defaultWCAGLevel: 'A' | 'AA' | 'AAA'
-): ContrastAnalysis[] {
+): Result<ContrastAnalysis[], Error> {
   const analyses: ContrastAnalysis[] = [];
 
   for (const violation of vibiumResult.violations) {
-    if (violation.rule.includes('contrast') || violation.id.includes('contrast')) {
+    if (isContrastRule(violation.rule) || isContrastRule(violation.id)) {
       for (const node of violation.nodes) {
-        const colorMatch = node.failureSummary.match(
-          /foreground:?\s*([#\w\d]+).*?background:?\s*([#\w\d]+)/i
-        );
-        const ratioMatch = node.failureSummary.match(/ratio\s*[:\s]*(\d+\.?\d*)/i);
-
-        analyses.push({
-          element: node.selector,
-          foreground: colorMatch?.[1] || '#000000',
-          background: colorMatch?.[2] || '#ffffff',
-          ratio: ratioMatch ? parseFloat(ratioMatch[1]) : 1.0,
-          requiredRatio: defaultWCAGLevel === 'AAA' ? 7 : 4.5,
-          passes: false,
-          wcagLevel: defaultWCAGLevel,
-        });
+        analyses.push(toContrastAnalysis(
+          node.selector, contrastValues(undefined, node.failureSummary), false, defaultWCAGLevel
+        ));
       }
     }
   }
 
-  if (analyses.length === 0 && vibiumResult.passedRules.some(r => r.includes('contrast'))) {
-    const commonElements = ['h1', 'p', 'a', 'button'];
-    for (const element of commonElements) {
-      analyses.push({
-        element,
-        foreground: '#333333',
-        background: '#ffffff',
-        ratio: 12.63,
-        requiredRatio: defaultWCAGLevel === 'AAA' ? 7 : 4.5,
-        passes: true,
-        wcagLevel: defaultWCAGLevel,
-      });
-    }
+  if (analyses.length === 0 && !vibiumResult.passedRules.some(isContrastRule)) {
+    return err(new Error('the contrast rule reported neither a violation nor a pass'));
   }
 
-  return analyses;
+  // A passing rule is reported without its elements, so no element is listed for it.
+  return ok(analyses);
 }
 
 // ============================================================================
@@ -600,9 +600,7 @@ export async function checkContrastWithVibium(
         return err(new Error(`Contrast check failed: ${getErrorMessage(a11yResult)}`));
       }
 
-      const analyses = extractContrastFromVibiumResult(a11yResult.value, defaultWCAGLevel);
-
-      return ok(analyses);
+      return extractContrastFromVibiumResult(a11yResult.value, defaultWCAGLevel);
     } finally {
       await vibiumClient.quit();
     }
@@ -654,7 +652,8 @@ export async function checkKeyboardWithVibium(
         index,
         selector: elem.selector,
         elementType: getElementType(elem.tagName),
-        hasVisibleFocus: true,
+        // #1228: the focus indicator is not checked, so it is not reported as visible
+        hasVisibleFocus: null,
       }));
 
       const a11yResult = await vibiumClient.checkAccessibility({
@@ -666,6 +665,10 @@ export async function checkKeyboardWithVibium(
 
       const issues: KeyboardIssue[] = [];
       const traps: FocusTrap[] = [];
+      const notMeasured = [...KEYBOARD_NOT_MEASURED];
+      if (!a11yResult.success) {
+        notMeasured.push(`keyboard rule checks (${getErrorMessage(a11yResult)})`);
+      }
 
       if (a11yResult.success) {
         for (const violation of a11yResult.value.violations) {
@@ -695,6 +698,7 @@ export async function checkKeyboardWithVibium(
         tabOrder,
         issues,
         traps,
+        notMeasured,
       };
 
       return ok(report);
@@ -709,6 +713,15 @@ export async function checkKeyboardWithVibium(
 // ============================================================================
 // Keyboard Helpers
 // ============================================================================
+
+/**
+ * What an automated keyboard check does not measure (#1228): it lists the
+ * focusable elements and runs rule checks, but tabs through nothing.
+ */
+export const KEYBOARD_NOT_MEASURED: readonly string[] = [
+  'visible focus indicator (hasVisibleFocus is null)',
+  'focus traps (no element was tabbed through)',
+];
 
 /**
  * Get element type from tag name
@@ -734,7 +747,7 @@ export function mapKeyboardIssueType(rule: string): KeyboardIssue['type'] {
   if (rule.includes('skip') || rule.includes('bypass')) {
     return 'skip-link-missing';
   }
-  if (rule.includes('order') || rule.includes('sequence')) {
+  if (rule.includes('order') || rule.includes('sequence') || rule.includes('tabindex')) {
     return 'incorrect-tab-order';
   }
   return 'non-interactive-focusable';
