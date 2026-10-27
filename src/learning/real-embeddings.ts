@@ -578,7 +578,9 @@ export async function recheckEmbedder(config: Partial<EmbeddingConfig> = {}): Pr
     return initRetryPromise;
   }
   const client = endpointClient;
-  if (!client || !client.getBreakerState().open) return;
+  // #1216: also when the breaker window elapsed but no trial probe has
+  // succeeded yet; embed() would only start that trial and fail fast.
+  if (!client || !client.needsTrial()) return;
   const identity = await client.probeThroughOpenBreaker();
   if (endpointIdentity && identity.fingerprint !== endpointIdentity.fingerprint) {
     throw new Error(

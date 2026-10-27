@@ -15,7 +15,7 @@
  * subprocess; that fidelity is better verified by the build smoke test.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as http from 'node:http';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -356,6 +356,29 @@ describe('real-embeddings.ts — ADR-097 endpoint branch', () => {
 
       expect(vec).toHaveLength(getEmbeddingDimension());
     } finally {
+      resetInitialization();
+      await flaky.close();
+    }
+  });
+
+  it('recheckEmbedder runs the trial probe after the breaker window elapsed (#1216)', async () => {
+    const flaky = await startControllableServer();
+    try {
+      await computeRealEmbedding('x', { endpoint: flaky.url, enableCache: false });
+      flaky.mode = 'down';
+      for (let i = 0; i < 3; i++) {
+        await expect(computeRealEmbedding('x', { endpoint: flaky.url, enableCache: false })).rejects.toThrow(/HTTP 503/);
+      }
+      flaky.mode = 'up';
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(Date.now() + 61_000);
+
+      await recheckEmbedder({ endpoint: flaky.url });
+      const vec = await computeRealEmbedding('x', { endpoint: flaky.url, enableCache: false });
+
+      expect(vec).toHaveLength(getEmbeddingDimension());
+    } finally {
+      vi.useRealTimers();
       resetInitialization();
       await flaky.close();
     }

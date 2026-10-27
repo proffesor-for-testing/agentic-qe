@@ -151,12 +151,31 @@ export function parseEndpoint(endpoint: string): ParsedEndpoint {
 }
 
 /**
+ * #1216: a connect or request timeout. The host did not answer within the
+ * budget, so the breaker opens on the first one instead of counting it as one
+ * failure of `failureThreshold`.
+ */
+export class EmbedderEndpointTimeoutError extends Error {
+  constructor(
+    readonly phase: 'connect' | 'request',
+    readonly limitMs: number
+  ) {
+    super(`[EmbedderEndpointClient] ${phase} timeout after ${limitMs}ms`);
+    this.name = 'EmbedderEndpointTimeoutError';
+  }
+}
+
+/**
  * Circuit breaker state.
  *
- * Tracks failure timestamps within `windowMs`. Opens when count reaches `threshold`.
+ * Tracks failure timestamps within `windowMs`. Opens when count reaches `threshold`,
+ * or at once on a timeout (#1216): timeouts arrive one timeout apart, so with a
+ * 30 s request timeout and a 60 s window they would never add up to three.
  * While open, every request fast-fails until the window expires. On recovery
  * (window elapses), the breaker calls `onRecover` so the client can invalidate
  * cached endpoint identity — endpoint restarts often coincide with model swaps.
+ * Whenever it opens, it calls `onTrip` so the client can abandon requests
+ * still waiting on the host.
  */
 class CircuitBreaker {
   private failures: number[] = [];
@@ -164,7 +183,8 @@ class CircuitBreaker {
   constructor(
     private readonly threshold: number,
     private readonly windowMs: number,
-    private readonly onRecover: () => void = () => {}
+    private readonly onRecover: () => void = () => {},
+    private readonly onTrip: () => void = () => {}
   ) {}
 
   recordSuccess(): void {
@@ -172,12 +192,15 @@ class CircuitBreaker {
     this.trippedAt = null;
   }
 
-  recordFailure(): void {
+  recordFailure(tripNow = false): void {
+    // Requests abandoned when the breaker opened fail too; they must not
+    // extend the window.
+    if (this.trippedAt !== null) return;
     const now = Date.now();
     this.failures = this.failures.filter((t) => now - t < this.windowMs);
     this.failures.push(now);
-    if (this.failures.length >= this.threshold) {
-      this.trippedAt = now;
+    if (tripNow || this.failures.length >= this.threshold) {
+      this.trip();
     }
   }
 
@@ -196,6 +219,7 @@ class CircuitBreaker {
   /** #1204: open (or re-open) the breaker for a full window from now. */
   trip(): void {
     this.trippedAt = Date.now();
+    this.onTrip();
   }
 
   /** For tests / observability */
@@ -221,6 +245,14 @@ export class EmbedderEndpointClient {
   private cachedIdentity: EndpointIdentity | null = null;
   /** True while a probe is in flight — prevents the embed() lazy-probe race. */
   private probeInFlight: Promise<EndpointIdentity> | null = null;
+  /**
+   * #1216: set when the breaker window elapsed and no probe has succeeded
+   * since. The next probe is the breaker's half-open trial; it runs in the
+   * background so no caller waits on a host that may still not answer.
+   */
+  private trialPending = false;
+  /** #1216: requests waiting on the host, abandoned when the breaker opens. */
+  private readonly inFlight = new Set<(err: Error) => void>();
 
   constructor(options: EmbedderEndpointClientOptions) {
     this.opts = {
@@ -256,8 +288,40 @@ export class EmbedderEndpointClient {
         // On breaker recovery, drop identity so the next embed() re-probes.
         // Endpoint restarts (the common cause of recovery) often change models.
         this.cachedIdentity = null;
-      }
+        this.trialPending = true;
+      },
+      () => this.abandonInFlight()
     );
+  }
+
+  /**
+   * #1216: the breaker opened, so the host is treated as down. Requests that
+   * are still waiting on it fail now rather than each waiting out its own
+   * timeout.
+   */
+  private abandonInFlight(): void {
+    if (this.inFlight.size === 0) return;
+    const err = new Error(
+      `[EmbedderEndpointClient] circuit breaker opened for ${this.parsed.safeUrl} — request abandoned`
+    );
+    for (const reject of [...this.inFlight]) reject(err);
+  }
+
+  /**
+   * #1216: true while the endpoint is not known to work: the breaker is open,
+   * or its window elapsed and the trial probe has not succeeded yet.
+   */
+  needsTrial(): boolean {
+    return this.breaker.isOpen() || this.trialPending;
+  }
+
+  /** Start the half-open trial probe in the background (one at a time). */
+  private startTrialProbe(): void {
+    if (this.probeInFlight) return;
+    this.probe().catch(() => {
+      // Still failing: keep fast-failing for another full window.
+      this.breaker.trip();
+    });
   }
 
   /** Public, redacted endpoint URL for logs/metrics. */
@@ -284,6 +348,16 @@ export class EmbedderEndpointClient {
     }
     // Identity gate: every embed call must have a verified identity behind it.
     if (this.cachedIdentity === null) {
+      if (this.trialPending) {
+        // #1216: half-open. The endpoint failed until a window ago and may
+        // still not answer. Probe it in the background as the single trial
+        // and fail fast here; callers after a successful trial embed again.
+        this.startTrialProbe();
+        throw new Error(
+          `[EmbedderEndpointClient] circuit breaker half-open for ${this.parsed.safeUrl} — ` +
+            `trial probe running, fast-failing`
+        );
+      }
       await this.ensureProbed();
     }
     try {
@@ -292,7 +366,7 @@ export class EmbedderEndpointClient {
       this.breaker.recordSuccess();
       return vectors;
     } catch (err) {
-      this.breaker.recordFailure();
+      this.breaker.recordFailure(err instanceof EmbedderEndpointTimeoutError);
       throw err;
     }
   }
@@ -324,7 +398,7 @@ export class EmbedderEndpointClient {
       vec = vectors[0];
       this.breaker.recordSuccess();
     } catch (err) {
-      this.breaker.recordFailure();
+      this.breaker.recordFailure(err instanceof EmbedderEndpointTimeoutError);
       throw err;
     }
     if (!vec || vec.length !== this.opts.expectedDim) {
@@ -348,6 +422,7 @@ export class EmbedderEndpointClient {
       fingerprint,
       endpoint: this.parsed.safeUrl,
     };
+    this.trialPending = false;
     return this.cachedIdentity;
   }
 
@@ -480,12 +555,18 @@ export class EmbedderEndpointClient {
       const safeResolve = (val: unknown) => {
         if (settled) return;
         settled = true;
+        this.inFlight.delete(abandon);
         resolve(val);
       };
       const safeReject = (err: Error) => {
         if (settled) return;
         settled = true;
+        this.inFlight.delete(abandon);
         reject(err);
+      };
+      const abandon = (err: Error) => {
+        safeReject(err);
+        req.destroy(err);
       };
 
       const req = requestFn(reqOptions, (res) => {
@@ -539,7 +620,7 @@ export class EmbedderEndpointClient {
           // Distinguish phase for the error message.
           const phase = socket.connecting ? 'connect' : 'request';
           const limit = socket.connecting ? connectTimeoutMs : requestTimeoutMs;
-          const err = new Error(`[EmbedderEndpointClient] ${phase} timeout after ${limit}ms`);
+          const err = new EmbedderEndpointTimeoutError(phase, limit);
           // Reject FIRST, then destroy. If we destroy first, the 'error' event
           // races us and we might lose the timeout-specific message.
           safeReject(err);
@@ -548,6 +629,7 @@ export class EmbedderEndpointClient {
       });
 
       req.on('error', (err) => safeReject(err));
+      this.inFlight.add(abandon);
       req.write(body);
       req.end();
     });
