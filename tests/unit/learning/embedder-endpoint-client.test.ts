@@ -579,6 +579,53 @@ describe('EmbedderEndpointClient', () => {
     expect(out[0]).toHaveLength(384);
   });
 
+  // -- #1285: socket listeners on keep-alive sockets --
+
+  /** The keep-alive sockets the client's agent holds for reuse. */
+  function pooledSockets(c: EmbedderEndpointClient): import('node:net').Socket[] {
+    const agent = (c as unknown as { agent: http.Agent }).agent;
+    return Object.values(agent.freeSockets).flat() as import('node:net').Socket[];
+  }
+
+  it('#1285: sequential requests on one keep-alive socket do not pile up timeout listeners', async () => {
+    const warnings: Error[] = [];
+    const onWarning = (w: Error) => warnings.push(w);
+    process.on('warning', onWarning);
+    try {
+      await client.embed(['first']);
+      const [socket] = pooledSockets(client);
+      const baseline = socket.listenerCount('timeout'); // the agent's own idle handler
+
+      for (let i = 0; i < 30; i++) await client.embed([`text-${i}`]);
+
+      const sockets = pooledSockets(client);
+      expect(sockets).toEqual([socket]); // the same socket served every request
+      expect(socket.listenerCount('timeout')).toBe(baseline);
+      expect(socket.listenerCount('timeout')).toBeLessThanOrEqual(1);
+      expect(socket.listenerCount('connect')).toBe(0);
+      await new Promise((r) => setImmediate(r));
+      expect(warnings.filter((w) => w.name === 'MaxListenersExceededWarning')).toEqual([]);
+    } finally {
+      process.off('warning', onWarning);
+    }
+  });
+
+  it('#1285: a request on a reused socket still times out, and only that request fails', async () => {
+    client.close();
+    client = new EmbedderEndpointClient({ endpoint: server.url, requestTimeoutMs: 100 });
+    for (let i = 0; i < 5; i++) await client.embed([`warm-${i}`]);
+    const [socket] = pooledSockets(client);
+    server.responder = hangingResponder();
+
+    const started = Date.now();
+    await expect(client.embed(['hang'])).rejects.toThrow(/request timeout after 100ms/);
+
+    expect(Date.now() - started).toBeLessThan(1_000);
+    expect(socket.destroyed).toBe(true);
+    // Earlier, settled requests left no handler that could have fired too.
+    expect(socket.listenerCount('timeout')).toBeLessThanOrEqual(1);
+  });
+
   // -- ADR-097 boundary hardening (devil's-advocate audit) --
 
   it('embed() lazily probes when no cached identity exists', async () => {
