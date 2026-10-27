@@ -35,6 +35,30 @@ interface StoredVectorMetadata {
 }
 
 /**
+ * Indexed file content. #1231: `embeddingModel` is set when a vector from that
+ * model was stored with it, so a search can tell which files have none.
+ */
+interface StoredContent {
+  file: string;
+  content: string;
+  metadata: Record<string, unknown>;
+  embeddingModel?: string;
+}
+
+export interface IndexCodeOptions {
+  /** false: store the text only, without asking the embedding model (#1230: it kept failing this run). */
+  embed?: boolean;
+}
+
+/** What indexCode stored for a file. */
+export interface IndexedCode {
+  /** A vector from the current embedding model was stored. */
+  vector: boolean;
+  /** Set when an embedding model is configured but failed for this file. */
+  vectorFailure?: string;
+}
+
+/**
  * Interface for the semantic analyzer service
  */
 export interface ISemanticAnalyzerService {
@@ -42,7 +66,7 @@ export interface ISemanticAnalyzerService {
   search(request: SearchRequest): Promise<Result<SearchResults, Error>>;
 
   /** Index code for semantic search */
-  indexCode(file: string, content: string): Promise<Result<void, Error>>;
+  indexCode(file: string, content: string, options?: IndexCodeOptions): Promise<Result<IndexedCode, Error>>;
 
   /** Find semantically similar code */
   findSimilar(code: string, limit?: number): Promise<Result<SearchResult[], Error>>;
@@ -214,13 +238,13 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
       }
 
       let results: SearchResult[];
-      let lexicalOnlyReason: string | undefined;
+      let semanticOutcome: Pick<SearchResults, 'mode' | 'reason' | 'coverage'> = {};
 
       switch (type) {
         case 'semantic': {
-          const semantic = await this.semanticSearch(query, limit, scope, filters);
-          results = semantic.results;
-          lexicalOnlyReason = semantic.lexicalOnlyReason;
+          const { results: hits, ...outcome } = await this.semanticSearch(query, limit, scope, filters);
+          results = hits;
+          semanticOutcome = outcome;
           break;
         }
         case 'exact':
@@ -239,11 +263,7 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
         results,
         total: results.length,
         searchTime,
-        ...(type === 'semantic'
-          ? lexicalOnlyReason === undefined
-            ? { mode: 'vector' as const }
-            : { mode: 'lexical-only' as const, reason: lexicalOnlyReason }
-          : {}),
+        ...semanticOutcome,
       });
     } catch (error) {
       return err(toError(error));
@@ -253,14 +273,19 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
   /**
    * Index code content for semantic search
    */
-  async indexCode(file: string, content: string): Promise<Result<void, Error>> {
+  async indexCode(
+    file: string,
+    content: string,
+    options: IndexCodeOptions = {}
+  ): Promise<Result<IndexedCode, Error>> {
     try {
       // Extract code metadata
       const metadata = this.extractCodeMetadata(file, content);
 
       // #1224: store a vector only when a real embedding model produced one;
       // without it the file is still searchable by text.
-      const embedded = await this.tryEmbed(content);
+      const embedded: { vector?: number[]; reason?: string } =
+        options.embed === false ? {} : await this.tryEmbed(content);
       if (embedded.vector) {
         const key = `${this.vectorKeyPrefix()}${this.fileToKey(file)}`;
         await this.memory.storeVector(key, embedded.vector, {
@@ -278,12 +303,18 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
       // namespace, and a write with {namespace} could not be read back without
       // the same option (issue #491 Bug 2) — which silently dropped every
       // search result (#511 follow-up).
-      await this.memory.set(
-        `${this.config.namespace}:content:${this.fileToKey(file)}`,
-        { file, content, metadata }
-      );
+      const stored: StoredContent = embedded.vector
+        ? { file, content, metadata, embeddingModel: this.embeddingModelId() }
+        : { file, content, metadata };
+      await this.memory.set(`${this.config.namespace}:content:${this.fileToKey(file)}`, stored);
 
-      return ok(undefined);
+      return ok(
+        embedded.vector
+          ? { vector: true }
+          : this.embedder && embedded.reason
+            ? { vector: false, vectorFailure: embedded.reason }
+            : { vector: false }
+      );
     } catch (error) {
       return err(toError(error));
     }
@@ -441,6 +472,15 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
     return `${this.config.namespace}:content:*`;
   }
 
+  /** Visits every indexed file's stored content, one at a time. */
+  private async forEachIndexed(visit: (stored: StoredContent) => void): Promise<void> {
+    const keys = await this.memory.search(this.contentKeyPattern(), MAX_INDEXED_FILES_SCANNED);
+    for (const key of keys) {
+      const stored = await this.memory.get<StoredContent>(key);
+      if (stored) visit(stored);
+    }
+  }
+
   // ============================================================================
   // Private Search Methods
   // ============================================================================
@@ -448,20 +488,21 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
   /**
    * #1224: vector search when an embedding model is available. Otherwise (or
    * when no indexed file has a vector from that model) it matches query words
-   * against the indexed text and says so through `lexicalOnlyReason`; no
-   * similarity is invented for those hits.
+   * against the indexed text and reports `mode: 'lexical-only'` with the
+   * reason; no similarity is invented for those hits.
    */
   private async semanticSearch(
     query: string,
     limit: number,
     scope?: string[],
     filters?: SearchFilter[]
-  ): Promise<{ results: SearchResult[]; lexicalOnlyReason?: string }> {
+  ): Promise<{ results: SearchResult[] } & Pick<SearchResults, 'mode' | 'reason' | 'coverage'>> {
     const embedded = await this.tryEmbed(query);
     if (!embedded.vector) {
       return {
         results: await this.lexicalSearch(query, limit, scope, filters),
-        lexicalOnlyReason: embedded.reason,
+        mode: 'lexical-only',
+        reason: embedded.reason,
       };
     }
 
@@ -474,7 +515,8 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
     if (vectorResults.length === 0) {
       return {
         results: await this.lexicalSearch(query, limit, scope, filters),
-        lexicalOnlyReason: `no indexed file has an embedding from ${this.embeddingModelId()}; re-index to enable vector search`,
+        mode: 'lexical-only',
+        reason: `no indexed file has an embedding from ${this.embeddingModelId()}; re-index to enable vector search`,
       };
     }
 
@@ -518,7 +560,52 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
       }
     }
 
-    return { results };
+    return this.withVectorlessFiles(query, results, limit, scope, filters);
+  }
+
+  /**
+   * #1231: files indexed while the embedding model was unavailable have no
+   * vector, so vector search cannot rank them. Match those by text, label the
+   * hits 'lexical', and report the result as 'partial-vector' with the counts.
+   * Hits are merged by score; a lexical score is the share of query words found.
+   */
+  private async withVectorlessFiles(
+    query: string,
+    vectorHits: SearchResult[],
+    limit: number,
+    scope?: string[],
+    filters?: SearchFilter[]
+  ): Promise<{ results: SearchResult[] } & Pick<SearchResults, 'mode' | 'reason' | 'coverage'>> {
+    const model = this.embeddingModelId();
+    const vectorFiles = new Set(vectorHits.map((hit) => hit.file));
+    const queryTokens = this.tokenize(query.toLowerCase());
+    const lexicalHits: SearchResult[] = [];
+    let indexedFiles = 0;
+    let withoutVector = 0;
+
+    await this.forEachIndexed((stored) => {
+      indexedFiles++;
+      if (stored.embeddingModel === model) return;
+      withoutVector++;
+      if (vectorFiles.has(stored.file)) return;
+      const hit = this.fuzzyMatch(queryTokens, stored, scope, filters);
+      if (hit) lexicalHits.push({ ...hit, matchType: 'lexical' });
+    });
+
+    const coverage = { indexedFiles, filesWithVector: indexedFiles - withoutVector };
+    if (withoutVector === 0) {
+      return { results: vectorHits, mode: 'vector', coverage };
+    }
+    return {
+      results: [...vectorHits, ...lexicalHits].sort((a, b) => b.score - a.score).slice(0, limit),
+      mode: 'partial-vector',
+      reason:
+        `${withoutVector} of ${indexedFiles} indexed files have no embedding from ${model} ` +
+        '(it was unavailable when they were indexed, or an older aqe version indexed them), ' +
+        'so they were matched by text only (matchType "lexical"); ' +
+        're-index to rank them by vector',
+      coverage,
+    };
   }
 
   /** Word-overlap matching for a semantic query when no vectors can be used. */
@@ -589,51 +676,46 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
     filters?: SearchFilter[]
   ): Promise<SearchResult[]> {
     const results: SearchResult[] = [];
-    const keys = await this.memory.search(this.contentKeyPattern(), MAX_INDEXED_FILES_SCANNED);
-
     const queryTokens = this.tokenize(query.toLowerCase());
 
-    for (const key of keys) {
-      const stored = await this.memory.get<{
-        file: string;
-        content: string;
-        metadata: Record<string, unknown>;
-      }>(key);
-
-      if (!stored) continue;
-
-      // Apply scope filter
-      if (scope && scope.length > 0) {
-        const matchesScope = scope.some((s) => stored.file.includes(s));
-        if (!matchesScope) continue;
-      }
-
-      // Apply filters
-      if (filters && !this.matchesFilters(stored.metadata, filters)) {
-        continue;
-      }
-
-      // Fuzzy match using token overlap
-      const contentTokens = this.tokenize(stored.content.toLowerCase());
-      const score = this.calculateFuzzyScore(queryTokens, contentTokens);
-
-      if (score >= this.config.minScore) {
-        const matchedTokens = queryTokens.filter((t) =>
-          contentTokens.some((ct) => this.tokensMatch(t, ct))
-        );
-
-        results.push({
-          file: stored.file,
-          snippet: this.extractSnippet(stored.content, 200),
-          score,
-          highlights: matchedTokens,
-          metadata: stored.metadata,
-        });
-      }
-    }
+    await this.forEachIndexed((stored) => {
+      const hit = this.fuzzyMatch(queryTokens, stored, scope, filters);
+      if (hit) results.push(hit);
+    });
 
     // Sort by score and limit
     return results.sort((a, b) => b.score - a.score).slice(0, limit);
+  }
+
+  /** Token-overlap match of one indexed file, or null when it is filtered out or scores too low. */
+  private fuzzyMatch(
+    queryTokens: string[],
+    stored: StoredContent,
+    scope?: string[],
+    filters?: SearchFilter[]
+  ): SearchResult | null {
+    // Apply scope filter
+    if (scope && scope.length > 0 && !scope.some((s) => stored.file.includes(s))) {
+      return null;
+    }
+
+    // Apply filters
+    if (filters && !this.matchesFilters(stored.metadata, filters)) {
+      return null;
+    }
+
+    // Fuzzy match using token overlap
+    const contentTokens = this.tokenize(stored.content.toLowerCase());
+    const score = this.calculateFuzzyScore(queryTokens, contentTokens);
+    if (score < this.config.minScore) return null;
+
+    return {
+      file: stored.file,
+      snippet: this.extractSnippet(stored.content, 200),
+      score,
+      highlights: queryTokens.filter((t) => contentTokens.some((ct) => this.tokensMatch(t, ct))),
+      metadata: stored.metadata,
+    };
   }
 
   // ============================================================================
