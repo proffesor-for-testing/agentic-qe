@@ -552,15 +552,21 @@ export class EmbedderEndpointClient {
 
     return new Promise<unknown>((resolve, reject) => {
       let settled = false;
+      // #1285: removes this request's listeners from its socket. Keep-alive
+      // sockets serve many requests; listeners left behind pile up and a
+      // finished request's timeout handler would fire for a later request.
+      let detachFromSocket = () => {};
       const safeResolve = (val: unknown) => {
         if (settled) return;
         settled = true;
+        detachFromSocket();
         this.inFlight.delete(abandon);
         resolve(val);
       };
       const safeReject = (err: Error) => {
         if (settled) return;
         settled = true;
+        detachFromSocket();
         this.inFlight.delete(abandon);
         reject(err);
       };
@@ -616,7 +622,7 @@ export class EmbedderEndpointClient {
         } else {
           onConnect();
         }
-        socket.on('timeout', () => {
+        const onTimeout = () => {
           // Distinguish phase for the error message.
           const phase = socket.connecting ? 'connect' : 'request';
           const limit = socket.connecting ? connectTimeoutMs : requestTimeoutMs;
@@ -625,7 +631,14 @@ export class EmbedderEndpointClient {
           // races us and we might lose the timeout-specific message.
           safeReject(err);
           req.destroy(err);
-        });
+        };
+        socket.on('timeout', onTimeout);
+        detachFromSocket = () => {
+          socket.removeListener('timeout', onTimeout);
+          socket.removeListener('connect', onConnect);
+        };
+        // Settled before the socket was assigned: nothing of ours may stay on it.
+        if (settled) detachFromSocket();
       });
 
       req.on('error', (err) => safeReject(err));
