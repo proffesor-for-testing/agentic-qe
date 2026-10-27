@@ -441,8 +441,9 @@ async function persistExperience(
     return;
   }
 
+  const memory = memoryManager;
   try {
-    const db = memoryManager.getDatabase();
+    const db = memory.getDatabase();
     if (!db) return;
 
     const stmt = db.prepare(`
@@ -452,7 +453,9 @@ async function persistExperience(
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)
     `);
 
-    stmt.run(
+    // #1274: queued, so a locked memory.db does not freeze the MCP server's
+    // event loop while experiences are captured.
+    await memory.writeWhenUnlocked(() => stmt.run(
       outcome.id,
       context.task,
       context.agent,
@@ -467,10 +470,10 @@ async function persistExperience(
       outcome.error || null,
       context.startedAt.toISOString(),
       'middleware'
-    );
+    ));
 
     // Fire-and-forget: compute and store embedding for this experience
-    computeExperienceEmbedding(db, outcome.id, context.task, context.domain).catch((e) => { ecLogger.warn('Embedding computation failed', { error: e instanceof Error ? e.message : String(e), experienceId: outcome.id, domain: context.domain }); });
+    computeExperienceEmbedding(memory, outcome.id, context.task, context.domain).catch((e) => { ecLogger.warn('Embedding computation failed', { error: e instanceof Error ? e.message : String(e), experienceId: outcome.id, domain: context.domain }); });
   } catch (error) {
     console.error('[ExperienceCaptureMiddleware] Failed to persist experience:', error);
   }
@@ -481,7 +484,7 @@ async function persistExperience(
  * Uses the shared ONNX transformer model (all-MiniLM-L6-v2, 384-dim).
  */
 async function computeExperienceEmbedding(
-  db: ReturnType<import('../kernel/unified-memory.js').UnifiedMemoryManager['getDatabase']>,
+  memory: UnifiedMemoryManager,
   experienceId: string,
   task: string,
   domain: string
@@ -493,11 +496,12 @@ async function computeExperienceEmbedding(
     if (!embedding || embedding.length === 0) return;
 
     const buffer = Buffer.from(new Float32Array(embedding).buffer);
-    db.prepare(`
+    const db = memory.getDatabase();
+    await memory.writeWhenUnlocked(() => db.prepare(`
       UPDATE captured_experiences
       SET embedding = ?, embedding_dimension = ?
       WHERE id = ? AND embedding IS NULL
-    `).run(buffer, embedding.length, experienceId);
+    `).run(buffer, embedding.length, experienceId));
   } catch {
     // Non-critical — embedding will be backfilled later if needed
   }
@@ -511,9 +515,10 @@ async function persistToSonaPatterns(
   outcome: ExperienceOutcome
 ): Promise<void> {
   if (!memoryManager) return;
+  const memory = memoryManager;
 
   try {
-    const db = memoryManager.getDatabase();
+    const db = memory.getDatabase();
     if (!db) return;
 
     // Only store successful patterns with decent quality
@@ -527,7 +532,7 @@ async function persistToSonaPatterns(
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
     `);
 
-    stmt.run(
+    await memory.writeWhenUnlocked(() => stmt.run(
       `sona-${outcome.id}`,
       'task-execution',
       context.domain,
@@ -544,7 +549,7 @@ async function persistToSonaPatterns(
         stepsCount: outcome.steps.length,
         modelTier: context.modelTier,
       })
-    );
+    ));
   } catch (error) {
     // Log but don't fail - sona_patterns might not exist
     console.warn('[ExperienceCaptureMiddleware] Failed to persist to sona_patterns:', error);

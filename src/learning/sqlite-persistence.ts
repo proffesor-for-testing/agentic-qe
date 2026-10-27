@@ -192,6 +192,17 @@ export class SQLitePatternStore {
   }
 
   /**
+   * Run a write through the shared connection's writeWhenUnlocked queue
+   * (#1274), so a locked memory.db does not freeze the MCP server's event
+   * loop. On a private connection (useUnified: false) the write runs now.
+   */
+  writeWhenUnlocked<T>(fn: () => T): Promise<T> {
+    return this.unifiedMemory
+      ? this.unifiedMemory.writeWhenUnlocked(fn)
+      : new Promise<T>((resolve) => resolve(fn()));
+  }
+
+  /**
    * Initialize the database
    */
   async initialize(): Promise<void> {

@@ -134,9 +134,15 @@ export class SessionOperationCache {
   private hits = 0;
   private misses = 0;
   private generation = 0;
+  private readonly resolveMemory: () => UnifiedMemory | null;
 
-  constructor(config?: Partial<SessionCacheConfig>) {
+  /**
+   * @param resolveMemory Where persisted entries live; defaults to the shared
+   *   UnifiedMemoryManager once it is initialized (injectable for tests).
+   */
+  constructor(config?: Partial<SessionCacheConfig>, resolveMemory: () => UnifiedMemory | null = tryGetMemory) {
     this.config = { ...DEFAULT_SESSION_CACHE_CONFIG, ...config };
+    this.resolveMemory = resolveMemory;
   }
 
   /**
@@ -240,7 +246,7 @@ export class SessionOperationCache {
    */
   loadFromDb(): void {
     try {
-      const db = tryGetDb();
+      const db = this.resolveMemory()?.getDatabase();
       if (!db) return;
 
       const cutoffMs = Date.now() - this.config.ttlMs;
@@ -301,12 +307,10 @@ export class SessionOperationCache {
     this.cache.clear();
     this.generation++;
     if (this.config.persistToDb) {
-      try {
-        const db = tryGetDb();
-        db?.prepare("DELETE FROM kv_store WHERE namespace = 'session_cache'").run();
-      } catch {
-        // Cache invalidation must not prevent the tool response.
-      }
+      // #1274: runs after every state-changing tool call, so it must not wait
+      // synchronously on a locked memory.db. Queued writes keep their order,
+      // so a later persistEntry still lands after this delete.
+      this.persistInBackground((db) => db.prepare("DELETE FROM kv_store WHERE namespace = 'session_cache'").run());
     }
     return removed;
   }
@@ -332,6 +336,25 @@ export class SessionOperationCache {
     return removed;
   }
 
+  /**
+   * Persist a cache change without blocking the caller (#1274). The write goes
+   * through the shared connection's writeWhenUnlocked queue: with memory.db
+   * unlocked and nothing queued it runs at once, as before; while another
+   * process holds the lock it retries asynchronously for the usual busy_timeout
+   * instead of freezing the MCP server's event loop. Failure is non-critical,
+   * since the in-memory cache is already up to date.
+   */
+  private persistInBackground(write: (db: Db) => unknown): void {
+    const um = this.resolveMemory();
+    if (!um) return;
+    try {
+      const db = um.getDatabase();
+      um.writeWhenUnlocked(() => write(db)).catch(() => { /* cache works without persistence */ });
+    } catch {
+      /* cache works without persistence */
+    }
+  }
+
   /** Evict the oldest entry by cachedAt */
   private evictOldest(): void {
     let oldestKey: string | null = null;
@@ -347,29 +370,19 @@ export class SessionOperationCache {
 
   /** Persist a single entry to kv_store */
   private persistEntry(entry: CachedOperation): void {
-    try {
-      const db = tryGetDb();
-      if (!db) return;
-      db.prepare(
-        `INSERT OR REPLACE INTO kv_store (key, namespace, value, created_at)
-         VALUES (?, 'session_cache', ?, ?)`
-      ).run(`session_cache:${entry.fingerprint}`, JSON.stringify(entry), Date.now());
-    } catch {
-      /* non-critical - cache works without persistence */
-    }
+    const value = JSON.stringify(entry);
+    const createdAt = Date.now();
+    this.persistInBackground((db) => db.prepare(
+      `INSERT OR REPLACE INTO kv_store (key, namespace, value, created_at)
+       VALUES (?, 'session_cache', ?, ?)`
+    ).run(`session_cache:${entry.fingerprint}`, value, createdAt));
   }
 
   /** Delete a single persisted entry from kv_store (used by invalidateDomain). */
   private deletePersisted(fingerprint: string): void {
-    try {
-      const db = tryGetDb();
-      if (!db) return;
-      db.prepare(
-        `DELETE FROM kv_store WHERE namespace = 'session_cache' AND key = ?`
-      ).run(`session_cache:${fingerprint}`);
-    } catch {
-      /* non-critical */
-    }
+    this.persistInBackground((db) => db.prepare(
+      `DELETE FROM kv_store WHERE namespace = 'session_cache' AND key = ?`
+    ).run(`session_cache:${fingerprint}`));
   }
 }
 
@@ -377,18 +390,20 @@ export class SessionOperationCache {
 // DB Helper
 // ============================================================================
 
+type UnifiedMemory = import('../kernel/unified-memory.js').UnifiedMemoryManager;
+type Db = ReturnType<UnifiedMemory['getDatabase']>;
+
 /**
- * Attempt to get the unified memory database.
+ * Attempt to get the initialized unified memory manager.
  * Returns null if unavailable (graceful degradation).
  */
-function tryGetDb(): ReturnType<import('../kernel/unified-memory.js').UnifiedMemoryManager['getDatabase']> | null {
+function tryGetMemory(): UnifiedMemory | null {
   try {
     // Dynamic require to avoid circular dependencies at import time
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { getUnifiedMemory } = require('../kernel/unified-memory.js');
     const um = getUnifiedMemory();
-    if (!um.isInitialized()) return null;
-    return um.getDatabase();
+    return um.isInitialized() ? um : null;
   } catch {
     return null;
   }

@@ -18,6 +18,7 @@ import type { QETaskRouter } from './qe-task-router.js';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
 import { safeJsonParse } from '../shared/safe-json.js';
 import { toErrorMessage } from '../shared/error-utils.js';
+import { isBusyError } from '../learning/dream/dream-lock-retry.js';
 import { EMACalibrator, type EMAConfig } from './calibration/index.js';
 import { AutoEscalationTracker, type EscalationConfig, type EscalationState } from './escalation/index.js';
 import type { RoutingConfig, AgentTier } from './routing-config.js';
@@ -190,10 +191,12 @@ export class RoutingFeedbackCollector {
    * Persist a single outcome to the database
    */
   private persistOutcome(outcome: RoutingOutcome): void {
-    if (!this.db) return;
-    try {
-      const database = this.db.getDatabase();
+    const modelTier = this.inferTier(outcome.usedAgent);
+    const advisorJson = outcome.advisorConsultation
+      ? JSON.stringify(outcome.advisorConsultation)
+      : null;
 
+    this.persistInBackground('outcome', (database) => {
       // Ensure schema columns exist for databases created before ADR-092
       // and ADR-095. Runs once per process via the flag; new databases have
       // columns from unified-memory-schemas.ts CREATE TABLE.
@@ -202,18 +205,18 @@ export class RoutingFeedbackCollector {
           'ALTER TABLE routing_outcomes ADD COLUMN model_tier TEXT',
           'ALTER TABLE routing_outcomes ADD COLUMN advisor_consultation_json TEXT',
         ]) {
-          try { database.prepare(col).run(); } catch { /* column already exists */ }
+          try {
+            database.prepare(col).run();
+          } catch (error) {
+            // Column already exists. A locked database is retried instead (#1274).
+            if (isBusyError(error)) throw error;
+          }
         }
         // ADR-095: routing exploration columns via shared helper so all
         // writer paths agree on the column set.
         ensureRoutingOutcomesAdr095Columns(database);
         RoutingFeedbackCollector.schemaMigrated = true;
       }
-
-      const modelTier = this.inferTier(outcome.usedAgent);
-      const advisorJson = outcome.advisorConsultation
-        ? JSON.stringify(outcome.advisorConsultation)
-        : null;
 
       database.prepare(`
         INSERT OR REPLACE INTO routing_outcomes (
@@ -234,12 +237,34 @@ export class RoutingFeedbackCollector {
         modelTier,
         advisorJson,
       );
+    }, () => {
       this.persistCount++;
       if (this.persistCount % RoutingFeedbackCollector.RETENTION_CLEANUP_INTERVAL === 0) {
-        this.enforceRetention(database);
+        this.enforceRetention();
       }
+    });
+  }
+
+  /**
+   * Queue a write on the shared connection without blocking the caller
+   * (#1274). recordOutcome runs after every routed task, so a locked
+   * memory.db must not freeze the MCP server's event loop. Writes keep their
+   * call order and the connection's full busy_timeout budget; with the
+   * database unlocked and nothing queued the write runs at once, as before.
+   */
+  private persistInBackground(
+    what: string,
+    write: (database: ReturnType<UnifiedMemoryManager['getDatabase']>) => void,
+    onPersisted?: () => void,
+  ): void {
+    if (!this.db) return;
+    const warn = (error: unknown) =>
+      console.warn(`[RoutingFeedbackCollector] Failed to persist ${what}:`, toErrorMessage(error));
+    try {
+      const database = this.db.getDatabase();
+      this.db.writeWhenUnlocked(() => write(database)).then(onPersisted, warn);
     } catch (error) {
-      console.warn('[RoutingFeedbackCollector] Failed to persist outcome:', toErrorMessage(error));
+      warn(error);
     }
   }
 
@@ -283,17 +308,15 @@ export class RoutingFeedbackCollector {
   /**
    * Delete oldest rows beyond retention limit
    */
-  private enforceRetention(database: ReturnType<UnifiedMemoryManager['getDatabase']>): void {
-    try {
-      const maxRows = this.maxOutcomes * 2;
+  private enforceRetention(): void {
+    const maxRows = this.maxOutcomes * 2;
+    this.persistInBackground('retention cleanup', (database) => {
       database.prepare(`
         DELETE FROM routing_outcomes WHERE id NOT IN (
           SELECT id FROM routing_outcomes ORDER BY created_at DESC LIMIT ?
         )
       `).run(maxRows);
-    } catch (error) {
-      console.warn('[RoutingFeedbackCollector] Retention cleanup failed:', toErrorMessage(error));
-    }
+    });
   }
 
   /**
@@ -323,15 +346,18 @@ export class RoutingFeedbackCollector {
    */
   private persistCalibratorState(): void {
     if (!this.db || !this.calibrator) return;
+    let serialized: string;
     try {
-      const database = this.db.getDatabase();
-      const serialized = JSON.stringify(this.calibrator.serialize());
+      serialized = JSON.stringify(this.calibrator.serialize());
+    } catch (error) {
+      console.warn('[RoutingFeedbackCollector] Failed to persist calibrator state:', toErrorMessage(error));
+      return;
+    }
+    this.persistInBackground('calibrator state', (database) => {
       database.prepare(
         `INSERT OR REPLACE INTO kv_store (key, value, updated_at) VALUES (?, ?, datetime('now'))`
       ).run('routing:ema_calibrator_state', serialized);
-    } catch (error) {
-      console.warn('[RoutingFeedbackCollector] Failed to persist calibrator state:', toErrorMessage(error));
-    }
+    });
   }
 
   /**
@@ -361,15 +387,18 @@ export class RoutingFeedbackCollector {
    */
   private persistEconomicState(): void {
     if (!this.db || !this.economicModel) return;
+    let serialized: string;
     try {
-      const database = this.db.getDatabase();
-      const serialized = JSON.stringify(this.economicModel.serializeEstimates());
+      serialized = JSON.stringify(this.economicModel.serializeEstimates());
+    } catch (error) {
+      console.warn('[RoutingFeedbackCollector] Failed to persist economic state:', toErrorMessage(error));
+      return;
+    }
+    this.persistInBackground('economic state', (database) => {
       database.prepare(
         `INSERT OR REPLACE INTO kv_store (key, value, updated_at) VALUES (?, ?, datetime('now'))`
       ).run('routing:economic_quality_estimates', serialized);
-    } catch (error) {
-      console.warn('[RoutingFeedbackCollector] Failed to persist economic state:', toErrorMessage(error));
-    }
+    });
   }
 
   /**

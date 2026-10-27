@@ -8,6 +8,7 @@ const { memoryMock } = vi.hoisted(() => ({
   memoryMock: {
     initialize: vi.fn().mockResolvedValue(undefined),
     getDatabase: vi.fn(),
+    writeWhenUnlocked: vi.fn(async (fn: () => unknown) => fn()),
   },
 }));
 

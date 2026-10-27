@@ -1278,6 +1278,25 @@ export function resetUnifiedMemory(): void {
   UnifiedMemoryManager.resetInstance();
 }
 
+/**
+ * Run a write on `db` through the shared manager's writeWhenUnlocked queue
+ * when `db` is that manager's connection (#1274), for modules that hold only
+ * the raw connection. The write then neither blocks the MCP server's event
+ * loop for the whole busy_timeout nor lands before an earlier queued write.
+ * A write on any other connection runs now, as before.
+ */
+export function writeWhenUnlockedOn<T>(db: DatabaseType, fn: () => T): Promise<T> {
+  const instance = UnifiedMemoryManager['instance'];
+  if (instance?.isInitialized() && instance.getDatabase() === db) {
+    return instance.writeWhenUnlocked(fn);
+  }
+  try {
+    return Promise.resolve(fn());
+  } catch (error) {
+    return Promise.reject(error);
+  }
+}
+
 // ============================================================================
 // Process Exit Handlers
 // ============================================================================
