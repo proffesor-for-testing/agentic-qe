@@ -12,6 +12,8 @@ import {
 } from '../../../../src/shared/test-runner-project.js';
 import { TestExecutorService } from '../../../../src/domains/test-execution/services/test-executor.js';
 import { RetryHandlerService } from '../../../../src/domains/test-execution/services/retry-handler.js';
+import { TestExecutionCoordinator } from '../../../../src/domains/test-execution/coordinator';
+import { createCoordinatorTestContext, resetTestContext } from '../coordinator-test-utils';
 import { registerTestExecutionHandlers } from '../../../../src/coordination/handlers/test-execution-handlers';
 // Load order as in production (domain-handlers → configs) to resolve the module cycle.
 import '../../../../src/mcp/handlers/domain-handlers';
@@ -216,6 +218,57 @@ describe('#1247 retries run from the same project', () => {
     expect(spawn.mock.calls[0][2]).toBe(join(root, 'apps/webapp'));
     // The file argument stays absolute, so the different cwd cannot change it.
     expect(spawn.mock.calls[0][1]).toContain(join(root, 'apps/webapp/src/x.test.ts'));
+  });
+});
+
+describe('#1247 retries honour an explicit projectRoot', () => {
+  const failed = {
+    testId: 't', testName: 'webapp setup loaded', file: join('apps', 'webapp', 'src', 'x.test.ts'), error: 'x', duration: 0,
+  };
+
+  it('the retry handler runs every retry from the request projectRoot, not the file lookup', async () => {
+    process.chdir(root);
+    const memory = { get: vi.fn().mockResolvedValue(undefined), set: vi.fn() };
+    const handler = new RetryHandlerService(memory as never, { testRunner: 'vitest' });
+    const spawn = vi.spyOn(handler as unknown as {
+      spawnTestProcess: (command: string, args: string[], cwd: string) => Promise<unknown>;
+    }, 'spawnTestProcess').mockResolvedValue({ passed: true, output: '' });
+    const projectRoot = join(root, 'apps/api');
+
+    const result = await handler.executeWithRetry({
+      runId: 'r', failedTests: [failed], maxRetries: 1, backoff: 'constant', baseDelay: 0, projectRoot,
+    });
+
+    expect(result.success && result.value.nowPassing).toBe(1);
+    expect(spawn.mock.calls[0][2]).toBe(projectRoot);
+  });
+
+  it('the coordinator passes the run projectRoot to its retries', async () => {
+    const ctx = createCoordinatorTestContext();
+    const coordinator = new TestExecutionCoordinator(ctx.eventBus, ctx.memory, {
+      simulateForTesting: true, enablePrioritization: false, enableMinCutAwareness: false, enableConsensus: false,
+    });
+    try {
+      const executor = (coordinator as unknown as { executor: TestExecutorService }).executor;
+      const run = {
+        runId: 'r', status: 'failed' as const, total: 1, passed: 0, failed: 1, skipped: 0, duration: 1, failedTests: [failed],
+      };
+      vi.spyOn(executor, 'execute').mockResolvedValue(ok(run));
+      vi.spyOn(executor, 'getResults').mockResolvedValue(ok(run));
+      const retryHandler = (coordinator as unknown as { retryHandler: RetryHandlerService }).retryHandler;
+      const executeWithRetry = vi.spyOn(retryHandler, 'executeWithRetry').mockResolvedValue(ok({
+        originalFailed: 1, retried: 1, nowPassing: 1, stillFailing: 0, flakyDetected: ['t'],
+        tests: [{ testId: 't', attempts: 1, passed: true }],
+      }));
+      const projectRoot = join(root, 'apps/api');
+
+      await coordinator.runTests({ testFiles: [failed.file], retryCount: 1, projectRoot });
+
+      expect(executeWithRetry).toHaveBeenCalledWith(expect.objectContaining({ projectRoot }));
+    } finally {
+      await coordinator.dispose();
+      resetTestContext(ctx);
+    }
   });
 });
 

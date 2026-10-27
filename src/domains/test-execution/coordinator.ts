@@ -378,6 +378,7 @@ export class TestExecutionCoordinator
     run: TestRunResult,
     retryCount: number | undefined,
     testFiles: readonly string[],
+    projectRoot?: string,
   ): Promise<void> {
     if (!retryCount || retryCount <= 0) return;
     if (run.failed === 0) {
@@ -389,6 +390,7 @@ export class TestExecutionCoordinator
       failedTests: run.failedTests.map(t => t.testId),
       maxRetries: retryCount,
       backoff: 'exponential',
+      projectRoot,
     });
     if (!retried.success) return;
     applyRetryOutcome(run, retried.value);
@@ -476,7 +478,7 @@ export class TestExecutionCoordinator
         // #1176: these first-attempt failures did happen; flaky analysis
         // records them even when a retry then passes.
         const firstAttemptFailures = [...result.value.failedTests];
-        await this.retryFailures(result.value, request.retryCount, orderedTestFiles);
+        await this.retryFailures(result.value, request.retryCount, orderedTestFiles, request.projectRoot);
 
         // Record execution results for learning
         if (this.config.enablePrioritization && prioritizationResult) {
@@ -620,7 +622,7 @@ export class TestExecutionCoordinator
 
       if (result.success) {
         // #1176: retries finish before the run is recorded or announced.
-        await this.retryFailures(result.value, request.retryCount, orderedTestFiles);
+        await this.retryFailures(result.value, request.retryCount, orderedTestFiles, request.projectRoot);
 
         // Record execution results for learning
         if (this.config.enablePrioritization && prioritizationResult) {
@@ -813,6 +815,7 @@ export class TestExecutionCoordinator
       failedTests: testsToRetry,
       maxRetries: request.maxRetries,
       backoff: request.backoff ?? 'exponential',
+      projectRoot: request.projectRoot,
       onRetry: (testId, attempt) => {
         // Could publish individual retry events here
         void testId;

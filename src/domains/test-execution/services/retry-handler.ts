@@ -131,6 +131,8 @@ export interface RetryExecutionRequest {
   baseDelay?: number;
   maxDelay?: number;
   onRetry?: (testId: string, attempt: number) => void;
+  /** #1247: the run's explicit projectRoot; every retry runs from it. */
+  projectRoot?: string;
 }
 
 export interface RetryStatistics {
@@ -237,6 +239,7 @@ export class RetryHandlerService implements IRetryHandler {
       baseDelay = 1000,
       maxDelay = 30000,
       onRetry,
+      projectRoot,
     } = request;
 
     try {
@@ -262,7 +265,8 @@ export class RetryHandlerService implements IRetryHandler {
           backoff,
           baseDelay,
           maxDelay,
-          onRetry
+          onRetry,
+          projectRoot
         );
 
         stats.totalRetries += result.attempts;
@@ -407,7 +411,8 @@ export class RetryHandlerService implements IRetryHandler {
     backoff: 'linear' | 'exponential' | 'constant',
     baseDelay: number,
     maxDelay: number,
-    onRetry?: (testId: string, attempt: number) => void
+    onRetry?: (testId: string, attempt: number) => void,
+    projectRoot?: string
   ): Promise<RetryTestResult> {
     let attempts = 0;
     // #1122: the final error is persisted in retry-history, so keep it redacted.
@@ -430,7 +435,7 @@ export class RetryHandlerService implements IRetryHandler {
       }
 
       // Execute test (simulated - in real implementation, would run actual test)
-      const result = await this.executeTest(test);
+      const result = await this.executeTest(test, projectRoot);
 
       // #1141: a filter that selected no test reran nothing. Report that
       // instead of counting it as a retry, and stop: another attempt would
@@ -462,7 +467,7 @@ export class RetryHandlerService implements IRetryHandler {
     };
   }
 
-  private async executeTest(test: FailedTest): Promise<RetryRunOutcome> {
+  private async executeTest(test: FailedTest, projectRoot?: string): Promise<RetryRunOutcome> {
     // In simulation mode (for unit testing), use random behavior
     if (this.config.simulateForTesting) {
       const passOnRetry = secureRandom() < this.config.simulatedRetrySuccessRate;
@@ -473,13 +478,13 @@ export class RetryHandlerService implements IRetryHandler {
     }
 
     // In production mode, actually execute the test
-    return this.executeRealTest(test);
+    return this.executeRealTest(test, projectRoot);
   }
 
   /**
    * Execute a real test using the configured test runner
    */
-  private async executeRealTest(test: FailedTest): Promise<RetryRunOutcome> {
+  private async executeRealTest(test: FailedTest, projectRoot?: string): Promise<RetryRunOutcome> {
     const testFile = test.file;
     const testName = test.testName;
     const cwd = this.config.cwd ?? process.cwd();
@@ -489,9 +494,10 @@ export class RetryHandlerService implements IRetryHandler {
       throw new Error(`Test file not found: ${testFile}. Cannot retry non-existent test file.`);
     }
 
-    // #1247: retry from the same runner project as the first run, unless a
-    // fixed directory was configured. The file path stays relative to `cwd`.
-    const runCwd = this.config.cwd ?? runnerCwdFor(testFile);
+    // #1247: retry from the same directory as the first run: the caller's
+    // projectRoot, else a configured directory, else the file's runner
+    // project. The file path stays relative to `cwd`.
+    const runCwd = projectRoot ?? this.config.cwd ?? runnerCwdFor(testFile);
 
     // Detect or use configured test runner
     const runner = await this.detectTestRunner(runCwd);

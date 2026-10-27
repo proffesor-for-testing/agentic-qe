@@ -301,6 +301,8 @@ export interface IRetryRequest {
   failedTests: string[];
   maxRetries: number;
   backoff?: 'linear' | 'exponential';
+  /** #1247: the run's explicit projectRoot; retries run from it too. */
+  projectRoot?: string;
 }
 
 export interface IRetryResult {
