@@ -81,7 +81,7 @@ describe('#1247 runner project resolution', () => {
     expect(findRunnerProjectDir(join(outside, 'a.test.ts'), root)).toBeUndefined();
   });
 
-  it('counts a vite config only when it configures tests, and a package.json only when it sets up a runner', () => {
+  it('counts a vite config only when it configures tests', () => {
     write(join(root, 'apps/web/vite.config.ts'), 'export default { plugins: [] };\n');
     write(join(root, 'apps/web/package.json'), JSON.stringify({ name: 'web', dependencies: { react: '*' } }));
     write(join(root, 'apps/web/src/a.test.ts'));
@@ -89,10 +89,40 @@ describe('#1247 runner project resolution', () => {
 
     write(join(root, 'apps/web/vite.config.ts'), "export default { test: { environment: 'jsdom' } };\n");
     expect(findRunnerProjectDir(join(root, 'apps/web/src/a.test.ts'), root)).toBe(join(root, 'apps/web'));
+  });
 
-    write(join(root, 'apps/jesty/package.json'), JSON.stringify({ name: 'jesty', devDependencies: { jest: '*' } }));
+  it('counts a package.json with a top-level jest config key as a project', () => {
+    write(join(root, 'apps/jesty/package.json'), JSON.stringify({ name: 'jesty', jest: { testEnvironment: 'node' } }));
     write(join(root, 'apps/jesty/a.test.ts'));
     expect(findRunnerProjectDir(join(root, 'apps/jesty/a.test.ts'), root)).toBe(join(root, 'apps/jesty'));
+  });
+
+  it('does not count a package.json that only lists a runner as a dependency or test script', () => {
+    write(join(root, 'apps/deps/package.json'), JSON.stringify({
+      name: 'deps', devDependencies: { vitest: '*', jest: '*' }, scripts: { test: 'vitest run' },
+    }));
+    write(join(root, 'apps/deps/a.test.ts'));
+    expect(findRunnerProjectDir(join(root, 'apps/deps/a.test.ts'), root)).toBeUndefined();
+  });
+
+  // Lead review: a Vitest workspace whose root config defines the projects,
+  // with packages that only list vitest, must keep running from the root.
+  it('runs a workspace package without its own config from the root that defines test.projects', () => {
+    write(join(root, 'vitest.config.ts'),
+      "export default { test: { projects: ['packages/*'], setupFiles: ['./setup.ts'] } };\n");
+    write(join(root, 'packages/lib/package.json'), JSON.stringify({
+      name: 'lib', devDependencies: { vitest: '*' }, scripts: { test: 'vitest' },
+    }));
+    write(join(root, 'packages/lib/src/a.test.ts'));
+    expect(findRunnerProjectDir(join(root, 'packages/lib/src/a.test.ts'), root)).toBe(root);
+    expect(runnerCwdFor('packages/lib/src/a.test.ts', { cwd: root, boundary: root })).toBe(root);
+  });
+
+  it('runs a workspace package from the root that has a vitest.workspace file', () => {
+    write(join(root, 'vitest.workspace.ts'), "export default ['packages/*'];\n");
+    write(join(root, 'packages/lib/package.json'), JSON.stringify({ name: 'lib', devDependencies: { vitest: '*' } }));
+    write(join(root, 'packages/lib/src/a.test.ts'));
+    expect(runnerCwdFor('packages/lib/src/a.test.ts', { cwd: root, boundary: root })).toBe(root);
   });
 
   it('groups mixed files from two packages and the root project, in first-seen order', () => {

@@ -6,8 +6,10 @@
  * monorepo whose packages have their own config (`apps/webapp/vitest.config.ts`)
  * a run started at the repository root never loads that package's setup, so
  * the package's tests fail or produce no report. Each test file is therefore
- * run from the nearest directory, at or above it, that sets up a runner, but
- * never from above the project root.
+ * run from the nearest directory, at or above it, with runner configuration,
+ * but never from above the project root. Only real configuration counts, so a
+ * workspace package without its own config runs from the root that defines
+ * its project.
  *
  * A run from the current working directory is kept whenever that directory is
  * already inside the file's runner project (a single-project repository, or a
@@ -25,9 +27,13 @@ import { Result, ok, err } from './types';
 
 const CONFIG_EXTENSIONS = ['ts', 'mts', 'cts', 'js', 'mjs', 'cjs'];
 
-/** Files whose presence makes a directory a Vitest or Jest project. */
+/**
+ * Files whose presence makes a directory a Vitest or Jest project. A root
+ * workspace file (`vitest.workspace.*`) counts too: its packages run from it.
+ */
 export const RUNNER_CONFIG_FILES: readonly string[] = [
   ...CONFIG_EXTENSIONS.map(ext => `vitest.config.${ext}`),
+  ...[...CONFIG_EXTENSIONS, 'json'].map(ext => `vitest.workspace.${ext}`),
   ...CONFIG_EXTENSIONS.map(ext => `jest.config.${ext}`),
   'jest.config.json',
 ];
@@ -77,8 +83,13 @@ function readSmallFile(file: string): string | undefined {
   }
 }
 
-/** True when a package.json in `dir` configures or depends on Vitest or Jest. */
-function packageSetsUpRunner(dir: string): boolean {
+/**
+ * True when a package.json in `dir` holds runner configuration (a top-level
+ * `jest` or `vitest` key). Listing a runner as a dependency or in
+ * `scripts.test` does not: in a workspace the packages do that while the root
+ * config defines their projects and setup.
+ */
+function packageConfiguresRunner(dir: string): boolean {
   const text = readSmallFile(path.join(dir, 'package.json'));
   if (text === undefined) return false;
   let pkg: Record<string, unknown> | undefined;
@@ -88,14 +99,7 @@ function packageSetsUpRunner(dir: string): boolean {
     return false;
   }
   if (!pkg || typeof pkg !== 'object') return false;
-  if (pkg.jest !== undefined || pkg.vitest !== undefined) return true;
-  for (const field of ['dependencies', 'devDependencies']) {
-    const deps = pkg[field];
-    if (deps && typeof deps === 'object' && ('vitest' in deps || 'jest' in deps)) return true;
-  }
-  const scripts = pkg.scripts;
-  const test = scripts && typeof scripts === 'object' ? (scripts as Record<string, unknown>).test : undefined;
-  return typeof test === 'string' && /\b(vitest|jest)\b/.test(test);
+  return pkg.jest !== undefined || pkg.vitest !== undefined;
 }
 
 /** True when `dir` holds a Vitest or Jest configuration. */
@@ -105,13 +109,13 @@ export function isRunnerProjectDir(dir: string): boolean {
     const text = readSmallFile(path.join(dir, name));
     if (text !== undefined && /\btest\s*:/.test(text)) return true;
   }
-  return packageSetsUpRunner(dir);
+  return packageConfiguresRunner(dir);
 }
 
 /**
- * The nearest directory at or above `file` that sets up a runner, searching no
+ * The nearest directory at or above `file` with runner configuration, searching no
  * higher than `boundary`. Undefined when the file lies outside the boundary or
- * no directory on the way sets up a runner.
+ * no directory on the way has runner configuration.
  */
 export function findRunnerProjectDir(
   file: string,
