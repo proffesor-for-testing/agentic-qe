@@ -179,6 +179,10 @@ Examples:
               if (search.mode === 'lexical-only') {
                 console.log(chalk.yellow(`  Text match only (no vector search): ${search.reason}\n`));
               }
+              // #1231: some indexed files have no vector and were matched by text.
+              if (search.mode === 'partial-vector') {
+                console.log(chalk.yellow(`  Partly text match: ${search.reason}\n`));
+              }
               console.log(chalk.green(`Found ${search.total} results (${search.searchTime}ms)\n`));
 
               for (const r of search.results) {

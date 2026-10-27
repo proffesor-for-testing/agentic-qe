@@ -103,9 +103,19 @@ export interface SearchResults {
    * #1224, semantic searches only: 'vector' when an embedding model ranked the
    * results, 'lexical-only' when none was available and query words were
    * matched against the indexed text instead (`reason` says why).
+   * #1231: 'partial-vector' when only some indexed files have a vector; the
+   * others were matched by text (hits with `matchType: 'lexical'`) and
+   * `coverage` gives the counts.
    */
-  mode?: 'vector' | 'lexical-only';
+  mode?: 'vector' | 'partial-vector' | 'lexical-only';
   reason?: string;
+  /** #1231, semantic searches that ranked by vector: how many indexed files have a vector. */
+  coverage?: SearchVectorCoverage;
+}
+
+export interface SearchVectorCoverage {
+  indexedFiles: number;
+  filesWithVector: number;
 }
 
 export interface SearchResult {

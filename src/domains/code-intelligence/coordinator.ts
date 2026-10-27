@@ -279,8 +279,13 @@ type CodeIntelligenceWorkflowType = 'index' | 'search' | 'impact' | 'dependency'
  */
 const logger = LoggerFactory.create('code-intelligence');
 
-/** Files made searchable per index run (content, plus vectors with an embedding model). */
-const SEARCH_INDEX_FILE_LIMIT = 100;
+/**
+ * #1230: after this many files in a row fail to embed, an index run stops
+ * asking the embedding model and stores the remaining files as text only.
+ * Each failed embed costs the client's retries and backoff (about 3s), which
+ * would otherwise dominate a large run while the model is down.
+ */
+const MAX_CONSECUTIVE_EMBED_FAILURES = 3;
 
 /** #1224: what an index run made searchable. */
 export interface SearchIndexSummary {
@@ -1176,19 +1181,38 @@ export class CodeIntelligenceCoordinator
   // Helper Methods
   // ============================================================================
 
+  /**
+   * #1230: makes every given file searchable, one file at a time (only one
+   * file's content is held at once), with no per-run file cap.
+   */
   async indexForSearch(paths: string[]): Promise<SearchIndexSummary> {
-    // Index a subset of files for search
-    // Limit to 100 files for performance in a single batch
-    const filesToIndex = paths.slice(0, SEARCH_INDEX_FILE_LIMIT);
     let searchable = 0;
+    let withVector = 0;
+    let embedFailures = 0;
+    let consecutiveEmbedFailures = 0;
+    let lastEmbedFailure: string | undefined;
+    let notEmbedded = 0;
 
-    for (const path of filesToIndex) {
+    for (const path of paths) {
       try {
         // Read actual file content
         const result = await this.fileReader.readFile(path);
-        if (result.success && result.value) {
-          const indexed = await this.semanticAnalyzer.indexCode(path, result.value);
-          if (indexed.success) searchable++;
+        if (!result.success || !result.value) continue;
+
+        const embed = consecutiveEmbedFailures < MAX_CONSECUTIVE_EMBED_FAILURES;
+        const indexed = await this.semanticAnalyzer.indexCode(path, result.value, { embed });
+        if (!indexed.success) continue;
+        searchable++;
+
+        if (indexed.value.vector) {
+          withVector++;
+          consecutiveEmbedFailures = 0;
+        } else if (indexed.value.vectorFailure !== undefined) {
+          embedFailures++;
+          consecutiveEmbedFailures++;
+          lastEmbedFailure = indexed.value.vectorFailure;
+        } else if (!embed) {
+          notEmbedded++;
         }
       } catch {
         // Continue on error - file may not exist or be unreadable
@@ -1199,9 +1223,19 @@ export class CodeIntelligenceCoordinator
     const warnings: string[] = [];
     if (searchable < paths.length) {
       warnings.push(
-        `Search covers ${searchable} of ${paths.length} indexed files` +
-        (paths.length > SEARCH_INDEX_FILE_LIMIT ? ` (at most ${SEARCH_INDEX_FILE_LIMIT} per index run)` : '') +
-        '; code in the other files is not found by search.',
+        `Search covers ${searchable} of ${paths.length} indexed files; ` +
+        'the other files could not be added to the search index, so code in them is not found by search.',
+      );
+    }
+    // #1231: say which files a semantic search can only match by text.
+    if (embedFailures > 0) {
+      warnings.push(
+        `The embedding model failed for ${embedFailures} file(s) (${lastEmbedFailure})` +
+        (notEmbedded > 0
+          ? `, so it was not asked for the remaining ${notEmbedded} file(s) of this run`
+          : '') +
+        `. ${searchable - withVector} of ${searchable} searchable files have no vector; ` +
+        'semantic search matches them by text only. Re-index when the model is available.',
       );
     }
     return { searchable, warnings };
