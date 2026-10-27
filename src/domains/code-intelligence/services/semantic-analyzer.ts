@@ -959,13 +959,13 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
   }
 
   /**
-   * A content token matches a query token it contains, or that contains it.
-   * #1224: the second direction needs a content token of 3+ characters, so a
-   * one-letter variable such as `i` does not match the query "login".
+   * A query word is found when a content word contains it (or equals it):
+   * "login" is found in `loginWithPassword`. #1279: not the reverse; a query
+   * word such as `stepHandler450` is not found just because the file has the
+   * shorter word `step`, which made almost every file a full match.
    */
   private tokensMatch(queryToken: string, contentToken: string): boolean {
-    return contentToken.includes(queryToken) ||
-      (contentToken.length >= 3 && queryToken.includes(contentToken));
+    return contentToken.includes(queryToken);
   }
 
   private matchesFilters(
@@ -1030,7 +1030,7 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
     const contentTokens = this.tokenize(content.toLowerCase());
 
     for (const qt of queryTokens) {
-      const match = contentTokens.find((ct) => ct.includes(qt) || qt.includes(ct));
+      const match = contentTokens.find((ct) => this.tokensMatch(qt, ct));
       if (match && !highlights.includes(match)) {
         highlights.push(match);
       }
