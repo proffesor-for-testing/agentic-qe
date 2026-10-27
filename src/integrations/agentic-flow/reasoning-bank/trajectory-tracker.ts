@@ -467,10 +467,12 @@ export class TrajectoryTracker {
       context: options.context,
     });
 
-    // Persist to SQLite
+    // Persist to SQLite. Queued (#1283): task_orchestrate starts a trajectory
+    // inside the tool call, and a locked memory.db must not freeze the MCP
+    // server's event loop. The later end update queues after this insert.
     const insertStmt = this.prepared.get('insertTrajectory');
     if (insertStmt) {
-      insertStmt.run(
+      const run = () => insertStmt.run(
         id,
         task,
         options.agent || null,
@@ -478,6 +480,7 @@ export class TrajectoryTracker {
         startedAt.toISOString(),
         options.context ? JSON.stringify(options.context) : null
       );
+      await (this.unifiedMemory ? this.unifiedMemory.writeWhenUnlocked(run) : run());
     }
 
     this.stats.trajectoriesStarted++;

@@ -19,6 +19,7 @@
 import { createHash, randomUUID } from 'crypto';
 import { LoggerFactory } from '../logging/index.js';
 import { getRuVectorFeatureFlags } from '../integrations/ruvector/feature-flags.js';
+import { writeWhenUnlockedOn } from '../shared/sqlite-write-queue.js';
 
 const logger = LoggerFactory.create('witness-chain');
 
@@ -467,6 +468,11 @@ export class WitnessChain {
 export interface IWitnessChainPersistence {
   /** Store a receipt in SQLite. Called after each appendWitness(). */
   insertReceipt(receipt: WitnessReceipt): void;
+  /**
+   * Store a receipt without blocking on a locked database (#1283). When
+   * present, appendWitness() uses it instead of insertReceipt().
+   */
+  insertReceiptWhenUnlocked?(receipt: WitnessReceipt): Promise<void>;
   /** Load all receipts from SQLite, ordered by chainIndex. */
   loadAllReceipts(): WitnessReceipt[];
   /** Get the total count of persisted receipts. */
@@ -519,13 +525,23 @@ export class PersistentWitnessChain extends WitnessChain {
    */
   override appendWitness(decision: WitnessDecision): WitnessReceipt {
     const receipt = super.appendWitness(decision);
-    try {
-      this.persistence.insertReceipt(receipt);
-    } catch (err) {
+    const warn = (err: unknown): void => {
       logger.warn('Failed to persist witness receipt to SQLite', {
         chainIndex: receipt.chainIndex,
         error: err instanceof Error ? err.message : String(err),
       });
+    };
+    try {
+      // #1283: queue the insert when the backend can, so a locked memory.db
+      // does not freeze the MCP server's event loop. The receipt is already in
+      // the in-memory chain, which is what callers read.
+      if (this.persistence.insertReceiptWhenUnlocked) {
+        this.persistence.insertReceiptWhenUnlocked(receipt).catch(warn);
+      } else {
+        this.persistence.insertReceipt(receipt);
+      }
+    } catch (err) {
+      warn(err);
     }
     return receipt;
   }
@@ -578,19 +594,25 @@ export function createWitnessChainSQLitePersistence(
     SELECT COUNT(*) as cnt FROM witness_chain_receipts
   `);
 
+  const insertReceipt = (receipt: WitnessReceipt): void => {
+    insertStmt.run(
+      receipt.id,
+      receipt.chainIndex,
+      receipt.timestamp,
+      receipt.previousHash,
+      receipt.hash,
+      receipt.decision.type,
+      receipt.decision.decision,
+      JSON.stringify(receipt.decision.context),
+      receipt.decision.evidence ?? null,
+    );
+  };
+
   return {
-    insertReceipt(receipt: WitnessReceipt): void {
-      insertStmt.run(
-        receipt.id,
-        receipt.chainIndex,
-        receipt.timestamp,
-        receipt.previousHash,
-        receipt.hash,
-        receipt.decision.type,
-        receipt.decision.decision,
-        JSON.stringify(receipt.decision.context),
-        receipt.decision.evidence ?? null,
-      );
+    insertReceipt,
+
+    insertReceiptWhenUnlocked(receipt: WitnessReceipt): Promise<void> {
+      return writeWhenUnlockedOn(db, () => insertReceipt(receipt));
     },
 
     loadAllReceipts(): WitnessReceipt[] {

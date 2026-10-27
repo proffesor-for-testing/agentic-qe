@@ -33,6 +33,7 @@ import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { getUnifiedMemory, findProjectRoot, type UnifiedMemoryManager } from '../../../kernel/unified-memory.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
+import { writeWhenUnlockedOn } from '../../../shared/sqlite-write-queue.js';
 
 /**
  * Database row representation from SQLite
@@ -246,10 +247,9 @@ export class EmbeddingCache {
     const deleted = cache?.delete(key) || false;
 
     if (deleted && this.persistent && this.db) {
-      const stmt = this.db.prepare(
+      this.persist('delete', (db) => db.prepare(
         'DELETE FROM embeddings WHERE key = ? AND namespace = ?'
-      );
-      stmt.run(key, namespace);
+      ).run(key, namespace));
     }
 
     return deleted;
@@ -264,8 +264,7 @@ export class EmbeddingCache {
       cache?.clear();
 
       if (this.persistent && this.db) {
-        const stmt = this.db.prepare('DELETE FROM embeddings WHERE namespace = ?');
-        stmt.run(namespace);
+        this.persist('clear', (db) => db.prepare('DELETE FROM embeddings WHERE namespace = ?').run(namespace));
       }
     } else {
       for (const cache of this.memoryCache.values()) {
@@ -273,7 +272,7 @@ export class EmbeddingCache {
       }
 
       if (this.persistent && this.db) {
-        this.db.exec('DELETE FROM embeddings');
+        this.persist('clear', (db) => db.exec('DELETE FROM embeddings'));
       }
     }
   }
@@ -317,10 +316,10 @@ export class EmbeddingCache {
       cache.delete(lruKey);
 
       if (this.persistent && this.db) {
-        const stmt = this.db.prepare(
+        const evicted = lruKey;
+        this.persist('evict', (db) => db.prepare(
           'DELETE FROM embeddings WHERE key = ? AND namespace = ?'
-        );
-        stmt.run(lruKey, namespace);
+        ).run(evicted, namespace));
       }
     }
   }
@@ -340,14 +339,13 @@ export class EmbeddingCache {
       const metadataJson = embedding.metadata
         ? JSON.stringify(embedding.metadata)
         : null;
+      const lastAccess = Date.now();
 
-      const stmt = this.db.prepare(`
+      this.persist('persist', (db) => db.prepare(`
         INSERT OR REPLACE INTO embeddings
         (key, namespace, vector, dimension, text, timestamp, quantization, metadata, last_access)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `);
-
-      stmt.run(
+      `).run(
         key,
         namespace,
         vectorBuffer,
@@ -356,11 +354,26 @@ export class EmbeddingCache {
         embedding.timestamp,
         embedding.quantization,
         metadataJson,
-        Date.now()
-      );
+        lastAccess
+      ));
     } catch (error) {
       console.warn('Failed to persist embedding:', error);
     }
+  }
+
+  /**
+   * Run a write on the cache's connection without blocking the caller
+   * (#1283). On the shared memory.db connection it goes through the write
+   * queue, so a locked database does not freeze the MCP server's event loop;
+   * on a private (legacy) connection it runs at once. A failure is logged,
+   * since the in-memory cache is already up to date.
+   */
+  private persist(action: string, write: (db: NonNullable<typeof this.db>) => unknown): void {
+    const db = this.db;
+    if (!db) return;
+    writeWhenUnlockedOn(db, () => write(db)).catch((error) => {
+      console.warn(`Failed to ${action} embedding cache entry:`, error);
+    });
   }
 
   /**

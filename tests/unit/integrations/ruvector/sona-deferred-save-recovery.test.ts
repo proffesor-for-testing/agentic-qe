@@ -26,6 +26,10 @@ afterEach(async () => {
   resetUnifiedPersistence();
   rmSync(directory, { recursive: true, force: true });
 });
+/** The deferred batch the save timer started, if it is still writing. */
+async function deferredBatch(): Promise<void> {
+  await (engine as unknown as { flushInFlight: Promise<void> | null }).flushInFlight;
+}
 function createPattern() {
   return engine!.createPattern(
     { id: 'state', features: new Array(384).fill(0.25) },
@@ -43,10 +47,14 @@ describe('deferred SONA write recovery', () => {
     // Simulate a real storage rejection for one owned row, not a mocked writer.
     db.exec(`CREATE TRIGGER reject_sona_save BEFORE INSERT ON sona_patterns
       WHEN NEW.id = '${blocked.id}' BEGIN SELECT RAISE(ABORT, 'temporary SONA write rejection'); END`);
+    // #1283: the deferred batch is written through the shared connection's
+    // write queue, so it completes asynchronously after the timer fires.
     expect(() => vi.advanceTimersByTime(10)).not.toThrow();
+    await deferredBatch();
     expect((await engine.getAllPersistedPatterns()).map(p => p.id)).toEqual([healthy.id]);
     db.exec('DROP TRIGGER reject_sona_save');
     vi.advanceTimersByTime(1000);
+    await deferredBatch();
     expect(new Set((await engine.getAllPersistedPatterns()).map(p => p.id)))
       .toEqual(new Set([blocked.id, healthy.id]));
     await engine.close();

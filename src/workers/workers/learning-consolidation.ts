@@ -30,7 +30,7 @@ import { TimeRange } from '../../shared/value-objects/index.js';
 import { DreamEngine, type EngineResult as DreamCycleResult, type PatternImportData } from '../../learning/dream/index.js';
 import {
   PatternLifecycleManager,
-  createPatternLifecycleManager,
+  createPatternLifecycleManagerWhenUnlocked,
   type PatternCandidate,
   type PatternLifecycleStats,
 } from '../../learning/pattern-lifecycle.js';
@@ -150,7 +150,7 @@ export class LearningConsolidationWorker extends BaseWorker {
       const unifiedMemory = getUnifiedMemory();
       await unifiedMemory.initialize();
       const db = unifiedMemory.getDatabase();
-      this.lifecycleManager = createPatternLifecycleManager(db, {
+      this.lifecycleManager = await createPatternLifecycleManagerWhenUnlocked(db, {
         promotionRewardThreshold: 0.7,
         promotionMinOccurrences: 2,
         promotionMinSuccessRate: 0.7,
@@ -454,7 +454,7 @@ export class LearningConsolidationWorker extends BaseWorker {
       }
 
       // Step 3: Promote eligible patterns
-      const promotionResult = lifecycleManager.promoteEligiblePatterns();
+      const promotionResult = await lifecycleManager.promoteEligiblePatternsWhenUnlocked();
       patternsPromoted = promotionResult.promoted;
 
       if (patternsPromoted > 0) {
@@ -472,7 +472,7 @@ export class LearningConsolidationWorker extends BaseWorker {
       }
 
       // Step 4: Deprecate underperforming patterns
-      const deprecationResult = lifecycleManager.deprecateStalePatterns();
+      const deprecationResult = await lifecycleManager.deprecateStalePatternsWhenUnlocked();
       patternsDeprecated = deprecationResult.deprecated;
 
       if (patternsDeprecated > 0) {
@@ -535,7 +535,7 @@ export class LearningConsolidationWorker extends BaseWorker {
         : 1;
 
       if (daysSinceLastRun >= 0.5) { // Apply decay at least twice per day
-        const decayResult = lifecycleManager.applyConfidenceDecay(Math.min(daysSinceLastRun, 7));
+        const decayResult = await lifecycleManager.applyConfidenceDecayWhenUnlocked(Math.min(daysSinceLastRun, 7));
         confidenceDecayApplied = decayResult.decayed;
       }
 
@@ -736,7 +736,8 @@ export class LearningConsolidationWorker extends BaseWorker {
           const patternId = uuidv4();
           const description = `Auto-extracted pattern from ${candidate.sourceExperiences} experiences. Avg reward: ${candidate.avgReward.toFixed(3)}`;
 
-          db.prepare(`
+          // #1283: queued so a locked memory.db does not freeze the MCP server.
+          await unifiedMemory.writeWhenUnlocked(() => db.prepare(`
             INSERT INTO qe_patterns (
               id, pattern_type, qe_domain, domain, name, description,
               confidence, usage_count, success_rate, quality_score, tier,
@@ -765,7 +766,7 @@ export class LearningConsolidationWorker extends BaseWorker {
               extractedAt: new Date().toISOString(),
             }),
             Math.round(candidate.sourceExperiences * candidate.successRate)
-          );
+          ));
 
           // Pair the qe_patterns row with an embedding so HNSW pattern recall
           // doesn't see this as a "ghost" (ADR-058 embedding-locality). Fail-soft.

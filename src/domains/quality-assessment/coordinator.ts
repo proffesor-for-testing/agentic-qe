@@ -469,7 +469,8 @@ export class QualityAssessmentCoordinator
       // ADR-070: Record quality gate decision in witness chain
       try {
         const wc = await getWitnessChain();
-        wc.append(
+        // #1283: queued, so a locked memory.db does not freeze the MCP server.
+        await wc.appendWhenUnlocked(
           finalResult.passed ? 'QUALITY_GATE_PASS' : 'QUALITY_GATE_FAIL',
           { gateName: request.gateName, passed: finalResult.passed, score: finalResult.overallScore, failedChecks: finalResult.failedChecks },
           'quality-gate'

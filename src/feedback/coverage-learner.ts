@@ -226,11 +226,14 @@ export class CoverageLearner {
   /**
    * Persist a coverage session to the database
    */
-  private persistSession(session: CoverageSession): void {
+  private async persistSession(session: CoverageSession): Promise<void> {
     if (!this.db) return;
     try {
-      const database = this.db.getDatabase();
-      database.prepare(`
+      const memory = this.db;
+      const database = memory.getDatabase();
+      // #1283: queued, so a locked memory.db does not freeze the MCP server's
+      // event loop while the tool call that recorded this coverage session waits.
+      await memory.writeWhenUnlocked(() => database.prepare(`
         INSERT OR REPLACE INTO coverage_sessions (
           id, target_path, agent_id, technique,
           before_lines, before_branches, before_functions,
@@ -248,10 +251,10 @@ export class CoverageLearner {
         session.startedAt instanceof Date ? session.startedAt.toISOString() : session.startedAt,
         session.completedAt instanceof Date ? session.completedAt.toISOString() : session.completedAt,
         session.context ? JSON.stringify(session.context) : null
-      );
+      ));
       this.persistCount++;
       if (this.persistCount % CoverageLearner.RETENTION_CLEANUP_INTERVAL === 0) {
-        this.enforceRetention(database);
+        await this.enforceRetention(memory);
       }
     } catch (error) {
       console.warn('[CoverageLearner] Failed to persist session:', toErrorMessage(error));
@@ -261,14 +264,15 @@ export class CoverageLearner {
   /**
    * Delete oldest rows beyond retention limit
    */
-  private enforceRetention(database: ReturnType<UnifiedMemoryManager['getDatabase']>): void {
+  private async enforceRetention(memory: UnifiedMemoryManager): Promise<void> {
     try {
+      const database = memory.getDatabase();
       const maxRows = this.config.maxOutcomesInMemory * 2;
-      database.prepare(`
+      await memory.writeWhenUnlocked(() => database.prepare(`
         DELETE FROM coverage_sessions WHERE id NOT IN (
           SELECT id FROM coverage_sessions ORDER BY created_at DESC LIMIT ?
         )
-      `).run(maxRows);
+      `).run(maxRows));
     } catch (error) {
       console.warn('[CoverageLearner] Retention cleanup failed:', toErrorMessage(error));
     }
@@ -280,7 +284,7 @@ export class CoverageLearner {
   async learnFromSession(session: CoverageSession): Promise<CoverageStrategy | null> {
     // Store session
     this.sessionStore.add(session);
-    this.persistSession(session);
+    await this.persistSession(session);
 
     // Calculate improvement
     const improvement = this.calculateOverallImprovement(session);

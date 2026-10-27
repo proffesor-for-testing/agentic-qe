@@ -208,11 +208,14 @@ export class TestOutcomeTracker {
   /**
    * Persist a single outcome to DB (write-through)
    */
-  private persistOutcome(outcome: TestOutcome): void {
+  private async persistOutcome(outcome: TestOutcome): Promise<void> {
     if (!this.db) return;
     try {
-      const database = this.db.getDatabase();
-      database.prepare(`
+      const memory = this.db;
+      const database = memory.getDatabase();
+      // #1283: queued, so a locked memory.db does not freeze the MCP server's
+      // event loop while the tool call that recorded this test outcome waits.
+      await memory.writeWhenUnlocked(() => database.prepare(`
         INSERT OR REPLACE INTO test_outcomes (
           id, test_id, test_name, generated_by, pattern_id,
           framework, language, domain, passed, error_message,
@@ -233,10 +236,10 @@ export class TestOutcomeTracker {
         outcome.linesOfCode ?? null, outcome.assertionCount ?? null,
         outcome.filePath || null, outcome.sourceFilePath || null,
         outcome.metadata ? JSON.stringify(outcome.metadata) : null
-      );
+      ));
       this.persistCount++;
       if (this.persistCount % TestOutcomeTracker.RETENTION_CLEANUP_INTERVAL === 0) {
-        this.enforceRetention(database);
+        await this.enforceRetention(memory);
       }
     } catch (error) {
       console.warn('[TestOutcomeTracker] Failed to persist outcome:', toErrorMessage(error));
@@ -246,14 +249,15 @@ export class TestOutcomeTracker {
   /**
    * Delete oldest rows beyond retention limit
    */
-  private enforceRetention(database: ReturnType<UnifiedMemoryManager['getDatabase']>): void {
+  private async enforceRetention(memory: UnifiedMemoryManager): Promise<void> {
     try {
+      const database = memory.getDatabase();
       const maxRows = this.config.maxOutcomesInMemory * 2; // Keep 2x in-memory limit in DB
-      database.prepare(`
+      await memory.writeWhenUnlocked(() => database.prepare(`
         DELETE FROM test_outcomes WHERE id NOT IN (
           SELECT id FROM test_outcomes ORDER BY created_at DESC LIMIT ?
         )
-      `).run(maxRows);
+      `).run(maxRows));
     } catch (error) {
       console.warn('[TestOutcomeTracker] Retention cleanup failed:', toErrorMessage(error));
     }
@@ -265,7 +269,7 @@ export class TestOutcomeTracker {
   async track(outcome: TestOutcome): Promise<void> {
     // 1. Store outcome
     this.store.add(outcome);
-    this.persistOutcome(outcome);
+    await this.persistOutcome(outcome);
 
     // 2. Update pattern metrics if pattern was used
     if (outcome.patternId) {

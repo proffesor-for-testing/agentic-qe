@@ -16,6 +16,7 @@ import { v4 as uuidv4 } from 'uuid';
 import type { Result } from '../shared/types/index.js';
 import { ok, err } from '../shared/types/index.js';
 import { toErrorMessage } from '../shared/error-utils.js';
+import { writeWhenUnlockedOn } from '../shared/sqlite-write-queue.js';
 import type {
   RvfNativeAdapter,
 } from '../integrations/ruvector/rvf-native-adapter.js';
@@ -561,7 +562,9 @@ export class RvfPatternStore implements IPatternStore {
       return err(new Error('No SQLite store attached'));
     }
     try {
-      this.sqliteStore.recordUsage(id, success, metrics, feedback);
+      const store = this.sqliteStore;
+      // #1283: queued on the shared connection, so a locked memory.db does not freeze the MCP server.
+      await writeWhenUnlockedOn(store.getDatabase(), () => store.recordUsage(id, success, metrics, feedback));
       return ok(undefined);
     } catch (error) {
       return err(new Error(`recordUsage failed: ${toErrorMessage(error)}`));
@@ -573,7 +576,8 @@ export class RvfPatternStore implements IPatternStore {
       return err(new Error('No SQLite store attached'));
     }
     try {
-      this.sqliteStore.promotePattern(id);
+      const store = this.sqliteStore;
+      await writeWhenUnlockedOn(store.getDatabase(), () => store.promotePattern(id));
       return ok(undefined);
     } catch (error) {
       return err(new Error(`promote failed: ${toErrorMessage(error)}`));

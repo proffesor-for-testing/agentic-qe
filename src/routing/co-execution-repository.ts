@@ -8,6 +8,7 @@
 
 import type { Database as DatabaseType } from 'better-sqlite3';
 import { toErrorMessage } from '../shared/error-utils.js';
+import { writeWhenUnlockedOn } from '../shared/sqlite-write-queue.js';
 
 // ============================================================================
 // Types
@@ -97,21 +98,21 @@ export class CoExecutionRepository {
     if (!this.db) return;
 
     const [a, b] = [record.agentA, record.agentB].sort();
+    const db = this.db;
 
-    try {
-      this.db.prepare(`
-        INSERT INTO qe_agent_co_execution (agent_a, agent_b, domain, success, task_description)
-        VALUES (?, ?, ?, ?, ?)
-      `).run(
-        a,
-        b,
-        record.domain,
-        record.success ? 1 : 0,
-        record.taskDescription?.slice(0, 500) || null,
-      );
-    } catch (error) {
+    // #1283: queued, so a locked memory.db does not freeze the MCP server.
+    writeWhenUnlockedOn(db, () => db.prepare(`
+      INSERT INTO qe_agent_co_execution (agent_a, agent_b, domain, success, task_description)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(
+      a,
+      b,
+      record.domain,
+      record.success ? 1 : 0,
+      record.taskDescription?.slice(0, 500) || null,
+    )).catch((error) => {
       console.debug(`[CoExecutionRepository] Record error: ${toErrorMessage(error)}`);
-    }
+    });
   }
 
   /**
@@ -237,7 +238,10 @@ export class CoExecutionRepository {
         }
       });
 
-      transaction();
+      // #1283: queued, so a locked memory.db does not freeze the MCP server.
+      writeWhenUnlockedOn(this.db, () => transaction()).catch((error) => {
+        console.debug(`[CoExecutionRepository] Swarm record error: ${toErrorMessage(error)}`);
+      });
     } catch (error) {
       console.debug(`[CoExecutionRepository] Swarm record error: ${toErrorMessage(error)}`);
     }

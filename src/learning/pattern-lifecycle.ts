@@ -26,6 +26,7 @@ import { LoggerFactory } from '../logging/index.js';
 import type { WitnessChain } from '../audit/witness-chain.js';
 import type { TemporalCompressionService, CompressedVector } from '../integrations/ruvector/temporal-compression.js';
 import { isTemporalCompressionEnabled } from '../integrations/ruvector/feature-flags.js';
+import { writeWhenUnlockedOn } from '../shared/sqlite-write-queue.js';
 
 const logger = LoggerFactory.create('pattern-lifecycle');
 
@@ -247,69 +248,7 @@ export class PatternLifecycleManager {
   ) {
     this.config = { ...DEFAULT_LIFECYCLE_CONFIG, ...config };
     this.asymmetricEngine = new AsymmetricLearningEngine(this.config.asymmetricLearning);
-    this.ensureSchema();
-  }
-
-  /**
-   * Ensure required schema extensions exist
-   */
-  private ensureSchema(): void {
-    // Add deprecated_at column if not exists
-    try {
-      this.db.prepare(`
-        SELECT deprecated_at FROM qe_patterns LIMIT 1
-      `).get();
-    } catch (e) {
-      // Column doesn't exist, add it
-      logger.debug('Adding missing deprecated_at column', { error: e instanceof Error ? e.message : String(e) });
-      this.db.exec(`
-        ALTER TABLE qe_patterns ADD COLUMN deprecated_at TEXT DEFAULT NULL
-      `);
-      console.log('[PatternLifecycle] Added deprecated_at column to qe_patterns');
-    }
-
-    // Add consecutive_failures column if not exists
-    try {
-      this.db.prepare(`
-        SELECT consecutive_failures FROM qe_patterns LIMIT 1
-      `).get();
-    } catch (e) {
-      logger.debug('Adding missing consecutive_failures column', { error: e instanceof Error ? e.message : String(e) });
-      this.db.exec(`
-        ALTER TABLE qe_patterns ADD COLUMN consecutive_failures INTEGER DEFAULT 0
-      `);
-      console.log('[PatternLifecycle] Added consecutive_failures column to qe_patterns');
-    }
-
-    // Add promotion_date column if not exists
-    try {
-      this.db.prepare(`
-        SELECT promotion_date FROM qe_patterns LIMIT 1
-      `).get();
-    } catch (e) {
-      logger.debug('Adding missing promotion_date column', { error: e instanceof Error ? e.message : String(e) });
-      this.db.exec(`
-        ALTER TABLE qe_patterns ADD COLUMN promotion_date TEXT DEFAULT NULL
-      `);
-      console.log('[PatternLifecycle] Added promotion_date column to qe_patterns');
-    }
-
-    // ADR-121: provenance_tier — additive, conservative-default migration.
-    // The DEFAULT backfills every existing row as 'proxy:structural', which can
-    // never over-credit legacy history. Rows re-derived from execution evidence
-    // are re-tiered upward through the normal write path (never up-tiered here).
-    // Distinct from the lifecycle `tier` (short-term/long-term) column.
-    try {
-      this.db.prepare(`
-        SELECT provenance_tier FROM qe_patterns LIMIT 1
-      `).get();
-    } catch (e) {
-      logger.debug('Adding missing provenance_tier column', { error: e instanceof Error ? e.message : String(e) });
-      this.db.exec(`
-        ALTER TABLE qe_patterns ADD COLUMN provenance_tier TEXT DEFAULT '${DEFAULT_PROVENANCE_TIER}'
-      `);
-      console.log(`[PatternLifecycle] Added provenance_tier column to qe_patterns (backfilled '${DEFAULT_PROVENANCE_TIER}')`);
-    }
+    ensurePatternLifecycleSchema(this.db);
   }
 
   // ============================================================================
@@ -630,6 +569,14 @@ Pattern extracted from ${exp.count} successful experiences.`;
    * Promote pattern to long-term tier
    */
   promotePattern(patternId: string): boolean {
+    if (!this.promotionVerified(patternId)) return false;
+    this.writePromotion(patternId);
+    console.log(`[PatternLifecycle] Promoted pattern ${patternId} to long-term`);
+    return true;
+  }
+
+  /** Whether `patternId` passes the advisory check and the frozen promote rule. */
+  private promotionVerified(patternId: string): boolean {
     const check = this.checkPromotion(patternId);
     if (!check.shouldPromote) {
       return false;
@@ -667,7 +614,10 @@ Pattern extracted from ${exp.count} successful experiences.`;
       );
       return false;
     }
+    return true;
+  }
 
+  private writePromotion(patternId: string): void {
     this.db.prepare(`
       UPDATE qe_patterns
       SET tier = 'long-term',
@@ -676,19 +626,13 @@ Pattern extracted from ${exp.count} successful experiences.`;
           updated_at = datetime('now')
       WHERE id = ?
     `).run(patternId);
-
-    console.log(`[PatternLifecycle] Promoted pattern ${patternId} to long-term`);
-    return true;
   }
 
   /**
    * Promote all eligible patterns
    */
   promoteEligiblePatterns(): { promoted: number; checked: number } {
-    const shortTermPatterns = this.db.prepare(`
-      SELECT id FROM qe_patterns
-      WHERE tier = 'short-term' AND deprecated_at IS NULL
-    `).all() as Array<{ id: string }>;
+    const shortTermPatterns = this.selectShortTermPatternIds();
 
     let promoted = 0;
     for (const { id } of shortTermPatterns) {
@@ -698,6 +642,32 @@ Pattern extracted from ${exp.count} successful experiences.`;
     }
 
     return { promoted, checked: shortTermPatterns.length };
+  }
+
+  /**
+   * promoteEligiblePatterns for the MCP server's background workers (#1283):
+   * each promotion is queued on the shared connection, so a locked memory.db
+   * does not freeze the event loop. Same selection, rule and result.
+   */
+  async promoteEligiblePatternsWhenUnlocked(): Promise<{ promoted: number; checked: number }> {
+    const shortTermPatterns = this.selectShortTermPatternIds();
+
+    let promoted = 0;
+    for (const { id } of shortTermPatterns) {
+      if (!this.promotionVerified(id)) continue;
+      await writeWhenUnlockedOn(this.db, () => this.writePromotion(id));
+      console.log(`[PatternLifecycle] Promoted pattern ${id} to long-term`);
+      promoted++;
+    }
+
+    return { promoted, checked: shortTermPatterns.length };
+  }
+
+  private selectShortTermPatternIds(): Array<{ id: string }> {
+    return this.db.prepare(`
+      SELECT id FROM qe_patterns
+      WHERE tier = 'short-term' AND deprecated_at IS NULL
+    `).all() as Array<{ id: string }>;
   }
 
   /**
@@ -789,7 +759,13 @@ Pattern extracted from ${exp.count} successful experiences.`;
     }
 
     const actualReason = reason || check.reason || 'manual';
+    this.writeDeprecation(patternId, actualReason);
+    console.log(`[PatternLifecycle] Deprecated pattern ${patternId}: ${actualReason}`);
+    return true;
+  }
 
+  /** Soft-delete a pattern and record why, in one unit so a queued retry repeats both. */
+  private writeDeprecation(patternId: string, actualReason: string): void {
     // Move to deprecated state (soft delete)
     this.db.prepare(`
       UPDATE qe_patterns
@@ -815,19 +791,13 @@ Pattern extracted from ${exp.count} successful experiences.`;
         WHERE id = ?
       `).run(JSON.stringify({ deprecation_metadata: metadata }), patternId);
     }
-
-    console.log(`[PatternLifecycle] Deprecated pattern ${patternId}: ${actualReason}`);
-    return true;
   }
 
   /**
    * Deprecate all patterns that meet deprecation criteria
    */
   deprecateStalePatterns(): { deprecated: number; checked: number } {
-    const activePatterns = this.db.prepare(`
-      SELECT id FROM qe_patterns
-      WHERE deprecated_at IS NULL
-    `).all() as Array<{ id: string }>;
+    const activePatterns = this.selectActivePatternIds();
 
     let deprecated = 0;
     for (const { id } of activePatterns) {
@@ -841,6 +811,34 @@ Pattern extracted from ${exp.count} successful experiences.`;
     return { deprecated, checked: activePatterns.length };
   }
 
+  /**
+   * deprecateStalePatterns for the MCP server's background workers (#1283):
+   * each deprecation is queued on the shared connection. Same criteria and result.
+   */
+  async deprecateStalePatternsWhenUnlocked(): Promise<{ deprecated: number; checked: number }> {
+    const activePatterns = this.selectActivePatternIds();
+
+    let deprecated = 0;
+    for (const { id } of activePatterns) {
+      const check = this.checkDeprecation(id);
+      if (check.shouldDeprecate) {
+        const actualReason = check.reason || 'manual';
+        await writeWhenUnlockedOn(this.db, () => this.writeDeprecation(id, actualReason));
+        console.log(`[PatternLifecycle] Deprecated pattern ${id}: ${actualReason}`);
+        deprecated++;
+      }
+    }
+
+    return { deprecated, checked: activePatterns.length };
+  }
+
+  private selectActivePatternIds(): Array<{ id: string }> {
+    return this.db.prepare(`
+      SELECT id FROM qe_patterns
+      WHERE deprecated_at IS NULL
+    `).all() as Array<{ id: string }>;
+  }
+
   // ============================================================================
   // Confidence Decay
   // ============================================================================
@@ -849,6 +847,19 @@ Pattern extracted from ${exp.count} successful experiences.`;
    * Apply confidence decay to patterns that haven't been used recently
    */
   applyConfidenceDecay(daysSinceLastRun: number = 1): { updated: number; decayed: number } {
+    return this.writeConfidenceDecay(daysSinceLastRun, Date.now());
+  }
+
+  /**
+   * applyConfidenceDecay for the MCP server's background workers (#1283): the
+   * decay UPDATE is queued on the shared connection. Same cutoff and result.
+   */
+  async applyConfidenceDecayWhenUnlocked(daysSinceLastRun: number = 1): Promise<{ updated: number; decayed: number }> {
+    const now = Date.now();
+    return writeWhenUnlockedOn(this.db, () => this.writeConfidenceDecay(daysSinceLastRun, now));
+  }
+
+  private writeConfidenceDecay(daysSinceLastRun: number, now: number): { updated: number; decayed: number } {
     // EWC++ (#510 item 6): per-row importance-weighted decay. The base decay
     // amount is shielded by `EWC_DECAY_PROTECTION * importance`, where
     // importance = success_rate (clamped) once usage_count >= the trust
@@ -858,7 +869,7 @@ Pattern extracted from ${exp.count} successful experiences.`;
     const baseDecayAmount = this.config.confidenceDecayRate * daysSinceLastRun;
 
     // Get patterns that haven't been used in the decay period
-    const cutoffTime = Date.now() - (daysSinceLastRun * 24 * 60 * 60 * 1000);
+    const cutoffTime = now - (daysSinceLastRun * 24 * 60 * 60 * 1000);
 
     const result = this.db.prepare(`
       UPDATE qe_patterns
@@ -1249,6 +1260,83 @@ interface PatternWithDeprecation extends QEPattern {
 // ============================================================================
 // Factory
 // ============================================================================
+
+/**
+ * Add the lifecycle columns to qe_patterns if they are missing. Only writes
+ * (ALTER TABLE) on a database that predates them.
+ */
+function ensurePatternLifecycleSchema(db: DatabaseType): void {
+  // Add deprecated_at column if not exists
+  try {
+    db.prepare(`
+      SELECT deprecated_at FROM qe_patterns LIMIT 1
+    `).get();
+  } catch (e) {
+    // Column doesn't exist, add it
+    logger.debug('Adding missing deprecated_at column', { error: e instanceof Error ? e.message : String(e) });
+    db.exec(`
+      ALTER TABLE qe_patterns ADD COLUMN deprecated_at TEXT DEFAULT NULL
+    `);
+    console.log('[PatternLifecycle] Added deprecated_at column to qe_patterns');
+  }
+
+  // Add consecutive_failures column if not exists
+  try {
+    db.prepare(`
+      SELECT consecutive_failures FROM qe_patterns LIMIT 1
+    `).get();
+  } catch (e) {
+    logger.debug('Adding missing consecutive_failures column', { error: e instanceof Error ? e.message : String(e) });
+    db.exec(`
+      ALTER TABLE qe_patterns ADD COLUMN consecutive_failures INTEGER DEFAULT 0
+    `);
+    console.log('[PatternLifecycle] Added consecutive_failures column to qe_patterns');
+  }
+
+  // Add promotion_date column if not exists
+  try {
+    db.prepare(`
+      SELECT promotion_date FROM qe_patterns LIMIT 1
+    `).get();
+  } catch (e) {
+    logger.debug('Adding missing promotion_date column', { error: e instanceof Error ? e.message : String(e) });
+    db.exec(`
+      ALTER TABLE qe_patterns ADD COLUMN promotion_date TEXT DEFAULT NULL
+    `);
+    console.log('[PatternLifecycle] Added promotion_date column to qe_patterns');
+  }
+
+  // ADR-121: provenance_tier — additive, conservative-default migration.
+  // The DEFAULT backfills every existing row as 'proxy:structural', which can
+  // never over-credit legacy history. Rows re-derived from execution evidence
+  // are re-tiered upward through the normal write path (never up-tiered here).
+  // Distinct from the lifecycle `tier` (short-term/long-term) column.
+  try {
+    db.prepare(`
+      SELECT provenance_tier FROM qe_patterns LIMIT 1
+    `).get();
+  } catch (e) {
+    logger.debug('Adding missing provenance_tier column', { error: e instanceof Error ? e.message : String(e) });
+    db.exec(`
+      ALTER TABLE qe_patterns ADD COLUMN provenance_tier TEXT DEFAULT '${DEFAULT_PROVENANCE_TIER}'
+    `);
+    console.log(`[PatternLifecycle] Added provenance_tier column to qe_patterns (backfilled '${DEFAULT_PROVENANCE_TIER}')`);
+  }
+}
+
+/**
+ * Create a pattern lifecycle manager for the MCP server's background workers
+ * (#1283). A database that predates the lifecycle columns gets its ALTER
+ * TABLEs through the shared connection's write queue first, so a locked
+ * memory.db does not freeze the event loop on the worker's first tick.
+ */
+export async function createPatternLifecycleManagerWhenUnlocked(
+  db: DatabaseType,
+  config?: Partial<PatternLifecycleConfig>
+): Promise<PatternLifecycleManager> {
+  await writeWhenUnlockedOn(db, () => ensurePatternLifecycleSchema(db));
+  return new PatternLifecycleManager(db, config);
+}
 
 /**
  * Create a pattern lifecycle manager

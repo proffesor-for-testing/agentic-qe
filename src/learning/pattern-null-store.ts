@@ -15,6 +15,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { Database as DatabaseType } from 'better-sqlite3';
 import { applyMigration } from '../migrations/20260611_add_pattern_nulls_table.js';
+import { writeWhenUnlockedOn } from '../shared/sqlite-write-queue.js';
 
 export type NullEvidenceClass = 'EXECUTED' | 'STATIC' | 'INFERRED' | 'CONJECTURE';
 
@@ -65,6 +66,14 @@ export class PatternNullStore {
       record.trajectoryRef ?? null,
       record.evidenceClass ?? 'EXECUTED',
     );
+  }
+
+  /**
+   * recordNull() through the shared connection's write queue (#1283), so a
+   * locked memory.db does not freeze the MCP server's event loop.
+   */
+  recordNullWhenUnlocked(record: PatternNullRecord): Promise<void> {
+    return writeWhenUnlockedOn(this.db, () => this.recordNull(record));
   }
 
   /** Batch summaries for retrieval-time surfacing. Missing patterns simply have no entry. */

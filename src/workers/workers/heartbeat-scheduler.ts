@@ -21,7 +21,7 @@ import {
 } from '../interfaces.js';
 import {
   PatternLifecycleManager,
-  createPatternLifecycleManager,
+  createPatternLifecycleManagerWhenUnlocked,
   type PatternLifecycleStats,
 } from '../../learning/pattern-lifecycle.js';
 import { getUnifiedMemory } from '../../kernel/unified-memory.js';
@@ -73,7 +73,7 @@ export class HeartbeatSchedulerWorker extends BaseWorker {
       const unifiedMemory = getUnifiedMemory();
       await unifiedMemory.initialize();
       const db = unifiedMemory.getDatabase();
-      this.lifecycleManager = createPatternLifecycleManager(db, {
+      this.lifecycleManager = await createPatternLifecycleManagerWhenUnlocked(db, {
         promotionRewardThreshold: 0.7,
         promotionMinOccurrences: 2,
         promotionMinSuccessRate: 0.7,
@@ -151,7 +151,7 @@ export class HeartbeatSchedulerWorker extends BaseWorker {
     let promoted = 0;
     let promotionChecked = 0;
     try {
-      const promotionResult = lifecycleManager.promoteEligiblePatterns();
+      const promotionResult = await lifecycleManager.promoteEligiblePatternsWhenUnlocked();
       promoted = promotionResult.promoted;
       promotionChecked = promotionResult.checked;
 
@@ -174,7 +174,7 @@ export class HeartbeatSchedulerWorker extends BaseWorker {
     let deprecated = 0;
     let deprecationChecked = 0;
     try {
-      const deprecationResult = lifecycleManager.deprecateStalePatterns();
+      const deprecationResult = await lifecycleManager.deprecateStalePatternsWhenUnlocked();
       deprecated = deprecationResult.deprecated;
       deprecationChecked = deprecationResult.checked;
 
@@ -201,7 +201,7 @@ export class HeartbeatSchedulerWorker extends BaseWorker {
           ? (Date.now() - this.lastRunTimestamp) / (1000 * 60 * 60 * 24)
           : 1;
 
-      const decayResult = lifecycleManager.applyConfidenceDecay(
+      const decayResult = await lifecycleManager.applyConfidenceDecayWhenUnlocked(
         Math.min(daysSinceLastRun, 7)
       );
       decayed = decayResult.decayed;

@@ -284,7 +284,7 @@ export class AQELearningEngine {
           const nullStore = new PatternNullStore(
             persistence.getDatabase() as ConstructorParameters<typeof PatternNullStore>[0]
           );
-          this.experienceCapture.setNullRecorder((record) => nullStore.recordNull(record));
+          this.experienceCapture.setNullRecorder((record) => nullStore.recordNullWhenUnlocked(record));
         }
       } catch (e) {
         if (process.env.DEBUG) console.debug('[AQELearningEngine] Null recorder wiring skipped:', e instanceof Error ? e.message : e);

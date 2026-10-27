@@ -687,7 +687,7 @@ Provide:
     const contextFingerprint = `${experience.domain}:${experience.action}`;
     for (const patternId of experience.appliedPatternIds ?? []) {
       try {
-        nullStore.recordNull({
+        await nullStore.recordNullWhenUnlocked({
           patternId,
           contextFingerprint,
           failureMode: String(experience.result.outcome?.error ?? experience.action),

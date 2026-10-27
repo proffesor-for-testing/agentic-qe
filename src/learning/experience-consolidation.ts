@@ -220,10 +220,10 @@ export class ExperienceConsolidator {
     result.contradicted = clusterResult.contradicted;
 
     // Phase 2: Quality Reinforcement
-    result.qualityUpdated = this.reinforceQuality(domain);
+    result.qualityUpdated = await this.reinforceQuality(domain);
 
     // Phase 3: Archive Valueless
-    result.archived = this.archiveValueless(domain);
+    result.archived = await this.archiveValueless(domain);
 
     // Safety valve: when the domain still exceeds hardThreshold after the
     // soft phases, archive (not delete) the oldest low-quality excess.
@@ -235,7 +235,7 @@ export class ExperienceConsolidator {
 
     let safetyValveArchived = 0;
     if (afterCount > this.config.hardThreshold) {
-      safetyValveArchived = this.hardDeleteExcess(domain, afterCount);
+      safetyValveArchived = await this.hardDeleteExcess(domain, afterCount);
       result.archived += safetyValveArchived;
     }
 
@@ -274,9 +274,10 @@ export class ExperienceConsolidator {
 
     // Set bootstrap flag
     try {
-      this.db!.prepare(
+      const bootstrappedAt = new Date().toISOString();
+      await this.write(() => this.db!.prepare(
         "INSERT OR REPLACE INTO kv_store (key, value, namespace) VALUES (?, ?, 'system')"
-      ).run(`consolidation_bootstrap_${domain}`, new Date().toISOString());
+      ).run(`consolidation_bootstrap_${domain}`, bootstrappedAt));
     } catch {
       // kv_store may not exist in all setups
     }
@@ -485,7 +486,12 @@ export class ExperienceConsolidator {
   // Phase 2: Quality Reinforcement
   // ============================================================================
 
-  private reinforceQuality(domain: string): number {
+  private reinforceQuality(domain: string): Promise<number> {
+    // Read and update in one queued unit, so the update uses current values.
+    return this.write(() => this.reinforceQualityNow(domain));
+  }
+
+  private reinforceQualityNow(domain: string): number {
     // Get experiences with application history
     const experiences = this.db!.prepare(`
       SELECT ce.id, ce.quality, ce.consolidation_count,
@@ -552,7 +558,11 @@ export class ExperienceConsolidator {
   // Phase 3: Archive Valueless
   // ============================================================================
 
-  private archiveValueless(domain: string): number {
+  private archiveValueless(domain: string): Promise<number> {
+    return this.write(() => this.archiveValuelessNow(domain));
+  }
+
+  private archiveValuelessNow(domain: string): number {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - this.config.archiveMinAgeDays);
     const cutoffStr = cutoffDate.toISOString().replace('T', ' ').slice(0, 19);
@@ -605,7 +615,11 @@ export class ExperienceConsolidator {
   // ConsolidationResult.hardDeleted is kept zero for that reason; the
   // archive count is rolled into Phase 3's `archived` total.
 
-  private hardDeleteExcess(domain: string, currentCount: number): number {
+  private hardDeleteExcess(domain: string, currentCount: number): Promise<number> {
+    return this.write(() => this.hardDeleteExcessNow(domain, currentCount));
+  }
+
+  private hardDeleteExcessNow(domain: string, currentCount: number): number {
     const excess = currentCount - this.config.hardThreshold;
     if (excess <= 0) return 0;
 
@@ -680,6 +694,15 @@ export class ExperienceConsolidator {
     if (!this.initialized || !this.db) {
       throw new Error('ExperienceConsolidator not initialized. Call initialize() first.');
     }
+  }
+
+  /**
+   * Queue a write on the shared connection (#1283): the learning worker runs
+   * consolidation inside the MCP server, where a locked memory.db must not
+   * freeze the event loop. On any other connection the write runs at once.
+   */
+  private write<T>(fn: () => T): Promise<T> {
+    return writeWhenUnlockedOn(this.db!, fn);
   }
 
   private bufferToFloatArray(buffer: Buffer, dimension: number): number[] {

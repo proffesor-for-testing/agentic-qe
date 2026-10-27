@@ -459,44 +459,52 @@ export class PatternEvolution {
   ): Promise<PatternVersion> {
     this.ensureInitialized();
 
-    // Get current version count
-    const countStmt = this.prepared.get('getVersionCount');
-    const countResult = countStmt?.get(patternId) as { count: number } | undefined;
-    const newVersion = (countResult?.count ?? 0) + 1;
-
-    // Get pattern quality/success rate
-    const patternStmt = this.prepared.get('getPattern');
-    const pattern = patternStmt?.get(patternId) as PatternRow | undefined;
-
     const id = uuidv4();
-    const version: PatternVersion = {
-      id,
-      patternId,
-      version: newVersion,
-      embedding,
-      changes,
-      qualityScore: pattern?.quality_score ?? 0.5,
-      successRate: pattern?.success_rate ?? 0.5,
-      timestamp: new Date(),
-      trigger,
-    };
+    const embeddingBuffer = this.floatArrayToBuffer(embedding);
 
-    // Store in database
-    const insertStmt = this.prepared.get('insertVersion');
-    if (insertStmt) {
-      const embeddingBuffer = this.floatArrayToBuffer(embedding);
-      insertStmt.run(
+    // #1283: read the version count and insert the new version as one queued
+    // unit, so a locked memory.db does not freeze the MCP server and two
+    // concurrent calls cannot both claim the same version number.
+    const version = await this.write((): PatternVersion => {
+      // Get current version count
+      const countStmt = this.prepared.get('getVersionCount');
+      const countResult = countStmt?.get(patternId) as { count: number } | undefined;
+      const newVersion = (countResult?.count ?? 0) + 1;
+
+      // Get pattern quality/success rate
+      const patternStmt = this.prepared.get('getPattern');
+      const pattern = patternStmt?.get(patternId) as PatternRow | undefined;
+
+      const tracked: PatternVersion = {
         id,
         patternId,
-        newVersion,
-        embeddingBuffer,
-        embedding.length,
-        JSON.stringify(changes),
-        version.qualityScore,
-        version.successRate,
-        trigger
-      );
-    }
+        version: newVersion,
+        embedding,
+        changes,
+        qualityScore: pattern?.quality_score ?? 0.5,
+        successRate: pattern?.success_rate ?? 0.5,
+        timestamp: new Date(),
+        trigger,
+      };
+
+      // Store in database
+      const insertStmt = this.prepared.get('insertVersion');
+      if (insertStmt) {
+        insertStmt.run(
+          id,
+          patternId,
+          newVersion,
+          embeddingBuffer,
+          embedding.length,
+          JSON.stringify(changes),
+          tracked.qualityScore,
+          tracked.successRate,
+          trigger
+        );
+      }
+      return tracked;
+    });
+    const newVersion = version.version;
 
     // Update embedding cache
     this.embeddingCache.set(patternId, embedding);

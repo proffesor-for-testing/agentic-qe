@@ -298,7 +298,7 @@ export class ExperienceCaptureService {
     failureMode: string;
     trajectoryRef?: string;
     evidenceClass: 'EXECUTED';
-  }) => void;
+  }) => void | Promise<void>;
 
   constructor(
     private readonly memory: MemoryBackend,
@@ -482,7 +482,7 @@ export class ExperienceCaptureService {
       const contextFingerprint = `${experience.domain ?? 'unknown'}:${experience.agent ?? 'unknown'}`;
       for (const patternId of experience.appliedPatterns) {
         try {
-          this.nullRecorder({
+          await this.nullRecorder({
             patternId,
             contextFingerprint,
             failureMode: experience.testOutcome ?? experience.feedback ?? 'task-failure',

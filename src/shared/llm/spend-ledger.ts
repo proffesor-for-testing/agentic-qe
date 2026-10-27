@@ -21,6 +21,7 @@
 import type { Database as DatabaseType } from 'better-sqlite3';
 import type { CostSource } from './interfaces';
 import { createSafeRecord } from '../utils/safe-record';
+import { writeWhenUnlockedOn } from '../sqlite-write-queue';
 
 /** A single persisted charge. */
 export interface SpendEntry {
@@ -85,6 +86,14 @@ export class SqliteSpendLedger implements SpendLedger {
    * drop ALL spend — bypassing the budget cap (the #557 class).
    */
   private hasAgentColumn = false;
+  /**
+   * Charges queued but not yet in the table (#1283). record() queues its
+   * INSERT so a locked memory.db does not freeze the MCP server; until the row
+   * lands, the spend reads below count it from here, so the ADR-123 budget cap
+   * never under-counts. Each entry leaves this set in the same synchronous
+   * step that inserts its row, so a charge is never counted twice.
+   */
+  private readonly pending = new Set<{ ts: number; costUsd: number; agent: string }>();
 
   constructor(db: DatabaseType) {
     this.db = db;
@@ -107,47 +116,56 @@ export class SqliteSpendLedger implements SpendLedger {
   }
 
   record(entry: SpendEntry): void {
-    try {
-      if (this.hasAgentColumn) {
-        this.db
-          .prepare(
-            `INSERT INTO llm_spend
-               (ts, provider, model, cost_usd, cost_source, prompt_tokens, completion_tokens, request_id, agent_type)
-             VALUES (@ts, @provider, @model, @cost_usd, @cost_source, @prompt_tokens, @completion_tokens, @request_id, @agent_type)`
-          )
-          .run({
-            ts: Date.now(),
-            provider: entry.provider,
-            model: entry.model,
-            cost_usd: entry.costUsd,
-            cost_source: entry.costSource,
-            prompt_tokens: entry.promptTokens,
-            completion_tokens: entry.completionTokens,
-            request_id: entry.requestId,
-            agent_type: entry.agent ?? null,
-          });
-      } else {
-        // Column absent (migration couldn't run) — still record spend so the
-        // budget cap holds; just without per-agent attribution.
-        this.db
-          .prepare(
-            `INSERT INTO llm_spend
-               (ts, provider, model, cost_usd, cost_source, prompt_tokens, completion_tokens, request_id)
-             VALUES (@ts, @provider, @model, @cost_usd, @cost_source, @prompt_tokens, @completion_tokens, @request_id)`
-          )
-          .run({
-            ts: Date.now(),
-            provider: entry.provider,
-            model: entry.model,
-            cost_usd: entry.costUsd,
-            cost_source: entry.costSource,
-            prompt_tokens: entry.promptTokens,
-            completion_tokens: entry.completionTokens,
-            request_id: entry.requestId,
-          });
-      }
-    } catch {
+    const ts = Date.now();
+    const charge = { ts, costUsd: entry.costUsd, agent: entry.agent ?? UNATTRIBUTED_AGENT };
+    this.pending.add(charge);
+    writeWhenUnlockedOn(this.db, () => {
+      this.insert(entry, ts);
+      this.pending.delete(charge);
+    }).catch(() => {
       // A ledger write must never break a generation call.
+      this.pending.delete(charge);
+    });
+  }
+
+  private insert(entry: SpendEntry, ts: number): void {
+    if (this.hasAgentColumn) {
+      this.db
+        .prepare(
+          `INSERT INTO llm_spend
+             (ts, provider, model, cost_usd, cost_source, prompt_tokens, completion_tokens, request_id, agent_type)
+           VALUES (@ts, @provider, @model, @cost_usd, @cost_source, @prompt_tokens, @completion_tokens, @request_id, @agent_type)`
+        )
+        .run({
+          ts,
+          provider: entry.provider,
+          model: entry.model,
+          cost_usd: entry.costUsd,
+          cost_source: entry.costSource,
+          prompt_tokens: entry.promptTokens,
+          completion_tokens: entry.completionTokens,
+          request_id: entry.requestId,
+          agent_type: entry.agent ?? null,
+        });
+    } else {
+      // Column absent (migration couldn't run) — still record spend so the
+      // budget cap holds; just without per-agent attribution.
+      this.db
+        .prepare(
+          `INSERT INTO llm_spend
+             (ts, provider, model, cost_usd, cost_source, prompt_tokens, completion_tokens, request_id)
+           VALUES (@ts, @provider, @model, @cost_usd, @cost_source, @prompt_tokens, @completion_tokens, @request_id)`
+        )
+        .run({
+          ts,
+          provider: entry.provider,
+          model: entry.model,
+          cost_usd: entry.costUsd,
+          cost_source: entry.costSource,
+          prompt_tokens: entry.promptTokens,
+          completion_tokens: entry.completionTokens,
+          request_id: entry.requestId,
+        });
     }
   }
 
@@ -158,7 +176,11 @@ export class SqliteSpendLedger implements SpendLedger {
           `SELECT COALESCE(SUM(cost_usd), 0) AS total FROM llm_spend WHERE ts >= ?`
         )
         .get(nowMs - windowMs) as { total: number } | undefined;
-      return row?.total ?? 0;
+      let total = row?.total ?? 0;
+      for (const charge of this.pending) {
+        if (charge.ts >= nowMs - windowMs) total += charge.costUsd;
+      }
+      return total;
     } catch {
       return 0;
     }
@@ -174,6 +196,9 @@ export class SqliteSpendLedger implements SpendLedger {
         .all(UNATTRIBUTED_AGENT, nowMs - windowMs, UNATTRIBUTED_AGENT) as Array<{ agent: string; total: number }>;
       const out = createSafeRecord<number>();
       for (const r of rows) out[r.agent] = r.total;
+      for (const charge of this.pending) {
+        if (charge.ts >= nowMs - windowMs) out[charge.agent] = (out[charge.agent] ?? 0) + charge.costUsd;
+      }
       return out;
     } catch {
       return {};
