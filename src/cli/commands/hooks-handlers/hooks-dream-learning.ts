@@ -40,11 +40,18 @@ async function persistCapturedExperienceEmbedding(
   text: string,
 ): Promise<void> {
   try {
-    const { computeRealEmbedding } = await import('../../../learning/real-embeddings.js');
+    const { computeRealEmbedding, getActiveEmbeddingSpaceIdentity } = await import('../../../learning/real-embeddings.js');
+    const { recordExperienceEmbeddingSpace } = await import('../../../learning/embedding-space.js');
+    const { writeWhenUnlockedOn } = await import('../../../kernel/unified-memory.js');
     const embedding = await computeRealEmbedding(text.slice(0, 512));
-    db.prepare(
-      'UPDATE captured_experiences SET embedding = ?, embedding_dimension = ? WHERE id = ?'
-    ).run(Buffer.from(new Float32Array(embedding).buffer), embedding.length, id);
+    // #1274: queued behind other writes on the shared connection.
+    await writeWhenUnlockedOn(db as unknown as Parameters<typeof writeWhenUnlockedOn>[0], () => {
+      db.prepare(
+        'UPDATE captured_experiences SET embedding = ?, embedding_dimension = ? WHERE id = ?'
+      ).run(Buffer.from(new Float32Array(embedding).buffer), embedding.length, id);
+      // #1217 (ADR-097): store the vector's embedding space with it.
+      recordExperienceEmbeddingSpace(db, id, getActiveEmbeddingSpaceIdentity()?.spaceId);
+    });
   } catch (error) {
     // Capture remains fail-soft, but the failure is observable for diagnostics.
     console.error(
@@ -400,6 +407,7 @@ export async function persistTaskOutcome(opts: {
       avg_token_savings REAL DEFAULT 0,
       embedding BLOB,
       embedding_dimension INTEGER,
+      embedding_space_id TEXT,
       tags TEXT,
       last_applied_at TEXT
     );

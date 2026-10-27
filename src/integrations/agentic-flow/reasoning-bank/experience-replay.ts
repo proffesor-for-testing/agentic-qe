@@ -20,6 +20,7 @@ import type { QEDomain } from '../../../learning/qe-patterns.js';
 import {
   computeRealEmbedding,
   cosineSimilarity,
+  getActiveEmbeddingSpaceIdentity,
   type EmbeddingConfig,
 } from '../../../learning/real-embeddings.js';
 import { EmbedderRecovery, probeEmbedder } from '../../../learning/embedder-recovery.js';
@@ -73,6 +74,12 @@ export interface Experience {
 
   /** Embedding for similarity search */
   readonly embedding?: number[];
+
+  /**
+   * #1217: embedding-space identity (ADR-097 spaceId) the embedding was
+   * computed in. Only vectors from the active space are compared.
+   */
+  readonly embeddingSpaceId?: string;
 
   /** Creation timestamp */
   readonly createdAt: Date;
@@ -191,6 +198,7 @@ interface ExperienceRow {
   avg_token_savings: number;
   embedding: Buffer | null;
   embedding_dimension: number | null;
+  embedding_space_id: string | null;
   tags: string | null;
   last_applied_at: string | null;
 }
@@ -237,6 +245,12 @@ export class ExperienceReplay {
   private idToExperienceId: Map<number, string> = new Map();
   private experienceIdToHnswId: Map<string, number> = new Map();
   private nextHnswId = 0;
+  /**
+   * #1217: embedding space the HNSW index holds vectors of. The index only
+   * holds vectors of one space, so a similarity is never measured across
+   * spaces. Null until the embedder's space is known.
+   */
+  private indexSpaceId: string | null = null;
 
   // Recent experiences buffer
   private recentExperiences: CircularBuffer<Experience>;
@@ -301,7 +315,7 @@ export class ExperienceReplay {
     this.prepareStatements();
 
     // Load embeddings into memory index
-    await this.loadEmbeddingIndex();
+    await this.loadEmbeddingIndex(getActiveEmbeddingSpaceIdentity()?.spaceId ?? null);
 
     // Backfill missing embeddings on captured_experiences. Hook-side INSERT
     // paths (sources: cli-hook-post-command, patch-060-post-task, etc.)
@@ -311,15 +325,17 @@ export class ExperienceReplay {
     void (async () => {
       try {
         if (!this.db) return;
+        // #1217: rows whose vector has no embedding-space provenance are
+        // never compared, so they are re-embedded like rows without one.
         const ghosts = this.db.prepare(`
           SELECT id, domain, task FROM captured_experiences
-          WHERE embedding IS NULL AND consolidated_into IS NULL
+          WHERE (embedding IS NULL OR embedding_space_id IS NULL) AND consolidated_into IS NULL
           LIMIT 200
         `).all() as Array<{ id: string; domain: string | null; task: string }>;
         if (ghosts.length === 0) return;
         const updateStmt = this.db.prepare(`
           UPDATE captured_experiences
-          SET embedding = ?, embedding_dimension = ?
+          SET embedding = ?, embedding_dimension = ?, embedding_space_id = ?
           WHERE id = ?
         `);
         let written = 0;
@@ -327,22 +343,14 @@ export class ExperienceReplay {
           // ADR-099: legacy rows may predate ingestion-time scrubbing
           const text = scrubReasoningBlocks(`${row.domain ?? ''}: ${row.task}`).slice(0, 512);
           const embedding = await computeRealEmbedding(text);
+          const spaceId = getActiveEmbeddingSpaceIdentity()?.spaceId;
+          // ADR-097: a vector without provenance would never be compared.
+          if (!spaceId) break;
           const buf = Buffer.from(new Float32Array(embedding).buffer);
           // #1263: retried asynchronously, so a locked DB does not freeze the MCP server.
-          await this.unifiedMemory!.writeWhenUnlocked(() => updateStmt.run(buf, embedding.length, row.id));
+          await this.unifiedMemory!.writeWhenUnlocked(() => updateStmt.run(buf, embedding.length, spaceId, row.id));
           // Add to live HNSW so freshly-embedded rows are immediately searchable
-          const hnswId = this.nextHnswId++;
-          this.hnswIndex.addEmbedding({
-            vector: embedding,
-            dimension: 384,
-            namespace: 'experiences',
-            text: row.id,
-            timestamp: Date.now(),
-            quantization: 'none',
-            metadata: {},
-          }, hnswId);
-          this.idToExperienceId.set(hnswId, row.id);
-          this.experienceIdToHnswId.set(row.id, hnswId);
+          this.indexExperience(row.id, embedding, spaceId);
           written++;
         }
         console.log(`[ExperienceReplay] Backfilled ${written} captured_experiences embeddings`);
@@ -424,6 +432,7 @@ export class ExperienceReplay {
         avg_token_savings REAL DEFAULT 0,
         embedding BLOB,
         embedding_dimension INTEGER,
+        embedding_space_id TEXT,
         tags TEXT,
         last_applied_at TEXT
       );
@@ -440,6 +449,8 @@ export class ExperienceReplay {
       ['avg_token_savings', 'REAL DEFAULT 0'],
       ['embedding', 'BLOB'],
       ['embedding_dimension', 'INTEGER'],
+      // #1217: embedding-space identity of the stored vector (ADR-097)
+      ['embedding_space_id', 'TEXT'],
       ['tags', 'TEXT'],
       ['last_applied_at', 'TEXT'],
       // Consolidation columns (experience-consolidation system)
@@ -494,8 +505,8 @@ export class ExperienceReplay {
     this.prepared.set('insertExperience', this.db.prepare(`
       INSERT INTO captured_experiences (
         id, task, agent, domain, success, quality, duration_ms,
-        steps_json, routing_json, embedding, embedding_dimension, tags, source
-      ) VALUES (?, ?, ?, ?, 1, ?, 0, ?, ?, ?, ?, ?, 'experience-replay')
+        steps_json, routing_json, embedding, embedding_dimension, embedding_space_id, tags, source
+      ) VALUES (?, ?, ?, ?, 1, ?, 0, ?, ?, ?, ?, ?, ?, 'experience-replay')
     `));
 
     this.prepared.set('getExperience', this.db.prepare(`
@@ -511,7 +522,8 @@ export class ExperienceReplay {
     `));
 
     this.prepared.set('getAllEmbeddings', this.db.prepare(`
-      SELECT id, embedding, embedding_dimension FROM captured_experiences WHERE embedding IS NOT NULL AND consolidated_into IS NULL
+      SELECT id, embedding, embedding_dimension FROM captured_experiences
+      WHERE embedding IS NOT NULL AND embedding_space_id = ? AND consolidated_into IS NULL
     `));
 
     this.prepared.set('updateApplication', this.db.prepare(`
@@ -535,12 +547,16 @@ export class ExperienceReplay {
   /**
    * Load embeddings into HNSW index for O(log n) similarity search
    * Performance: 150x-12,500x faster than linear scan
+   *
+   * #1217: loads only vectors of the given embedding space, as the pattern
+   * banks do (ADR-097). Vectors of another space, or without provenance, are
+   * not comparable with a query embedded in this one.
    */
-  private async loadEmbeddingIndex(): Promise<void> {
+  private async loadEmbeddingIndex(spaceId: string | null): Promise<void> {
     const stmt = this.prepared.get('getAllEmbeddings');
     if (!stmt) return;
 
-    const rows = stmt.all() as Array<{
+    const rows = (spaceId ? stmt.all(spaceId) : []) as Array<{
       id: string;
       embedding: Buffer;
       embedding_dimension: number;
@@ -551,6 +567,7 @@ export class ExperienceReplay {
     this.experienceIdToHnswId.clear();
     this.hnswIndex.clearIndex('experiences');
     this.nextHnswId = 0;
+    this.indexSpaceId = spaceId;
 
     // Build HNSW index with all embeddings
     for (const row of rows) {
@@ -613,6 +630,8 @@ export class ExperienceReplay {
     // Generate embedding for similarity search
     const embeddingText = `${task} ${strategy} ${keyActions.join(' ')}`;
     const embedding = (await this.embedOrNull(embeddingText)) ?? undefined;
+    // ADR-097: a vector is kept only with the space it was computed in.
+    const embeddingSpaceId = embedding ? getActiveEmbeddingSpaceIdentity()?.spaceId : undefined;
 
     const id = uuidv4();
     const domain = trajectory.domain || 'test-generation';
@@ -628,7 +647,8 @@ export class ExperienceReplay {
       applicationCount: 0,
       successRate: 1.0,
       avgTokenSavings: 0,
-      embedding,
+      embedding: embeddingSpaceId ? embedding : undefined,
+      embeddingSpaceId,
       createdAt: new Date(),
       originalMetrics: trajectory.metrics,
       tags,
@@ -637,7 +657,7 @@ export class ExperienceReplay {
     // Store in captured_experiences table
     const insertStmt = this.prepared.get('insertExperience');
     if (insertStmt) {
-      const embeddingBuffer = embedding ? this.floatArrayToBuffer(embedding) : null;
+      const embeddingBuffer = experience.embedding ? this.floatArrayToBuffer(experience.embedding) : null;
       // Queued (#1274): runs when task completion events end a trajectory.
       const run = () => insertStmt.run(
         id,
@@ -648,29 +668,16 @@ export class ExperienceReplay {
         JSON.stringify(keyActions), // steps_json stores key actions
         JSON.stringify(trajectory.metrics), // routing_json stores original metrics
         embeddingBuffer,
-        embedding?.length ?? null,
+        experience.embedding?.length ?? null,
+        embeddingSpaceId ?? null,
         JSON.stringify(tags),
       );
       await (this.unifiedMemory ? this.unifiedMemory.writeWhenUnlocked(run) : run());
     }
 
     // Add to HNSW index for fast similarity search
-    if (embedding) {
-      const hnswId = this.nextHnswId++;
-
-      const iEmbedding: IEmbedding = {
-        vector: embedding,
-        dimension: 384,
-        namespace: 'experiences',
-        text: id, // Use ID as text identifier
-        timestamp: Date.now(),
-        quantization: 'none',
-        metadata: {},
-      };
-
-      this.hnswIndex.addEmbedding(iEmbedding, hnswId);
-      this.idToExperienceId.set(hnswId, id);
-      this.experienceIdToHnswId.set(id, hnswId);
+    if (experience.embedding && embeddingSpaceId) {
+      this.indexExperience(id, experience.embedding, embeddingSpaceId);
     }
 
     // Add to recent buffer
@@ -748,7 +755,9 @@ export class ExperienceReplay {
     // #1022: without an embedding of the query nothing measures relevance, so
     // return no guidance rather than picks with a made-up similarity.
     const queryEmbedding = await this.embedOrNull(scrubReasoningBlocks(task));
-    if (!queryEmbedding) {
+    // #1217: the query's embedding space; only vectors of it are compared.
+    const querySpaceId = getActiveEmbeddingSpaceIdentity()?.spaceId;
+    if (!queryEmbedding || !querySpaceId) {
       return null;
     }
 
@@ -771,7 +780,10 @@ export class ExperienceReplay {
         if (similar.some(s => s.experience.id === exp.id)) continue;
         // Skip if domain filter doesn't match
         if (domain && exp.domain !== domain) continue;
-        if (!exp.embedding || exp.embedding.length !== queryEmbedding.length) continue;
+        // #1217: a vector from another embedding space (even of the same
+        // dimension), or without provenance, has no comparable similarity.
+        if (!exp.embedding || exp.embeddingSpaceId !== querySpaceId) continue;
+        if (exp.embedding.length !== queryEmbedding.length) continue;
         const similarity = cosineSimilarity(queryEmbedding, exp.embedding);
         if (similarity < this.config.similarityThreshold) continue;
         similar.push({ experience: exp, similarity });
@@ -855,8 +867,9 @@ export class ExperienceReplay {
 
     const k = limit ?? this.config.topK;
 
-    // Check if index is empty
-    if (this.idToExperienceId.size === 0) {
+    // Check if index is empty (and bound to the active embedding space)
+    const knownSpaceId = getActiveEmbeddingSpaceIdentity()?.spaceId ?? null;
+    if (this.idToExperienceId.size === 0 && knownSpaceId !== null && knownSpaceId === this.indexSpaceId) {
       return [];
     }
 
@@ -865,6 +878,15 @@ export class ExperienceReplay {
     task = scrubReasoningBlocks(task);
     const taskEmbedding = await this.embedOrNull(task);
     if (!taskEmbedding) {
+      return [];
+    }
+    // #1217: search only vectors of the query's embedding space.
+    const querySpaceId = getActiveEmbeddingSpaceIdentity()?.spaceId ?? null;
+    if (!querySpaceId) return [];
+    if (querySpaceId !== this.indexSpaceId) {
+      await this.loadEmbeddingIndex(querySpaceId);
+    }
+    if (this.idToExperienceId.size === 0) {
       return [];
     }
 
@@ -1008,7 +1030,7 @@ export class ExperienceReplay {
         // Remove HNSW mappings for absorbed experiences
         if (result.merged > 0) {
           // Reload HNSW index to reflect consolidated state
-          await this.loadEmbeddingIndex();
+          await this.loadEmbeddingIndex(this.indexSpaceId);
         }
 
         console.log(
@@ -1119,11 +1141,38 @@ export class ExperienceReplay {
       embedding: row.embedding && row.embedding_dimension
         ? this.bufferToFloatArray(row.embedding, row.embedding_dimension)
         : undefined,
+      embeddingSpaceId: row.embedding_space_id ?? undefined,
       createdAt: new Date(row.started_at),
       lastAppliedAt: row.last_applied_at ? new Date(row.last_applied_at) : undefined,
       originalMetrics: safeJsonParse(row.routing_json || '{}'),
       tags: safeJsonParse(row.tags || '[]'),
     };
+  }
+
+  /**
+   * #1217: add a stored vector to the HNSW index. A vector of another
+   * embedding space re-binds the index to that space (the active one, since
+   * the vector was just computed): the rows of that space are reloaded,
+   * including this one.
+   */
+  private indexExperience(id: string, embedding: number[], spaceId: string): void {
+    if (spaceId !== this.indexSpaceId) {
+      void this.loadEmbeddingIndex(spaceId);
+      return;
+    }
+    const hnswId = this.nextHnswId++;
+    const iEmbedding: IEmbedding = {
+      vector: embedding,
+      dimension: 384,
+      namespace: 'experiences',
+      text: id, // Use ID as text identifier
+      timestamp: Date.now(),
+      quantization: 'none',
+      metadata: {},
+    };
+    this.hnswIndex.addEmbedding(iEmbedding, hnswId);
+    this.idToExperienceId.set(hnswId, id);
+    this.experienceIdToHnswId.set(id, hnswId);
   }
 
   private floatArrayToBuffer(arr: number[]): Buffer {

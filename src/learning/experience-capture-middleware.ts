@@ -18,6 +18,7 @@ import type { QEDomain } from './qe-patterns.js';
 import { toErrorMessage } from '../shared/error-utils.js';
 import { createLogger } from '../logging/logger-factory.js';
 import { isLearnableResult } from './learnable-result.js';
+import { recordExperienceEmbeddingSpace } from './embedding-space.js';
 
 const ecLogger = createLogger('ExperienceCapture');
 
@@ -490,18 +491,24 @@ async function computeExperienceEmbedding(
   domain: string
 ): Promise<void> {
   try {
-    const { computeRealEmbedding } = await import('./real-embeddings.js');
+    const { computeRealEmbedding, getActiveEmbeddingSpaceIdentity } = await import('./real-embeddings.js');
     const text = `${domain}: ${task}`.slice(0, 512); // Cap input length
     const embedding = await computeRealEmbedding(text);
     if (!embedding || embedding.length === 0) return;
 
     const buffer = Buffer.from(new Float32Array(embedding).buffer);
     const db = memory.getDatabase();
-    await memory.writeWhenUnlocked(() => db.prepare(`
-      UPDATE captured_experiences
-      SET embedding = ?, embedding_dimension = ?
-      WHERE id = ? AND embedding IS NULL
-    `).run(buffer, embedding.length, experienceId));
+    await memory.writeWhenUnlocked(() => {
+      const updated = db.prepare(`
+        UPDATE captured_experiences
+        SET embedding = ?, embedding_dimension = ?
+        WHERE id = ? AND embedding IS NULL
+      `).run(buffer, embedding.length, experienceId);
+      // #1217 (ADR-097): store the vector's embedding space with it.
+      if (updated.changes > 0) {
+        recordExperienceEmbeddingSpace(db, experienceId, getActiveEmbeddingSpaceIdentity()?.spaceId);
+      }
+    });
   } catch {
     // Non-critical — embedding will be backfilled later if needed
   }
