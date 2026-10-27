@@ -372,7 +372,12 @@ describe('AccessibilityTesterService', () => {
       const errorMemory = new MockMemoryBackend();
       vi.spyOn(errorMemory, 'set').mockRejectedValue(new Error('Storage failed'));
 
-      const errorService = new AccessibilityTesterService(errorMemory);
+      // A mock client: with none, the check launches a real browser and can
+      // outlast the test timeout on a CI runner.
+      const errorService = new AccessibilityTesterService(errorMemory, {
+        browserClient: createBrowserClient(),
+        preferAgentBrowser: false,
+      });
       const result = await errorService.checkContrast('https://example.com');
 
       expect(result.success).toBe(false);
