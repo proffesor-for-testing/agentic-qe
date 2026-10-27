@@ -59,6 +59,10 @@ import {
   checkKeyboardWithVibium,
 } from './accessibility-tester-browser.js';
 import {
+  checkContrastWithBrowserClient,
+  checkKeyboardWithBrowserClient,
+} from './accessibility-tester-checks.js';
+import {
   initializeRules,
   filterRulesByLevel,
   runSimulatedRule,
@@ -326,27 +330,50 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
 
   async checkContrast(url: string): Promise<Result<ContrastAnalysis[], Error>> {
     try {
-      // v2 (#1145): never serve a guessed result cached by an earlier version.
-      const cacheKey = `visual-accessibility:contrast:v2:${hashUrl(url)}`;
+      // v3 (#1145, #1228): never serve a guessed result cached by an earlier version.
+      const cacheKey = `visual-accessibility:contrast:v3:${hashUrl(url)}`;
       const cached = await this.memory.get<ContrastAnalysis[]>(cacheKey);
       if (cached) return ok(cached);
 
-      if (!this.shouldUseBrowserMode() || !this.vibiumClient) {
-        return err(notMeasuredError('Color contrast', url, this.notMeasuredReason([])));
-      }
-      const browserResult = await checkContrastWithVibium(
-        this.vibiumClient, url, this.config.defaultWCAGLevel, this.config.browserConfig
+      const level = this.config.defaultWCAGLevel;
+      const result = await this.runBrowserCheck(
+        (client) => checkContrastWithBrowserClient(client, url, level, this.config.browserConfig),
+        (vibium) => checkContrastWithVibium(vibium, url, level, this.config.browserConfig)
       );
-      if (!browserResult.success) {
-        return err(notMeasuredError('Color contrast', url, this.notMeasuredReason([getErrorMessage(browserResult)])));
-      }
-      const analyses = browserResult.value;
+      if (!result.success) return err(notMeasuredError('Color contrast', url, result.error.message));
 
-      await this.memory.set(cacheKey, analyses, { namespace: 'visual-accessibility', ttl: 3600 });
-      return ok(analyses);
+      await this.memory.set(cacheKey, result.value, { namespace: 'visual-accessibility', ttl: 3600 });
+      return ok(result.value);
     } catch (error) {
       return err(toError(error));
     }
+  }
+
+  /**
+   * Run a check with the browser client the page audit uses (agent-browser),
+   * then Vibium (#1228). The error is the not-measured reason when neither ran.
+   */
+  private async runBrowserCheck<T>(
+    withClient: (client: IBrowserClient) => Promise<Result<T, Error>>,
+    withVibium: (vibium: VibiumClient) => Promise<Result<T, Error>>
+  ): Promise<Result<T, Error>> {
+    const failures: string[] = [];
+    if (this.shouldUseBrowserMode()) {
+      const browserClient = await this.getBrowserClient();
+      if (browserClient) {
+        const result = await withClient(browserClient);
+        if (result.success) return result;
+        failures.push(getErrorMessage(result));
+        logger.warn(`Browser client check failed: ${getErrorMessage(result)}`);
+      }
+      if (this.vibiumClient) {
+        const result = await withVibium(this.vibiumClient);
+        if (result.success) return result;
+        failures.push(getErrorMessage(result));
+        logger.warn(`Vibium check failed: ${getErrorMessage(result)}`);
+      }
+    }
+    return err(new Error(this.notMeasuredReason(failures)));
   }
 
   // ============================================================================
@@ -392,25 +419,22 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
     url: string
   ): Promise<Result<KeyboardNavigationReport, Error>> {
     try {
-      const cacheKey = `visual-accessibility:keyboard:v2:${hashUrl(url)}`;
+      // v3 (#1228): earlier versions cached hasVisibleFocus: true without measuring it.
+      const cacheKey = `visual-accessibility:keyboard:v3:${hashUrl(url)}`;
       const cached = await this.memory.get<KeyboardNavigationReport>(cacheKey);
       if (cached) return ok(cached);
 
-      if (!this.shouldUseBrowserMode() || !this.config.enableKeyboardCheck || !this.vibiumClient) {
-        const reason = this.config.enableKeyboardCheck
-          ? this.notMeasuredReason([]) : 'the keyboard check is disabled';
-        return err(notMeasuredError('Keyboard navigation', url, reason));
+      if (!this.config.enableKeyboardCheck) {
+        return err(notMeasuredError('Keyboard navigation', url, 'the keyboard check is disabled'));
       }
-      const browserResult = await checkKeyboardWithVibium(
-        this.vibiumClient, url, this.config.defaultWCAGLevel, this.config.browserConfig
+      const result = await this.runBrowserCheck(
+        (client) => checkKeyboardWithBrowserClient(client, url, this.config.browserConfig),
+        (vibium) => checkKeyboardWithVibium(vibium, url, this.config.defaultWCAGLevel, this.config.browserConfig)
       );
-      if (!browserResult.success) {
-        return err(notMeasuredError('Keyboard navigation', url, this.notMeasuredReason([getErrorMessage(browserResult)])));
-      }
-      const report = browserResult.value;
+      if (!result.success) return err(notMeasuredError('Keyboard navigation', url, result.error.message));
 
-      await this.memory.set(cacheKey, report, { namespace: 'visual-accessibility', ttl: 3600 });
-      return ok(report);
+      await this.memory.set(cacheKey, result.value, { namespace: 'visual-accessibility', ttl: 3600 });
+      return ok(result.value);
     } catch (error) {
       return err(toError(error));
     }

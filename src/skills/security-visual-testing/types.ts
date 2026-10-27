@@ -38,14 +38,19 @@ export interface SecurityIssue {
  * PII detection result in screenshot
  */
 export interface PIIDetectionResult {
-  detected: boolean;
+  /** null when no scan ran: not scanned is not "no PII found" (#1228). */
+  detected: boolean | null;
   types: PIIType[];
   locations: PIILocation[];
   screenshot: {
     original: string;
     masked?: string;
   };
+  /** -1 when no scan ran (#1228). */
   confidence: number;
+  /** false when the screenshot was not scanned; see notMeasuredReason (#1228). */
+  measured: boolean;
+  notMeasuredReason?: string;
 }
 
 /**
@@ -100,6 +105,7 @@ export interface SecurityVisualAuditReport {
     visualTestsPassed: number;
     visualTestsFailed: number;
     accessibilityIssues: number;
+    /** Screenshots with PII found; -1 when no screenshot was scanned (#1228). */
     piiDetections: number;
     duration: number;
   };
@@ -157,7 +163,9 @@ export interface PIISafeScreenshot {
     original: string;
     masked?: string;
   };
-  piiDetected: boolean;
+  /** null when the screenshot was not scanned for PII (#1228). */
+  piiDetected: boolean | null;
+  piiNotMeasuredReason?: string;
   piiTypes: PIIType[];
   securityValidation: URLSecurityValidation;
   timestamp: Date;
@@ -201,10 +209,18 @@ export interface ResponsiveVisualAuditReport {
     timestamp: Date;
   }>;
   layoutShifts: LayoutShift[];
+  /**
+   * false when layout shifts were requested but not measured: an empty
+   * `layoutShifts` list is then not a clean result (#1228).
+   */
+  layoutShiftsMeasured?: boolean;
+  layoutShiftsNotMeasuredReason?: string;
   visualRegressions: Array<{
     viewport: Viewport;
+    /** -1 when no diff was computed, e.g. a new baseline (#1228). */
     diffPercentage: number;
-    status: 'passed' | 'failed';
+    /** `new`: no baseline existed, so nothing was compared. */
+    status: 'passed' | 'failed' | 'new';
   }>;
   recommendations: string[];
 }

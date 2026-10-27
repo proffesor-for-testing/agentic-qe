@@ -52,6 +52,7 @@ import {
   ResponsiveTesterService,
   ResponsiveTestConfig,
 } from './services/responsive-tester.js';
+import { contrastValues, contrastValuesMeasured, defaultRequiredRatio } from './services/accessibility-contrast.js';
 import { A2CAlgorithm } from '../../integrations/rl-suite/algorithms/a2c.js';
 import { QEFlashAttention, createQEFlashAttention } from '../../integrations/ruvector/wrappers.js';
 import type { RLState, RLAction } from '../../integrations/rl-suite/interfaces.js';
@@ -82,6 +83,21 @@ export interface WorkflowStatus {
   agentIds: string[];
   progress: number;
   error?: string;
+}
+
+/**
+ * A color-contrast violation as axe-core measured it (#1228). A colour the
+ * browser did not report is null and an unreported ratio is -1, with
+ * measured: false.
+ */
+export interface ContrastIssue {
+  element: string;
+  foreground: string | null;
+  background: string | null;
+  ratio: number;
+  required: number;
+  measured: boolean;
+  notMeasuredReason?: string;
 }
 
 /**
@@ -830,7 +846,7 @@ export class VisualAccessibilityCoordinator
   async analyzeColorContrast(options: {
     url: string;
     wcagLevel?: 'A' | 'AA' | 'AAA';
-  }): Promise<Result<{ issues: Array<{ element: string; foreground: string; background: string; ratio: number; required: number }> }, Error>> {
+  }): Promise<Result<{ issues: ContrastIssue[] }, Error>> {
     try {
       // Run accessibility audit focused on color contrast
       const level = options.wcagLevel ?? 'AA';
@@ -849,14 +865,21 @@ export class VisualAccessibilityCoordinator
         (v) => v.id.includes('color-contrast') || v.id.includes('contrast')
       );
 
+      // #1228: the colours and ratio axe-core measured; unreported values are null / -1
       const issues = contrastViolations.flatMap((violation) =>
-        violation.nodes.map((node) => ({
-          element: node.target.join(' '),
-          foreground: '#000000',
-          background: '#ffffff',
-          ratio: 1.0,
-          required: level === 'AAA' ? 7.0 : 4.5,
-        }))
+        violation.nodes.map((node): ContrastIssue => {
+          const values = node.contrast ?? contrastValues(undefined, node.failureSummary);
+          const measured = contrastValuesMeasured(values);
+          return {
+            element: node.target.join(' '),
+            foreground: values.foreground,
+            background: values.background,
+            ratio: values.ratio ?? -1,
+            required: values.requiredRatio ?? defaultRequiredRatio(level),
+            measured,
+            ...(measured ? {} : { notMeasuredReason: 'axe-core did not report the colours and ratio for this element' }),
+          };
+        })
       );
 
       return ok({ issues });
