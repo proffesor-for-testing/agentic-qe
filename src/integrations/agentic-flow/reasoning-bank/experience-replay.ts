@@ -328,7 +328,8 @@ export class ExperienceReplay {
           const text = scrubReasoningBlocks(`${row.domain ?? ''}: ${row.task}`).slice(0, 512);
           const embedding = await computeRealEmbedding(text);
           const buf = Buffer.from(new Float32Array(embedding).buffer);
-          updateStmt.run(buf, embedding.length, row.id);
+          // #1263: retried asynchronously, so a locked DB does not freeze the MCP server.
+          await this.unifiedMemory!.writeWhenUnlocked(() => updateStmt.run(buf, embedding.length, row.id));
           // Add to live HNSW so freshly-embedded rows are immediately searchable
           const hnswId = this.nextHnswId++;
           this.hnswIndex.addEmbedding({
@@ -373,7 +374,7 @@ export class ExperienceReplay {
           // ADR-099: legacy rows may predate ingestion-time scrubbing
           const text = scrubReasoningBlocks(`${row.domain ?? ''}: ${row.task}`).slice(0, 512);
           const embedding = await computeRealEmbedding(text);
-          updateStmt.run(Buffer.from(new Float32Array(embedding).buffer), row.id);
+          await this.unifiedMemory!.writeWhenUnlocked(() => updateStmt.run(Buffer.from(new Float32Array(embedding).buffer), row.id));
           written++;
         }
         console.log(`[ExperienceReplay] Backfilled ${written} qe_trajectories embeddings`);
