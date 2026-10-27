@@ -667,8 +667,8 @@ export class RealQEReasoningBank {
         averageTokenSavings: 0,
       };
 
-      // Store in SQLite
-      this.sqliteStore.storePattern(pattern, embedding);
+      // Store in SQLite (queued, #1283)
+      await this.persist(() => this.sqliteStore.storePattern(pattern, embedding));
 
       // Add to HNSW index
       if (this.hnswIndex && embedding) {
@@ -905,24 +905,28 @@ export class RealQEReasoningBank {
     }
 
     try {
-      this.sqliteStore.recordUsage(
+      // #1283: writes go through the shared connection's write queue, so a
+      // locked memory.db does not freeze the MCP server during the tool call.
+      await this.persist(() => this.sqliteStore.recordUsage(
         outcome.patternId,
         outcome.success,
         outcome.metrics,
         outcome.feedback
-      );
+      ));
 
       this.stats.learningOutcomes++;
       if (outcome.success) {
         this.stats.successfulOutcomes++;
       }
 
-      // ADR-061: Apply asymmetric confidence update (10:1 failure penalty)
-      const pattern = this.sqliteStore.getPattern(outcome.patternId);
-      if (pattern) {
-        const domain = pattern.qeDomain;
+      // ADR-061: Apply asymmetric confidence update (10:1 failure penalty).
+      // Read and update in one queued unit, so the update uses the current confidence.
+      const pattern = await this.persist(() => {
+        const current = this.sqliteStore.getPattern(outcome.patternId);
+        if (!current) return current;
+        const domain = current.qeDomain;
         const newConfidence = this.asymmetricEngine.computeConfidenceUpdate(
-          pattern.confidence,
+          current.confidence,
           outcome.success ? 'success' : 'failure',
           domain
         );
@@ -930,17 +934,19 @@ export class RealQEReasoningBank {
         // Check for quarantine
         const quarantineDecision = this.asymmetricEngine.shouldQuarantine(newConfidence, domain);
         if (quarantineDecision.shouldQuarantine) {
-          logger.info('Pattern quarantined (asymmetric drop)', { name: pattern.name });
+          logger.info('Pattern quarantined (asymmetric drop)', { name: current.name });
         }
 
         // Apply the asymmetric confidence update
         this.sqliteStore.updatePattern(outcome.patternId, {
           confidence: newConfidence,
         });
-
+        return current;
+      });
+      if (pattern) {
         // Check if pattern should be promoted (with coherence gate)
         if (await this.checkPatternPromotionWithCoherence(pattern)) {
-          this.sqliteStore.promotePattern(outcome.patternId);
+          await this.persist(() => this.sqliteStore.promotePattern(outcome.patternId));
           logger.info('Pattern promoted to long-term', { name: pattern.name });
         }
       }
@@ -1159,30 +1165,34 @@ export class RealQEReasoningBank {
     success: boolean,
     qualityScore: number
   ): Promise<void> {
-    const pattern = this.sqliteStore.getPattern(patternId);
-    if (!pattern) return;
+    // Read and update in one queued unit (#1283), so concurrent outcomes
+    // cannot both build on the same old counts.
+    await this.persist(() => {
+      const pattern = this.sqliteStore.getPattern(patternId);
+      if (!pattern) return;
 
-    // Calculate updated metrics (pattern properties are readonly, so we compute new values)
-    const newUsageCount = pattern.usageCount + 1;
-    const newSuccessfulUses = success ? pattern.successfulUses + 1 : pattern.successfulUses;
+      // Calculate updated metrics (pattern properties are readonly, so we compute new values)
+      const newUsageCount = pattern.usageCount + 1;
+      const newSuccessfulUses = success ? pattern.successfulUses + 1 : pattern.successfulUses;
 
-    // Update success rate (rolling average)
-    const newSuccessRate = newSuccessfulUses / newUsageCount;
+      // Update success rate (rolling average)
+      const newSuccessRate = newSuccessfulUses / newUsageCount;
 
-    // Update quality score (exponential moving average)
-    const alpha = 0.3; // Weight for new observation
-    const newQualityScore = (1 - alpha) * pattern.qualityScore + alpha * qualityScore;
+      // Update quality score (exponential moving average)
+      const alpha = 0.3; // Weight for new observation
+      const newQualityScore = (1 - alpha) * pattern.qualityScore + alpha * qualityScore;
 
-    // Update confidence
-    const newConfidence = Math.min(1.0, 0.5 + (newUsageCount * 0.05) + (newSuccessRate * 0.3));
+      // Update confidence
+      const newConfidence = Math.min(1.0, 0.5 + (newUsageCount * 0.05) + (newSuccessRate * 0.3));
 
-    // Persist updates
-    this.sqliteStore.updatePattern(patternId, {
-      usageCount: newUsageCount,
-      successfulUses: newSuccessfulUses,
-      successRate: newSuccessRate,
-      qualityScore: newQualityScore,
-      confidence: newConfidence,
+      // Persist updates
+      this.sqliteStore.updatePattern(patternId, {
+        usageCount: newUsageCount,
+        successfulUses: newSuccessfulUses,
+        successRate: newSuccessRate,
+        qualityScore: newQualityScore,
+        confidence: newConfidence,
+      });
     });
   }
 
@@ -1213,24 +1223,28 @@ export class RealQEReasoningBank {
    * Promote a pattern to the next tier
    */
   async promotePattern(patternId: string): Promise<void> {
-    this.sqliteStore.promotePattern(patternId);
+    await this.persist(() => this.sqliteStore.promotePattern(patternId));
   }
 
   /**
    * Demote a pattern to a lower tier
    */
   async demotePattern(patternId: string): Promise<void> {
-    const pattern = this.sqliteStore.getPattern(patternId);
-    if (!pattern) return;
-
     type TierLevel = 'short-term' | 'working' | 'long-term';
     const tierOrder: TierLevel[] = ['short-term', 'working', 'long-term'];
-    const currentIndex = tierOrder.indexOf(pattern.tier);
 
-    if (currentIndex > 0) {
+    // Read and update in one queued unit (#1283).
+    const demoted = await this.persist(() => {
+      const pattern = this.sqliteStore.getPattern(patternId);
+      if (!pattern) return null;
+      const currentIndex = tierOrder.indexOf(pattern.tier);
+      if (currentIndex <= 0) return null;
       const newTier = tierOrder[currentIndex - 1];
       this.sqliteStore.updatePattern(patternId, { tier: newTier });
-      logger.info('Pattern demoted', { name: pattern.name, newTier });
+      return { name: pattern.name, newTier };
+    });
+    if (demoted) {
+      logger.info('Pattern demoted', demoted);
     }
   }
 
@@ -1334,7 +1348,7 @@ export class RealQEReasoningBank {
   }): Promise<string> {
     const db = this.sqliteStore.getDb();
 
-    db.prepare(`
+    await this.persist(() => db.prepare(`
       INSERT OR REPLACE INTO qe_trajectories (
         id, task, agent, domain, started_at, ended_at, success, steps_json, metadata_json
       ) VALUES (?, ?, ?, ?, datetime('now'), datetime('now'), ?, ?, ?)
@@ -1346,7 +1360,7 @@ export class RealQEReasoningBank {
       trajectory.success ? 1 : 0,
       JSON.stringify(trajectory.steps),
       JSON.stringify(trajectory.metrics ?? {})
-    );
+    ));
 
     return trajectory.id;
   }
@@ -1416,14 +1430,27 @@ export class RealQEReasoningBank {
   async linkPatternToTrajectory(patternId: string, trajectoryId: string): Promise<void> {
     const db = this.sqliteStore.getDb();
 
-    // Store relationship in metadata
-    const pattern = this.sqliteStore.getPattern(patternId);
-    if (pattern) {
-      const context = { ...pattern.context, sourceTrajectoryId: trajectoryId };
-      db.prepare(`
-        UPDATE qe_patterns SET context_json = ?, updated_at = datetime('now') WHERE id = ?
-      `).run(JSON.stringify(context), patternId);
-    }
+    // Store relationship in metadata (read and update in one queued unit, #1283)
+    await this.persist(() => {
+      const pattern = this.sqliteStore.getPattern(patternId);
+      if (pattern) {
+        const context = { ...pattern.context, sourceTrajectoryId: trajectoryId };
+        db.prepare(`
+          UPDATE qe_patterns SET context_json = ?, updated_at = datetime('now') WHERE id = ?
+        `).run(JSON.stringify(context), patternId);
+      }
+    });
+  }
+
+  /**
+   * Run a SQLite write through the shared connection's write queue (#1283),
+   * so a locked memory.db does not freeze the MCP server's event loop.
+   */
+  private persist<T>(fn: () => T): Promise<T> {
+    // Test doubles of the store may not implement the queue.
+    return typeof (this.sqliteStore as Partial<SQLitePatternStore>).writeWhenUnlocked === 'function'
+      ? this.sqliteStore.writeWhenUnlocked(fn)
+      : new Promise<T>((resolve) => resolve(fn()));
   }
 
   /**

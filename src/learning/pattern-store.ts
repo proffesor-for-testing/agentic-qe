@@ -873,7 +873,8 @@ export class PatternStore implements IPatternStore {
     // Persist to SQLite (pattern + embedding atomically)
     if (this.sqliteStore) {
       try {
-        const actualId = this.sqliteStore.storePattern(pattern, pattern.embedding, activeSpaceId);
+        // #1283: queued, so a locked memory.db does not freeze the MCP server.
+        const actualId = await this.persistToSqlite((store) => store.storePattern(pattern, pattern.embedding, activeSpaceId));
         // #447: ON CONFLICT(name, qe_domain, pattern_type) may preserve an
         // existing row's id instead of the one we generated — realign the
         // in-memory indices (and pattern.id itself) or every later
@@ -998,7 +999,7 @@ export class PatternStore implements IPatternStore {
           successRate: pattern.successRate,
           tier: pattern.tier,
         };
-        this.deltaTracker.createGenesis(pattern.id, snapshot);
+        await this.deltaTracker.createGenesisWhenUnlocked(pattern.id, snapshot);
       } catch (error) {
         // Genesis may already exist if pattern was re-stored; log at debug level
         console.debug(`[PatternStore] Delta genesis for ${pattern.id}:`, toErrorMessage(error));
@@ -1596,7 +1597,7 @@ export class PatternStore implements IPatternStore {
           successRate: updated.successRate,
           tier: updated.tier,
         };
-        this.deltaTracker.recordDelta(id, before, after, { success });
+        await this.deltaTracker.recordDeltaWhenUnlocked(id, before, after, { success });
       } catch (error) {
         console.debug(`[PatternStore] Delta recordDelta for ${id}:`, toErrorMessage(error));
       }

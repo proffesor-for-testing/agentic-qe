@@ -407,6 +407,7 @@ export class MinCutPersistence {
     `);
 
     const insertMany = db.transaction((vertices: WeakVertex[]) => {
+      ids.length = 0; // a retried attempt starts over (#1283)
       for (const weak of vertices) {
         const id = uuidv4();
         insert.run(
@@ -424,7 +425,8 @@ export class MinCutPersistence {
       }
     });
 
-    insertMany(weakVertices);
+    // #1283: queued, so a locked memory.db does not freeze the MCP server.
+    await this.memory.writeWhenUnlocked(() => insertMany(weakVertices));
     return ids;
   }
 
@@ -470,11 +472,11 @@ export class MinCutPersistence {
     this.ensureInitialized();
 
     const db = this.memory.getDatabase();
-    const result = db.prepare(`
+    const result = await this.memory.writeWhenUnlocked(() => db.prepare(`
       UPDATE mincut_weak_vertices
       SET resolved_at = datetime('now')
       WHERE id = ? AND resolved_at IS NULL
-    `).run(id);
+    `).run(id));
 
     return result.changes > 0;
   }
@@ -491,7 +493,7 @@ export class MinCutPersistence {
 
     const db = this.memory.getDatabase();
 
-    db.prepare(`
+await this.memory.writeWhenUnlocked(() => db.prepare(`
       INSERT INTO mincut_alerts (
         id, severity, message, mincut_value, threshold,
         affected_vertices_json, remediations_json, acknowledged, timestamp
@@ -506,7 +508,7 @@ export class MinCutPersistence {
       JSON.stringify(alert.remediations),
       alert.acknowledged ? 1 : 0,
       alert.timestamp.toISOString()
-    );
+    ));
 
     return alert.id;
   }
@@ -534,13 +536,13 @@ export class MinCutPersistence {
     this.ensureInitialized();
 
     const db = this.memory.getDatabase();
-    const result = db.prepare(`
+    const result = await this.memory.writeWhenUnlocked(() => db.prepare(`
       UPDATE mincut_alerts
       SET acknowledged = 1,
           acknowledged_at = datetime('now'),
           acknowledged_by = ?
       WHERE id = ? AND acknowledged = 0
-    `).run(acknowledgedBy ?? null, id);
+    `).run(acknowledgedBy ?? null, id));
 
     return result.changes > 0;
   }
@@ -578,7 +580,7 @@ export class MinCutPersistence {
     const id = uuidv4();
     const db = this.memory.getDatabase();
 
-    db.prepare(`
+await this.memory.writeWhenUnlocked(() => db.prepare(`
       INSERT INTO mincut_healing_actions (
         id, action_type, action_params_json, success,
         mincut_before, mincut_after, improvement,
@@ -598,7 +600,7 @@ export class MinCutPersistence {
       result.triggeredBy ?? null,
       result.snapshotBeforeId ?? null,
       result.snapshotAfterId ?? null
-    );
+    ));
 
     return id;
   }
@@ -706,7 +708,7 @@ export class MinCutPersistence {
       actualVsPredictedDiff = observation.minCutValue - observation.prediction.predictedMinCut;
     }
 
-    db.prepare(`
+await this.memory.writeWhenUnlocked(() => db.prepare(`
       INSERT INTO mincut_observations (
         id, iteration, mincut_value, weak_vertex_count,
         weak_vertices_json, snapshot_id, prediction_json,
@@ -721,7 +723,7 @@ export class MinCutPersistence {
       observation.snapshotId ?? null,
       observation.prediction ? JSON.stringify(observation.prediction) : null,
       actualVsPredictedDiff
-    );
+    ));
 
     return id;
   }
@@ -812,20 +814,20 @@ export class MinCutPersistence {
     const snapshotMaxAge = options.snapshotMaxAge ?? 24 * 60 * 60 * 1000; // 1 day
     const alertMaxAge = options.alertMaxAge ?? 30 * 24 * 60 * 60 * 1000; // 30 days
 
-    const historyResult = db.prepare(`
+    const historyResult = await this.memory.writeWhenUnlocked(() => db.prepare(`
       DELETE FROM mincut_history
       WHERE timestamp < ?
-    `).run(new Date(now - historyMaxAge).toISOString());
+    `).run(new Date(now - historyMaxAge).toISOString()));
 
-    const snapshotResult = db.prepare(`
+    const snapshotResult = await this.memory.writeWhenUnlocked(() => db.prepare(`
       DELETE FROM mincut_snapshots
       WHERE timestamp < ?
-    `).run(new Date(now - snapshotMaxAge).toISOString());
+    `).run(new Date(now - snapshotMaxAge).toISOString()));
 
-    const alertResult = db.prepare(`
+    const alertResult = await this.memory.writeWhenUnlocked(() => db.prepare(`
       DELETE FROM mincut_alerts
       WHERE timestamp < ? AND acknowledged = 1
-    `).run(new Date(now - alertMaxAge).toISOString());
+    `).run(new Date(now - alertMaxAge).toISOString()));
 
     return {
       historyDeleted: historyResult.changes,

@@ -10,6 +10,7 @@
 
 import { type Database as DatabaseType, type Statement } from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
+import { writeWhenUnlockedOn } from '../../shared/sqlite-write-queue.js';
 import * as fastJsonPatchNs from 'fast-json-patch';
 
 // fast-json-patch ships two entry points with different export shapes: its CJS
@@ -262,6 +263,28 @@ export class DeltaTracker {
   // --------------------------------------------------------------------------
   // Public API
   // --------------------------------------------------------------------------
+
+  /**
+   * createGenesis() through the shared connection's write queue (#1283). The
+   * version check and the insert run as one queued unit.
+   */
+  createGenesisWhenUnlocked(patternId: string, snapshot: object, metadata?: Record<string, unknown>): Promise<DeltaEvent> {
+    return writeWhenUnlockedOn(this.db, () => this.createGenesis(patternId, snapshot, metadata));
+  }
+
+  /**
+   * recordDelta() through the shared connection's write queue (#1283). Reading
+   * the current version, the insert and retention run as one queued unit, so
+   * two deltas cannot get the same version number.
+   */
+  recordDeltaWhenUnlocked(
+    patternId: string,
+    before: object,
+    after: object,
+    metadata?: Record<string, unknown>,
+  ): Promise<DeltaEvent> {
+    return writeWhenUnlockedOn(this.db, () => this.recordDelta(patternId, before, after, metadata));
+  }
 
   /**
    * Create a genesis snapshot for a pattern (version 0).

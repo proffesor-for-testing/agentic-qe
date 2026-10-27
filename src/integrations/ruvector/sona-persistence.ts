@@ -40,6 +40,7 @@ import type { RuVectorServerClient } from './server-client.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
 import { safeJsonParse } from '../../shared/safe-json.js';
 import { LoggerFactory } from '../../logging/index.js';
+import { writeWhenUnlockedOn } from '../../shared/sqlite-write-queue.js';
 
 const logger = LoggerFactory.create('sona-persistence');
 
@@ -219,6 +220,8 @@ export class PersistentSONAEngine {
   private initPromise: Promise<void> | null = null;
   private pendingSaves: Map<string, QESONAPattern> = new Map();
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
+  /** The deferred batch currently being written, if any (#1283). */
+  private flushInFlight: Promise<void> | null = null;
   private consecutiveSaveFailures = 0;
   private serverClient: RuVectorServerClient | null = null;
 
@@ -1123,6 +1126,10 @@ export class PersistentSONAEngine {
    * Close the engine
    */
   async close(): Promise<void> {
+    // Let a deferred batch that is already writing finish first (#1283); it
+    // may schedule a retry, which the clearTimeout below then cancels.
+    if (this.flushInFlight) await this.flushInFlight;
+
     // Flush pending saves
     if (this.saveTimer) {
       clearTimeout(this.saveTimer);
@@ -1131,9 +1138,9 @@ export class PersistentSONAEngine {
 
     if (this.pendingSaves.size > 0) {
       const failures: Error[] = [];
-      for (const pattern of this.pendingSaves.values()) {
+      for (const pattern of Array.from(this.pendingSaves.values())) {
         try {
-          this.savePatternToDb(pattern);
+          await writeWhenUnlockedOn(this.db, () => this.savePatternToDb(pattern));
           this.pendingSaves.delete(pattern.id);
         } catch (error) {
           failures.push(new Error(toErrorMessage(error)));
@@ -1492,30 +1499,47 @@ export class PersistentSONAEngine {
 
     this.saveTimer = setTimeout(() => {
       this.saveTimer = null;
-      const patterns = Array.from(this.pendingSaves.values());
-
-      for (const pattern of patterns) {
-        try {
-          this.savePatternToDb(pattern);
-          this.pendingSaves.delete(pattern.id);
-        } catch (error) {
-          logger.warn('Deferred SONA save failed; retaining pending pattern', {
-            patternId: pattern.id, error: toErrorMessage(error),
-          });
-        }
-      }
-      if (this.pendingSaves.size > 0) {
-        this.consecutiveSaveFailures++;
-        // Stop after five failed batches; close() can still flush retained rows.
-        if (this.consecutiveSaveFailures < 5 && this.db?.open) {
-          this.scheduleSave(Math.min(60000, Math.max(1000, this.config.autoSaveInterval) * 2 ** (this.consecutiveSaveFailures - 1)));
-        }
-      } else {
-        this.consecutiveSaveFailures = 0;
-      }
+      const flush: Promise<void> = this.flushPendingSaves().finally(() => {
+        if (this.flushInFlight === flush) this.flushInFlight = null;
+      });
+      this.flushInFlight = flush;
     }, delayMs);
     // The initial batch must flush on natural exit; only failure retries are optional.
     if (this.consecutiveSaveFailures > 0) this.saveTimer.unref();
+  }
+
+  /**
+   * Write the batched patterns. Each write is queued on the shared connection
+   * (#1283): in the MCP server a locked memory.db no longer freezes the event
+   * loop for the whole busy_timeout per pattern; the write retries
+   * asynchronously instead. A row that still fails stays pending and the batch
+   * is retried with backoff, as before.
+   */
+  private async flushPendingSaves(): Promise<void> {
+    const patterns = Array.from(this.pendingSaves.values());
+    let failed = 0;
+
+    for (const pattern of patterns) {
+      try {
+        await writeWhenUnlockedOn(this.db, () => this.savePatternToDb(pattern));
+        // A newer snapshot queued during the write stays pending.
+        if (this.pendingSaves.get(pattern.id) === pattern) this.pendingSaves.delete(pattern.id);
+      } catch (error) {
+        failed++;
+        logger.warn('Deferred SONA save failed; retaining pending pattern', {
+          patternId: pattern.id, error: toErrorMessage(error),
+        });
+      }
+    }
+    if (failed > 0) {
+      this.consecutiveSaveFailures++;
+      // Stop after five failed batches; close() can still flush retained rows.
+      if (this.consecutiveSaveFailures < 5 && this.db?.open) {
+        this.scheduleSave(Math.min(60000, Math.max(1000, this.config.autoSaveInterval) * 2 ** (this.consecutiveSaveFailures - 1)));
+      }
+    } else {
+      this.consecutiveSaveFailures = 0;
+    }
   }
 
   /**

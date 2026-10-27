@@ -435,7 +435,7 @@ export class QEReasoningBank implements IQEReasoningBank {
     // ADR-070: Record pattern creation in witness chain
     if (committedPattern) {
       const sideEffectPattern = committedPattern;
-      getWitnessChain().then(wc => wc.append('PATTERN_CREATE', { patternId: sideEffectPattern.id, domain: sideEffectPattern.qeDomain, confidence: sideEffectPattern.confidence, name: sideEffectPattern.name }, 'reasoning-bank')).catch((e) => { logger.warn('Witness chain PATTERN_CREATE failed', { error: toErrorMessage(e) }); });
+      getWitnessChain().then(wc => wc.appendWhenUnlocked('PATTERN_CREATE', { patternId: sideEffectPattern.id, domain: sideEffectPattern.qeDomain, confidence: sideEffectPattern.confidence, name: sideEffectPattern.name }, 'reasoning-bank')).catch((e) => { logger.warn('Witness chain PATTERN_CREATE failed', { error: toErrorMessage(e) }); });
 
       // Phase 3: Best-effort RVF dual-write for vector replication
       if (this.rvfDualWriter && sideEffectPattern.embedding && sideEffectPattern.embedding.length > 0) {
@@ -540,7 +540,7 @@ export class QEReasoningBank implements IQEReasoningBank {
       }
 
       // ADR-070: Record pattern update in witness chain
-      getWitnessChain().then(wc => wc.append('PATTERN_UPDATE', { patternId: outcome.patternId, success: outcome.success }, 'reasoning-bank')).catch((e) => { logger.warn('Witness chain PATTERN_UPDATE failed', { error: toErrorMessage(e) }); });
+      getWitnessChain().then(wc => wc.appendWhenUnlocked('PATTERN_UPDATE', { patternId: outcome.patternId, success: outcome.success }, 'reasoning-bank')).catch((e) => { logger.warn('Witness chain PATTERN_UPDATE failed', { error: toErrorMessage(e) }); });
 
       // Check if pattern should be promoted (with coherence gate)
       const pattern = await this.getPattern(outcome.patternId);

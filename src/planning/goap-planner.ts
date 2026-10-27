@@ -15,6 +15,7 @@
 import type { Database as DatabaseType } from 'better-sqlite3';
 import { randomUUID } from 'crypto';
 import { safeJsonParse } from '../shared/safe-json.js';
+import { writeWhenUnlockedOn } from '../shared/sqlite-write-queue.js';
 import { getUnifiedPersistence, type UnifiedPersistenceManager } from '../kernel/unified-persistence.js';
 import type {
   V3WorldState,
@@ -191,6 +192,15 @@ export class GOAPPlanner {
       throw new Error('GOAPPlanner not initialized - call initialize() first');
     }
     return this.db;
+  }
+
+  /**
+   * Run a write through the shared connection's write queue (#1283), so a
+   * locked memory.db does not freeze the MCP server during a GOAP tool call.
+   */
+  private write<T>(fn: (db: DatabaseType) => T): Promise<T> {
+    const db = this.ensureDb();
+    return writeWhenUnlockedOn(db, () => fn(db));
   }
 
   // ==========================================================================
@@ -372,7 +382,7 @@ export class GOAPPlanner {
         this.planSatisfiesConstraints(reusedPlan, currentState, goal, constraints)
       ) {
         // Update reuse stats
-        this.recordPlanReuse(reusedPlan.id, true);
+        await this.recordPlanReuse(reusedPlan.id, true);
         const clonedPlan: GOAPPlan = {
           ...reusedPlan,
           estimatedDurationMs: reusedPlan.actions.reduce(
@@ -1027,7 +1037,7 @@ export class GOAPPlanner {
 
     const id = `action-${Date.now()}-${randomUUID().slice(0, 8)}`;
 
-    this.ensureDb()
+    await this.write((db) => db
       .prepare(
         `
       INSERT INTO goap_actions (
@@ -1052,7 +1062,7 @@ export class GOAPPlanner {
         action.method ?? null,
         action.params ? JSON.stringify(action.params) : null,
         action.implemented ? 1 : 0
-      );
+      ));
 
     // Update in-memory cache
     const fullAction: GOAPAction = {
@@ -1078,24 +1088,28 @@ export class GOAPPlanner {
     const action = this.actions.get(actionId);
     if (!action) return;
 
-    const newCount = action.executionCount + 1;
-    const newRate =
-      (action.successRate * action.executionCount + (success ? 1 : 0)) /
-      newCount;
+    // Read the cached stats, write, and update the cache as one queued unit,
+    // so concurrent updates cannot both build on the same old count.
+    await this.write((db) => {
+      const newCount = action.executionCount + 1;
+      const newRate =
+        (action.successRate * action.executionCount + (success ? 1 : 0)) /
+        newCount;
 
-    this.ensureDb()
-      .prepare(
-        `
+      db
+        .prepare(
+          `
       UPDATE goap_actions
       SET success_rate = ?, execution_count = ?, updated_at = datetime('now')
       WHERE id = ?
     `
-      )
-      .run(newRate, newCount, actionId);
+        )
+        .run(newRate, newCount, actionId);
 
-    // Update in-memory cache
-    action.successRate = newRate;
-    action.executionCount = newCount;
+      // Update in-memory cache
+      action.successRate = newRate;
+      action.executionCount = newCount;
+    });
   }
 
   /**
@@ -1156,7 +1170,7 @@ export class GOAPPlanner {
   async savePlan(plan: GOAPPlan): Promise<void> {
     await this.initialize();
 
-    this.ensureDb()
+    await this.write((db) => db
       .prepare(
         `
       INSERT OR REPLACE INTO goap_plans (
@@ -1176,7 +1190,7 @@ export class GOAPPlanner {
         plan.status,
         plan.reusedFrom ?? null,
         plan.similarityScore ?? null
-      );
+      ));
   }
 
   /**
@@ -1307,7 +1321,7 @@ export class GOAPPlanner {
     const goalHash = this.hashGoalConditions(plan.goalState);
     const stateVector = this.extractStateVector(plan.initialState);
 
-    this.ensureDb()
+    await this.write((db) => db
       .prepare(
         `
       INSERT OR REPLACE INTO goap_plan_signatures (
@@ -1322,14 +1336,18 @@ export class GOAPPlanner {
         JSON.stringify(stateVector),
         JSON.stringify(plan.actions.map((a) => a.id)),
         plan.totalCost
-      );
+      ));
   }
 
   /**
    * Record plan reuse outcome
    */
-  private recordPlanReuse(planId: string, success: boolean): void {
-    const db = this.ensureDb();
+  private recordPlanReuse(planId: string, success: boolean): Promise<void> {
+    // Read and update as one queued unit (#1283).
+    return this.write((db) => this.recordPlanReuseNow(db, planId, success));
+  }
+
+  private recordPlanReuseNow(db: DatabaseType, planId: string, success: boolean): void {
     const current = db
       .prepare(
         'SELECT success_rate, usage_count FROM goap_plan_signatures WHERE plan_id = ?'
@@ -1467,7 +1485,7 @@ export class GOAPPlanner {
 
     const id = `goal-${Date.now()}-${randomUUID().slice(0, 8)}`;
 
-    this.ensureDb()
+    await this.write((db) => db
       .prepare(
         `
       INSERT INTO goap_goals (id, name, description, conditions, priority, qe_domain)
@@ -1481,7 +1499,7 @@ export class GOAPPlanner {
         JSON.stringify(goal.conditions),
         goal.priority,
         goal.qeDomain ?? null
-      );
+      ));
 
     return id;
   }

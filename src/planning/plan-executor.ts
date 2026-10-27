@@ -28,6 +28,7 @@ import type { GOAPPlanner } from './goap-planner.js';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
 import { toErrorMessage } from '../shared/error-utils.js';
 import { safeJsonParse } from '../shared/safe-json.js';
+import { writeWhenUnlockedOn } from '../shared/sqlite-write-queue.js';
 import type { DomainName } from '../shared/types/index.js';
 
 /**
@@ -1074,68 +1075,76 @@ export class PlanExecutor {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-    // Issue #535: steps from replacement plans (replanning) are recorded
-    // under the top-level plan id with a chronological step order, so one
-    // execution is one history record for the plan the caller executed —
-    // not split across sub-plan ids with colliding step orders.
-    result.steps.forEach((step, index) => {
-      insertStep.run(
-        step.id,
-        result.planId,
-        executionId,
-        step.action.id,
-        index,
-        step.status,
-        step.retries,
-        step.startedAt.toISOString(),
-        step.durationMs ?? null,
-        step.agentId ?? null,
-        step.agentOutput ?? null,
-        step.worldStateBefore ? JSON.stringify(step.worldStateBefore) : null,
-        step.worldStateAfter ? JSON.stringify(step.worldStateAfter) : null,
-        step.error ?? null
-      );
-    });
+    // #1283: the step rows go in as one queued transaction, so a locked
+    // memory.db does not freeze the MCP server and a retried attempt cannot
+    // insert a step twice.
+    const insertSteps = this.db.transaction(() => {
+      // Issue #535: steps from replacement plans (replanning) are recorded
+      // under the top-level plan id with a chronological step order, so one
+      // execution is one history record for the plan the caller executed —
+      // not split across sub-plan ids with colliding step orders.
+      result.steps.forEach((step, index) => {
+        insertStep.run(
+          step.id,
+          result.planId,
+          executionId,
+          step.action.id,
+          index,
+          step.status,
+          step.retries,
+          step.startedAt.toISOString(),
+          step.durationMs ?? null,
+          step.agentId ?? null,
+          step.agentOutput ?? null,
+          step.worldStateBefore ? JSON.stringify(step.worldStateBefore) : null,
+          step.worldStateAfter ? JSON.stringify(step.worldStateAfter) : null,
+          step.error ?? null
+        );
+      });
 
-    // Issue #535 (codex review): an execution's cancellation cannot be
-    // inferred from its step rows once replanning is involved (the step
-    // count no longer matches the executed plan's action count), so record
-    // it explicitly with a marker row that history reads and then hides.
-    if (result.status === 'cancelled') {
-      insertStep.run(
-        `${executionId}-${CANCELLED_MARKER_STATUS}`,
-        result.planId,
-        executionId,
-        CANCELLED_MARKER_ACTION_ID,
-        result.steps.length,
-        CANCELLED_MARKER_STATUS,
-        0,
-        new Date().toISOString(),
-        null,
-        null,
-        null,
-        null,
-        null,
-        result.error ?? 'Execution was cancelled'
-      );
-    }
+      // Issue #535 (codex review): an execution's cancellation cannot be
+      // inferred from its step rows once replanning is involved (the step
+      // count no longer matches the executed plan's action count), so record
+      // it explicitly with a marker row that history reads and then hides.
+      if (result.status === 'cancelled') {
+        insertStep.run(
+          `${executionId}-${CANCELLED_MARKER_STATUS}`,
+          result.planId,
+          executionId,
+          CANCELLED_MARKER_ACTION_ID,
+          result.steps.length,
+          CANCELLED_MARKER_STATUS,
+          0,
+          new Date().toISOString(),
+          null,
+          null,
+          null,
+          null,
+          null,
+          result.error ?? 'Execution was cancelled'
+        );
+      }
+    });
+    await writeWhenUnlockedOn(this.db, () => insertSteps());
 
     // Reflects only the most recent execution attempt for this plan — a
     // deliberate, documented scope limit: goap_plans is one row per plan,
     // not per attempt. Full per-attempt history remains queryable via
     // goap_execution_steps grouped by execution_id (see getExecutionHistory).
     try {
-      this.db.prepare(`
+      const executedAt = new Date(Date.now() - result.totalDurationMs).toISOString();
+      const completedAt = new Date().toISOString();
+      await writeWhenUnlockedOn(this.db, () => this.db.prepare(`
         UPDATE goap_plans SET status = ?, executed_at = COALESCE(executed_at, ?), completed_at = ?
         WHERE id = ?
       `).run(
         result.status === 'completed' ? 'completed'
           : result.status === 'cancelled' ? 'cancelled'
           : 'failed',
-        new Date(Date.now() - result.totalDurationMs).toISOString(),
-        new Date().toISOString(),
+        executedAt,
+        completedAt,
         result.planId
-      );
+      ));
     } catch (error) {
       // Best-effort — a plan row might not exist yet in edge cases (e.g.
       // executing a plan object that was never saved). Must not fail the

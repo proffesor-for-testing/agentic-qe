@@ -22,7 +22,11 @@ describe('QEReasoningBank committed-pending pattern side effects', () => {
 
   it('runs witness and dual-writer side effects while preserving the partial result', async () => {
     setRuVectorFeatureFlags({ useRVFPatternStore: false });
-    witnessMocks.getWitnessChain.mockResolvedValue({ append: witnessMocks.append });
+    witnessMocks.getWitnessChain.mockResolvedValue({
+      append: witnessMocks.append,
+      // #1283: fire-and-forget callers append through the write queue.
+      appendWhenUnlocked: async (...args: unknown[]) => witnessMocks.append(...args),
+    });
 
     const embedding = [0.1, 0.2, 0.3];
     const committedPattern = {

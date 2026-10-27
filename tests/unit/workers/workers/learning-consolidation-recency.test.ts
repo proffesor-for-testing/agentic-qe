@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 const { memoryMock } = vi.hoisted(() => ({
-  memoryMock: { getDatabase: vi.fn() },
+  memoryMock: { getDatabase: vi.fn(), writeWhenUnlocked: vi.fn(async <T>(fn: () => T) => fn()) },
 }));
 
 vi.mock('../../../../src/kernel/unified-memory.js', async (importOriginal) => ({

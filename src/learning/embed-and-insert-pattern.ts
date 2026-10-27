@@ -20,6 +20,7 @@
  */
 
 import type Database from 'better-sqlite3';
+import { writeWhenUnlockedOn } from '../shared/sqlite-write-queue.js';
 import {
   computeRealEmbedding,
   DEFAULT_EMBEDDING_CONFIG,
@@ -59,10 +60,11 @@ export async function ensurePatternEmbedding(
     const spaceId = getActiveEmbeddingSpaceIdentity()?.spaceId;
     if (!spaceId) throw new Error('VECTOR_SPACE_UNVERIFIED: embedder has no runtime provenance');
 
-    db.prepare(
+    // #1283: queued on the shared connection so a locked memory.db does not freeze the MCP server.
+    await writeWhenUnlockedOn(db, () => db.prepare(
       `INSERT OR REPLACE INTO qe_pattern_embeddings (pattern_id, embedding, dimension, model, space_id)
        VALUES (?, ?, ?, ?, ?)`,
-    ).run(patternId, buffer, embedding.length, fullConfig.modelName, spaceId);
+    ).run(patternId, buffer, embedding.length, fullConfig.modelName, spaceId));
   } catch (error) {
     // Non-fatal: pattern row already persisted; embedding can be backfilled later.
     console.debug(

@@ -26,6 +26,11 @@ import { type Database as DatabaseType, type Statement } from 'better-sqlite3';
 import { openDatabase as openSafeDatabase } from '../shared/safe-db.js';
 import { safeJsonParse } from '../shared/safe-json.js';
 import { capBusyTimeout } from '../shared/sqlite-lock-wait.js';
+import {
+  registerWriteQueue,
+  unregisterWriteQueue,
+  writeWhenUnlockedOn as queueWriteOn,
+} from '../shared/sqlite-write-queue.js';
 import { isBusyError, retryWhileBusy, withBusyTimeout } from '../learning/dream/dream-lock-retry.js';
 import { toErrorMessage } from '../shared/error-utils.js';
 import * as fs from 'fs';
@@ -392,6 +397,8 @@ export class UnifiedMemoryManager {
 
       this.vectorsLoaded = false;
       this.initialized = true;
+      // #1283: modules holding only the raw connection queue their writes here.
+      registerWriteQueue(this.db!, (fn) => this.writeWhenUnlocked(fn));
       console.log(`[UnifiedMemory] Initialized: ${this.config.dbPath}`);
 
       this.warnIfDuplicateDatabases();
@@ -1229,6 +1236,7 @@ export class UnifiedMemoryManager {
       // hnswlib-node has none of those constraints; multiple instances
       // coexist freely.
       this.vectorIndex.clear();
+      unregisterWriteQueue(this.db);
       this.db.close();
       this.db = null;
       this.initialized = false;
@@ -1286,15 +1294,7 @@ export function resetUnifiedMemory(): void {
  * A write on any other connection runs now, as before.
  */
 export function writeWhenUnlockedOn<T>(db: DatabaseType, fn: () => T): Promise<T> {
-  const instance = UnifiedMemoryManager['instance'];
-  if (instance?.isInitialized() && instance.getDatabase() === db) {
-    return instance.writeWhenUnlocked(fn);
-  }
-  try {
-    return Promise.resolve(fn());
-  } catch (error) {
-    return Promise.reject(error);
-  }
+  return queueWriteOn(db, fn);
 }
 
 // ============================================================================

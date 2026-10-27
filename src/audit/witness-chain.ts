@@ -8,6 +8,7 @@
 
 import { type Database as DatabaseType } from 'better-sqlite3';
 import { getUnifiedMemory } from '../kernel/unified-memory.js';
+import { writeWhenUnlockedOn } from '../shared/sqlite-write-queue.js';
 import { type WitnessKeyManager, getDefaultWitnessKeyManager } from './witness-key-manager.js';
 import {
   GENESIS_PREV_HASH, sha256, shake256, hashWith, serializeEntry, signaturePayload,
@@ -127,6 +128,20 @@ export class WitnessChain {
     if (!cols.some((c) => c.name === column)) {
       this.db.exec(`ALTER TABLE witness_chain ADD COLUMN ${column} ${definition}`);
     }
+  }
+
+  /**
+   * append() through the shared connection's write queue (#1283), for
+   * fire-and-forget callers in the MCP server: a locked memory.db does not
+   * freeze the event loop. The tail is still read inside the same BEGIN
+   * IMMEDIATE transaction, so the chain cannot fork.
+   */
+  appendWhenUnlocked(
+    actionType: WitnessActionType,
+    actionData: Record<string, unknown>,
+    actor: string
+  ): Promise<WitnessEntry> {
+    return writeWhenUnlockedOn(this.db, () => this.append(actionType, actionData, actor));
   }
 
   /** Append a new SHAKE-256-hashed entry, optionally Ed25519-signed. */

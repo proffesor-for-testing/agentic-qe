@@ -12,7 +12,7 @@ vi.mock('../../../src/kernel/unified-memory.js', () => ({
 }));
 
 vi.mock('../../../src/learning/pattern-lifecycle.js', () => ({
-  createPatternLifecycleManager: vi.fn(),
+  createPatternLifecycleManagerWhenUnlocked: vi.fn(),
 }));
 
 const mockDailyLoggerInstance = {
@@ -33,7 +33,7 @@ vi.mock('../../../src/learning/daily-log.js', () => {
 
 import { HeartbeatSchedulerWorker } from '../../../src/workers/workers/heartbeat-scheduler';
 import { getUnifiedMemory } from '../../../src/kernel/unified-memory.js';
-import { createPatternLifecycleManager } from '../../../src/learning/pattern-lifecycle.js';
+import { createPatternLifecycleManagerWhenUnlocked } from '../../../src/learning/pattern-lifecycle.js';
 
 // ============================================================================
 // Helpers
@@ -65,9 +65,9 @@ function createMockContext(): WorkerContext {
 
 function createMockLifecycleManager() {
   return {
-    promoteEligiblePatterns: vi.fn().mockReturnValue({ promoted: 2, checked: 10 }),
-    deprecateStalePatterns: vi.fn().mockReturnValue({ deprecated: 1, checked: 10 }),
-    applyConfidenceDecay: vi.fn().mockReturnValue({ updated: 3, decayed: 3 }),
+    promoteEligiblePatternsWhenUnlocked: vi.fn().mockReturnValue({ promoted: 2, checked: 10 }),
+    deprecateStalePatternsWhenUnlocked: vi.fn().mockReturnValue({ deprecated: 1, checked: 10 }),
+    applyConfidenceDecayWhenUnlocked: vi.fn().mockReturnValue({ updated: 3, decayed: 3 }),
     getStats: vi.fn().mockReturnValue({
       totalPatterns: 20,
       activePatterns: 15,
@@ -117,7 +117,7 @@ describe('HeartbeatSchedulerWorker', () => {
       getDatabase: vi.fn().mockReturnValue(mockDb),
     };
     vi.mocked(getUnifiedMemory).mockReturnValue(mockUnifiedMemory as any);
-    vi.mocked(createPatternLifecycleManager).mockReturnValue(
+    vi.mocked(createPatternLifecycleManagerWhenUnlocked).mockResolvedValue(
       mockLifecycleManager as any
     );
   });
@@ -213,22 +213,22 @@ describe('HeartbeatSchedulerWorker', () => {
       expect(result.metrics.domainMetrics.stalePatterns).toBe(2);
     });
 
-    it('should call promoteEligiblePatterns', async () => {
+    it('should call promoteEligiblePatternsWhenUnlocked', async () => {
       await worker.execute(context);
 
-      expect(mockLifecycleManager.promoteEligiblePatterns).toHaveBeenCalled();
+      expect(mockLifecycleManager.promoteEligiblePatternsWhenUnlocked).toHaveBeenCalled();
     });
 
-    it('should call deprecateStalePatterns', async () => {
+    it('should call deprecateStalePatternsWhenUnlocked', async () => {
       await worker.execute(context);
 
-      expect(mockLifecycleManager.deprecateStalePatterns).toHaveBeenCalled();
+      expect(mockLifecycleManager.deprecateStalePatternsWhenUnlocked).toHaveBeenCalled();
     });
 
-    it('should call applyConfidenceDecay', async () => {
+    it('should call applyConfidenceDecayWhenUnlocked', async () => {
       await worker.execute(context);
 
-      expect(mockLifecycleManager.applyConfidenceDecay).toHaveBeenCalled();
+      expect(mockLifecycleManager.applyConfidenceDecayWhenUnlocked).toHaveBeenCalled();
     });
 
     it('should call getStats', async () => {
@@ -258,7 +258,7 @@ describe('HeartbeatSchedulerWorker', () => {
     });
 
     it('should not add promotion finding when none promoted', async () => {
-      mockLifecycleManager.promoteEligiblePatterns.mockReturnValue({
+      mockLifecycleManager.promoteEligiblePatternsWhenUnlocked.mockReturnValue({
         promoted: 0,
         checked: 10,
       });
@@ -331,7 +331,7 @@ describe('HeartbeatSchedulerWorker', () => {
     });
 
     it('should increase score when patterns are promoted', async () => {
-      mockLifecycleManager.promoteEligiblePatterns.mockReturnValue({
+      mockLifecycleManager.promoteEligiblePatternsWhenUnlocked.mockReturnValue({
         promoted: 3,
         checked: 10,
       });
@@ -343,7 +343,7 @@ describe('HeartbeatSchedulerWorker', () => {
     });
 
     it('should decrease score when deprecation rate is high', async () => {
-      mockLifecycleManager.deprecateStalePatterns.mockReturnValue({
+      mockLifecycleManager.deprecateStalePatternsWhenUnlocked.mockReturnValue({
         deprecated: 10,
         checked: 15,
       });
@@ -358,7 +358,7 @@ describe('HeartbeatSchedulerWorker', () => {
         avgSuccessRate: 0.4,
         patternsNearDeprecation: 10,
       });
-      mockLifecycleManager.promoteEligiblePatterns.mockReturnValue({
+      mockLifecycleManager.promoteEligiblePatternsWhenUnlocked.mockReturnValue({
         promoted: 0,
         checked: 15,
       });
@@ -425,11 +425,11 @@ describe('HeartbeatSchedulerWorker', () => {
 
   describe('trend', () => {
     it('should report improving when promotions exceed deprecations', async () => {
-      mockLifecycleManager.promoteEligiblePatterns.mockReturnValue({
+      mockLifecycleManager.promoteEligiblePatternsWhenUnlocked.mockReturnValue({
         promoted: 5,
         checked: 10,
       });
-      mockLifecycleManager.deprecateStalePatterns.mockReturnValue({
+      mockLifecycleManager.deprecateStalePatternsWhenUnlocked.mockReturnValue({
         deprecated: 1,
         checked: 10,
       });
@@ -440,11 +440,11 @@ describe('HeartbeatSchedulerWorker', () => {
     });
 
     it('should report stable when no changes', async () => {
-      mockLifecycleManager.promoteEligiblePatterns.mockReturnValue({
+      mockLifecycleManager.promoteEligiblePatternsWhenUnlocked.mockReturnValue({
         promoted: 0,
         checked: 10,
       });
-      mockLifecycleManager.deprecateStalePatterns.mockReturnValue({
+      mockLifecycleManager.deprecateStalePatternsWhenUnlocked.mockReturnValue({
         deprecated: 0,
         checked: 10,
       });

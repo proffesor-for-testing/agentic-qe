@@ -31,6 +31,8 @@ vi.mock('../../../../src/kernel/unified-persistence.js', () => ({
 vi.mock('../../../../src/learning/pattern-null-store.js', () => ({
   PatternNullStore: class {
     recordNull = recordNullMock;
+    // #1283: the coordinator records nulls through the write queue.
+    recordNullWhenUnlocked = async (record: unknown) => recordNullMock(record);
   },
 }));
 

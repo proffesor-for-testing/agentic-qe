@@ -10,6 +10,7 @@ import { LoggerFactory } from '../logging/index.js';
 import type { Logger } from '../logging/index.js';
 import type { EventBus } from '../kernel/interfaces.js';
 import { toErrorMessage } from '../shared/error-utils.js';
+import { writeWhenUnlockedOn } from '../shared/sqlite-write-queue.js';
 import type { QEPattern, QEDomain } from './qe-patterns.js';
 import { shouldPromotePattern, calculateQualityScore } from './qe-patterns.js';
 import type { IPatternStore, PatternSearchResult } from './pattern-store.js';
@@ -131,7 +132,9 @@ export async function promotePattern(
   const result = await deps.patternStore.promote(patternId);
   if (result.success) {
     try {
-      deps.getSqliteStore().promotePattern(patternId);
+      const store = deps.getSqliteStore();
+      // #1283: queued on the shared connection, so a locked memory.db does not freeze the MCP server.
+      await writeWhenUnlockedOn(store.getDatabase(), () => store.promotePattern(patternId));
     } catch (e) {
       logger.warn('SQLite pattern promotion persist failed', {
         error: toErrorMessage(e),
@@ -153,7 +156,7 @@ export async function promotePattern(
             if (peers.success) {
               for (const { pattern: peer } of peers.value) {
                 if (peer.id !== patternId) {
-                  citationGraph.recordCoOccurrence(patternId, peer.id);
+                  await writeWhenUnlockedOn(db, () => citationGraph.recordCoOccurrence(patternId, peer.id));
                 }
               }
             }
@@ -182,7 +185,7 @@ export async function promotePattern(
 
     getWitnessChain()
       .then((wc) =>
-        wc.append('PATTERN_PROMOTE', { patternId }, 'reasoning-bank'),
+        wc.appendWhenUnlocked('PATTERN_PROMOTE', { patternId }, 'reasoning-bank'),
       )
       .catch((e) => {
         logger.warn('Witness chain PATTERN_PROMOTE failed', {
