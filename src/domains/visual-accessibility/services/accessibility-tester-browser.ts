@@ -115,11 +115,16 @@ export function getAxeTagsForWcagLevel(level: 'A' | 'AA' | 'AAA'): string[] {
 }
 
 /**
- * Map Vibium Severity type to our impact type
+ * Map an axe-core impact or a Vibium severity to our impact type
  */
 export function mapImpactSeverity(severity: string): 'critical' | 'serious' | 'moderate' | 'minor' {
   const severityMap: Record<string, 'critical' | 'serious' | 'moderate' | 'minor'> = {
+    // axe-core impacts (#1270)
     critical: 'critical',
+    serious: 'serious',
+    moderate: 'moderate',
+    minor: 'minor',
+    // Vibium severities
     high: 'serious',
     medium: 'moderate',
     low: 'minor',
