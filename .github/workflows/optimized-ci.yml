@@ -324,19 +324,23 @@ jobs:
         run: npx vitest run tests/performance/rvf-pattern-store.test.ts
 
   # ─── Coverage analysis (PRs only, independent of journey shards) ───
+  # #1201: one instrumented run of the whole suite reached 28 min and ran into
+  # its limits on PRs whose tests had all passed. The run is split into shards
+  # that each write a Vitest blob report (results + raw V8 coverage); the
+  # "Coverage Analysis" job merges them into one report and checks the
+  # threshold, so the merged numbers match a single full run.
 
-  coverage:
-    name: Coverage Analysis
+  coverage-shard:
+    name: Coverage Analysis (shard ${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
     # Coverage checks out and builds the same revision itself; it consumes no
     # journey artifacts. Start alongside them rather than extending the PR path.
-    # Full serial V8 instrumentation exceeds ten minutes as the suite grows.
-    # Keep a finite bound while allowing the report and threshold steps to run.
-    # #1201: whole-job runs reached 28 min with the vitest step at its old
-    # 25-min cap, failing PRs whose tests had all passed. Raised until the
-    # coverage run is sharded.
-    timeout-minutes: 40
+    timeout-minutes: 30
     if: success() && github.event_name == 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -347,8 +351,11 @@ jobs:
         # Performance baselines remain authoritative in Performance Gates.
         # V8 instrumentation adds nondeterministic wall-clock overhead, so the
         # coverage job exercises correctness paths but excludes pure benchmarks.
+        # The blob reporter writes .vitest/blob/blob-<shard>-3.json.
         run: >-
-          bash scripts/ci-vitest-run.sh --coverage --reporter=verbose
+          bash scripts/ci-vitest-run.sh --coverage
+          --shard=${{ matrix.shard }}/3
+          --reporter=blob --reporter=verbose
           --exclude='tests/performance/**'
           --exclude='tests/unit/learning/mmr-scaling.test.ts'
           --exclude='tests/unit/learning/dream/spreading-activation-bounds.test.ts'
@@ -356,7 +363,39 @@ jobs:
           NODE_OPTIONS: '--max-old-space-size=1024'
           CI: 'true'
           AQE_COVERAGE: 'true'
-          CI_VITEST_TIMEOUT: '2100'
+          CI_VITEST_TIMEOUT: '1500'
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-blob-${{ matrix.shard }}
+          path: .vitest/blob/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+
+  coverage:
+    name: Coverage Analysis
+    runs-on: ubuntu-latest
+    needs: [coverage-shard]
+    timeout-minutes: 15
+    if: success() && github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: '24.22.1', cache: 'npm' }
+      - run: npm ci
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: coverage-blob-*
+          path: .vitest/blob/
+          merge-multiple: true
+      - name: Merge shard results and coverage
+        run: |
+          ls -la .vitest/blob/
+          test "$(ls .vitest/blob/blob-*-3.json | wc -l)" -eq 3
+          npx vitest --merge-reports --coverage --reporter=default
+        env:
+          NODE_OPTIONS: '--max-old-space-size=2048'
+          CI: 'true'
       - uses: actions/upload-artifact@v7
         if: always()
         with:

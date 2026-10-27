@@ -65,6 +65,7 @@ logs/
 
 # Testing
 coverage/
+.vitest/blob/
 # But allow Phase 3 QE tool directories
 !src/mcp/tools/qe/coverage/
 !src/mcp/tools/qe/flaky-detection/
