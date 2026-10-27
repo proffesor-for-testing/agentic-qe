@@ -28,6 +28,7 @@ vi.mock('../../../../src/kernel/unified-memory', () => {
     isInitialized: vi.fn(() => true),
     initialize: vi.fn(),
     getDatabase: vi.fn(() => mockDb),
+    writeWhenUnlocked: vi.fn(async (fn: () => unknown) => fn()),
   };
 
   return {
@@ -55,6 +56,7 @@ describe('MinCutPersistence', () => {
       isInitialized: vi.fn(() => true),
       initialize: vi.fn(),
       getDatabase: vi.fn(() => mockDb),
+      writeWhenUnlocked: vi.fn(async (fn: () => unknown) => fn()),
     };
 
     vi.mocked(getUnifiedMemory).mockReturnValue(mockMemory);

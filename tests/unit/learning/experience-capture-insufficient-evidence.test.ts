@@ -19,6 +19,7 @@ vi.mock('../../../src/kernel/unified-memory.js', () => {
     getUnifiedMemory: vi.fn(() => ({
       initialize: vi.fn().mockResolvedValue(undefined),
       getDatabase: vi.fn(() => mockDb),
+      writeWhenUnlocked: vi.fn(async (fn: () => unknown) => fn()),
     })),
   };
 });

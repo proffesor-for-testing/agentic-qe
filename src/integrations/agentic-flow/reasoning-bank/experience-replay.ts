@@ -638,7 +638,8 @@ export class ExperienceReplay {
     const insertStmt = this.prepared.get('insertExperience');
     if (insertStmt) {
       const embeddingBuffer = embedding ? this.floatArrayToBuffer(embedding) : null;
-      insertStmt.run(
+      // Queued (#1274): runs when task completion events end a trajectory.
+      const run = () => insertStmt.run(
         id,
         task,
         strategy, // agent column stores strategy
@@ -650,6 +651,7 @@ export class ExperienceReplay {
         embedding?.length ?? null,
         JSON.stringify(tags),
       );
+      await (this.unifiedMemory ? this.unifiedMemory.writeWhenUnlocked(run) : run());
     }
 
     // Add to HNSW index for fast similarity search

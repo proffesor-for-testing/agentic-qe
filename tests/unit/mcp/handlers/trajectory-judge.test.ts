@@ -22,6 +22,7 @@ vi.mock('../../../../src/kernel/unified-memory', () => ({
   getUnifiedMemory: () => ({
     isInitialized: () => true,
     getDatabase: () => db,
+    writeWhenUnlocked: async <T>(fn: () => T) => fn(),
   }),
 }));
 

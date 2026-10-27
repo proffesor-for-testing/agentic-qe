@@ -60,7 +60,7 @@ export async function scoreUnjudgedTrajectories(): Promise<void> {
     try {
       const verdict = await scoreTrajectory(row, apiKey, baseUrl);
       if (verdict) {
-        updateStmt.run(JSON.stringify(verdict), row.id);
+        await um.writeWhenUnlocked(() => updateStmt.run(JSON.stringify(verdict), row.id));
       }
     } catch {
       // Skip this row; another task_orchestrate call will retry it

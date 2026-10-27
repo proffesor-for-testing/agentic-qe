@@ -15,6 +15,7 @@
  */
 
 import type { Database as DatabaseType } from 'better-sqlite3';
+import { isBusyError } from '../learning/dream/dream-lock-retry.js';
 
 let migrated = false;
 
@@ -37,11 +38,14 @@ export function ensureRoutingOutcomesAdr095Columns(db: DatabaseType): void {
   ]) {
     try {
       db.prepare(stmt).run();
-    } catch {
+    } catch (error) {
       // Column already exists, or table doesn't exist yet. Both are
       // acceptable — ALTER is additive, and a missing table means the
       // unified schema hasn't been applied yet (caller's INSERT will fail
-      // separately with a clearer error).
+      // separately with a clearer error). A locked database is not (#1274):
+      // rethrow so a retrying caller migrates on its next attempt instead of
+      // marking the migration done without the columns.
+      if (isBusyError(error)) throw error;
     }
   }
 

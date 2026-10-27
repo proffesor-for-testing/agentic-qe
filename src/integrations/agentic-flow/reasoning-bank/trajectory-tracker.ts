@@ -624,10 +624,12 @@ export class TrajectoryTracker {
       feedback,
     };
 
-    // Persist to SQLite
+    // Persist to SQLite. Queued (#1274): task completion events end
+    // trajectories in the background, and a locked memory.db must not freeze
+    // the MCP server's event loop.
     const updateStmt = this.prepared.get('updateTrajectory');
     if (updateStmt) {
-      updateStmt.run(
+      const run = () => updateStmt.run(
         endedAt.toISOString(),
         success ? 1 : 0,
         JSON.stringify(active.steps),
@@ -637,6 +639,7 @@ export class TrajectoryTracker {
         null, // related_patterns - computed later
         trajectoryId
       );
+      await (this.unifiedMemory ? this.unifiedMemory.writeWhenUnlocked(run) : run());
     }
 
     // Remove from active, add to recent buffer

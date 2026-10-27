@@ -710,7 +710,8 @@ export class PatternEvolution {
     mergedName?: string
   ): Promise<string | null> {
     this.ensureInitialized();
-    if (!this.db) return null;
+    const db = this.db;
+    if (!db) return null;
 
     const patternStmt = this.prepared.get('getPattern');
     const p1 = patternStmt?.get(patternId1) as PatternRow | undefined;
@@ -725,7 +726,7 @@ export class PatternEvolution {
 
     // Update retained pattern name if provided
     if (mergedName) {
-      this.db.prepare(`UPDATE qe_patterns SET name = ? WHERE id = ?`).run(mergedName, retained.id);
+      await this.write(() => db.prepare(`UPDATE qe_patterns SET name = ? WHERE id = ?`).run(mergedName, retained.id));
     }
 
     // Combine usage counts and recalculate success rate
@@ -733,7 +734,7 @@ export class PatternEvolution {
     const totalSuccess = (retained.successful_uses ?? 0) + (archived.successful_uses ?? 0);
     const newSuccessRate = totalUsage > 0 ? totalSuccess / totalUsage : 0;
 
-    this.db.prepare(`
+    await this.write(() => db.prepare(`
       UPDATE qe_patterns SET
         usage_count = ?,
         successful_uses = ?,
@@ -753,16 +754,17 @@ export class PatternEvolution {
       archived.last_used_at,
       archived.last_used_at,
       retained.id,
-    );
+    ));
 
     // Record merge relationship
     const relStmt = this.prepared.get('insertRelationship');
     if (relStmt) {
-      relStmt.run(uuidv4(), archived.id, retained.id, 'merged', 1.0);
+      const relId = uuidv4();
+      await this.write(() => relStmt.run(relId, archived.id, retained.id, 'merged', 1.0));
     }
 
     // Archive the lower quality pattern (mark as archived)
-    this.db.prepare(`UPDATE qe_patterns SET tier = 'archived' WHERE id = ?`).run(archived.id);
+    await this.write(() => db.prepare(`UPDATE qe_patterns SET tier = 'archived' WHERE id = ?`).run(archived.id));
 
     // Record events
     await this.recordEvent(retained.id, 'merged', { absorbedFrom: archived.id });
@@ -802,8 +804,9 @@ export class PatternEvolution {
     for (const candidate of pruneCandidates) {
       if (candidate.reason === 'low-quality' || candidate.reason === 'obsolete') {
         // Actually delete the pattern
-        if (this.db) {
-          this.db.prepare(`DELETE FROM qe_patterns WHERE id = ?`).run(candidate.patternId);
+        const db = this.db;
+        if (db) {
+          await this.write(() => db.prepare(`DELETE FROM qe_patterns WHERE id = ?`).run(candidate.patternId));
           this.embeddingCache.delete(candidate.patternId);
           await this.recordEvent(candidate.patternId, 'pruned', { reason: candidate.reason });
           pruned++;
@@ -881,9 +884,18 @@ export class PatternEvolution {
         details,
         timestamp: new Date(),
       };
-      insertStmt.run(event.id, patternId, eventType, JSON.stringify(details));
+      await this.write(() => insertStmt.run(event.id, patternId, eventType, JSON.stringify(details)));
       this.recentEvents.push(event);
     }
+  }
+
+  /**
+   * Run a write through the shared connection's writeWhenUnlocked queue, so a
+   * locked memory.db does not freeze the MCP server's event loop while the
+   * hourly consolidation timer merges and prunes patterns (#1274).
+   */
+  private write<T>(fn: () => T): Promise<T> {
+    return this.unifiedMemory ? this.unifiedMemory.writeWhenUnlocked(fn) : Promise.resolve(fn());
   }
 
   /**

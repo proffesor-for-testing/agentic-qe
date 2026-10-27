@@ -154,7 +154,9 @@ export class MinCutPersistence {
     const id = uuidv4();
     const db = this.memory.getDatabase();
 
-    db.prepare(`
+    // #1274: the queen's snapshot timer and agent events write here, so the
+    // writes queue instead of freezing the MCP server on a locked memory.db.
+    await this.memory.writeWhenUnlocked(() => db.prepare(`
       INSERT INTO mincut_snapshots (
         id, timestamp, vertex_count, edge_count, total_weight,
         is_connected, component_count, vertices_json, edges_json
@@ -169,7 +171,7 @@ export class MinCutPersistence {
       snapshot.stats.componentCount,
       JSON.stringify(snapshot.vertices),
       JSON.stringify(snapshot.edges)
-    );
+    ));
 
     // Enforce retention to prevent unbounded snapshot growth (Issue #258)
     await this.enforceRetention();
@@ -188,21 +190,21 @@ export class MinCutPersistence {
     if (!countRow || countRow.count <= maxSnapshots) return 0;
 
     const deleteCount = countRow.count - maxSnapshots;
-    db.prepare(`
+    await this.memory.writeWhenUnlocked(() => db.prepare(`
       DELETE FROM mincut_snapshots WHERE id IN (
         SELECT id FROM mincut_snapshots ORDER BY created_at ASC LIMIT ?
       )
-    `).run(deleteCount);
+    `).run(deleteCount));
 
     // Also trim history
     const historyCount = db.prepare('SELECT COUNT(*) as count FROM mincut_history').get() as { count: number };
     if (historyCount.count > 500) {
       const historyDelete = historyCount.count - 500;
-      db.prepare(`
+      await this.memory.writeWhenUnlocked(() => db.prepare(`
         DELETE FROM mincut_history WHERE id IN (
           SELECT id FROM mincut_history ORDER BY created_at ASC LIMIT ?
         )
-      `).run(historyDelete);
+      `).run(historyDelete));
     }
 
     return deleteCount;
@@ -257,7 +259,7 @@ export class MinCutPersistence {
     this.ensureInitialized();
 
     const db = this.memory.getDatabase();
-    const result = db.prepare(`
+    const result = await this.memory.writeWhenUnlocked(() => db.prepare(`
       INSERT INTO mincut_history (
         mincut_value, vertex_count, edge_count, algorithm, duration_ms, snapshot_id
       ) VALUES (?, ?, ?, ?, ?, ?)
@@ -268,7 +270,7 @@ export class MinCutPersistence {
       entry.algorithm ?? 'weighted-degree',
       entry.durationMs ?? null,
       entry.snapshotId ?? null
-    );
+    ));
 
     return Number(result.lastInsertRowid);
   }

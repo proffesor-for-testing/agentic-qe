@@ -1569,7 +1569,7 @@ export class PatternStore implements IPatternStore {
     // Persist usage to SQLite
     if (this.sqliteStore) {
       try {
-        this.sqliteStore.recordUsage(id, success, metrics, feedback);
+        await this.persistToSqlite((store) => store.recordUsage(id, success, metrics, feedback));
       } catch (error) {
         console.warn(`[PatternStore] SQLite recordUsage failed for ${id}:`, toErrorMessage(error));
       }
@@ -1618,6 +1618,21 @@ export class PatternStore implements IPatternStore {
   }
 
   /**
+   * Run a SQLite write through the store's writeWhenUnlocked queue (#1274):
+   * the hourly cleanup timer and fire-and-forget usage recording write here,
+   * and must not freeze the MCP server's event loop on a locked memory.db.
+   */
+  private persistToSqlite<T>(
+    write: (store: import('./sqlite-persistence.js').SQLitePatternStore) => T,
+  ): Promise<T> {
+    const store = this.sqliteStore!;
+    const run = () => write(store);
+    return typeof store.writeWhenUnlocked === 'function'
+      ? store.writeWhenUnlocked(run)
+      : new Promise<T>((resolve) => resolve(run()));
+  }
+
+  /**
    * Promote pattern from short-term to long-term storage
    */
   async promote(id: string): Promise<Result<void>> {
@@ -1646,7 +1661,7 @@ export class PatternStore implements IPatternStore {
     // Persist promotion to SQLite
     if (this.sqliteStore) {
       try {
-        this.sqliteStore.promotePattern(id);
+        await this.persistToSqlite((store) => store.promotePattern(id));
       } catch (e) {
         console.debug('[PatternStore] SQLite promotion error:', e instanceof Error ? e.message : e);
       }
@@ -1674,7 +1689,7 @@ export class PatternStore implements IPatternStore {
     // Persist deletion to SQLite
     if (this.sqliteStore) {
       try {
-        this.sqliteStore.deletePattern(id);
+        await this.persistToSqlite((store) => store.deletePattern(id));
       } catch (e) {
         console.debug('[PatternStore] SQLite deletion error:', e instanceof Error ? e.message : e);
       }
