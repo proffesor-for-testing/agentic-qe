@@ -7,6 +7,7 @@ import { LoggerFactory } from '../../../logging/index.js';
 import { spawn } from 'node:child_process';
 import { createVitestJsonReport, type VitestJsonReport } from '../../../shared/vitest-json-report.js';
 import { jestExactPathPattern, nameFilterArg, runnerFilePath } from '../../../shared/test-runner-args.js';
+import { runnerCwdFor } from '../../../shared/test-runner-project.js';
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { resolve as resolvePath } from 'node:path';
 import { Result, ok, err } from '../../../shared/types';
@@ -488,8 +489,12 @@ export class RetryHandlerService implements IRetryHandler {
       throw new Error(`Test file not found: ${testFile}. Cannot retry non-existent test file.`);
     }
 
+    // #1247: retry from the same runner project as the first run, unless a
+    // fixed directory was configured. The file path stays relative to `cwd`.
+    const runCwd = this.config.cwd ?? runnerCwdFor(testFile);
+
     // Detect or use configured test runner
-    const runner = await this.detectTestRunner(cwd);
+    const runner = await this.detectTestRunner(runCwd);
     if (!runner) {
       throw new Error(
         `No test runner detected or configured. Install vitest, jest, or mocha, ` +
@@ -501,7 +506,7 @@ export class RetryHandlerService implements IRetryHandler {
     const { command, args, report } = this.buildTestCommand(runner, testFile, testName, cwd);
 
     // Execute the test
-    return this.spawnTestProcess(command, args, cwd, report, runner === 'vitest' ? testFile : undefined);
+    return this.spawnTestProcess(command, args, runCwd, report, runner === 'vitest' ? testFile : undefined);
   }
 
   /**

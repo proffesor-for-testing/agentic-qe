@@ -162,6 +162,11 @@ export interface ISimpleTestRequest {
   timeout?: number;
   /** Number of parallel workers (default: auto based on file count) */
   workers?: number;
+  /**
+   * #1247: directory to run every file from, already checked to be inside the
+   * project. When omitted, each file runs from its nearest runner project.
+   */
+  projectRoot?: string;
 }
 
 export interface IExecuteTestsRequest {
@@ -175,6 +180,11 @@ export interface IExecuteTestsRequest {
    * or TestRunCompleted is published, so both carry the final outcome.
    */
   retryCount?: number;
+  /**
+   * #1247: directory to run every file from, already checked to be inside the
+   * project. When omitted, each file runs from its nearest runner project.
+   */
+  projectRoot?: string;
 }
 
 export interface IParallelExecutionRequest extends IExecuteTestsRequest {

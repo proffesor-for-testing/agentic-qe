@@ -1122,6 +1122,7 @@ export class MCPProtocolServer {
         parameters: [
           { name: 'testFiles', type: 'array', description: 'Nonempty list of concrete test file paths (relative to the project working directory or absolute). Expand glob patterns before calling; glob patterns are rejected.', items: { type: 'string' } },
           { name: 'parallel', type: 'boolean', description: 'Enable parallel execution', default: true },
+          { name: 'projectRoot', type: 'string', description: 'Optional directory inside the project to run every test file from (for example a monorepo package with its own vitest/jest config); relative testFiles are then relative to it. When omitted, each test file runs from its nearest directory with a vitest/jest config, never above the project root. Paths outside the project, including through symlinks, are rejected.' },
           saveResultsParameter('test_execute_parallel'),
         ],
       },

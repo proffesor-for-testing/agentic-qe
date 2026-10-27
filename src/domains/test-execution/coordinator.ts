@@ -354,6 +354,7 @@ export class TestExecutionCoordinator
         workers,
         timeout,
         retryCount: request.retryCount,
+        projectRoot: request.projectRoot,
       });
     }
 
@@ -363,6 +364,7 @@ export class TestExecutionCoordinator
       framework,
       timeout,
       retryCount: request.retryCount,
+      projectRoot: request.projectRoot,
     });
   }
 
@@ -528,7 +530,7 @@ export class TestExecutionCoordinator
           const rerunResult = await this.attemptAutoRecoveryAndRerun(
             result.value.failedTests,
             request.framework,
-            { timeout: request.timeout, env: request.env, retryCount: request.retryCount },
+            { timeout: request.timeout, env: request.env, retryCount: request.retryCount, projectRoot: request.projectRoot },
           );
           if (rerunResult) return rerunResult;
         }
@@ -678,7 +680,7 @@ export class TestExecutionCoordinator
           const rerunResult = await this.attemptAutoRecoveryAndRerun(
             result.value.failedTests,
             request.framework,
-            { timeout: request.timeout, env: request.env, retryCount: request.retryCount },
+            { timeout: request.timeout, env: request.env, retryCount: request.retryCount, projectRoot: request.projectRoot },
           );
           if (rerunResult) return rerunResult;
         }
@@ -908,7 +910,7 @@ export class TestExecutionCoordinator
   private async attemptAutoRecoveryAndRerun(
     failedTests: readonly { testId: string; file: string; error: string }[],
     framework: string,
-    originalRequest: { timeout?: number; env?: Record<string, string>; retryCount?: number },
+    originalRequest: { timeout?: number; env?: Record<string, string>; retryCount?: number; projectRoot?: string },
   ): Promise<Result<TestRunResult, Error> | null> {
     if (!this.config.infraHealing) return null;
 
@@ -953,6 +955,7 @@ export class TestExecutionCoordinator
       timeout: originalRequest.timeout,
       env: originalRequest.env,
       retryCount: originalRequest.retryCount,
+      projectRoot: originalRequest.projectRoot,
     });
   }
 

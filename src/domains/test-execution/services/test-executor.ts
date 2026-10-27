@@ -32,6 +32,7 @@ import { mergeTestCases, redactFailedTests, redactFailureText, testCasesFromRunn
 import { capDiagnostics, getTestRunnerExecutionError, TestRunnerExecutionError } from '../../../shared/test-runner-verdict.js';
 import { createVitestJsonReport, type VitestJsonReport } from '../../../shared/vitest-json-report.js';
 import { jestExactPathPattern, runnerFilePath } from '../../../shared/test-runner-args.js';
+import { groupByRunnerProject } from '../../../shared/test-runner-project.js';
 import { getClaudeModelForTier } from '../../../shared/llm/model-registry.js';
 import { terminateTestRunner, trackTestRunnerExit } from '../../../shared/test-runner-process.js';
 
@@ -436,7 +437,7 @@ Provide:
   }
 
   private async runTests(request: ExecuteTestsRequest): Promise<TestExecutionResult> {
-    const { testFiles, framework, timeout = 30000 } = request;
+    const { testFiles, framework, timeout = 30000, projectRoot } = request;
 
     const failedTests: FailedTest[] = [];
     const coverages: CoverageFigures[] = [];
@@ -447,7 +448,7 @@ Provide:
     let skipped = 0;
 
     for (const file of testFiles) {
-      const result = await this.executeTestFile(file, framework, timeout);
+      const result = await this.executeTestFile(file, framework, timeout, projectRoot);
       executionResults.push(result);
       passed += result.passed;
       failed += result.failed;
@@ -520,23 +521,51 @@ Provide:
   private async executeTestFile(
     file: string,
     framework: string,
-    timeout: number
+    timeout: number,
+    projectRoot?: string
   ): Promise<TestExecutionResult> {
-    return this.executeTestFiles([file], framework, timeout);
+    return this.executeTestFiles([file], framework, timeout, projectRoot);
   }
 
   private async executeTestFiles(
     files: string[],
     framework: string,
-    timeout: number
+    timeout: number,
+    projectRoot?: string
   ): Promise<TestExecutionResult> {
     // In simulation mode (for unit testing), use random behavior
     if (this.config.simulateForTesting) {
       return this.aggregateResults(files.map(file => this.simulateTestExecution(file)));
     }
 
+    // #1247: a runner loads the config of the directory it starts in, so each
+    // file runs from its own runner project (or the caller's projectRoot).
+    const groups = projectRoot
+      ? [{ cwd: projectRoot, files }]
+      : groupByRunnerProject(files);
+    if (groups.length === 1) {
+      return this.executeProjectFiles(groups[0].files, framework, timeout, groups[0].cwd);
+    }
+    // Each project gets its own runner and timeout. Their coverage maps are
+    // merged from raw counters, or left unmeasured (#1030).
+    const results = await Promise.all(
+      groups.map(group => this.executeProjectFiles(group.files, framework, timeout, group.cwd))
+    );
+    const combined = this.aggregateResults(results);
+    const merged = this.mergeSequentialCoverage(results);
+    combined.coverage = merged?.summary;
+    combined.fileCoverages = merged?.perFile;
+    return combined;
+  }
+
+  private async executeProjectFiles(
+    files: string[],
+    framework: string,
+    timeout: number,
+    cwd: string
+  ): Promise<TestExecutionResult> {
     // Production mode: spawn actual test runner process
-    const result = await this.spawnTestRunner(files, framework, timeout);
+    const result = await this.spawnTestRunner(files, framework, timeout, cwd);
     if (result.success === false) {
       // Runner/suite errors have no trustworthy assertion receipt to aggregate.
       if (result.error instanceof TestRunnerExecutionError) throw result.error;
@@ -565,7 +594,8 @@ Provide:
   private async spawnTestRunner(
     files: string[],
     framework: string,
-    timeout: number
+    timeout: number,
+    cwd: string = process.cwd()
   ): Promise<Result<TestExecutionResult, Error>> {
     // Verify test file exists
     const missingFile = files.find(file => !existsSync(file));
@@ -602,7 +632,7 @@ Provide:
       let proc: ChildProcess;
       try {
         proc = spawn(command, args, {
-          cwd: process.cwd(),
+          cwd,
           detached: process.platform !== 'win32',
           env: {
             ...process.env,
@@ -1228,7 +1258,7 @@ Provide:
     _isolation: 'process' | 'worker' | 'none',
     request: ParallelExecutionRequest
   ): Promise<TestExecutionResult> {
-    return this.executeTestFiles(files, request.framework, request.timeout ?? 30000);
+    return this.executeTestFiles(files, request.framework, request.timeout ?? 30000, request.projectRoot);
   }
 
   private aggregateResults(results: TestExecutionResult[]): TestExecutionResult {

@@ -539,6 +539,8 @@ export const testExecuteConfig: DomainHandlerConfig<TestExecuteParams, TestExecu
     routingTier: routingResult?.decision.tier,
     useAgentBooster: routingResult?.useAgentBooster,
     compiledContext: routingResult?.compiledContext,
+    // #1247: validated by the execute-tests handler before any runner starts.
+    ...(params.projectRoot !== undefined ? { projectRoot: params.projectRoot } : {}),
   }),
 
   calculateTimeout: (params) => params.timeout || 300000,
