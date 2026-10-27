@@ -179,6 +179,26 @@ export function __resetEmbeddingRuntimeNoticeForTests(): void {
   embeddingRuntimeNoticeShown = false;
 }
 
+/**
+ * #1217: record the embedding space of a vector stored on a
+ * captured_experiences row. ExperienceReplay compares only vectors of the
+ * active space. On a table without the column (it is added by
+ * ExperienceReplay's schema) the vector stays without provenance: it is never
+ * compared, and ExperienceReplay re-embeds it at its next start.
+ */
+export function recordExperienceEmbeddingSpace(
+  db: { prepare(sql: string): { run(...params: unknown[]): unknown } },
+  experienceId: string,
+  spaceId: string | undefined,
+): void {
+  if (!spaceId) return;
+  try {
+    db.prepare('UPDATE captured_experiences SET embedding_space_id = ? WHERE id = ?').run(spaceId, experienceId);
+  } catch {
+    // Older table without the column; see above.
+  }
+}
+
 /** Sidecar path used to bind a persistent ANN index to one embedding space. */
 export function embeddingSpaceManifestPath(indexPath: string): string {
   return `${indexPath}.space.json`;

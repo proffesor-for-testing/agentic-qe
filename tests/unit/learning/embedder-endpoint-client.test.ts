@@ -382,8 +382,12 @@ describe('EmbedderEndpointClient', () => {
     // Wait past the failure window
     await new Promise((r) => setTimeout(r, 60));
     expect(client.getBreakerState().open).toBe(false);
-    // Restore success behavior and verify the next call goes through
+    // Restore success behavior. #1216: the first call after the window starts
+    // the trial probe in the background and fails fast; once the trial has
+    // succeeded, calls go through.
     server.responder = defaultResponder;
+    await expect(client.embed(['x'])).rejects.toThrow(/half-open/);
+    await client.probe();
     const out = await client.embed(['x']);
     expect(out[0]).toHaveLength(384);
   });
@@ -465,6 +469,116 @@ describe('EmbedderEndpointClient', () => {
     await expect(client.embed(['x'])).rejects.toThrow(/circuit breaker open/);
   });
 
+  // -- #1216: a host that accepts connections but never replies --
+
+  /** Accepts each request and never answers it. */
+  function hangingResponder(): FakeServerHandle['responder'] {
+    return () => {};
+  }
+
+  it('#1216: one request timeout opens the breaker', async () => {
+    client.close();
+    client = new EmbedderEndpointClient({
+      endpoint: server.url,
+      requestTimeoutMs: 100,
+      failureThreshold: 3,
+      failureWindowMs: 60_000,
+    });
+    await client.probe();
+    server.responder = hangingResponder();
+
+    await expect(client.embed(['x'])).rejects.toThrow(/request timeout after 100ms/);
+
+    expect(client.getBreakerState().open).toBe(true);
+    const started = Date.now();
+    await expect(client.embed(['y'])).rejects.toThrow(/circuit breaker open/);
+    expect(Date.now() - started).toBeLessThan(50);
+  });
+
+  it('#1216: requests still waiting on the host fail when the breaker opens', async () => {
+    client.close();
+    client = new EmbedderEndpointClient({
+      endpoint: server.url,
+      requestTimeoutMs: 300,
+      failureWindowMs: 60_000,
+    });
+    await client.probe();
+    server.responder = hangingResponder();
+
+    const first = client.embed(['first']);
+    await new Promise((r) => setTimeout(r, 150));
+    const secondStarted = Date.now();
+    const second = client.embed(['second']);
+
+    await expect(first).rejects.toThrow(/request timeout/);
+    await expect(second).rejects.toThrow(/request abandoned/);
+    // Without abandoning, the second call would wait its own 300 ms.
+    expect(Date.now() - secondStarted).toBeLessThan(250);
+  });
+
+  it('#1216: sequential calls against a host that never replies wait about one timeout in total', async () => {
+    // The issue's arithmetic, scaled down: calls that each wait a full request
+    // timeout fail one timeout apart, so a window of two timeouts never holds
+    // the three failures the breaker needed, and every call waited.
+    const timeoutMs = 100;
+    client.close();
+    client = new EmbedderEndpointClient({
+      endpoint: server.url,
+      requestTimeoutMs: timeoutMs,
+      failureThreshold: 3,
+      failureWindowMs: timeoutMs * 2,
+    });
+    await client.probe();
+    server.responder = hangingResponder();
+
+    const started = Date.now();
+    for (let i = 0; i < 8; i++) {
+      await client.embed([`call-${i}`]).catch(() => undefined);
+      await new Promise((r) => setTimeout(r, 30));
+    }
+    const elapsed = Date.now() - started;
+
+    // 8 calls x 100 ms = 800 ms + gaps before the fix. One timeout, the
+    // gaps and at most one trial probe that runs in the background after.
+    expect(elapsed).toBeLessThan(timeoutMs * 2 + 8 * 30 + 150);
+  });
+
+  it('#1216: after the window the trial probe runs in the background, and its success closes the breaker', async () => {
+    client.close();
+    client = new EmbedderEndpointClient({
+      endpoint: server.url,
+      requestTimeoutMs: 100,
+      failureWindowMs: 100,
+    });
+    await client.probe();
+    server.responder = hangingResponder();
+    await expect(client.embed(['x'])).rejects.toThrow(/request timeout/);
+    await new Promise((r) => setTimeout(r, 120));
+
+    // Window elapsed, host still silent: the trial starts, nobody waits on it.
+    let started = Date.now();
+    await expect(client.embed(['x'])).rejects.toThrow(/half-open/);
+    await expect(client.embed(['y'])).rejects.toThrow(/half-open/);
+    expect(Date.now() - started).toBeLessThan(50);
+    expect(client.needsTrial()).toBe(true);
+
+    // The trial times out and re-opens the breaker for a full window.
+    await new Promise((r) => setTimeout(r, 130));
+    expect(client.getBreakerState().open).toBe(true);
+    started = Date.now();
+    await expect(client.embed(['x'])).rejects.toThrow(/circuit breaker open/);
+    expect(Date.now() - started).toBeLessThan(50);
+
+    // Host is back: the next trial succeeds and calls go through again.
+    server.responder = defaultResponder;
+    await new Promise((r) => setTimeout(r, 120));
+    await expect(client.embed(['x'])).rejects.toThrow(/half-open/);
+    await client.probe();
+    expect(client.needsTrial()).toBe(false);
+    const out = await client.embed(['x']);
+    expect(out[0]).toHaveLength(384);
+  });
+
   // -- ADR-097 boundary hardening (devil's-advocate audit) --
 
   it('embed() lazily probes when no cached identity exists', async () => {
@@ -537,9 +651,13 @@ describe('EmbedderEndpointClient', () => {
     await new Promise((r) => setTimeout(r, 60));
     expect(client.getBreakerState().open).toBe(false);
     expect(client.getCachedIdentity()).toBeNull(); // <- re-probe will run
+    // #1216: the next embed starts the re-probe (canary call #3) in the
+    // background and fails fast; once it succeeded, embeds go through.
+    await expect(client.embed(['x'])).rejects.toThrow(/half-open/);
+    await client.probe();
+    expect(client.getCachedIdentity()).not.toBeNull();
     const out = await client.embed(['x']);
     expect(out[0]).toHaveLength(384);
-    // After recovery the next embed re-probes (canary call #3), then actual call.
     expect(canaryCallCount).toBe(3);
     await new Promise<void>((r) => capture.close(() => r()));
   });

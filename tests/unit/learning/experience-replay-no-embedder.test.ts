@@ -38,6 +38,9 @@ vi.mock('../../../src/learning/real-embeddings.js', async (importOriginal) => {
       if (!embeddingMocks.available) throw new Error('In-process embeddings require the optional package');
       return wordVector(text);
     }),
+    // #1217: an embedder that works has a runtime-backed space identity.
+    getActiveEmbeddingSpaceIdentity: vi.fn(() =>
+      embeddingMocks.available ? { spaceId: 'space-test' } : null),
   };
 });
 
@@ -125,6 +128,7 @@ describe('ExperienceReplay without an embedding runtime (#1022)', () => {
     const args = insertExperience.run.mock.calls[0];
     expect(Buffer.isBuffer(args[7])).toBe(true);
     expect(args[8]).toBe(384);
+    expect(args[9]).toBe('space-test'); // #1217: stored with its embedding space
   });
 });
 
@@ -229,6 +233,7 @@ describe('ExperienceReplay reservoir guidance reports only measured similarity (
     const admit = (id: string, task: string, embedding?: number[]) => reservoir.admit(id, {
       id, task, domain: 'test-generation', strategy: 'analyze then generate', keyActions: ['analyze'],
       qualityScore: 0.9, avgTokenSavings: 100, embedding,
+      embeddingSpaceId: embedding ? 'space-test' : undefined,
     }, 0.9);
     return { replay, admit };
   }

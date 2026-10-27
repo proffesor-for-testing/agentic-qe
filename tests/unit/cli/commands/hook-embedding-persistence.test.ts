@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../../../src/kernel/unified-memory.js', () => ({
   getUnifiedMemory: () => mocks.getUnifiedMemory(),
   findProjectRoot: () => process.cwd(),
+  writeWhenUnlockedOn: async <T>(_db: unknown, fn: () => T) => fn(),
 }));
 
 vi.mock('../../../../src/learning/experience-capture-middleware.js', () => ({
@@ -20,6 +21,7 @@ vi.mock('../../../../src/learning/experience-capture-middleware.js', () => ({
 
 vi.mock('../../../../src/learning/real-embeddings.js', () => ({
   computeRealEmbedding: (...args: unknown[]) => mocks.computeRealEmbedding(...args),
+  getActiveEmbeddingSpaceIdentity: () => ({ spaceId: 'space-test' }),
 }));
 
 import {
@@ -33,7 +35,8 @@ function createSchema(db: Database.Database): void {
       id TEXT PRIMARY KEY, task TEXT NOT NULL, agent TEXT, domain TEXT,
       success INTEGER, quality REAL, duration_ms INTEGER, model_tier TEXT,
       started_at TEXT, completed_at TEXT, source TEXT,
-      consolidated_into TEXT, embedding BLOB, embedding_dimension INTEGER
+      consolidated_into TEXT, embedding BLOB, embedding_dimension INTEGER,
+      embedding_space_id TEXT
     );
     CREATE TABLE experience_applications (
       id TEXT PRIMARY KEY, experience_id TEXT, task TEXT, success INTEGER,
@@ -111,10 +114,13 @@ describe('hook embedding persistence (#581)', () => {
     expect(completed).toBe(false);
     resolveEmbedding([0.25, 0.5]);
     await operation;
-    const row = db.prepare('SELECT embedding_dimension FROM captured_experiences').get() as {
+    const row = db.prepare('SELECT embedding_dimension, embedding_space_id FROM captured_experiences').get() as {
       embedding_dimension: number;
+      embedding_space_id: string | null;
     };
     expect(row.embedding_dimension).toBe(2);
+    // #1217: the vector is stored with its embedding space (ADR-097).
+    expect(row.embedding_space_id).toBe('space-test');
   });
 
   it('should await post-task embedding persistence before returning', async () => {
