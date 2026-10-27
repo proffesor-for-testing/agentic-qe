@@ -17,8 +17,8 @@ export function loginWithPassword(username, password) {
 `;
 const ORDER = (i: number) => `// Order step ${i}\nexport function stepHandler${i}(order) { return order.id; }\n`;
 
-/** In-memory backend: key/value search by glob, every stored vector scores 0.9. */
-function createMemory(): MemoryBackend {
+/** In-memory backend: key/value search by glob, every stored vector scores `vectorScore`. */
+function createMemory(vectorScore = 0.9): MemoryBackend {
   const storage = new Map<string, unknown>();
   const vectors = new Map<string, { metadata: unknown }>();
   return {
@@ -37,7 +37,7 @@ function createMemory(): MemoryBackend {
       [...vectors.entries()]
         .filter(([key]) => !keyPrefix || key.startsWith(keyPrefix))
         .slice(0, k)
-        .map(([key, v]) => ({ key, score: 0.9, metadata: v.metadata }))),
+        .map(([key, v]) => ({ key, score: vectorScore, metadata: v.metadata }))),
     storeVector: vi.fn(async (key: string, _embedding: number[], metadata?: unknown) => {
       vectors.set(key, { metadata });
     }),
@@ -90,9 +90,9 @@ describe('indexCode reports whether the file got a vector (#1231)', () => {
 });
 
 describe('semantic search over a partly vectored index (#1231)', () => {
-  async function partlyVectoredService() {
+  async function partlyVectoredService(vectorScore = 0.9) {
     const provider = createSwitchableProvider();
-    const service = new SemanticAnalyzerService(createMemory(), { useNomicEmbeddings: false, embeddingProvider: provider });
+    const service = new SemanticAnalyzerService(createMemory(vectorScore), { useNomicEmbeddings: false, embeddingProvider: provider });
     await service.indexCode('src/mod1.js', ORDER(1));
     await service.indexCode('src/mod2.js', ORDER(2));
     provider.up = false; // model down for the rest of the run
@@ -125,32 +125,40 @@ describe('semantic search over a partly vectored index (#1231)', () => {
       coverage: { indexedFiles: 4, filesWithVector: 2 },
       reason:
         '2 of 4 indexed files have no embedding from injected-provider (it was unavailable when they were indexed, ' +
-        'or an older aqe version indexed them), so they were matched by text only (matchType "lexical"); ' +
-        're-index to rank them by vector',
+        'or an older aqe version indexed them), so they were matched by text only ' +
+        '(matchType "lexical", listed after the vector hits); re-index to rank them by vector',
     });
   });
 
-  it('keeps vector hits labelled vector, lists each file once, and merges by score', async () => {
-    const service = await partlyVectoredService();
+  it('lists vector hits first, then lexical hits, each file once, without mixing the score scales', async () => {
+    const service = await partlyVectoredService(0.5);
 
     const result = await service.search({ query: 'stepHandler order', type: 'semantic' });
 
     expect(result.success).toBe(true);
     if (!result.success) return;
-    // The lexical hit matched every query word (score 1); the vector hits scored 0.9.
+    // The lexical hit matched every query word (1.0) but is not comparable to a 0.5 cosine.
     expect(result.value.results.map((r) => [r.file, r.matchType, r.score])).toEqual([
+      ['src/mod1.js', 'vector', 0.5],
+      ['src/mod2.js', 'vector', 0.5],
       ['src/mod3.js', 'lexical', 1],
-      ['src/mod1.js', 'vector', 0.9],
-      ['src/mod2.js', 'vector', 0.9],
     ]);
+    expect(result.value.reason).not.toContain('left out');
   });
 
-  it('keeps the requested limit across vector and lexical hits', async () => {
-    const service = await partlyVectoredService();
+  it('says how many text matches the limit left out when vector hits fill it', async () => {
+    const service = await partlyVectoredService(0.5);
 
     const result = await service.search({ query: 'stepHandler order', type: 'semantic', limit: 2 });
 
-    expect(result.success && result.value.results.map((r) => r.file)).toEqual(['src/mod3.js', 'src/mod1.js']);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.value.results.map((r) => [r.file, r.matchType])).toEqual([
+      ['src/mod1.js', 'vector'],
+      ['src/mod2.js', 'vector'],
+    ]);
+    expect(result.value.mode).toBe('partial-vector');
+    expect(result.value.reason).toContain('1 more text match(es) were left out by the limit of 2; ');
   });
 
   it('treats content indexed by an older version (no model recorded) as vector-less, listing it once', async () => {

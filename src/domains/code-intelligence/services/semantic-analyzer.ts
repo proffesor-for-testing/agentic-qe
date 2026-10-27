@@ -567,7 +567,9 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
    * #1231: files indexed while the embedding model was unavailable have no
    * vector, so vector search cannot rank them. Match those by text, label the
    * hits 'lexical', and report the result as 'partial-vector' with the counts.
-   * Hits are merged by score; a lexical score is the share of query words found.
+   * Cosine and text-match scores are not comparable, so vector hits come
+   * first (by cosine), then lexical hits (by share of query words found); the
+   * reason says how many text matches the limit left out.
    */
   private async withVectorlessFiles(
     query: string,
@@ -596,13 +598,19 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
     if (withoutVector === 0) {
       return { results: vectorHits, mode: 'vector', coverage };
     }
+    const byScore = (a: SearchResult, b: SearchResult) => b.score - a.score;
+    const results = [...[...vectorHits].sort(byScore), ...lexicalHits.sort(byScore)].slice(0, limit);
+    const droppedLexical = vectorHits.length + lexicalHits.length - results.length;
     return {
-      results: [...vectorHits, ...lexicalHits].sort((a, b) => b.score - a.score).slice(0, limit),
+      results,
       mode: 'partial-vector',
       reason:
         `${withoutVector} of ${indexedFiles} indexed files have no embedding from ${model} ` +
         '(it was unavailable when they were indexed, or an older aqe version indexed them), ' +
-        'so they were matched by text only (matchType "lexical"); ' +
+        'so they were matched by text only (matchType "lexical", listed after the vector hits); ' +
+        (droppedLexical > 0
+          ? `${droppedLexical} more text match(es) were left out by the limit of ${limit}; `
+          : '') +
         're-index to rank them by vector',
       coverage,
     };
