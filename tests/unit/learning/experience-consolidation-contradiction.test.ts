@@ -31,7 +31,7 @@ function bootstrapSchema(db: Database.Database): void {
       embedding BLOB, embedding_dimension INTEGER, tags TEXT, last_applied_at TEXT,
       consolidated_into TEXT DEFAULT NULL, consolidation_count INTEGER DEFAULT 1,
       quality_updated_at TEXT, reuse_success_count INTEGER DEFAULT 0,
-      reuse_failure_count INTEGER DEFAULT 0
+      reuse_failure_count INTEGER DEFAULT 0, embedding_space_id TEXT
     );
     CREATE TABLE experience_consolidation_log (
       id TEXT PRIMARY KEY, domain TEXT NOT NULL, action TEXT NOT NULL,
@@ -68,8 +68,8 @@ describe('ExperienceConsolidator — contradiction detection (#510 item 7)', () 
     db.prepare(`
       INSERT INTO captured_experiences
         (id, task, domain, quality, success, application_count, embedding,
-         embedding_dimension, started_at, source)
-      VALUES (?, ?, 'core', ?, 1, ?, ?, ?, '2026-02-01 00:00:00', 'test')
+         embedding_dimension, started_at, source, embedding_space_id)
+      VALUES (?, ?, 'core', ?, 1, ?, ?, ?, '2026-02-01 00:00:00', 'test', 'space-test')
     `).run(o.id, o.id, o.quality, o.applicationCount ?? 0, o.embedding, DIM);
   }
 
@@ -83,7 +83,8 @@ describe('ExperienceConsolidator — contradiction detection (#510 item 7)', () 
   beforeEach(async () => {
     db = new Database(':memory:');
     bootstrapSchema(db);
-    consolidator = new ExperienceConsolidator({ softThreshold: 0, maxMergesPerRun: 50 });
+    // #1281: Phase 1 compares vectors of one embedding space only.
+    consolidator = new ExperienceConsolidator({ softThreshold: 0, maxMergesPerRun: 50, embeddingSpaceId: 'space-test' });
     await consolidator.initialize(db);
   });
 

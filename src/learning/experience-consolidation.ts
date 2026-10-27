@@ -17,7 +17,8 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import type { Database as DatabaseType } from 'better-sqlite3';
-import { getUnifiedMemory } from '../kernel/unified-memory.js';
+import { getUnifiedMemory, writeWhenUnlockedOn } from '../kernel/unified-memory.js';
+import { ensureEndpointEmbeddingSpaceIdentity, getActiveEmbeddingSpaceIdentity } from './real-embeddings.js';
 import { HNSWEmbeddingIndex } from '../integrations/embeddings/index/HNSWIndex.js';
 import type { IEmbedding } from '../integrations/embeddings/base/types.js';
 
@@ -81,6 +82,11 @@ export interface ConsolidationConfig {
   contradictionSimilarityThreshold: number;
   /** Min quality gap that turns a near-duplicate into a contradiction (0-1). */
   contradictionQualityDelta: number;
+  /**
+   * #1281: embedding space (ADR-097 spaceId) whose vectors Phase 1 compares.
+   * Defaults to the active embedder's space.
+   */
+  embeddingSpaceId?: string;
 }
 
 const DEFAULT_CONFIG: ConsolidationConfig = {
@@ -288,6 +294,12 @@ export class ExperienceConsolidator {
   // ============================================================================
 
   private async clusterAndMerge(domain: string): Promise<{ merged: number; contradicted: number }> {
+    // #1281 (ADR-097): a cosine between vectors of different embedding spaces
+    // is meaningless, even at the same dimension. Only vectors recorded in the
+    // active space are compared; without a known space nothing is merged.
+    const spaceId = await this.resolveEmbeddingSpaceId();
+    if (!spaceId || !this.hasEmbeddingSpaceColumn()) return { merged: 0, contradicted: 0 };
+
     // Get active experiences with embeddings, sorted by quality DESC
     const candidates = this.db!.prepare(`
       SELECT id, task, domain, quality, success, application_count,
@@ -295,8 +307,9 @@ export class ExperienceConsolidator {
              embedding, embedding_dimension, started_at
       FROM captured_experiences
       WHERE domain = ? AND consolidated_into IS NULL AND embedding IS NOT NULL
+        AND embedding_space_id = ?
       ORDER BY quality DESC
-    `).all(domain) as ActiveExperienceRow[];
+    `).all(domain, spaceId) as ActiveExperienceRow[];
 
     if (candidates.length < 2) return { merged: 0, contradicted: 0 };
 
@@ -440,7 +453,7 @@ export class ExperienceConsolidator {
             JSON.stringify({ count: mergedIds.length, boost }),
           );
         });
-        transaction();
+        await writeWhenUnlockedOn(this.db!, transaction);
       }
 
       // Apply contradiction suppressions in a transaction. The loser is
@@ -458,7 +471,7 @@ export class ExperienceConsolidator {
             JSON.stringify({ count: contradictedIds.length, survivorQuality: row.quality }),
           );
         });
-        tx();
+        await writeWhenUnlockedOn(this.db!, tx);
       }
     }
 
@@ -643,6 +656,25 @@ export class ExperienceConsolidator {
   // ============================================================================
   // Utilities
   // ============================================================================
+
+  /** #1281: the embedding space Phase 1 compares vectors in, or null if unknown. */
+  private async resolveEmbeddingSpaceId(): Promise<string | null> {
+    if (this.config.embeddingSpaceId) return this.config.embeddingSpaceId;
+    const active = getActiveEmbeddingSpaceIdentity()?.spaceId;
+    if (active) return active;
+    try {
+      // A configured endpoint's identity, as the pattern stores resolve it (#754).
+      return (await ensureEndpointEmbeddingSpaceIdentity())?.spaceId ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Tables created before #1217 have no embedding_space_id column. */
+  private hasEmbeddingSpaceColumn(): boolean {
+    const columns = this.db!.prepare('PRAGMA table_info(captured_experiences)').all() as Array<{ name: string }>;
+    return columns.some(c => c.name === 'embedding_space_id');
+  }
 
   private ensureInitialized(): void {
     if (!this.initialized || !this.db) {
