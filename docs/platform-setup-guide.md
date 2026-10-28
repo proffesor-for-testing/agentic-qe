@@ -56,7 +56,7 @@ npx agentic-qe platform setup copilot
 
 Create `.vscode/mcp.json`, replacing `3.15.16` with your installed version (`aqe --version`):
 
-> The version is pinned on purpose (#1269): VS Code caches MCP tool schemas until the launch config changes, so an unpinned `agentic-qe@latest` entry can keep serving tools from an older server. `aqe init` writes and updates this pin for you.
+> The version is pinned on purpose (#1269): VS Code caches MCP tool schemas until the launch config changes, so an unpinned `agentic-qe@latest` entry can keep serving tools from an older server. `aqe init` writes and updates this pin for you. If Copilot still reports stale tool errors, run **MCP: Reset Cached Tools** from the Command Palette and restart the server.
 
 ```json
 {
