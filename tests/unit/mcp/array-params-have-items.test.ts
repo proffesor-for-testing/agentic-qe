@@ -15,16 +15,22 @@ const server = new MCPProtocolServer();
 const listed = (server as unknown as { handleToolsList(): { tools: ListedTool[] } })
   .handleToolsList().tools;
 
-/** JSON paths of array schemas under `node` that have no `items`. */
+/**
+ * JSON paths of array schemas under `node` that have no `items`. Walks every
+ * nested object and array (properties, items, anyOf/oneOf/allOf,
+ * additionalProperties, $defs, ...) and treats a type list containing 'array'
+ * (e.g. ['array', 'null']) the same as type 'array' (#1269 follow-up).
+ */
 function arraysWithoutItems(node: unknown, path: string): string[] {
   if (!node || typeof node !== 'object') return [];
-  const schema = node as Record<string, unknown>;
   const missing: string[] = [];
-  if (schema.type === 'array' && schema.items === undefined) missing.push(path);
-  if (schema.items) missing.push(...arraysWithoutItems(schema.items, `${path}.items`));
-  const properties = schema.properties as Record<string, unknown> | undefined;
-  for (const [name, child] of Object.entries(properties ?? {})) {
-    missing.push(...arraysWithoutItems(child, `${path}.${name}`));
+  if (!Array.isArray(node)) {
+    const schema = node as Record<string, unknown>;
+    const types = Array.isArray(schema.type) ? schema.type : [schema.type];
+    if (types.includes('array') && schema.items === undefined) missing.push(path);
+  }
+  for (const [key, child] of Object.entries(node)) {
+    missing.push(...arraysWithoutItems(child, `${path}.${key}`));
   }
   return missing;
 }
@@ -38,6 +44,25 @@ describe('#1185 every array in an MCP tool input schema declares items', () => {
   it('has no array schema without items in any tool', () => {
     const missing = listed.flatMap(tool => arraysWithoutItems(tool.inputSchema, tool.name));
     expect(missing).toEqual([]);
+  });
+
+  it('the walker catches arrays without items at any depth and in type lists', () => {
+    const broken = {
+      type: 'object',
+      properties: {
+        ok: { type: 'array', items: { type: 'string' } },
+        nullable: { type: ['array', 'null'] },
+        nested: { type: 'object', properties: { deep: { anyOf: [{ type: 'array' }, { type: 'string' }] } } },
+        map: { type: 'object', additionalProperties: { type: 'array' } },
+        tuple: { type: 'array', items: { type: 'array' } },
+      },
+    };
+    expect(arraysWithoutItems(broken, 't')).toEqual([
+      't.properties.nullable',
+      't.properties.nested.properties.deep.anyOf.0',
+      't.properties.map.additionalProperties',
+      't.properties.tuple.items',
+    ]);
   });
 
   it('advertises fleet_init enabledDomains as a list of strings', () => {

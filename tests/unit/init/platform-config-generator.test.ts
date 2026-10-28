@@ -4,12 +4,18 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'fs';
 import {
   PlatformConfigGenerator,
   createPlatformConfigGenerator,
+  getCopilotInitVersionEnv,
   PLATFORM_REGISTRY,
   type PlatformId,
 } from '../../../src/init/platform-config-generator.js';
+
+const PKG_VERSION = (JSON.parse(readFileSync(new URL('../../../package.json', import.meta.url), 'utf-8')) as {
+  version: string;
+}).version;
 
 describe('PlatformConfigGenerator', () => {
   const generator = new PlatformConfigGenerator();
@@ -80,6 +86,34 @@ describe('PlatformConfigGenerator', () => {
       const config = generator.generateMcpConfig('copilot');
       const parsed = JSON.parse(config.content);
       expect(parsed.servers['agentic-qe'].type).toBe('stdio');
+    });
+
+    // #1269: VS Code keys its MCP tool cache on a hash of the launch config, so the
+    // Copilot entry carries the installing version in env (args stay @latest).
+    it('copilot entry stamps AQE_INIT_VERSION from package.json and keeps @latest (#1269)', () => {
+      const entry = JSON.parse(generator.generateMcpConfig('copilot').content).servers['agentic-qe'];
+      expect(getCopilotInitVersionEnv()).toEqual({ AQE_INIT_VERSION: PKG_VERSION });
+      expect(entry.args).toEqual(['-y', 'agentic-qe@latest', 'mcp']);
+      expect(entry.env).toEqual({
+        AQE_MEMORY_PATH: '.agentic-qe/memory.db',
+        AQE_V3_MODE: 'true',
+        AQE_INIT_VERSION: PKG_VERSION,
+      });
+    });
+
+    it('copilot version stamp survives database-free mode', () => {
+      const entry = JSON.parse(generator.generateMcpConfig('copilot', { memoryBackend: 'memory' }).content)
+        .servers['agentic-qe'];
+      expect(entry.env).toEqual({ AQE_MEMORY_BACKEND: 'memory', AQE_V3_MODE: 'true', AQE_INIT_VERSION: PKG_VERSION });
+    });
+
+    it('non-copilot platforms keep agentic-qe@latest and carry no version stamp', () => {
+      const others: PlatformId[] = ['cursor', 'cline', 'kilocode', 'roocode', 'codex', 'windsurf', 'continuedev'];
+      for (const id of others) {
+        const content = generator.generateMcpConfig(id).content;
+        expect(content).toContain('agentic-qe@latest');
+        expect(content).not.toContain('AQE_INIT_VERSION');
+      }
     });
 
     it('config paths match platform registry', () => {
