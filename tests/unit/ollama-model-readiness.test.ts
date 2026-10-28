@@ -58,11 +58,12 @@ describe('configured Ollama embedding model readiness', () => {
     expect(requestedModel).toBeUndefined();
   });
 
-  it('retains configured inference identity after a successful availability preflight', async () => {
+  it('embeds with the installed model found by the availability preflight', async () => {
     models = [{ name: `${model}:latest`, model: '' }];
     await client.ensureModelAvailable();
     expect(await client.generateEmbedding('owned prompt')).toEqual(Array(EMBEDDING_CONFIG.DIMENSIONS).fill(0.25));
-    expect(requestedModel).toBe(model);
+    // #1229: the name Ollama listed, so a library name such as all-minilm:22m works too.
+    expect(requestedModel).toBe(`${model}:latest`);
   });
 
   it('reports an empty model list as unavailable', async () => {

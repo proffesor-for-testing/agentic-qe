@@ -131,7 +131,19 @@ export const EMBEDDING_CONFIG = {
   TIMEOUT_MS: 30000,
   /** Default Ollama URL */
   DEFAULT_OLLAMA_URL: 'http://localhost:11434',
+  /** #1229: Ollama library name of MODEL, used in install hints */
+  OLLAMA_PULL_NAME: 'all-minilm:22m',
+  /** #1229: env var naming the installed Ollama model to use for MODEL */
+  OLLAMA_MODEL_ENV: 'AQE_OLLAMA_EMBEDDING_MODEL',
 } as const;
+
+/**
+ * #1229: whether Ollama has the configured embedding model. `reason` says why
+ * not: Ollama did not answer, or it answered without the model.
+ */
+export type OllamaModelStatus =
+  | { status: 'available'; model: string }
+  | { status: 'missing' | 'unreachable'; reason: string };
 
 /**
  * Interface for embedding providers

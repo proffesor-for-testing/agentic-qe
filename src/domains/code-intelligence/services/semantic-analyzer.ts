@@ -200,16 +200,16 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
         enableFallback: false,
       });
 
-      // Check if Ollama is available
-      const isAvailable = await nomicEmbedder.healthCheck();
-      if (isAvailable) {
+      // #1229: Ollama lists the model under its own name (all-minilm:22m);
+      // the reason says whether Ollama is down or lacks the model.
+      const check = await nomicEmbedder.checkModel();
+      if (check.status === 'available') {
         this.embedder = nomicEmbedder;
         // Update dimension to match Nomic's output
         (this.config as { embeddingDimension: number }).embeddingDimension =
           EMBEDDING_CONFIG.DIMENSIONS;
       } else {
-        this.embedderUnavailableReason =
-          `no embedding model available (Ollama model '${EMBEDDING_CONFIG.MODEL}' is not reachable)`;
+        this.embedderUnavailableReason = `no embedding model available (${check.reason})`;
       }
     } else {
       this.embedderUnavailableReason = 'embeddings are disabled for code search';
@@ -457,7 +457,7 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
 
   /** Identifies the model behind stored vectors, so vectors from another model are not compared. */
   private embeddingModelId(): string {
-    return this.embedder instanceof NomicEmbedder ? EMBEDDING_CONFIG.MODEL : 'injected-provider';
+    return this.embedder instanceof NomicEmbedder ? this.embedder.getModelId() : 'injected-provider';
   }
 
   private isCurrentModelVector(metadata: StoredVectorMetadata): boolean {

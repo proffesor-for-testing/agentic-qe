@@ -30,7 +30,7 @@
 export { NomicEmbedder, createNomicEmbedder } from './nomic-embedder';
 export type { NomicEmbedderConfig } from './nomic-embedder';
 
-export { OllamaClient } from './ollama-client';
+export { OllamaClient, isConfiguredOllamaModel } from './ollama-client';
 export { EmbeddingCache } from './embedding-cache';
 
 export type {
@@ -40,6 +40,7 @@ export type {
   OllamaEmbeddingRequest,
   OllamaEmbeddingResponse,
   OllamaHealthResponse,
+  OllamaModelStatus,
   CacheStats,
   EmbeddingCacheEntry,
   BatchProgress,

@@ -22,13 +22,14 @@ import {
   CacheStats,
   EMBEDDING_CONFIG,
   IEmbeddingProvider,
+  OllamaModelStatus,
 } from './types';
 
 const PSEUDO_EMBEDDING_MODEL = 'pseudo-embedding';
 // Unversioned real-model entries may predate fallback provenance separation.
 const VERIFIED_MODEL_CACHE_NAMESPACE = 'verified-backend-v1';
 const cacheNamespace = (model: string): string | undefined =>
-  model === EMBEDDING_CONFIG.MODEL ? VERIFIED_MODEL_CACHE_NAMESPACE : undefined;
+  model === PSEUDO_EMBEDDING_MODEL ? undefined : VERIFIED_MODEL_CACHE_NAMESPACE;
 
 /**
  * Configuration for NomicEmbedder
@@ -36,6 +37,8 @@ const cacheNamespace = (model: string): string | undefined =>
 export interface NomicEmbedderConfig {
   /** Ollama base URL (default: http://localhost:11434) */
   ollamaBaseUrl?: string;
+  /** #1229: installed Ollama model to use (default: AQE_OLLAMA_EMBEDDING_MODEL, else found by name) */
+  ollamaModel?: string;
   /** Batch size for processing (default: 100) */
   batchSize?: number;
   /** Maximum cache size (default: 10000) */
@@ -74,7 +77,7 @@ export class NomicEmbedder implements IEmbeddingProvider {
    * ```
    */
   constructor(config: NomicEmbedderConfig = {}) {
-    this.client = new OllamaClient(config.ollamaBaseUrl);
+    this.client = new OllamaClient(config.ollamaBaseUrl, undefined, undefined, undefined, config.ollamaModel);
     this.cache = config.cache ?? new EmbeddingCache(config.maxCacheSize);
     this.batchSize = config.batchSize ?? EMBEDDING_CONFIG.BATCH_SIZE;
     this.enableFallback = config.enableFallback ?? true;
@@ -86,9 +89,9 @@ export class NomicEmbedder implements IEmbeddingProvider {
   async embed(text: string): Promise<number[]> {
     // Prefer genuine cached vectors, then select the active backend before a
     // single counted lookup so alternate namespaces do not inflate misses.
-    let model: string = this.cache.has(text, EMBEDDING_CONFIG.MODEL, VERIFIED_MODEL_CACHE_NAMESPACE) ||
+    let model: string = this.cache.has(text, this.getModelId(), VERIFIED_MODEL_CACHE_NAMESPACE) ||
       await this.isOllamaAvailable() || !this.enableFallback
-      ? EMBEDDING_CONFIG.MODEL : PSEUDO_EMBEDDING_MODEL;
+      ? this.getModelId() : PSEUDO_EMBEDDING_MODEL;
     const cached = this.cache.get(text, model, cacheNamespace(model));
     if (cached) {
       return cached;
@@ -97,7 +100,7 @@ export class NomicEmbedder implements IEmbeddingProvider {
     // Try Ollama first, fall back to pseudo-embedding if unavailable
     let embedding: number[];
     if (await this.isOllamaAvailable()) {
-      model = EMBEDDING_CONFIG.MODEL;
+      model = this.getModelId();
       embedding = await this.client.generateEmbedding(text);
     } else if (this.enableFallback) {
       model = PSEUDO_EMBEDDING_MODEL;
@@ -105,7 +108,7 @@ export class NomicEmbedder implements IEmbeddingProvider {
     } else {
       throw new Error(
         `Ollama is not available and fallback is disabled. ` +
-          `Please run: ollama pull ${EMBEDDING_CONFIG.MODEL}`
+          `Please run: ollama pull ${EMBEDDING_CONFIG.OLLAMA_PULL_NAME}`
       );
     }
 
@@ -185,7 +188,7 @@ export class NomicEmbedder implements IEmbeddingProvider {
     } else if (!this.enableFallback) {
       throw new Error(
         `Ollama is not available and fallback is disabled. ` +
-          `Please run: ollama pull ${EMBEDDING_CONFIG.MODEL}`
+          `Please run: ollama pull ${EMBEDDING_CONFIG.OLLAMA_PULL_NAME}`
       );
     }
 
@@ -252,8 +255,8 @@ export class NomicEmbedder implements IEmbeddingProvider {
       const chunkStartTime = Date.now();
 
       // Check cache
-      const cachedModel = useOllama || this.cache.has(formattedText, EMBEDDING_CONFIG.MODEL, VERIFIED_MODEL_CACHE_NAMESPACE)
-        ? EMBEDDING_CONFIG.MODEL : PSEUDO_EMBEDDING_MODEL;
+      const cachedModel = useOllama || this.cache.has(formattedText, this.getModelId(), VERIFIED_MODEL_CACHE_NAMESPACE)
+        ? this.getModelId() : PSEUDO_EMBEDDING_MODEL;
       const cachedEmbedding = this.cache.get(formattedText, cachedModel, cacheNamespace(cachedModel));
 
       if (cachedEmbedding) {
@@ -277,7 +280,7 @@ export class NomicEmbedder implements IEmbeddingProvider {
         }
 
         // Cache the result
-        const model = useOllama ? EMBEDDING_CONFIG.MODEL : PSEUDO_EMBEDDING_MODEL;
+        const model = useOllama ? this.getModelId() : PSEUDO_EMBEDDING_MODEL;
         this.cache.set(formattedText, model, embedding, cacheNamespace(model));
 
         return {
@@ -381,6 +384,16 @@ export class NomicEmbedder implements IEmbeddingProvider {
     return await this.client.healthCheck();
   }
 
+  /** #1229: the installed Ollama model, or why there is none. */
+  async checkModel(): Promise<OllamaModelStatus> {
+    return await this.client.checkModel();
+  }
+
+  /** Identifies the embedding space of this embedder's vectors (ADR-097). */
+  getModelId(): string {
+    return this.client.getModelId();
+  }
+
   /**
    * Get Ollama server information
    */
@@ -400,7 +413,7 @@ export class NomicEmbedder implements IEmbeddingProvider {
    */
   getConfig() {
     return {
-      model: EMBEDDING_CONFIG.MODEL,
+      model: this.getModelId(),
       dimensions: EMBEDDING_CONFIG.DIMENSIONS,
       contextWindow: EMBEDDING_CONFIG.CONTEXT_WINDOW,
       batchSize: this.batchSize,
