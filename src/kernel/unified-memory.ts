@@ -247,6 +247,12 @@ export class UnifiedMemoryManager {
     return UnifiedMemoryManager.instancePromise;
   }
 
+  /** The shared instance when it is initialized; never creates one. */
+  static peekInitialized(): UnifiedMemoryManager | null {
+    const instance = UnifiedMemoryManager.instance;
+    return instance?.initialized ? instance : null;
+  }
+
   static resetInstance(): void {
     if (UnifiedMemoryManager.instance) {
       UnifiedMemoryManager.instance.close();
@@ -1280,6 +1286,15 @@ export async function initializeUnifiedMemory(
   const manager = getUnifiedMemory(config);
   await manager.initialize();
   return manager;
+}
+
+/**
+ * The shared memory.db connection when UnifiedMemory is already initialized,
+ * else null. Never opens it: callers that run before it keep their
+ * no-database behavior (#1298).
+ */
+export function getOpenUnifiedMemoryDatabase(): DatabaseType | null {
+  return UnifiedMemoryManager.peekInitialized()?.getDatabase() ?? null;
 }
 
 export function resetUnifiedMemory(): void {

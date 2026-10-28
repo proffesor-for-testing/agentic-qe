@@ -86,7 +86,9 @@ const DEFAULT_OPTIONS = {
   failureWindowMs: 60_000,
 } as const;
 
-const CANARY_TEXT = 'AQE embedder endpoint identity canary v1';
+/** The text every probe embeds; its vector is the endpoint's identity evidence. */
+export const ENDPOINT_IDENTITY_CANARY = 'AQE embedder endpoint identity canary v1';
+const CANARY_TEXT = ENDPOINT_IDENTITY_CANARY;
 const EMBEDDINGS_PATH = '/v1/embeddings';
 
 /**
@@ -520,6 +522,11 @@ export class EmbedderEndpointClient {
   /** #1282: the identity every vector from this client belongs to. */
   getBoundIdentity(): EndpointIdentity | null {
     return this.boundIdentity;
+  }
+
+  /** #1298: the canary vector behind the bound identity (ENDPOINT_IDENTITY_CANARY). */
+  getBoundCanary(): readonly number[] | null {
+    return this.boundCanary;
   }
 
   getBreakerState(): { open: boolean; failures: number; trippedAt: number | null } {
