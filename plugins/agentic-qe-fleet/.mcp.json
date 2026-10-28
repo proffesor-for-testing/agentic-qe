@@ -4,7 +4,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "agentic-qe@3.15.16",
+        "agentic-qe@3.15.17",
         "mcp"
       ],
       "env": {

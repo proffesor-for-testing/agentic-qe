@@ -2,6 +2,9 @@
 
 Newest first. One `## <version> — <date>` heading per version, then `feat:`, `fix:`, `breaking:` and `chore:` bullets. Since 3.15.0 the plugin version tracks the `agentic-qe` npm package version (see [ADR-0001](docs/adrs/0001-agentic-qe-fleet-contract.md)). Built from git history.
 
+## 3.15.17 — 2026-10-28
+- chore: MCP server pin and mod version move to `agentic-qe@3.15.17` (pytest suites run and count as measured outcomes, Copilot reloads AQE tools after an upgrade, the same embedding model keeps its space after a restart and a different model is refused, Ollama MiniLM search and better text-match ranking; see the root CHANGELOG). No other plugin changes.
+
 ## 3.15.16 — 2026-10-27
 - chore: MCP server pin and mod version move to `agentic-qe@3.15.16` (a locked memory.db no longer freezes the MCP server, measured or "not measured" accessibility results, monorepo test runs use each package's config, code search covers every indexed file, bounded embedder waits and per-embedding-space experience comparison; see the root CHANGELOG). No other plugin changes.
 
