@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.15.17](v3.15.17.md) | 2026-10-28 | pytest runs; Copilot reloads tools on upgrade; stable embedding spaces. |
 | [v3.15.16](v3.15.16.md) | 2026-10-27 | Locked DB no longer freezes MCP; measured a11y; monorepo runners. |
 | [v3.15.15](v3.15.15.md) | 2026-10-26 | Init stops pre-approving a foreign package; WASM transforms; no dream freeze. |
 | [v3.15.14](v3.15.14.md) | 2026-10-26 | RVF export on large brains; bounded learning tables; honest chaos. |
