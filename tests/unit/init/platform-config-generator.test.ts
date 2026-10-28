@@ -8,7 +8,7 @@ import { readFileSync } from 'fs';
 import {
   PlatformConfigGenerator,
   createPlatformConfigGenerator,
-  getCopilotPackageSpec,
+  getCopilotInitVersionEnv,
   PLATFORM_REGISTRY,
   type PlatformId,
 } from '../../../src/init/platform-config-generator.js';
@@ -88,19 +88,31 @@ describe('PlatformConfigGenerator', () => {
       expect(parsed.servers['agentic-qe'].type).toBe('stdio');
     });
 
-    // #1269: VS Code keys its MCP tool cache on a hash of the launch config, so a
-    // version-independent entry keeps serving tool schemas from an older server.
-    it('copilot entry pins the installed agentic-qe version (#1269)', () => {
-      const parsed = JSON.parse(generator.generateMcpConfig('copilot').content);
-      expect(getCopilotPackageSpec()).toBe(`agentic-qe@${PKG_VERSION}`);
-      expect(parsed.servers['agentic-qe'].args).toEqual(['-y', `agentic-qe@${PKG_VERSION}`, 'mcp']);
-      expect(parsed.servers['agentic-qe'].args).not.toContain('agentic-qe@latest');
+    // #1269: VS Code keys its MCP tool cache on a hash of the launch config, so the
+    // Copilot entry carries the installing version in env (args stay @latest).
+    it('copilot entry stamps AQE_INIT_VERSION from package.json and keeps @latest (#1269)', () => {
+      const entry = JSON.parse(generator.generateMcpConfig('copilot').content).servers['agentic-qe'];
+      expect(getCopilotInitVersionEnv()).toEqual({ AQE_INIT_VERSION: PKG_VERSION });
+      expect(entry.args).toEqual(['-y', 'agentic-qe@latest', 'mcp']);
+      expect(entry.env).toEqual({
+        AQE_MEMORY_PATH: '.agentic-qe/memory.db',
+        AQE_V3_MODE: 'true',
+        AQE_INIT_VERSION: PKG_VERSION,
+      });
     });
 
-    it('non-copilot platforms keep agentic-qe@latest', () => {
+    it('copilot version stamp survives database-free mode', () => {
+      const entry = JSON.parse(generator.generateMcpConfig('copilot', { memoryBackend: 'memory' }).content)
+        .servers['agentic-qe'];
+      expect(entry.env).toEqual({ AQE_MEMORY_BACKEND: 'memory', AQE_V3_MODE: 'true', AQE_INIT_VERSION: PKG_VERSION });
+    });
+
+    it('non-copilot platforms keep agentic-qe@latest and carry no version stamp', () => {
       const others: PlatformId[] = ['cursor', 'cline', 'kilocode', 'roocode', 'codex', 'windsurf', 'continuedev'];
       for (const id of others) {
-        expect(generator.generateMcpConfig(id).content).toContain('agentic-qe@latest');
+        const content = generator.generateMcpConfig(id).content;
+        expect(content).toContain('agentic-qe@latest');
+        expect(content).not.toContain('AQE_INIT_VERSION');
       }
     });
 

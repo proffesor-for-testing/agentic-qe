@@ -55,7 +55,7 @@ describe('CopilotInstaller', () => {
       expect(parsed.servers).toHaveProperty('agentic-qe');
     });
 
-    it('pins the written entry to the version in package.json (#1269)', async () => {
+    it('stamps the written entry with the package.json version (#1269)', async () => {
       const { createCopilotInstaller } = await import('../../../src/init/copilot-installer.js');
       await createCopilotInstaller({ projectRoot }).install();
 
@@ -65,7 +65,8 @@ describe('CopilotInstaller', () => {
         (c: unknown[]) => (c[0] as string).endsWith('mcp.json')
       );
       const parsed = JSON.parse(configCall![1] as string);
-      expect(parsed.servers['agentic-qe'].args).toEqual(['-y', `agentic-qe@${pkg.version}`, 'mcp']);
+      expect(parsed.servers['agentic-qe'].args).toEqual(['-y', 'agentic-qe@latest', 'mcp']);
+      expect(parsed.servers['agentic-qe'].env.AQE_INIT_VERSION).toBe(pkg.version);
     });
 
     it('creates .github/copilot-instructions.md', async () => {
@@ -122,19 +123,19 @@ describe('CopilotInstaller', () => {
       serveFile(JSON.stringify({
         servers: {
           github: { type: 'http', url: 'https://api.githubcopilot.com/mcp/' },
-          'agentic-qe': { type: 'stdio', command: 'npx', args: ['-y', 'agentic-qe@3.15.10', 'mcp'] },
+          'agentic-qe': { type: 'stdio', command: 'npx', args: ['-y', 'agentic-qe@latest', 'mcp'], env: { AQE_V3_MODE: 'true' } },
         },
         inputs: [],
       }));
 
       const { createCopilotInstaller } = await import('../../../src/init/copilot-installer.js');
-      const { getCopilotPackageSpec } = await import('../../../src/init/platform-config-generator.js');
+      const { getCopilotInitVersionEnv } = await import('../../../src/init/platform-config-generator.js');
       const result = await createCopilotInstaller({ projectRoot, overwrite: false }).install();
 
       expect(result.mcpConfigured).toBe(true);
       expect(result.errors).toEqual([]);
       const parsed = JSON.parse(mcpWrite()![1] as string);
-      expect(parsed.servers['agentic-qe'].args).toEqual(['-y', getCopilotPackageSpec(), 'mcp']);
+      expect(parsed.servers['agentic-qe'].env).toMatchObject(getCopilotInitVersionEnv());
       expect(parsed.servers.github).toEqual({ type: 'http', url: 'https://api.githubcopilot.com/mcp/' });
       expect(parsed.inputs).toEqual([]);
       // Rules still honour overwrite=false

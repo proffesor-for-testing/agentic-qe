@@ -202,23 +202,20 @@ function getInstalledAqeVersion(): string {
 /**
  * Issue #1269: VS Code caches each MCP server's tool list keyed by a hash of its
  * launch config (command/args/env) and only restarts the server when that hash
- * changes. A version-independent `agentic-qe@latest` entry therefore kept serving
- * tool schemas cached from an older server (the pre-#1185 "array type must have
- * items" ones) after upgrading. Pinning the installed version changes the launch
- * config on every release, so VS Code re-reads the tools after `aqe init`.
+ * changes. The `agentic-qe@latest` entry is identical across releases, so tool
+ * schemas cached from an older server (the pre-#1185 "array type must have items"
+ * ones) survived upgrades. Stamping the installing version into the Copilot
+ * entry's env changes the hash whenever `aqe init` runs after an upgrade, without
+ * pinning which server version npx launches. The server does not read it.
  */
-export function getCopilotPackageSpec(): string {
-  return `agentic-qe@${getInstalledAqeVersion()}`;
+export function getCopilotInitVersionEnv(): Record<string, string> {
+  return { AQE_INIT_VERSION: getInstalledAqeVersion() };
 }
 
-function getMcpServerEntry(
-  withAutoApprove: boolean,
-  dbFree: boolean,
-  packageSpec = 'agentic-qe@latest',
-): Record<string, unknown> {
+function getMcpServerEntry(withAutoApprove: boolean, dbFree: boolean): Record<string, unknown> {
   const entry: Record<string, unknown> = {
     command: 'npx',
-    args: ['-y', packageSpec, 'mcp'],
+    args: ['-y', 'agentic-qe@latest', 'mcp'],
     env: getMcpServerEnv(dbFree),
   };
 
@@ -235,20 +232,22 @@ function getMcpServerEntry(
 // ============================================================================
 
 function generateJsonConfig(platform: PlatformDefinition, dbFree: boolean): string {
+  const serverEntry = getMcpServerEntry(platform.supportsAutoApprove, dbFree);
+
   if (platform.id === 'copilot') {
-    // Copilot uses "servers" key with "type": "stdio", pinned to this version (#1269)
+    // Copilot uses "servers" key with "type": "stdio"; env carries the init version stamp (#1269)
     const config = {
       [platform.configKey]: {
         'agentic-qe': {
           type: 'stdio',
-          ...getMcpServerEntry(platform.supportsAutoApprove, dbFree, getCopilotPackageSpec()),
+          ...serverEntry,
+          env: { ...(serverEntry.env as Record<string, string>), ...getCopilotInitVersionEnv() },
         },
       },
     };
     return JSON.stringify(config, null, 2) + '\n';
   }
 
-  const serverEntry = getMcpServerEntry(platform.supportsAutoApprove, dbFree);
   const config = {
     [platform.configKey]: {
       'agentic-qe': serverEntry,
