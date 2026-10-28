@@ -84,10 +84,14 @@ async function startServer(): Promise<{
 /** #1204: an endpoint that can go down (503), answer slowly, or switch models. */
 async function startControllableServer(): Promise<{
   url: string;
-  mode: 'up' | 'down' | 'slow' | 'other-model';
+  mode: 'up' | 'down' | 'slow' | 'other-model' | 'same-model-noisy';
   close: () => Promise<void>;
 }> {
-  const handle = { url: '', mode: 'up' as 'up' | 'down' | 'slow' | 'other-model', close: async () => {} };
+  const handle = {
+    url: '',
+    mode: 'up' as 'up' | 'down' | 'slow' | 'other-model' | 'same-model-noisy',
+    close: async () => {},
+  };
   const server = http.createServer((req, res) => {
     let raw = '';
     req.on('data', (c) => (raw += c));
@@ -101,7 +105,14 @@ async function startControllableServer(): Promise<{
       const salt = handle.mode === 'other-model' ? 'other-model:' : '';
       const reply = () => {
         res.writeHead(200, { 'content-type': 'application/json' });
-        res.end(JSON.stringify({ data: input.map((t, i) => ({ index: i, embedding: fakeEmbedding(salt + t) })) }));
+        // #1282: same model on other hardware, 1e-4 per component.
+        const noise = handle.mode === 'same-model-noisy' ? 1e-4 : 0;
+        res.end(JSON.stringify({
+          data: input.map((t, i) => ({
+            index: i,
+            embedding: fakeEmbedding(salt + t).map((x, j) => x + (j % 2 === 0 ? noise : -noise)),
+          })),
+        }));
       };
       if (handle.mode === 'slow') setTimeout(reply, 200);
       else reply();
@@ -429,6 +440,30 @@ describe('real-embeddings.ts — ADR-097 endpoint branch', () => {
     } finally {
       vi.useRealTimers();
       warn.mockRestore();
+      resetInitialization();
+      await flaky.close();
+    }
+  });
+
+  it('recheckEmbedder accepts the same model restarted with fp noise; the active space does not move (#1282)', async () => {
+    const flaky = await startControllableServer();
+    try {
+      await computeRealEmbedding('x', { endpoint: flaky.url, enableCache: false });
+      const identity = getEndpointIdentity();
+      const space = getActiveEmbeddingSpaceIdentity();
+      flaky.mode = 'down';
+      for (let i = 0; i < 3; i++) {
+        await expect(computeRealEmbedding('x', { endpoint: flaky.url, enableCache: false })).rejects.toThrow();
+      }
+      flaky.mode = 'same-model-noisy';
+
+      await recheckEmbedder({ endpoint: flaky.url });
+      const vec = await computeRealEmbedding('x', { endpoint: flaky.url, enableCache: false });
+
+      expect(vec).toHaveLength(getEmbeddingDimension());
+      expect(getEndpointIdentity()).toEqual(identity);
+      expect(getActiveEmbeddingSpaceIdentity()).toEqual(space);
+    } finally {
       resetInitialization();
       await flaky.close();
     }

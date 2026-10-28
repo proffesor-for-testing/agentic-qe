@@ -16,7 +16,7 @@
  *   - Probe + identity fingerprint required before `embed()`; breaker recovery
  *     invalidates identity so re-probe runs against a fresh endpoint.
  *   - The first identity is bound for the client's lifetime: a re-probe that
- *     finds another fingerprint is refused, never adopted (#1282).
+ *     finds another model is refused, never adopted (#1282).
  *   - True TCP connect timeout via socket-level setTimeout (not req.setTimeout).
  *   - TLS knobs (ca / cert / key / rejectUnauthorized / servername) for self-hosted.
  */
@@ -25,7 +25,8 @@ import * as http from 'node:http';
 import * as https from 'node:https';
 import { createHash } from 'node:crypto';
 import { URL } from 'node:url';
-import { normalize as l2Normalize } from '../shared/utils/vector-math.js';
+import { cosineSimilarity, normalize as l2Normalize } from '../shared/utils/vector-math.js';
+import { EMBEDDING_ROUND_TRIP_MIN_COSINE } from './embedding-space.js';
 
 /**
  * Endpoint identity fingerprint — a SHA-256 of the L2-normalized canary embedding,
@@ -275,6 +276,8 @@ export class EmbedderEndpointClient {
    * returns belongs to it; later probes must find it again.
    */
   private boundIdentity: EndpointIdentity | null = null;
+  /** #1282: the canary vector behind `boundIdentity`. */
+  private boundCanary: number[] | null = null;
   /** #1282: set while the endpoint serves an identity other than the bound one. */
   private identityChange: EmbedderEndpointIdentityChangedError | null = null;
   /** True while a probe is in flight — prevents the embed() lazy-probe race. */
@@ -458,14 +461,34 @@ export class EmbedderEndpointClient {
       fingerprint,
       endpoint: this.parsed.safeUrl,
     };
-    if (this.boundIdentity && !sameIdentity(this.boundIdentity, identity)) {
-      this.refuseIdentityChange(identity);
+    if (this.boundIdentity && this.boundCanary) {
+      if (!this.isBoundModel(identity, vec)) this.refuseIdentityChange(identity);
+    } else {
+      this.boundIdentity = identity;
+      this.boundCanary = vec;
     }
-    this.boundIdentity ??= identity;
     this.identityChange = null;
-    this.cachedIdentity = identity;
+    // The bound identity stays the one callers see, also when fp noise moved
+    // the hash: the embedding space did not change.
+    this.cachedIdentity = this.boundIdentity;
     this.trialPending = false;
-    return identity;
+    return this.cachedIdentity;
+  }
+
+  /**
+   * #1282: true when a re-probe found the bound model. The int16 fingerprint
+   * flips on noise of about 3e-5 per component, which the same model restarted
+   * on other hardware or kernels can produce, so a changed hash alone is not a
+   * changed model: the canary must also have moved below the ADR-097
+   * round-trip cosine.
+   */
+  private isBoundModel(identity: EndpointIdentity, canary: number[]): boolean {
+    const bound = this.boundIdentity as EndpointIdentity;
+    if (identity.dim !== bound.dim) return false;
+    if (identity.fingerprint === bound.fingerprint) return true;
+    return (
+      cosineSimilarity(this.boundCanary as number[], canary) >= EMBEDDING_ROUND_TRIP_MIN_COSINE
+    );
   }
 
   /**

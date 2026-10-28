@@ -17,6 +17,7 @@ import {
   parseEndpoint,
   redactEndpoint,
 } from '../../../src/learning/embedder-endpoint-client.js';
+import { cosineSimilarity } from '../../../src/shared/utils/vector-math.js';
 
 /**
  * Build a 384-d unit vector seeded by text content so we get deterministic
@@ -598,8 +599,24 @@ describe('EmbedderEndpointClient', () => {
     };
   }
 
-  /** Model A answers, a timeout opens the breaker, model B answers after the window. */
-  async function recoverAsOtherModel(): Promise<string> {
+  /**
+   * The same model restarted on other hardware: every component moves by
+   * 1e-4, several int16 steps (~3e-5), so the fingerprint hash changes while
+   * the canary keeps a cosine far above 0.999.
+   */
+  function noisySameModelResponder(): FakeServerHandle['responder'] {
+    return (body, res) => {
+      const data = body.input.map((t, i) => ({
+        index: i,
+        embedding: fakeEmbedding(t).map((x, j) => x + (j % 2 === 0 ? 1e-4 : -1e-4)),
+      }));
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ data }));
+    };
+  }
+
+  /** Model A answers, a timeout opens the breaker, `after` answers after the window. */
+  async function recoverAsOtherModel(after = otherModelResponder()): Promise<string> {
     client.close();
     client = new EmbedderEndpointClient({
       endpoint: server.url,
@@ -610,7 +627,7 @@ describe('EmbedderEndpointClient', () => {
     await client.embed(['x']);
     server.responder = hangingResponder();
     await expect(client.embed(['x'])).rejects.toThrow(/request timeout/);
-    server.responder = otherModelResponder();
+    server.responder = after;
     await new Promise((r) => setTimeout(r, 120));
     // The breaker recovers on its own: the trial probe meets model B.
     await expect(client.embed(['x'])).rejects.toThrow(/half-open/);
@@ -634,6 +651,28 @@ describe('EmbedderEndpointClient', () => {
       expect(reports).toHaveLength(1);
       expect(String(reports[0][0])).toContain(boundFingerprint);
     } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('#1282: the same model with fp noise after recovery is accepted, and the bound identity stays', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const noisy = new EmbedderEndpointClient({ endpoint: server.url });
+    try {
+      const boundFingerprint = await recoverAsOtherModel(noisySameModelResponder());
+      // Premise: on its own, the noisy canary hashes to another fingerprint.
+      const noisyIdentity = await noisy.probe();
+      expect(noisyIdentity.fingerprint).not.toBe(boundFingerprint);
+
+      const out = await client.embed(['x']);
+
+      expect(cosineSimilarity(out[0], fakeEmbedding('x'))).toBeGreaterThan(0.999);
+      expect(client.getCachedIdentity()?.fingerprint).toBe(boundFingerprint);
+      expect(client.getBoundIdentity()?.fingerprint).toBe(boundFingerprint);
+      expect(client.needsTrial()).toBe(false);
+      expect(warn.mock.calls.some((c) => /identity changed/.test(String(c[0])))).toBe(false);
+    } finally {
+      noisy.close();
       warn.mockRestore();
     }
   });
