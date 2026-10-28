@@ -401,6 +401,62 @@ describe('real-embeddings.ts — ADR-097 endpoint branch', () => {
     }
   });
 
+  it('a model swapped in while the breaker was open never yields vectors once it recovers on its own (#1282)', async () => {
+    const flaky = await startControllableServer();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const bound = await computeRealEmbedding('x', { endpoint: flaky.url, enableCache: false });
+      flaky.mode = 'down';
+      for (let i = 0; i < 3; i++) {
+        await expect(computeRealEmbedding('x', { endpoint: flaky.url, enableCache: false })).rejects.toThrow();
+      }
+      flaky.mode = 'other-model';
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(Date.now() + 61_000);
+
+      // No recheckEmbedder: the breaker window elapses and the client runs
+      // its own trial probe, which meets the other model.
+      await expect(computeRealEmbedding('x', { endpoint: flaky.url, enableCache: false }))
+        .rejects.toThrow(/half-open/);
+      await new Promise((r) => setTimeout(r, 50));
+      const after = await computeRealEmbedding('x', { endpoint: flaky.url, enableCache: false })
+        .catch((e: Error) => e);
+
+      expect(after).toBeInstanceOf(Error);
+      expect((after as Error).message).toMatch(/identity changed/);
+      expect(bound).toHaveLength(getEmbeddingDimension());
+      expect(warn.mock.calls.some((c) => /identity changed/.test(String(c[0])))).toBe(true);
+    } finally {
+      vi.useRealTimers();
+      warn.mockRestore();
+      resetInitialization();
+      await flaky.close();
+    }
+  });
+
+  it('after recheckEmbedder refused a changed identity, other callers get no vectors either (#1282)', async () => {
+    const flaky = await startControllableServer();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      await computeRealEmbedding('x', { endpoint: flaky.url, enableCache: false });
+      flaky.mode = 'down';
+      for (let i = 0; i < 3; i++) {
+        await expect(computeRealEmbedding('x', { endpoint: flaky.url, enableCache: false })).rejects.toThrow();
+      }
+      flaky.mode = 'other-model';
+      await expect(recheckEmbedder({ endpoint: flaky.url })).rejects.toThrow(/identity changed/);
+
+      await expect(computeRealEmbedding('y', { endpoint: flaky.url, enableCache: false }))
+        .rejects.toThrow(/identity changed/);
+      await expect(computeBatchEmbeddings(['y', 'z'], { endpoint: flaky.url, enableCache: false }))
+        .rejects.toThrow(/identity changed/);
+    } finally {
+      warn.mockRestore();
+      resetInitialization();
+      await flaky.close();
+    }
+  });
+
   it('recheckEmbedder re-initializes after a failed start while other callers keep failing fast (#1204)', async () => {
     const flaky = await startControllableServer();
     try {
