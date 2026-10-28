@@ -13,6 +13,7 @@ import {
   IEmbeddingProvider,
 } from '../../../shared/embeddings';
 import { toError } from '../../../shared/error-utils.js';
+import { compareTextRelevance, textRelevance, type TextRelevance } from './text-relevance.js';
 import {
   SearchRequest,
   SearchResults,
@@ -143,6 +144,16 @@ export interface SemanticAnalyzerConfig {
   /** Custom embedding provider (for testing/DI) */
   embeddingProvider?: IEmbeddingProvider;
 }
+
+/** A text-matched file, with its relevance for ranking equal scores (#1287). */
+interface TextHit {
+  hit: SearchResult;
+  relevance: TextRelevance;
+}
+
+/** Highest score first; equal scores by text relevance (#1287). */
+const byScoreThenRelevance = (a: TextHit, b: TextHit): number =>
+  b.hit.score - a.hit.score || compareTextRelevance(a.relevance, b.relevance);
 
 /** Upper bound on indexed files one exact/fuzzy search reads. */
 const MAX_INDEXED_FILES_SCANNED = 100_000;
@@ -568,8 +579,9 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
    * vector, so vector search cannot rank them. Match those by text, label the
    * hits 'lexical', and report the result as 'partial-vector' with the counts.
    * Cosine and text-match scores are not comparable, so vector hits come
-   * first (by cosine), then lexical hits (by share of query words found); the
-   * reason says how many text matches the limit left out.
+   * first (by cosine), then lexical hits (by share of query words found, ties
+   * by text relevance, #1287); the reason says how many text matches the
+   * limit left out.
    */
   private async withVectorlessFiles(
     query: string,
@@ -581,7 +593,7 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
     const model = this.embeddingModelId();
     const vectorFiles = new Set(vectorHits.map((hit) => hit.file));
     const queryTokens = this.tokenize(query.toLowerCase());
-    const lexicalHits: SearchResult[] = [];
+    const lexicalHits: TextHit[] = [];
     let indexedFiles = 0;
     let withoutVector = 0;
 
@@ -590,8 +602,8 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
       if (stored.embeddingModel === model) return;
       withoutVector++;
       if (vectorFiles.has(stored.file)) return;
-      const hit = this.fuzzyMatch(queryTokens, stored, scope, filters);
-      if (hit) lexicalHits.push({ ...hit, matchType: 'lexical' });
+      const match = this.fuzzyMatch(query, queryTokens, stored, scope, filters);
+      if (match) lexicalHits.push({ ...match, hit: { ...match.hit, matchType: 'lexical' } });
     });
 
     const coverage = { indexedFiles, filesWithVector: indexedFiles - withoutVector };
@@ -599,7 +611,10 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
       return { results: vectorHits, mode: 'vector', coverage };
     }
     const byScore = (a: SearchResult, b: SearchResult) => b.score - a.score;
-    const results = [...[...vectorHits].sort(byScore), ...lexicalHits.sort(byScore)].slice(0, limit);
+    const results = [
+      ...[...vectorHits].sort(byScore),
+      ...lexicalHits.sort(byScoreThenRelevance).map((match) => match.hit),
+    ].slice(0, limit);
     const droppedLexical = vectorHits.length + lexicalHits.length - results.length;
     return {
       results,
@@ -683,25 +698,30 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
     scope?: string[],
     filters?: SearchFilter[]
   ): Promise<SearchResult[]> {
-    const results: SearchResult[] = [];
+    const matches: TextHit[] = [];
     const queryTokens = this.tokenize(query.toLowerCase());
 
     await this.forEachIndexed((stored) => {
-      const hit = this.fuzzyMatch(queryTokens, stored, scope, filters);
-      if (hit) results.push(hit);
+      const match = this.fuzzyMatch(query, queryTokens, stored, scope, filters);
+      if (match) matches.push(match);
     });
 
-    // Sort by score and limit
-    return results.sort((a, b) => b.score - a.score).slice(0, limit);
+    // Sort by score, ties by relevance (#1287), and limit
+    return matches.sort(byScoreThenRelevance).slice(0, limit).map((match) => match.hit);
   }
 
-  /** Token-overlap match of one indexed file, or null when it is filtered out or scores too low. */
+  /**
+   * Token-overlap match of one indexed file, or null when it is filtered out or
+   * scores too low. The score is the share of query words found; `relevance`
+   * only orders equal scores (#1287).
+   */
   private fuzzyMatch(
+    query: string,
     queryTokens: string[],
     stored: StoredContent,
     scope?: string[],
     filters?: SearchFilter[]
-  ): SearchResult | null {
+  ): TextHit | null {
     // Apply scope filter
     if (scope && scope.length > 0 && !scope.some((s) => stored.file.includes(s))) {
       return null;
@@ -718,11 +738,14 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
     if (score < this.config.minScore) return null;
 
     return {
-      file: stored.file,
-      snippet: this.extractSnippet(stored.content, 200),
-      score,
-      highlights: queryTokens.filter((t) => contentTokens.some((ct) => this.tokensMatch(t, ct))),
-      metadata: stored.metadata,
+      hit: {
+        file: stored.file,
+        snippet: this.extractSnippet(stored.content, 200),
+        score,
+        highlights: queryTokens.filter((t) => contentTokens.some((ct) => this.tokensMatch(t, ct))),
+        metadata: stored.metadata,
+      },
+      relevance: textRelevance(query, stored.content),
     };
   }
 
