@@ -14,6 +14,7 @@ import { validateBehaviorExamples } from '../../domains/test-generation/services
 import { findProjectRoot } from '../../kernel/project-root.js';
 import { writeGeneratedTestFile } from '../utils/generated-test-writer.js';
 import { DEFAULT_TEST_RETRY_COUNT } from '../../domains/test-execution/services/retry-outcome.js';
+import { requireRunProjectRoot, requireTestRunTargets } from '../../shared/test-runner-project.js';
 
 export function createTestCommand(
   context: CLIContext,
@@ -25,7 +26,8 @@ export function createTestCommand(
     .argument('<action>', 'Action (generate|execute|schedule|load)')
     .argument('[target]', 'Target file or directory')
     .option('--behavior-examples <path>', 'JSON specification examples for a single source file')
-    .option('-f, --framework <framework>', 'Test framework', 'vitest')
+    .option('-f, --framework <framework>', 'Test framework (execute: defaults to each project\'s jest/vitest config)', 'vitest')
+    .option('--project-root <dir>', 'execute action: run every test file from this directory inside the project (for example a monorepo package); the target is then relative to it. Default: each file runs from its nearest directory with a vitest/jest config')
     .option('-t, --type <type>', 'Test type (unit|integration|e2e)', 'unit')
     .option('-F, --format <format>', 'Output format (text|json|junit|markdown)', 'text')
     .option('-o, --output <path>', 'Write output to file')
@@ -177,7 +179,7 @@ export function createTestCommand(
           console.log(chalk.blue(`\n Executing tests in ${target || 'current directory'}...\n`));
 
           const testExecAPI = await context.kernel!.getDomainAPIAsync!<{
-            runTests(request: { testFiles: string[]; framework?: string; parallel?: boolean; retryCount?: number }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
+            runTests(request: { testFiles: string[]; framework?: string; parallel?: boolean; retryCount?: number; projectRoot?: string }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
           }>('test-execution');
 
           if (!testExecAPI) {
@@ -185,24 +187,45 @@ export function createTestCommand(
             return;
           }
 
+          // #1272: the same projectRoot check as MCP test_execute_parallel.
+          let projectRoot: string | undefined;
+          if (options.projectRoot !== undefined) {
+            const checked = await requireRunProjectRoot('test execute', options.projectRoot);
+            if (!checked.success) {
+              console.error(chalk.red(`Failed: ${checked.error.message}`));
+              return cleanupAndExit(1);
+            }
+            projectRoot = checked.value;
+          }
+
           const path = await import('path');
-          const targetPath = path.resolve(target || '.');
+          const targetPath = path.resolve(projectRoot ?? '.', target || '.');
 
           // Fix #280: Use shared file discovery supporting all languages
           const discoveredTestFiles = walkSourceFiles(targetPath, { testsOnly: true });
-          const testFiles = filterTestFilesForFramework(discoveredTestFiles, options.framework);
+          let testFiles = filterTestFilesForFramework(discoveredTestFiles, options.framework);
 
           if (testFiles.length === 0) {
             console.log(chalk.yellow('No test files found'));
             return;
+          }
+          if (projectRoot) {
+            const confined = await requireTestRunTargets('test execute', testFiles, projectRoot);
+            if (!confined.success) {
+              console.error(chalk.red(`Failed: ${confined.error.message}`));
+              return cleanupAndExit(1);
+            }
+            testFiles = confined.value.testFiles;
           }
 
           console.log(chalk.gray(`  Found ${testFiles.length} test files\n`));
 
           const result = await testExecAPI.runTests({
             testFiles,
-            framework: options.framework,
+            // #1272: only an explicit --framework overrides the project's config.
+            framework: testCmd.getOptionValueSource('framework') === 'default' ? undefined : options.framework,
             parallel: true,
+            ...(projectRoot ? { projectRoot } : {}),
             // #1170: the same default as MCP test_execute_parallel.
             retryCount: DEFAULT_TEST_RETRY_COUNT,
           });

@@ -16,7 +16,7 @@ import { jestExactPathPattern, runnerFilePath } from '../../shared/test-runner-a
 import { testCasesFromRunnerReport } from '../../domains/test-execution/services/runner-test-cases.js';
 import { runTestRunnerProcess } from '../../shared/test-runner-process.js';
 import { MAX_PAYLOAD_FILE_BYTES, requirePayloadFiles } from '../../shared/io/payload-path-guard.js';
-import { groupByRunnerProject, requireTestRunTargets } from '../../shared/test-runner-project.js';
+import { groupByRunnerProject, requireTestRunTargets, runnerFrameworkFor } from '../../shared/test-runner-project.js';
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -84,26 +84,34 @@ async function runProjectTests(testFiles: string[], cwd: string): Promise<Result
   // #1074: run the runner asynchronously so the MCP server keeps serving
   // other requests (task_status, task_cancel, ...) during the test run.
   const options = { cwd, timeout: 120000 };
+  const runJest = () => runTestRunnerProcess('npx', ['jest', ...testFiles.map(file => jestExactPathPattern(file)), '--json'], options);
   let runner = 'vitest';
-  // Vitest 5 writes the JSON report to a file rather than stdout; an explicit
-  // --outputFile gives Vitest 4 and 5 the same contract.
-  const report = createVitestJsonReport();
   let execution;
-  let output: string;
-  try {
-    // #909: absolute paths cannot be read as flags (e.g. a "--watch" entry).
-    execution = await runTestRunnerProcess('npx', ['vitest', 'run', ...testFiles.map(file => runnerFilePath(file)), '--reporter=json', ...report.args], options);
-    output = execution.error || execution.signal
-      ? ''
-      : report.read(execution.stdout || '') ?? '';
-  } finally {
-    report.cleanup();
-  }
-  // Preserve the existing Jest fallback when Vitest cannot produce a report.
-  if (!output.includes('{') && execution.status !== 0 && !execution.error && !execution.signal) {
+  let output = '';
+  if (runnerFrameworkFor(cwd) === 'jest') {
+    // #1272: a project configured for Jest runs with Jest, never Vitest first.
     runner = 'jest';
-    execution = await runTestRunnerProcess('npx', ['jest', ...testFiles.map(file => jestExactPathPattern(file)), '--json'], options);
+    execution = await runJest();
     output = execution.stdout || '';
+  } else {
+    // Vitest 5 writes the JSON report to a file rather than stdout; an explicit
+    // --outputFile gives Vitest 4 and 5 the same contract.
+    const report = createVitestJsonReport();
+    try {
+      // #909: absolute paths cannot be read as flags (e.g. a "--watch" entry).
+      execution = await runTestRunnerProcess('npx', ['vitest', 'run', ...testFiles.map(file => runnerFilePath(file)), '--reporter=json', ...report.args], options);
+      output = execution.error || execution.signal
+        ? ''
+        : report.read(execution.stdout || '') ?? '';
+    } finally {
+      report.cleanup();
+    }
+    // Preserve the existing Jest fallback when Vitest cannot produce a report.
+    if (!output.includes('{') && execution.status !== 0 && !execution.error && !execution.signal) {
+      runner = 'jest';
+      execution = await runJest();
+      output = execution.stdout || '';
+    }
   }
   const diagnostics = [execution.error?.message, execution.signal && `Terminated by ${execution.signal}`, execution.stderr, output].filter(Boolean).join('\n');
   if (execution.error) {

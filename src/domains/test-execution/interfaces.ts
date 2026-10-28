@@ -172,6 +172,11 @@ export interface ISimpleTestRequest {
 export interface IExecuteTestsRequest {
   testFiles: string[];
   framework: string;
+  /**
+   * #1272: the caller named no framework, so each runner project's own config
+   * chooses jest or vitest; `framework` is used where it names neither.
+   */
+  frameworkFromConfig?: boolean;
   timeout?: number;
   env?: Record<string, string>;
   reporters?: string[];

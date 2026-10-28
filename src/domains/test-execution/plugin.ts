@@ -98,6 +98,8 @@ export class TestExecutionPlugin extends BaseDomainPlugin {
           // Simple request format
           const request: ISimpleTestRequest = {
             testFiles,
+            // #1272: an explicit framework wins over the project's config.
+            framework: typeof payload.framework === 'string' ? payload.framework : undefined,
             parallel: payload.parallel as boolean | undefined,
             retryCount: payload.retryCount as number | undefined,
             timeout: payload.timeout as number | undefined,

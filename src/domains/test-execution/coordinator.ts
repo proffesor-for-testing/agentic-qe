@@ -339,6 +339,8 @@ export class TestExecutionCoordinator
     }
 
     const framework = request.framework ?? this.detectFramework(testsToRun);
+    // #1272: without an explicit framework, each runner project's config decides.
+    const frameworkFromConfig = request.framework === undefined;
     const workers = request.workers ?? Math.min(4, Math.max(1, testsToRun.length));
     // Batched runners own internal parallelism, so the timeout applies to the
     // whole discovered suite rather than one file.
@@ -351,6 +353,7 @@ export class TestExecutionCoordinator
       return this.executeParallel({
         testFiles: testsToRun,
         framework,
+        frameworkFromConfig,
         workers,
         timeout,
         retryCount: request.retryCount,
@@ -362,6 +365,7 @@ export class TestExecutionCoordinator
     return this.execute({
       testFiles: testsToRun,
       framework,
+      frameworkFromConfig,
       timeout,
       retryCount: request.retryCount,
       projectRoot: request.projectRoot,
@@ -398,7 +402,8 @@ export class TestExecutionCoordinator
   }
 
   /**
-   * Detect test framework from file patterns and project configuration
+   * Fallback framework from file names. With no explicit framework, each
+   * runner project's own config still decides between jest and vitest (#1272).
    */
   private detectFramework(testFiles: string[]): string {
     // Check file patterns for common framework indicators
@@ -408,8 +413,6 @@ export class TestExecutionCoordinator
     // Default to vitest as it's most common in modern projects
     if (hasVitestPattern) return 'vitest';
     if (hasMochaPattern) return 'mocha';
-
-    // Could add project config detection here (vitest.config.ts, jest.config.js, etc.)
     return 'vitest';
   }
 
@@ -532,7 +535,7 @@ export class TestExecutionCoordinator
           const rerunResult = await this.attemptAutoRecoveryAndRerun(
             result.value.failedTests,
             request.framework,
-            { timeout: request.timeout, env: request.env, retryCount: request.retryCount, projectRoot: request.projectRoot },
+            { timeout: request.timeout, env: request.env, retryCount: request.retryCount, projectRoot: request.projectRoot, frameworkFromConfig: request.frameworkFromConfig },
           );
           if (rerunResult) return rerunResult;
         }
@@ -682,7 +685,7 @@ export class TestExecutionCoordinator
           const rerunResult = await this.attemptAutoRecoveryAndRerun(
             result.value.failedTests,
             request.framework,
-            { timeout: request.timeout, env: request.env, retryCount: request.retryCount, projectRoot: request.projectRoot },
+            { timeout: request.timeout, env: request.env, retryCount: request.retryCount, projectRoot: request.projectRoot, frameworkFromConfig: request.frameworkFromConfig },
           );
           if (rerunResult) return rerunResult;
         }
@@ -913,7 +916,7 @@ export class TestExecutionCoordinator
   private async attemptAutoRecoveryAndRerun(
     failedTests: readonly { testId: string; file: string; error: string }[],
     framework: string,
-    originalRequest: { timeout?: number; env?: Record<string, string>; retryCount?: number; projectRoot?: string },
+    originalRequest: { timeout?: number; env?: Record<string, string>; retryCount?: number; projectRoot?: string; frameworkFromConfig?: boolean },
   ): Promise<Result<TestRunResult, Error> | null> {
     if (!this.config.infraHealing) return null;
 
@@ -955,6 +958,7 @@ export class TestExecutionCoordinator
     return this.execute({
       testFiles: [...filesToRerun],
       framework,
+      frameworkFromConfig: originalRequest.frameworkFromConfig,
       timeout: originalRequest.timeout,
       env: originalRequest.env,
       retryCount: originalRequest.retryCount,

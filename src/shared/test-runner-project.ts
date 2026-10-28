@@ -14,6 +14,18 @@
  * A run from the current working directory is kept whenever that directory is
  * already inside the file's runner project (a single-project repository, or a
  * server started inside the package), so those runs behave as before.
+ *
+ * #1272: a package with its own config runs from that package, even when the
+ * root config also lists it in `test.projects` (or a `vitest.workspace.*`).
+ * Settings that only the root config adds to that project (its setup files,
+ * aliases or environment) are then not applied; the package's own config is
+ * what runs. A package without its own config still runs from the root.
+ *
+ * #1272: `vite.config.*` counts only when its text contains `test:`. The
+ * config is code, and reading what it exports would mean running it, so a
+ * `test` block built some other way (spread from another module, say) is not
+ * seen and a `test:` that only appears in a comment is. Name the runner config
+ * `vitest.config.*` for an exact match.
  */
 
 import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
@@ -83,33 +95,72 @@ function readSmallFile(file: string): string | undefined {
   }
 }
 
+/** A runner whose project configuration can be recognised from its files. */
+export type RunnerFramework = 'vitest' | 'jest';
+
 /**
- * True when a package.json in `dir` holds runner configuration (a top-level
- * `jest` or `vitest` key). Listing a runner as a dependency or in
- * `scripts.test` does not: in a workspace the packages do that while the root
- * config defines their projects and setup.
+ * Runners a package.json in `dir` configures (a top-level `jest` or `vitest`
+ * key). Listing a runner as a dependency or in `scripts.test` does not count:
+ * in a workspace the packages do that while the root config defines their
+ * projects and setup.
  */
-function packageConfiguresRunner(dir: string): boolean {
+function packageRunnerKeys(dir: string): RunnerFramework[] {
   const text = readSmallFile(path.join(dir, 'package.json'));
-  if (text === undefined) return false;
+  if (text === undefined) return [];
   let pkg: Record<string, unknown> | undefined;
   try {
     pkg = safeJsonParse(text) as Record<string, unknown> | undefined;
   } catch {
-    return false;
+    return [];
   }
-  if (!pkg || typeof pkg !== 'object') return false;
-  return pkg.jest !== undefined || pkg.vitest !== undefined;
+  if (!pkg || typeof pkg !== 'object') return [];
+  return (['vitest', 'jest'] as const).filter(key => pkg[key] !== undefined);
+}
+
+/** True when a `vite.config.*` in `dir` mentions `test:` (see the header note). */
+function viteConfiguresTest(dir: string): boolean {
+  return VITE_CONFIG_FILES.some(name => {
+    const text = readSmallFile(path.join(dir, name));
+    return text !== undefined && /\btest\s*:/.test(text);
+  });
+}
+
+/** The runners whose configuration `dir` holds. */
+function configuredRunners(dir: string): Set<RunnerFramework> {
+  const runners = new Set<RunnerFramework>(packageRunnerKeys(dir));
+  for (const name of RUNNER_CONFIG_FILES) {
+    if (existsSync(path.join(dir, name))) runners.add(name.startsWith('jest.') ? 'jest' : 'vitest');
+  }
+  if (!runners.has('vitest') && viteConfiguresTest(dir)) runners.add('vitest');
+  return runners;
 }
 
 /** True when `dir` holds a Vitest or Jest configuration. */
 export function isRunnerProjectDir(dir: string): boolean {
-  if (RUNNER_CONFIG_FILES.some(name => existsSync(path.join(dir, name)))) return true;
-  for (const name of VITE_CONFIG_FILES) {
-    const text = readSmallFile(path.join(dir, name));
-    if (text !== undefined && /\btest\s*:/.test(text)) return true;
+  return configuredRunners(dir).size > 0;
+}
+
+/**
+ * #1272: the runner configured by the runner project that `dir` belongs to:
+ * the nearest directory at or above `dir`, no higher than `boundary`, with
+ * runner configuration. Jest config (`jest.config.*`, or a `jest` key in
+ * package.json) means jest; Vitest config (`vitest.config.*`,
+ * `vitest.workspace.*`, a `vite.config.*` with `test`, or a `vitest` key)
+ * means vitest. Undefined when no project is found or it configures both, so
+ * the caller keeps its own choice.
+ */
+export function runnerFrameworkFor(dir: string, boundary: string = findProjectRoot()): RunnerFramework | undefined {
+  const root = realDir(boundary);
+  let current = realDir(dir);
+  const bounded = isWithin(root, current);
+  for (;;) {
+    const runners = configuredRunners(current);
+    if (runners.size > 0) return runners.size === 1 ? [...runners][0] : undefined;
+    if (!bounded || current === root) return undefined;
+    const parent = path.dirname(current);
+    if (parent === current) return undefined;
+    current = parent;
   }
-  return packageConfiguresRunner(dir);
 }
 
 /**
@@ -195,6 +246,21 @@ export async function requireTestRunTargets(
     const confined = await requirePayloadFiles(taskType, 'testFiles', testFiles, fileOptions);
     return confined.success ? ok({ testFiles: confined.value }) : confined;
   }
+  const checked = await requireRunProjectRoot(taskType, projectRoot);
+  if (!checked.success) return checked;
+  const root = checked.value;
+  const confined = await requirePayloadFiles(taskType, 'testFiles', testFiles, { ...fileOptions, basePath: root });
+  if (!confined.success) return confined;
+  return ok({ testFiles: confined.value.map(file => path.resolve(root, file)), projectRoot: root });
+}
+
+/**
+ * An explicit `projectRoot` (MCP `test_execute_parallel`, CLI
+ * `aqe test execute --project-root`): a directory inside the project, checked
+ * by realpath so `..`, an outside absolute path or a symlink pointing out is
+ * refused. Returns the absolute directory.
+ */
+export async function requireRunProjectRoot(taskType: string, projectRoot: unknown): Promise<Result<string, Error>> {
   const checked = await requirePayloadPath(taskType, 'projectRoot', projectRoot, { allowDirectory: true });
   if (!checked.success) return checked;
   const root = path.resolve(realDir(process.cwd()), checked.value);
@@ -203,7 +269,5 @@ export async function requireTestRunTargets(
   if (!isDirectory) {
     return err(new CallerInputError(`Invalid ${taskType} payload: 'projectRoot' must be a directory inside the project.`));
   }
-  const confined = await requirePayloadFiles(taskType, 'testFiles', testFiles, { ...fileOptions, basePath: root });
-  if (!confined.success) return confined;
-  return ok({ testFiles: confined.value.map(file => path.resolve(root, file)), projectRoot: root });
+  return ok(root);
 }

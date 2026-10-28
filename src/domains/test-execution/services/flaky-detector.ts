@@ -21,6 +21,7 @@ import { safeJsonParse } from '../../../shared/safe-json.js';
 import { getTestRunnerExecutionError } from '../../../shared/test-runner-verdict.js';
 import { createVitestJsonReport, needsVitestJsonReportFile } from '../../../shared/vitest-json-report.js';
 import { isJestCommand, jestExactPathPattern, runnerFilePath } from '../../../shared/test-runner-args.js';
+import { runnerCwdFor, runnerFrameworkFor } from '../../../shared/test-runner-project.js';
 import { secureRandom } from '../../../shared/utils/crypto-random.js';
 import { redactFailureText } from './runner-test-cases.js';
 
@@ -62,7 +63,8 @@ export interface FlakyDetectorConfig {
    */
   testRunnerArgs: string[];
   /**
-   * Working directory for test execution.
+   * Working directory for test execution. When omitted, each file runs from
+   * its nearest runner project, as test_execute_parallel does (#1247, #1272).
    */
   cwd?: string;
   /**
@@ -208,6 +210,21 @@ export class FlakyDetectorService implements IFlakyTestDetector {
     config: Partial<FlakyDetectorConfig> = {}
   ) {
     this.config = { ...DEFAULT_FLAKY_CONFIG, ...config };
+    this.runnerConfigured = config.testRunner !== undefined || config.testRunnerArgs !== undefined;
+  }
+
+  /** True when the caller chose the runner command; else the project's config picks it. */
+  private readonly runnerConfigured: boolean;
+
+  /**
+   * #1272: the runner command for a run started in `cwd`. A configured command
+   * is used as given; the default runs Jest in a project configured for Jest.
+   */
+  private runnerCommandIn(cwd: string): { runner: string; runnerArgs: string[] } {
+    if (!this.runnerConfigured && runnerFrameworkFor(cwd) === 'jest') {
+      return { runner: 'npx', runnerArgs: ['jest', '--json'] };
+    }
+    return { runner: this.config.testRunner, runnerArgs: this.config.testRunnerArgs };
   }
 
   /**
@@ -479,21 +496,25 @@ export class FlakyDetectorService implements IFlakyTestDetector {
     const startTime = Date.now();
 
     return new Promise((resolve, reject) => {
-      const cwd = this.config.cwd ?? process.cwd();
+      const fileBase = this.config.cwd ?? process.cwd();
+      // #1272: a runner loads the config of the directory it starts in, so the
+      // file runs from its own runner project (the file path stays absolute).
+      const cwd = this.config.cwd ?? runnerCwdFor(file);
+      const { runner, runnerArgs } = this.runnerCommandIn(cwd);
       // #909: pass an absolute path (never read as a flag); Jest reads it as a
       // regex, so escape and anchor it to select exactly this file.
-      const fileArg = isJestCommand([this.config.testRunner, ...this.config.testRunnerArgs])
-        ? jestExactPathPattern(file, cwd)
-        : runnerFilePath(file, cwd);
-      const baseArgs = [...this.config.testRunnerArgs, fileArg];
+      const fileArg = isJestCommand([runner, ...runnerArgs])
+        ? jestExactPathPattern(file, fileBase)
+        : runnerFilePath(file, fileBase);
+      const baseArgs = [...runnerArgs, fileArg];
       // Vitest 5 writes --reporter=json output to a file, not stdout. Detect
       // Vitest from the runner command too (testRunner: 'vitest', args: ['run', ...]).
-      const report = needsVitestJsonReportFile([this.config.testRunner, ...baseArgs])
+      const report = needsVitestJsonReportFile([runner, ...baseArgs])
         ? createVitestJsonReport()
         : undefined;
       const args = report ? [...baseArgs, ...report.args] : baseArgs;
 
-      const child = spawn(this.config.testRunner, args, {
+      const child = spawn(runner, args, {
         cwd,
         env: { ...process.env, ...this.config.env },
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -527,7 +548,7 @@ export class FlakyDetectorService implements IFlakyTestDetector {
         reject(
           new Error(
             `Failed to execute test runner: ${error.message}. ` +
-              `Ensure ${this.config.testRunner} is installed and accessible.`
+              `Ensure ${[runner, ...runnerArgs.slice(0, 1)].join(' ')} is installed and accessible.`
           )
         );
       });
