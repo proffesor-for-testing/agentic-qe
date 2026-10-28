@@ -32,7 +32,7 @@ import { mergeTestCases, redactFailedTests, redactFailureText, testCasesFromRunn
 import { capDiagnostics, getTestRunnerExecutionError, TestRunnerExecutionError } from '../../../shared/test-runner-verdict.js';
 import { createVitestJsonReport, type VitestJsonReport } from '../../../shared/vitest-json-report.js';
 import { jestExactPathPattern, runnerFilePath } from '../../../shared/test-runner-args.js';
-import { groupByRunnerProject } from '../../../shared/test-runner-project.js';
+import { groupByRunnerProject, runnerFrameworkFor } from '../../../shared/test-runner-project.js';
 import { getClaudeModelForTier } from '../../../shared/llm/model-registry.js';
 import { terminateTestRunner, trackTestRunnerExit } from '../../../shared/test-runner-process.js';
 
@@ -437,7 +437,7 @@ Provide:
   }
 
   private async runTests(request: ExecuteTestsRequest): Promise<TestExecutionResult> {
-    const { testFiles, framework, timeout = 30000, projectRoot } = request;
+    const { testFiles, framework, timeout = 30000, projectRoot, frameworkFromConfig } = request;
 
     const failedTests: FailedTest[] = [];
     const coverages: CoverageFigures[] = [];
@@ -448,7 +448,7 @@ Provide:
     let skipped = 0;
 
     for (const file of testFiles) {
-      const result = await this.executeTestFile(file, framework, timeout, projectRoot);
+      const result = await this.executeTestFile(file, framework, timeout, projectRoot, frameworkFromConfig);
       executionResults.push(result);
       passed += result.passed;
       failed += result.failed;
@@ -522,16 +522,18 @@ Provide:
     file: string,
     framework: string,
     timeout: number,
-    projectRoot?: string
+    projectRoot?: string,
+    frameworkFromConfig = false
   ): Promise<TestExecutionResult> {
-    return this.executeTestFiles([file], framework, timeout, projectRoot);
+    return this.executeTestFiles([file], framework, timeout, projectRoot, frameworkFromConfig);
   }
 
   private async executeTestFiles(
     files: string[],
     framework: string,
     timeout: number,
-    projectRoot?: string
+    projectRoot?: string,
+    frameworkFromConfig = false
   ): Promise<TestExecutionResult> {
     // In simulation mode (for unit testing), use random behavior
     if (this.config.simulateForTesting) {
@@ -543,13 +545,16 @@ Provide:
     const groups = projectRoot
       ? [{ cwd: projectRoot, files }]
       : groupByRunnerProject(files);
+    // #1272: an explicit framework wins; otherwise the project's config decides.
+    const frameworkIn = (cwd: string): string =>
+      (frameworkFromConfig ? runnerFrameworkFor(cwd) : undefined) ?? framework;
     if (groups.length === 1) {
-      return this.executeProjectFiles(groups[0].files, framework, timeout, groups[0].cwd);
+      return this.executeProjectFiles(groups[0].files, frameworkIn(groups[0].cwd), timeout, groups[0].cwd);
     }
     // Each project gets its own runner and timeout. Their coverage maps are
     // merged from raw counters, or left unmeasured (#1030).
     const results = await Promise.all(
-      groups.map(group => this.executeProjectFiles(group.files, framework, timeout, group.cwd))
+      groups.map(group => this.executeProjectFiles(group.files, frameworkIn(group.cwd), timeout, group.cwd))
     );
     const combined = this.aggregateResults(results);
     const merged = this.mergeSequentialCoverage(results);
@@ -1258,7 +1263,7 @@ Provide:
     _isolation: 'process' | 'worker' | 'none',
     request: ParallelExecutionRequest
   ): Promise<TestExecutionResult> {
-    return this.executeTestFiles(files, request.framework, request.timeout ?? 30000, request.projectRoot);
+    return this.executeTestFiles(files, request.framework, request.timeout ?? 30000, request.projectRoot, request.frameworkFromConfig);
   }
 
   private aggregateResults(results: TestExecutionResult[]): TestExecutionResult {
