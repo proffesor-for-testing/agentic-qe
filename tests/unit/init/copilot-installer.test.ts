@@ -55,6 +55,19 @@ describe('CopilotInstaller', () => {
       expect(parsed.servers).toHaveProperty('agentic-qe');
     });
 
+    it('pins the written entry to the version in package.json (#1269)', async () => {
+      const { createCopilotInstaller } = await import('../../../src/init/copilot-installer.js');
+      await createCopilotInstaller({ projectRoot }).install();
+
+      const actualFs = await vi.importActual<typeof import('fs')>('fs');
+      const pkg = JSON.parse(actualFs.readFileSync(join(__dirname, '../../../package.json'), 'utf-8'));
+      const configCall = mockWriteFileSync.mock.calls.find(
+        (c: unknown[]) => (c[0] as string).endsWith('mcp.json')
+      );
+      const parsed = JSON.parse(configCall![1] as string);
+      expect(parsed.servers['agentic-qe'].args).toEqual(['-y', `agentic-qe@${pkg.version}`, 'mcp']);
+    });
+
     it('creates .github/copilot-instructions.md', async () => {
       const { createCopilotInstaller } = await import('../../../src/init/copilot-installer.js');
       const installer = createCopilotInstaller({ projectRoot });
