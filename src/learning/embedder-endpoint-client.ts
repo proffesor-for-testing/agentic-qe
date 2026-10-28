@@ -15,6 +15,8 @@
  *   - Bearer auth from env only; URL userinfo stripped + warned on construct.
  *   - Probe + identity fingerprint required before `embed()`; breaker recovery
  *     invalidates identity so re-probe runs against a fresh endpoint.
+ *   - The first identity is bound for the client's lifetime: a re-probe that
+ *     finds another model is refused, never adopted (#1282).
  *   - True TCP connect timeout via socket-level setTimeout (not req.setTimeout).
  *   - TLS knobs (ca / cert / key / rejectUnauthorized / servername) for self-hosted.
  */
@@ -23,7 +25,8 @@ import * as http from 'node:http';
 import * as https from 'node:https';
 import { createHash } from 'node:crypto';
 import { URL } from 'node:url';
-import { normalize as l2Normalize } from '../shared/utils/vector-math.js';
+import { cosineSimilarity, normalize as l2Normalize } from '../shared/utils/vector-math.js';
+import { EMBEDDING_ROUND_TRIP_MIN_COSINE } from './embedding-space.js';
 
 /**
  * Endpoint identity fingerprint — a SHA-256 of the L2-normalized canary embedding,
@@ -166,6 +169,27 @@ export class EmbedderEndpointTimeoutError extends Error {
 }
 
 /**
+ * #1282: a probe found a different endpoint identity than the one the client
+ * bound to. Vectors from the new identity are not comparable with stored ones,
+ * so the client refuses to embed until the endpoint serves the bound identity
+ * again or the process restarts.
+ */
+export class EmbedderEndpointIdentityChangedError extends Error {
+  constructor(
+    readonly bound: EndpointIdentity,
+    readonly current: EndpointIdentity
+  ) {
+    super(
+      `[EmbedderEndpointClient] endpoint identity changed since this process bound to it ` +
+        `(fingerprint ${bound.fingerprint} -> ${current.fingerprint}, ` +
+        `dim ${bound.dim} -> ${current.dim}) at ${current.endpoint}; ` +
+        `restart to use the new embedding space`
+    );
+    this.name = 'EmbedderEndpointIdentityChangedError';
+  }
+}
+
+/**
  * Circuit breaker state.
  *
  * Tracks failure timestamps within `windowMs`. Opens when count reaches `threshold`,
@@ -228,6 +252,10 @@ class CircuitBreaker {
   }
 }
 
+function sameIdentity(a: EndpointIdentity, b: EndpointIdentity): boolean {
+  return a.fingerprint === b.fingerprint && a.dim === b.dim;
+}
+
 /**
  * OpenAI-compatible embeddings client with keep-alive, circuit breaker, and identity probe.
  */
@@ -243,6 +271,15 @@ export class EmbedderEndpointClient {
     endpoint: string;
   };
   private cachedIdentity: EndpointIdentity | null = null;
+  /**
+   * #1282: the first identity a probe found. Every embedding this client
+   * returns belongs to it; later probes must find it again.
+   */
+  private boundIdentity: EndpointIdentity | null = null;
+  /** #1282: the canary vector behind `boundIdentity`. */
+  private boundCanary: number[] | null = null;
+  /** #1282: set while the endpoint serves an identity other than the bound one. */
+  private identityChange: EmbedderEndpointIdentityChangedError | null = null;
   /** True while a probe is in flight — prevents the embed() lazy-probe race. */
   private probeInFlight: Promise<EndpointIdentity> | null = null;
   /**
@@ -342,6 +379,8 @@ export class EmbedderEndpointClient {
   async embed(texts: string[]): Promise<number[][]> {
     if (texts.length === 0) return [];
     if (this.breaker.isOpen()) {
+      // #1282: say why the breaker is open when the cause is a changed model.
+      if (this.identityChange) throw this.identityChange;
       throw new Error(
         `[EmbedderEndpointClient] circuit breaker open for ${this.parsed.safeUrl} — fast-failing`
       );
@@ -417,17 +456,70 @@ export class EmbedderEndpointClient {
       buf.writeInt16LE(q, i * 2);
     }
     const fingerprint = createHash('sha256').update(buf).digest('hex').slice(0, 16);
-    this.cachedIdentity = {
+    const identity: EndpointIdentity = {
       dim: vec.length,
       fingerprint,
       endpoint: this.parsed.safeUrl,
     };
+    if (this.boundIdentity && this.boundCanary) {
+      if (!this.isBoundModel(identity, vec)) this.refuseIdentityChange(identity);
+    } else {
+      this.boundIdentity = identity;
+      this.boundCanary = vec;
+    }
+    this.identityChange = null;
+    // The bound identity stays the one callers see, also when fp noise moved
+    // the hash: the embedding space did not change.
+    this.cachedIdentity = this.boundIdentity;
     this.trialPending = false;
     return this.cachedIdentity;
   }
 
+  /**
+   * #1282: true when a re-probe found the bound model. The int16 fingerprint
+   * flips on noise of about 3e-5 per component, which the same model restarted
+   * on other hardware or kernels can produce, so a changed hash alone is not a
+   * changed model: the canary must also have moved below the ADR-097
+   * round-trip cosine.
+   */
+  private isBoundModel(identity: EndpointIdentity, canary: number[]): boolean {
+    const bound = this.boundIdentity as EndpointIdentity;
+    if (identity.dim !== bound.dim) return false;
+    if (identity.fingerprint === bound.fingerprint) return true;
+    return (
+      cosineSimilarity(this.boundCanary as number[], canary) >= EMBEDDING_ROUND_TRIP_MIN_COSINE
+    );
+  }
+
+  /**
+   * #1282: the endpoint answers, but as a different model than the one this
+   * client bound to (an endpoint restarted with another model of the same
+   * dimension, typically seen when the breaker recovers). Treat it as down:
+   * open the breaker so every caller fast-fails with this error, and retry
+   * as a half-open trial after each window, in case the bound model returns.
+   * Reported once per new identity.
+   */
+  private refuseIdentityChange(current: EndpointIdentity): never {
+    const bound = this.boundIdentity as EndpointIdentity;
+    const previous = this.identityChange;
+    const change = new EmbedderEndpointIdentityChangedError(bound, current);
+    this.identityChange = change;
+    this.cachedIdentity = null;
+    this.trialPending = true;
+    this.breaker.trip();
+    if (!previous || !sameIdentity(previous.current, current)) {
+      console.warn(`${change.message}. Embedding requests are refused.`);
+    }
+    throw change;
+  }
+
   getCachedIdentity(): EndpointIdentity | null {
     return this.cachedIdentity;
+  }
+
+  /** #1282: the identity every vector from this client belongs to. */
+  getBoundIdentity(): EndpointIdentity | null {
+    return this.boundIdentity;
   }
 
   getBreakerState(): { open: boolean; failures: number; trippedAt: number | null } {

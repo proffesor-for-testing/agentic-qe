@@ -568,6 +568,8 @@ export function allowEmbedderInitRetry(): void {
  *   for the breaker window as well as the caller's retry interval. The probe
  *   must find the identity this process bound to (ADR-097): a changed
  *   fingerprint means vectors would not be comparable.
+ *   The client refuses it (EmbedderEndpointIdentityChangedError) and keeps
+ *   refusing every caller, also when its breaker recovers on its own (#1282).
  * Callers rate-limit rechecks, then embed a canary to confirm.
  */
 export async function recheckEmbedder(config: Partial<EmbeddingConfig> = {}): Promise<void> {
@@ -581,14 +583,7 @@ export async function recheckEmbedder(config: Partial<EmbeddingConfig> = {}): Pr
   // #1216: also when the breaker window elapsed but no trial probe has
   // succeeded yet; embed() would only start that trial and fail fast.
   if (!client || !client.needsTrial()) return;
-  const identity = await client.probeThroughOpenBreaker();
-  if (endpointIdentity && identity.fingerprint !== endpointIdentity.fingerprint) {
-    throw new Error(
-      `[RealEmbeddings] endpoint identity changed since this process bound to it ` +
-        `(fingerprint ${endpointIdentity.fingerprint} -> ${identity.fingerprint}); ` +
-        `restart to use the new embedding space`
-    );
-  }
+  await client.probeThroughOpenBreaker();
 }
 
 async function retryInitialization(config: Partial<EmbeddingConfig>): Promise<void> {

@@ -6,16 +6,18 @@
  * behavior). The Unix-socket transport is covered via a temp-dir socket path.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as http from 'node:http';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import {
   EmbedderEndpointClient,
+  EmbedderEndpointIdentityChangedError,
   parseEndpoint,
   redactEndpoint,
 } from '../../../src/learning/embedder-endpoint-client.js';
+import { cosineSimilarity } from '../../../src/shared/utils/vector-math.js';
 
 /**
  * Build a 384-d unit vector seeded by text content so we get deterministic
@@ -329,7 +331,8 @@ describe('EmbedderEndpointClient', () => {
     expect(id1.endpoint).toBe(server.url);
   });
 
-  it('probe fingerprint changes when canary embedding changes', async () => {
+  it('probe fingerprint changes when canary embedding changes, and the change is refused (#1282)', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const id1 = await client.probe();
     // Swap server to return a different canary embedding
     server.responder = (body, res) => {
@@ -340,8 +343,14 @@ describe('EmbedderEndpointClient', () => {
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ data }));
     };
-    const id2 = await client.probe();
-    expect(id2.fingerprint).not.toBe(id1.fingerprint);
+    const err = await client.probe().catch((e: unknown) => e);
+    warn.mockRestore();
+    expect(err).toBeInstanceOf(EmbedderEndpointIdentityChangedError);
+    const changed = err as EmbedderEndpointIdentityChangedError;
+    expect(changed.bound).toEqual(id1);
+    expect(changed.current.fingerprint).not.toBe(id1.fingerprint);
+    expect(client.getBoundIdentity()).toEqual(id1);
+    await expect(client.embed(['x'])).rejects.toThrow(/identity changed/);
   });
 
   it('circuit breaker opens after threshold failures and fast-fails', async () => {
@@ -577,6 +586,131 @@ describe('EmbedderEndpointClient', () => {
     expect(client.needsTrial()).toBe(false);
     const out = await client.embed(['x']);
     expect(out[0]).toHaveLength(384);
+  });
+
+  // -- #1282: the endpoint comes back from an outage with a different model --
+
+  /** Answers like a different model of the same dimension. */
+  function otherModelResponder(): FakeServerHandle['responder'] {
+    return (body, res) => {
+      const data = body.input.map((t, i) => ({ index: i, embedding: fakeEmbedding(`model-b:${t}`) }));
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ data }));
+    };
+  }
+
+  /**
+   * The same model restarted on other hardware: every component moves by
+   * 1e-4, several int16 steps (~3e-5), so the fingerprint hash changes while
+   * the canary keeps a cosine far above 0.999.
+   */
+  function noisySameModelResponder(): FakeServerHandle['responder'] {
+    return (body, res) => {
+      const data = body.input.map((t, i) => ({
+        index: i,
+        embedding: fakeEmbedding(t).map((x, j) => x + (j % 2 === 0 ? 1e-4 : -1e-4)),
+      }));
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ data }));
+    };
+  }
+
+  /** Model A answers, a timeout opens the breaker, `after` answers after the window. */
+  async function recoverAsOtherModel(after = otherModelResponder()): Promise<string> {
+    client.close();
+    client = new EmbedderEndpointClient({
+      endpoint: server.url,
+      requestTimeoutMs: 100,
+      failureWindowMs: 100,
+    });
+    const bound = await client.probe();
+    await client.embed(['x']);
+    server.responder = hangingResponder();
+    await expect(client.embed(['x'])).rejects.toThrow(/request timeout/);
+    server.responder = after;
+    await new Promise((r) => setTimeout(r, 120));
+    // The breaker recovers on its own: the trial probe meets model B.
+    await expect(client.embed(['x'])).rejects.toThrow(/half-open/);
+    await new Promise((r) => setTimeout(r, 30));
+    return bound.fingerprint;
+  }
+
+  it('#1282: after the breaker recovers on its own, a changed fingerprint is refused, not adopted', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const boundFingerprint = await recoverAsOtherModel();
+
+      // No vector of model B may come out as if it were model A's space.
+      await expect(client.embed(['x'])).rejects.toThrow(/identity changed/);
+      await expect(client.embed(['x'])).rejects.toThrow(EmbedderEndpointIdentityChangedError);
+      expect(client.getCachedIdentity()).toBeNull();
+      expect(client.getBoundIdentity()?.fingerprint).toBe(boundFingerprint);
+      expect(client.needsTrial()).toBe(true);
+      // The change is reported once, not on every refused call.
+      const reports = warn.mock.calls.filter((c) => /identity changed/.test(String(c[0])));
+      expect(reports).toHaveLength(1);
+      expect(String(reports[0][0])).toContain(boundFingerprint);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('#1282: the same model with fp noise after recovery is accepted, and the bound identity stays', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const noisy = new EmbedderEndpointClient({ endpoint: server.url });
+    try {
+      const boundFingerprint = await recoverAsOtherModel(noisySameModelResponder());
+      // Premise: on its own, the noisy canary hashes to another fingerprint.
+      const noisyIdentity = await noisy.probe();
+      expect(noisyIdentity.fingerprint).not.toBe(boundFingerprint);
+
+      const out = await client.embed(['x']);
+
+      expect(cosineSimilarity(out[0], fakeEmbedding('x'))).toBeGreaterThan(0.999);
+      expect(client.getCachedIdentity()?.fingerprint).toBe(boundFingerprint);
+      expect(client.getBoundIdentity()?.fingerprint).toBe(boundFingerprint);
+      expect(client.needsTrial()).toBe(false);
+      expect(warn.mock.calls.some((c) => /identity changed/.test(String(c[0])))).toBe(false);
+    } finally {
+      noisy.close();
+      warn.mockRestore();
+    }
+  });
+
+  it('#1282: probeThroughOpenBreaker reports the changed fingerprint and keeps the breaker open', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      await recoverAsOtherModel();
+      await new Promise((r) => setTimeout(r, 120));
+
+      const err = await client.probeThroughOpenBreaker().catch((e: unknown) => e);
+
+      expect(err).toBeInstanceOf(EmbedderEndpointIdentityChangedError);
+      const changed = err as EmbedderEndpointIdentityChangedError;
+      expect(changed.current.fingerprint).not.toBe(changed.bound.fingerprint);
+      expect(changed.current.dim).toBe(changed.bound.dim);
+      expect(client.getBreakerState().open).toBe(true);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('#1282: when the endpoint serves the bound model again, the next trial closes the breaker', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      await recoverAsOtherModel();
+      server.responder = defaultResponder;
+      await new Promise((r) => setTimeout(r, 120));
+
+      await expect(client.embed(['x'])).rejects.toThrow(/half-open/);
+      await new Promise((r) => setTimeout(r, 30));
+      const out = await client.embed(['x']);
+
+      expect(out[0]).toEqual(fakeEmbedding('x'));
+      expect(client.getCachedIdentity()).toEqual(client.getBoundIdentity());
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   // -- #1285: socket listeners on keep-alive sockets --
