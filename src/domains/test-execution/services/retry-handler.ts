@@ -8,6 +8,9 @@ import { spawn } from 'node:child_process';
 import { createVitestJsonReport, type VitestJsonReport } from '../../../shared/vitest-json-report.js';
 import { jestExactPathPattern, nameFilterArg, runnerFilePath } from '../../../shared/test-runner-args.js';
 import { runnerCwdFor } from '../../../shared/test-runner-project.js';
+import {
+  createPytestJunitReport, isPythonTestFile, parsePytestJunitXml, pytestCommand, PYTEST_ENV, type PytestJunitReport,
+} from '../../../shared/pytest-junit-report.js';
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { resolve as resolvePath } from 'node:path';
 import { Result, ok, err } from '../../../shared/types';
@@ -44,7 +47,7 @@ function sameTestFile(reported: string, target: string, cwd: string): boolean {
 /**
  * Supported test runners for retry execution
  */
-export type TestRunner = 'vitest' | 'jest' | 'mocha' | 'auto';
+export type TestRunner = 'vitest' | 'jest' | 'mocha' | 'pytest' | 'auto';
 
 /**
  * Configuration for the retry handler service
@@ -499,8 +502,8 @@ export class RetryHandlerService implements IRetryHandler {
     // project. The file path stays relative to `cwd`.
     const runCwd = projectRoot ?? this.config.cwd ?? runnerCwdFor(testFile);
 
-    // Detect or use configured test runner
-    const runner = await this.detectTestRunner(runCwd);
+    // Detect or use configured test runner. #1248: a Python file is pytest's.
+    const runner = isPythonTestFile(testFile) ? 'pytest' : await this.detectTestRunner(runCwd);
     if (!runner) {
       throw new Error(
         `No test runner detected or configured. Install vitest, jest, or mocha, ` +
@@ -512,7 +515,8 @@ export class RetryHandlerService implements IRetryHandler {
     const { command, args, report } = this.buildTestCommand(runner, testFile, testName, cwd);
 
     // Execute the test
-    return this.spawnTestProcess(command, args, runCwd, report, runner === 'vitest' ? testFile : undefined);
+    return this.spawnTestProcess(command, args, runCwd, report, runner === 'vitest' ? testFile : undefined,
+      runner === 'pytest' ? (code, reportText, output) => this.parsePytestRetry(code, reportText, output) : undefined);
   }
 
   /**
@@ -585,7 +589,7 @@ export class RetryHandlerService implements IRetryHandler {
     testFile: string,
     testName?: string,
     cwd: string = this.config.cwd ?? process.cwd()
-  ): { command: string; args: string[]; report?: VitestJsonReport } {
+  ): { command: string; args: string[]; report?: VitestJsonReport | PytestJunitReport } {
     const npx = this.config.npxPath;
     // A FailedTest holds the literal assertion name and path from the previous
     // run. Name filters are regex-escaped and passed as --flag=value; file
@@ -618,6 +622,12 @@ export class RetryHandlerService implements IRetryHandler {
         if (filterByName) mochaArgs.push(nameFilterArg('mocha', testName!));
         return { command: npx, args: mochaArgs }; }
 
+      case 'pytest':
+        // #1248: the failed test's node id is <file>::<name> (name from the run).
+        { const report = createPytestJunitReport();
+        const file = runnerFilePath(testFile, cwd);
+        return { ...pytestCommand([filterByName ? `${file}::${testName}` : file], report.path), report }; }
+
       default:
         throw new Error(`Unsupported test runner: ${runner}`);
     }
@@ -630,8 +640,9 @@ export class RetryHandlerService implements IRetryHandler {
     command: string,
     args: string[],
     cwd: string,
-    report?: VitestJsonReport,
-    targetFile?: string
+    report?: VitestJsonReport | PytestJunitReport,
+    targetFile?: string,
+    parseReport?: (exitCode: number | null, reportText: string | undefined, output: string) => RetryRunOutcome
   ): Promise<RetryRunOutcome> {
     return new Promise((resolve, reject) => {
       const timeout = this.config.testTimeout;
@@ -652,7 +663,7 @@ export class RetryHandlerService implements IRetryHandler {
       const proc = spawn(command, args, {
         cwd,
         detached: process.platform !== 'win32',
-        env: { ...process.env, FORCE_COLOR: '0', CI: 'true' },
+        env: { ...process.env, FORCE_COLOR: '0', CI: 'true', ...PYTEST_ENV },
       });
       const untrackExit = trackTestRunnerExit(proc);
 
@@ -689,6 +700,10 @@ export class RetryHandlerService implements IRetryHandler {
         // report to the --outputFile; read it back rather than trusting stdout).
         try {
           const reportText = report ? report.read(stdout) : stdout;
+          if (parseReport) {
+            settle(resolve, parseReport(code, reportText, `${stderr}\n${stdout}`.trim()));
+            return;
+          }
           if (reportText === undefined) {
             throw new Error('The current Vitest JSON report is missing for the retry run.');
           }
@@ -709,6 +724,29 @@ export class RetryHandlerService implements IRetryHandler {
         ));
       });
     });
+  }
+
+  /**
+   * #1248: a pytest retry passes only when its JUnit report shows the test
+   * passed. A node id pytest cannot find (exit code 4) or no collected test
+   * (exit code 5) reran nothing.
+   */
+  private parsePytestRetry(exitCode: number | null, report: string | undefined, output: string): RetryRunOutcome {
+    const failure = (text: string): RetryRunOutcome => ({
+      passed: false,
+      error: redactFailureText(text || `pytest exited with code ${exitCode}`).substring(0, 1000),
+    });
+    if (exitCode === 4 || exitCode === 5) return UNMATCHED;
+    if (report === undefined) return failure(output);
+    try {
+      const cases = parsePytestJunitXml(report);
+      if (cases.length === 0) return UNMATCHED;
+      const failed = cases.find(c => c.status === 'failed' || c.status === 'error');
+      if (exitCode === 0 && !failed && cases.some(c => c.status === 'passed')) return { passed: true };
+      return failure(failed ? [failed.message, failed.details].filter(Boolean).join('\n') : output);
+    } catch {
+      return failure(output);
+    }
   }
 
   /**

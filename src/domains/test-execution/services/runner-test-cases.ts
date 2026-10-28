@@ -28,9 +28,14 @@ interface RunnerFileResult {
 
 function failureMessageOf(assertion: RunnerAssertion): string | undefined {
   if (!Array.isArray(assertion.failureMessages)) return undefined;
-  const joined = assertion.failureMessages.filter((m): m is string => typeof m === 'string').join('\n').trim();
-  if (!joined) return undefined;
-  const message = redactFailureText(joined);
+  return testCaseFailureMessage(assertion.failureMessages.filter((m): m is string => typeof m === 'string').join('\n'));
+}
+
+/** A test case's failure text: redacted (#1122) and capped. */
+export function testCaseFailureMessage(text: string): string | undefined {
+  const trimmed = text.trim();
+  if (!trimmed) return undefined;
+  const message = redactFailureText(trimmed);
   return message.length > MAX_FAILURE_MESSAGE_LENGTH
     ? `${message.slice(0, MAX_FAILURE_MESSAGE_LENGTH)}… [truncated]`
     : message;

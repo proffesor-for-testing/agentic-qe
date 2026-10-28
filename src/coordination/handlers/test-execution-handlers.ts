@@ -13,7 +13,8 @@ import type { TaskHandlerContext } from './handler-types';
 import { capDiagnostics, getTestRunnerExecutionError, TestRunnerExecutionError } from '../../shared/test-runner-verdict.js';
 import { createVitestJsonReport } from '../../shared/vitest-json-report.js';
 import { jestExactPathPattern, runnerFilePath } from '../../shared/test-runner-args.js';
-import { testCasesFromRunnerReport } from '../../domains/test-execution/services/runner-test-cases.js';
+import { testCaseFailureMessage, testCasesFromRunnerReport } from '../../domains/test-execution/services/runner-test-cases.js';
+import { createPytestJunitReport, isPythonTestFile, pytestCommand, pytestRunFromReport, PYTEST_ENV } from '../../shared/pytest-junit-report.js';
 import { runTestRunnerProcess } from '../../shared/test-runner-process.js';
 import { MAX_PAYLOAD_FILE_BYTES, requirePayloadFiles } from '../../shared/io/payload-path-guard.js';
 import { groupByRunnerProject, requireTestRunTargets, runnerFrameworkFor } from '../../shared/test-runner-project.js';
@@ -76,11 +77,40 @@ type ProjectRun = {
   testCases?: ReturnType<typeof testCasesFromRunnerReport>;
 };
 
+/** #1248: run Python test files with pytest, reading its JUnit report. */
+async function runPytestTests(testFiles: string[], cwd: string): Promise<Result<ProjectRun, Error>> {
+  const report = createPytestJunitReport();
+  try {
+    const { command, args } = pytestCommand(testFiles.map(file => runnerFilePath(file)), report.path);
+    const execution = await runTestRunnerProcess(command, args, { cwd, timeout: 120000, env: { ...process.env, ...PYTEST_ENV } });
+    const output = [execution.stderr, execution.stdout].filter(Boolean).join('\n');
+    if (execution.error || execution.signal) {
+      const reason = execution.error?.message ?? `Terminated by ${execution.signal}`;
+      return err(new TestRunnerExecutionError(`pytest could not complete: ${capDiagnostics(`${reason}\n${output}`)}`));
+    }
+    const run = pytestRunFromReport(report.read(), testFiles, execution.status, output, command);
+    if (!run.success) return run;
+    const testCases = run.value.tests.map(test => {
+      const failureMessage = test.failureMessage && testCaseFailureMessage(test.failureMessage);
+      return {
+        name: test.name, file: test.file, status: test.status,
+        ...(test.duration !== undefined ? { duration: test.duration } : {}),
+        ...(failureMessage ? { failureMessage } : {}),
+      };
+    });
+    const { total, passed, failed, skipped } = run.value;
+    return ok({ total, passed, failed, skipped, testCases });
+  } finally {
+    report.cleanup();
+  }
+}
+
 /**
  * Run `testFiles` (paths relative to the process cwd, or absolute) with the
  * runner started in `cwd`.
  */
 async function runProjectTests(testFiles: string[], cwd: string): Promise<Result<ProjectRun, Error>> {
+  if (testFiles.some(isPythonTestFile)) return runPytestTests(testFiles, cwd);
   // #1074: run the runner asynchronously so the MCP server keeps serving
   // other requests (task_status, task_cancel, ...) during the test run.
   const options = { cwd, timeout: 120000 };
@@ -343,8 +373,11 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
 
       // #1247: a runner loads the config of the directory it starts in, so
       // each runner project's files run from that project (or projectRoot).
+      // #1248: Python files run apart from the others, with pytest.
       const groups = projectRoot
-        ? [{ cwd: projectRoot, files: testFiles }]
+        ? [testFiles.filter(isPythonTestFile), testFiles.filter(file => !isPythonTestFile(file))]
+          .filter(files => files.length > 0)
+          .map(files => ({ cwd: projectRoot, files }))
         : groupByRunnerProject(testFiles);
       const totals = { total: 0, passed: 0, failed: 0, skipped: 0 };
       const testCases: NonNullable<ProjectRun['testCases']> = [];
