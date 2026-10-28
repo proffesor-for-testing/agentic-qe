@@ -35,7 +35,10 @@ import {
   getEndpointIdentity,
   getActiveEmbeddingSpaceIdentity,
   getEmbeddingDimension,
+  __spaceRegistrationSettledForTests,
 } from '../../../src/learning/real-embeddings.js';
+import { initializeUnifiedMemory, resetUnifiedMemory } from '../../../src/kernel/unified-memory.js';
+import { verifyOrCreateEmbeddingSpaceManifest } from '../../../src/learning/embedding-space.js';
 
 function fakeEmbedding(text: string, dim = 384): number[] {
   let seed = 0;
@@ -410,6 +413,81 @@ describe('real-embeddings.ts — ADR-097 endpoint branch', () => {
       resetInitialization();
       await flaky.close();
     }
+  });
+
+  describe('#1298: the embedding space across a process restart', () => {
+    let dir: string;
+    let previousMemoryPath: string | undefined;
+    let flaky: Awaited<ReturnType<typeof startControllableServer>>;
+
+    /** A fresh process: embedder and UnifiedMemory state reset, same memory.db. */
+    async function start(): Promise<string> {
+      resetInitialization();
+      resetUnifiedMemory();
+      await initializeUnifiedMemory({ dbPath: join(dir, 'memory.db') });
+      await computeRealEmbedding('x', { endpoint: flaky.url, enableCache: false });
+      await __spaceRegistrationSettledForTests();
+      return getActiveEmbeddingSpaceIdentity()!.spaceId;
+    }
+
+    beforeEach(async () => {
+      dir = mkdtempSync(join(tmpdir(), 'aqe-1298-restart-'));
+      previousMemoryPath = process.env.AQE_MEMORY_PATH;
+      process.env.AQE_MEMORY_PATH = join(dir, 'memory.db');
+      flaky = await startControllableServer();
+    });
+
+    afterEach(async () => {
+      resetInitialization();
+      resetUnifiedMemory();
+      if (previousMemoryPath === undefined) delete process.env.AQE_MEMORY_PATH;
+      else process.env.AQE_MEMORY_PATH = previousMemoryPath;
+      await flaky.close();
+      rmSync(dir, { recursive: true, force: true });
+    });
+
+    it('the same model restarted with float noise keeps its space id, and index manifests still verify', async () => {
+      const warn = vi.spyOn(console, 'warn');
+      const firstSpace = await start();
+      const firstFingerprint = getEndpointIdentity()!.fingerprint;
+      const manifest = join(dir, 'patterns.rvf');
+      verifyOrCreateEmbeddingSpaceManifest(manifest, firstSpace, 0);
+
+      flaky.mode = 'same-model-noisy';
+      const restartedSpace = await start();
+
+      // Premise: the noise moved the exact fingerprint.
+      expect(getEndpointIdentity()!.fingerprint).not.toBe(firstFingerprint);
+      expect(restartedSpace).toBe(firstSpace);
+      expect(getActiveEmbeddingSpaceIdentity()!.runtimeFingerprint).toBe(firstFingerprint);
+      expect(() => verifyOrCreateEmbeddingSpaceManifest(manifest, restartedSpace, 1)).not.toThrow();
+      expect(warn.mock.calls.some((c) => /identity changed since last run/.test(String(c[0])))).toBe(false);
+    });
+
+    it('another model of the same dimension after a restart gets a new space, and the manifest refuses it', async () => {
+      const warn = vi.spyOn(console, 'warn');
+      const firstSpace = await start();
+      const manifest = join(dir, 'patterns.rvf');
+      verifyOrCreateEmbeddingSpaceManifest(manifest, firstSpace, 0);
+
+      flaky.mode = 'other-model';
+      const restartedSpace = await start();
+
+      expect(restartedSpace).not.toBe(firstSpace);
+      expect(() => verifyOrCreateEmbeddingSpaceManifest(manifest, restartedSpace, 1)).toThrow(/VECTOR_SPACE_MISMATCH/);
+      expect(warn.mock.calls.some((c) => /identity changed since last run/.test(String(c[0])))).toBe(true);
+    });
+
+    it('without an open UnifiedMemory the space is derived as before', async () => {
+      const firstSpace = await start();
+      flaky.mode = 'same-model-noisy';
+      resetInitialization();
+      resetUnifiedMemory();
+
+      await computeRealEmbedding('x', { endpoint: flaky.url, enableCache: false });
+
+      expect(getActiveEmbeddingSpaceIdentity()!.spaceId).not.toBe(firstSpace);
+    });
   });
 
   it('a model swapped in while the breaker was open never yields vectors once it recovers on its own (#1282)', async () => {

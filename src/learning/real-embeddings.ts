@@ -11,6 +11,7 @@ export { cosineSimilarity } from '../shared/utils/vector-math.js';
 import { toErrorMessage } from '../shared/error-utils.js';
 import {
   EmbedderEndpointClient,
+  ENDPOINT_IDENTITY_CANARY,
   redactEndpoint,
   type EndpointIdentity,
 } from './embedder-endpoint-client.js';
@@ -25,6 +26,11 @@ import {
   fingerprintEmbeddingRuntime,
   type EmbeddingSpaceIdentity,
 } from './embedding-space.js';
+import {
+  resolveEmbeddingSpace,
+  type EmbeddingSpaceRegistryDb,
+  type ResolvedEmbeddingSpace,
+} from './embedding-space-registry.js';
 
 /**
  * Type for the @xenova/transformers pipeline function
@@ -196,7 +202,7 @@ async function initializeModel(
         });
         // Probe + identity fingerprint. Fails loud on dim mismatch.
         endpointIdentity = await endpointClient.probe();
-        activeEmbeddingSpaceIdentity = deriveEmbeddingSpaceIdentity({
+        const derivedSpace = deriveEmbeddingSpaceIdentity({
           provider: 'openai-compatible-endpoint',
           model: fullConfig.modelName,
           dimensions: endpointIdentity.dim,
@@ -206,6 +212,11 @@ async function initializeModel(
           implementation: endpointIdentity.endpoint,
           runtimeFingerprint: endpointIdentity.fingerprint,
         });
+        const boundCanary = endpointClient.getBoundCanary();
+        const space = boundCanary
+          ? await resolveActiveSpace(derivedSpace, ENDPOINT_IDENTITY_CANARY, [...boundCanary])
+          : null;
+        activeEmbeddingSpaceIdentity = space?.identity ?? derivedSpace;
         console.log(
           `[RealEmbeddings] Endpoint identity: dim=${endpointIdentity.dim} fingerprint=${endpointIdentity.fingerprint}`
         );
@@ -217,10 +228,17 @@ async function initializeModel(
         // remote silently changed (poisoning risk for the existing index).
         try {
           const previous = loadEmbedderIdentity(endpointIdentity.endpoint);
-          if (previous && previous.fingerprint !== endpointIdentity.fingerprint) {
+          // #1298: a restart that kept its registered space is not a change,
+          // even when float noise moved the fingerprint.
+          const spaceKept =
+            space?.resolution === 'matched-exact' || space?.resolution === 'matched-cosine';
+          const changed =
+            (previous !== null && previous.fingerprint !== endpointIdentity.fingerprint) ||
+            (space?.otherSpaces ?? 0) > 0;
+          if (!spaceKept && changed) {
             console.warn(
               `[RealEmbeddings] WARNING: endpoint identity changed since last run. ` +
-                `Previous fingerprint=${previous.fingerprint} dim=${previous.dim}, ` +
+                `Previous fingerprint=${previous?.fingerprint ?? 'unknown'} dim=${previous?.dim ?? 'unknown'}, ` +
                 `current fingerprint=${endpointIdentity.fingerprint} dim=${endpointIdentity.dim}. ` +
                 `Vectors written before this change may no longer be comparable.`
             );
@@ -276,7 +294,7 @@ async function initializeModel(
         normalize: true,
       });
       const canaryVector = Array.from(canary.data as Float32Array);
-      activeEmbeddingSpaceIdentity = deriveEmbeddingSpaceIdentity({
+      const derivedSpace = deriveEmbeddingSpaceIdentity({
         provider: 'huggingface-transformers',
         model: fullConfig.modelName,
         dimensions: canaryVector.length,
@@ -286,6 +304,9 @@ async function initializeModel(
         implementation: `transformers:${fullConfig.quantized ? 'quantized' : 'full'}`,
         runtimeFingerprint: fingerprintEmbeddingRuntime(canaryVector),
       });
+      activeEmbeddingSpaceIdentity = (
+        await resolveActiveSpace(derivedSpace, EMBEDDING_SPACE_CANARY, canaryVector)
+      ).identity;
 
       initializationFailed = false;
       failureReason = '';
@@ -299,6 +320,42 @@ async function initializeModel(
   })();
 
   return initPromise;
+}
+
+/** @internal test seam: settles when the last space registration write ran. */
+let lastSpaceRegistration: Promise<void> = Promise.resolve();
+export function __spaceRegistrationSettledForTests(): Promise<void> {
+  return lastSpaceRegistration;
+}
+
+/**
+ * #1298: keep a restarted runtime in its registered embedding space when its
+ * canary is within the round-trip cosine of that space's reference, instead
+ * of minting a new id from the exact fingerprint. Uses the shared memory.db
+ * connection only when UnifiedMemory is already open; otherwise (and on any
+ * registry error) the derived space is used, as before.
+ */
+async function resolveActiveSpace(
+  derived: EmbeddingSpaceIdentity,
+  canaryText: string,
+  canary: number[]
+): Promise<ResolvedEmbeddingSpace> {
+  let db: EmbeddingSpaceRegistryDb | null = null;
+  try {
+    const { getOpenUnifiedMemoryDatabase } = await import('../kernel/unified-memory.js');
+    db = getOpenUnifiedMemoryDatabase();
+  } catch (error) {
+    console.warn(`[RealEmbeddings] embedding-space registry unavailable: ${toErrorMessage(error)}`);
+  }
+  const resolved = resolveEmbeddingSpace(db, derived, canaryText, canary);
+  lastSpaceRegistration = resolved.registration;
+  if (resolved.resolution === 'matched-cosine') {
+    console.log(
+      `[RealEmbeddings] Embedding space ${resolved.identity.spaceId.slice(0, 12)} kept: ` +
+        `runtime fingerprint ${derived.runtimeFingerprint} is within the round-trip cosine of its reference`
+    );
+  }
+  return resolved;
 }
 
 /**
