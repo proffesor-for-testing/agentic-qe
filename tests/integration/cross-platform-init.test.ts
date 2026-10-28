@@ -287,7 +287,9 @@ describe('Cross-Platform Init - E2E', () => {
       const secondResults = await installAllPlatforms(false);
 
       for (const platformId of ALL_PLATFORMS) {
-        expect(secondResults[platformId].mcpConfigured).toBe(false);
+        // Copilot always reconciles its own (version-pinned) entry (#1269); an
+        // already-current entry reports configured without rewriting the file.
+        expect(secondResults[platformId].mcpConfigured).toBe(platformId === 'copilot');
         // Content unchanged
         const currentContent = readFileAt(PLATFORM_REGISTRY[platformId].configPath);
         expect(currentContent).toBe(originalContents[platformId]);

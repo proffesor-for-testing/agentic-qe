@@ -9,6 +9,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { toErrorMessage } from '../shared/error-utils.js';
+import { writeFileIfChanged } from './idempotent-write.js';
 import {
   createPlatformConfigGenerator,
   type PlatformConfigGenerator,
@@ -70,20 +71,28 @@ export class CopilotInstaller {
       const configPath = join(this.projectRoot, mcpConfig.path);
       result.configPath = configPath;
 
-      if (!existsSync(configPath) || this.overwrite) {
+      // AQE's own server entry is refreshed on every init, independent of
+      // `overwrite` (#1269): its launch config is version-pinned, and a stale one
+      // leaves VS Code serving tool schemas cached from an older server. Other
+      // servers and top-level keys in the file are preserved.
+      if (!existsSync(configPath)) {
         const configDir = dirname(configPath);
         if (!existsSync(configDir)) {
           mkdirSync(configDir, { recursive: true });
         }
-
-        // Merge with existing if present
-        if (existsSync(configPath) && this.overwrite) {
-          const merged = this.mergeExistingConfig(configPath, mcpConfig.content);
-          writeFileSync(configPath, merged);
-        } else {
-          writeFileSync(configPath, mcpConfig.content);
-        }
+        writeFileSync(configPath, mcpConfig.content);
         result.mcpConfigured = true;
+      } else {
+        const merged = this.mergeExistingConfig(configPath, mcpConfig.content);
+        if (merged === null) {
+          result.errors.push(
+            `${configPath} is not plain JSON (comments?) and was left unchanged; ` +
+            `update its "agentic-qe" server entry by hand`
+          );
+        } else {
+          writeFileIfChanged(configPath, merged);
+          result.mcpConfigured = true;
+        }
       }
 
       // Generate behavioral rules
@@ -107,23 +116,32 @@ export class CopilotInstaller {
     return result;
   }
 
-  private mergeExistingConfig(configPath: string, newContent: string): string {
+  /**
+   * Replace AQE's server entry in an existing config, keeping everything else.
+   * Returns null when the file cannot be merged safely (e.g. JSONC comments,
+   * which VS Code accepts but JSON.parse does not) so the user's file is never
+   * clobbered wholesale.
+   */
+  private mergeExistingConfig(configPath: string, newContent: string): string | null {
+    let existing: unknown;
     try {
-      const existing = JSON.parse(readFileSync(configPath, 'utf-8'));
-      const incoming = JSON.parse(newContent);
-
-      // Merge servers
-      if (!existing.servers) {
-        existing.servers = {};
-      }
-      Object.assign(existing.servers, incoming.servers);
-
-      return JSON.stringify(existing, null, 2) + '\n';
+      existing = JSON.parse(readFileSync(configPath, 'utf-8'));
     } catch {
-      // If existing config is invalid, overwrite
-      return newContent;
+      return null;
     }
+    if (!isPlainObject(existing)) return null;
+    if (existing.servers === undefined) existing.servers = {};
+    if (!isPlainObject(existing.servers)) return null;
+
+    const incoming = JSON.parse(newContent) as { servers: Record<string, unknown> };
+    Object.assign(existing.servers, incoming.servers);
+
+    return JSON.stringify(existing, null, 2) + '\n';
   }
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 // ============================================================================

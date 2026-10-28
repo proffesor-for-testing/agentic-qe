@@ -5,6 +5,8 @@
  * Supports: GitHub Copilot, Cursor, Cline, Kilo Code, Roo Code, OpenAI Codex, Windsurf, Continue.dev
  */
 
+import { createRequire } from 'module';
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -186,10 +188,37 @@ function getMcpServerEnv(dbFree: boolean): Record<string, string> {
     : { AQE_MEMORY_PATH: '.agentic-qe/memory.db', AQE_V3_MODE: 'true' };
 }
 
-function getMcpServerEntry(withAutoApprove: boolean, dbFree: boolean): Record<string, unknown> {
+/**
+ * Installed AQE version: the build-time define in the CLI/MCP bundles, otherwise
+ * package.json (tsc output and tests). Both src/init/ and dist/cli/ sit two levels
+ * below the package root.
+ */
+function getInstalledAqeVersion(): string {
+  if (typeof __CLI_VERSION__ !== 'undefined') return __CLI_VERSION__;
+  const pkg = createRequire(import.meta.url)('../../package.json') as { version: string };
+  return pkg.version;
+}
+
+/**
+ * Issue #1269: VS Code caches each MCP server's tool list keyed by a hash of its
+ * launch config (command/args/env) and only restarts the server when that hash
+ * changes. A version-independent `agentic-qe@latest` entry therefore kept serving
+ * tool schemas cached from an older server (the pre-#1185 "array type must have
+ * items" ones) after upgrading. Pinning the installed version changes the launch
+ * config on every release, so VS Code re-reads the tools after `aqe init`.
+ */
+export function getCopilotPackageSpec(): string {
+  return `agentic-qe@${getInstalledAqeVersion()}`;
+}
+
+function getMcpServerEntry(
+  withAutoApprove: boolean,
+  dbFree: boolean,
+  packageSpec = 'agentic-qe@latest',
+): Record<string, unknown> {
   const entry: Record<string, unknown> = {
     command: 'npx',
-    args: ['-y', 'agentic-qe@latest', 'mcp'],
+    args: ['-y', packageSpec, 'mcp'],
     env: getMcpServerEnv(dbFree),
   };
 
@@ -206,21 +235,20 @@ function getMcpServerEntry(withAutoApprove: boolean, dbFree: boolean): Record<st
 // ============================================================================
 
 function generateJsonConfig(platform: PlatformDefinition, dbFree: boolean): string {
-  const serverEntry = getMcpServerEntry(platform.supportsAutoApprove, dbFree);
-
   if (platform.id === 'copilot') {
-    // Copilot uses "servers" key with "type": "stdio"
+    // Copilot uses "servers" key with "type": "stdio", pinned to this version (#1269)
     const config = {
       [platform.configKey]: {
         'agentic-qe': {
           type: 'stdio',
-          ...serverEntry,
+          ...getMcpServerEntry(platform.supportsAutoApprove, dbFree, getCopilotPackageSpec()),
         },
       },
     };
     return JSON.stringify(config, null, 2) + '\n';
   }
 
+  const serverEntry = getMcpServerEntry(platform.supportsAutoApprove, dbFree);
   const config = {
     [platform.configKey]: {
       'agentic-qe': serverEntry,

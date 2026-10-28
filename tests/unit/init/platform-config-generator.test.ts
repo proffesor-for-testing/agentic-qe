@@ -4,12 +4,18 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'fs';
 import {
   PlatformConfigGenerator,
   createPlatformConfigGenerator,
+  getCopilotPackageSpec,
   PLATFORM_REGISTRY,
   type PlatformId,
 } from '../../../src/init/platform-config-generator.js';
+
+const PKG_VERSION = (JSON.parse(readFileSync(new URL('../../../package.json', import.meta.url), 'utf-8')) as {
+  version: string;
+}).version;
 
 describe('PlatformConfigGenerator', () => {
   const generator = new PlatformConfigGenerator();
@@ -80,6 +86,22 @@ describe('PlatformConfigGenerator', () => {
       const config = generator.generateMcpConfig('copilot');
       const parsed = JSON.parse(config.content);
       expect(parsed.servers['agentic-qe'].type).toBe('stdio');
+    });
+
+    // #1269: VS Code keys its MCP tool cache on a hash of the launch config, so a
+    // version-independent entry keeps serving tool schemas from an older server.
+    it('copilot entry pins the installed agentic-qe version (#1269)', () => {
+      const parsed = JSON.parse(generator.generateMcpConfig('copilot').content);
+      expect(getCopilotPackageSpec()).toBe(`agentic-qe@${PKG_VERSION}`);
+      expect(parsed.servers['agentic-qe'].args).toEqual(['-y', `agentic-qe@${PKG_VERSION}`, 'mcp']);
+      expect(parsed.servers['agentic-qe'].args).not.toContain('agentic-qe@latest');
+    });
+
+    it('non-copilot platforms keep agentic-qe@latest', () => {
+      const others: PlatformId[] = ['cursor', 'cline', 'kilocode', 'roocode', 'codex', 'windsurf', 'continuedev'];
+      for (const id of others) {
+        expect(generator.generateMcpConfig(id).content).toContain('agentic-qe@latest');
+      }
     });
 
     it('config paths match platform registry', () => {
