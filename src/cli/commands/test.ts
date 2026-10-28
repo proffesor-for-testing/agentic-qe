@@ -26,7 +26,7 @@ export function createTestCommand(
     .argument('<action>', 'Action (generate|execute|schedule|load)')
     .argument('[target]', 'Target file or directory')
     .option('--behavior-examples <path>', 'JSON specification examples for a single source file')
-    .option('-f, --framework <framework>', 'Test framework (execute: defaults to each project\'s jest/vitest config)', 'vitest')
+    .option('-f, --framework <framework>', 'Test framework (execute: defaults to each project\'s jest/vitest config; Python files run with pytest)', 'vitest')
     .option('--project-root <dir>', 'execute action: run every test file from this directory inside the project (for example a monorepo package); the target is then relative to it. Default: each file runs from its nearest directory with a vitest/jest config')
     .option('-t, --type <type>', 'Test type (unit|integration|e2e)', 'unit')
     .option('-F, --format <format>', 'Output format (text|json|junit|markdown)', 'text')

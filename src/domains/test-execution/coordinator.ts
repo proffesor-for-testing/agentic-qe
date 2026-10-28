@@ -76,6 +76,7 @@ import {
 // ADR-057: Infrastructure self-healing integration
 import type { InfraHealingOrchestrator } from '../../strange-loop/infra-healing/infra-healing-orchestrator.js';
 import { toError } from '../../shared/error-utils.js';
+import { isPythonTestFile } from '../../shared/pytest-junit-report.js';
 import {
   createMinCutTestOptimizer,
   type TestNode,
@@ -403,9 +404,11 @@ export class TestExecutionCoordinator
 
   /**
    * Fallback framework from file names. With no explicit framework, each
-   * runner project's own config still decides between jest and vitest (#1272).
+   * runner project's own config still decides between jest and vitest (#1272),
+   * and Python files always run with pytest (#1248).
    */
   private detectFramework(testFiles: string[]): string {
+    if (testFiles.every(isPythonTestFile)) return 'pytest';
     // Check file patterns for common framework indicators
     const hasVitestPattern = testFiles.some(f => f.includes('.test.') || f.includes('.spec.'));
     const hasMochaPattern = testFiles.some(f => f.includes('_test.') || f.includes('.mocha.'));

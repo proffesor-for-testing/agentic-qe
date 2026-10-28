@@ -26,6 +26,14 @@
  * `test` block built some other way (spread from another module, say) is not
  * seen and a `test:` that only appears in a comment is. Name the runner config
  * `vitest.config.*` for an exact match.
+ *
+ * #1248: a Python test file belongs to the nearest directory with pytest
+ * configuration instead (`pytest.ini`, `pyproject.toml` with
+ * `[tool.pytest.ini_options]`, `setup.cfg` with `[tool:pytest]`, `tox.ini`
+ * with `[pytest]`), and JavaScript files ignore that configuration. A
+ * `conftest.py` marks a pytest project for detection but is not a directory
+ * to run from: it is often in `tests/`, and pytest started there would not
+ * have the project root on `sys.path`.
  */
 
 import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
@@ -33,6 +41,7 @@ import * as path from 'node:path';
 import { findProjectRoot } from '../kernel/project-root.js';
 import { CallerInputError } from './error-utils.js';
 import { requirePayloadFiles, requirePayloadPath } from './io/payload-path-guard.js';
+import { isPythonTestFile } from './pytest-junit-report.js';
 import { safeJsonParse } from './safe-json.js';
 import { runnerFilePath } from './test-runner-args.js';
 import { Result, ok, err } from './types';
@@ -140,6 +149,44 @@ export function isRunnerProjectDir(dir: string): boolean {
   return configuredRunners(dir).size > 0;
 }
 
+/** pytest configuration files, and the section each must contain (none: always). */
+const PYTEST_CONFIG_SECTIONS: ReadonlyArray<[string, RegExp | undefined]> = [
+  ['pytest.ini', undefined],
+  ['pyproject.toml', /^\s*\[tool\.pytest(?:\.ini_options)?\]/m],
+  ['tox.ini', /^\s*\[pytest\]/m],
+  ['setup.cfg', /^\s*\[tool:pytest\]/m],
+];
+
+/**
+ * #1248: true when `dir` holds pytest configuration; with `conftest`, a
+ * `conftest.py` counts too (see the header note).
+ */
+export function isPytestProjectDir(dir: string, conftest = false): boolean {
+  if (conftest && existsSync(path.join(dir, 'conftest.py'))) return true;
+  return PYTEST_CONFIG_SECTIONS.some(([name, section]) => {
+    if (!section) return existsSync(path.join(dir, name));
+    const text = readSmallFile(path.join(dir, name));
+    return text !== undefined && section.test(text);
+  });
+}
+
+/**
+ * #1248: true when `dir`, or a directory above it no higher than `boundary`,
+ * is configured for pytest (including a `conftest.py`).
+ */
+export function isPytestProject(dir: string, boundary: string = findProjectRoot()): boolean {
+  const root = realDir(boundary);
+  let current = realDir(dir);
+  const bounded = isWithin(root, current);
+  for (;;) {
+    if (isPytestProjectDir(current, true)) return true;
+    if (!bounded || current === root) return false;
+    const parent = path.dirname(current);
+    if (parent === current) return false;
+    current = parent;
+  }
+}
+
 /**
  * #1272: the runner configured by the runner project that `dir` belongs to:
  * the nearest directory at or above `dir`, no higher than `boundary`, with
@@ -177,11 +224,14 @@ export function findRunnerProjectDir(
   const root = realDir(boundary);
   let dir = path.dirname(runnerFilePath(file, cwd));
   if (!isWithin(root, dir)) return undefined;
+  // #1248: Python files run from pytest config, other files from Vitest/Jest config.
+  const python = isPythonTestFile(file);
   for (;;) {
-    let isProject = checked.get(dir);
+    const key = python ? `pytest:${dir}` : dir;
+    let isProject = checked.get(key);
     if (isProject === undefined) {
-      isProject = isRunnerProjectDir(dir);
-      checked.set(dir, isProject);
+      isProject = python ? isPytestProjectDir(dir) : isRunnerProjectDir(dir);
+      checked.set(key, isProject);
     }
     if (isProject) return dir;
     if (dir === root) return undefined;
@@ -205,7 +255,8 @@ export function runnerCwdFor(file: string, options: RunnerProjectOptions = {}): 
 
 /**
  * Group `files` by the directory each must run from, in first-seen order.
- * Files keep the spelling they were given.
+ * Files keep the spelling they were given. #1248: Python files never share a
+ * group with other files, since only pytest runs them.
  */
 export function groupByRunnerProject(files: readonly string[], options: RunnerProjectOptions = {}): RunnerProjectGroup[] {
   const resolved: RunnerProjectOptions = {
@@ -213,14 +264,15 @@ export function groupByRunnerProject(files: readonly string[], options: RunnerPr
     boundary: options.boundary ?? findProjectRoot(),
     checked: options.checked ?? new Map(),
   };
-  const groups = new Map<string, string[]>();
+  const groups = new Map<string, RunnerProjectGroup>();
   for (const file of files) {
     const cwd = runnerCwdFor(file, resolved);
-    const group = groups.get(cwd);
-    if (group) group.push(file);
-    else groups.set(cwd, [file]);
+    const key = `${isPythonTestFile(file) ? 'py' : 'js'}\0${cwd}`;
+    const group = groups.get(key);
+    if (group) group.files.push(file);
+    else groups.set(key, { cwd, files: [file] });
   }
-  return [...groups].map(([cwd, groupFiles]) => ({ cwd, files: groupFiles }));
+  return [...groups.values()];
 }
 
 /** Test files to run, and the directory to run them from when the caller named one. */

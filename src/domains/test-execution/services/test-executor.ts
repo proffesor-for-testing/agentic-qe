@@ -28,9 +28,10 @@ import { secureRandom, secureRandomInt } from '../../../shared/utils/crypto-rand
 import { writeTestRunEvidence } from '../../quality-assessment/quality-evidence.js';
 import { istanbulLineHits } from '../../../coordination/handlers/handler-utils.js';
 import { fileCoverageKey, projectFileCoverageKeys } from '../../coverage-analysis/collected-metrics.js';
-import { mergeTestCases, redactFailedTests, redactFailureText, testCasesFromRunnerReport } from './runner-test-cases.js';
+import { mergeTestCases, redactFailedTests, redactFailureText, testCaseFailureMessage, testCasesFromRunnerReport } from './runner-test-cases.js';
 import { capDiagnostics, getTestRunnerExecutionError, TestRunnerExecutionError } from '../../../shared/test-runner-verdict.js';
 import { createVitestJsonReport, type VitestJsonReport } from '../../../shared/vitest-json-report.js';
+import { createPytestJunitReport, isPythonTestFile, pytestCommand, pytestRunFromReport, PYTEST_ENV, type PytestJunitReport } from '../../../shared/pytest-junit-report.js';
 import { jestExactPathPattern, runnerFilePath } from '../../../shared/test-runner-args.js';
 import { groupByRunnerProject, runnerFrameworkFor } from '../../../shared/test-runner-project.js';
 import { getClaudeModelForTier } from '../../../shared/llm/model-registry.js';
@@ -542,19 +543,31 @@ Provide:
 
     // #1247: a runner loads the config of the directory it starts in, so each
     // file runs from its own runner project (or the caller's projectRoot).
+    // #1248: Python files run apart from the others, with pytest.
     const groups = projectRoot
-      ? [{ cwd: projectRoot, files }]
+      ? [files.filter(isPythonTestFile), files.filter(file => !isPythonTestFile(file))]
+        .filter(group => group.length > 0)
+        .map(group => ({ cwd: projectRoot, files: group }))
       : groupByRunnerProject(files);
     // #1272: an explicit framework wins; otherwise the project's config decides.
-    const frameworkIn = (cwd: string): string =>
-      (frameworkFromConfig ? runnerFrameworkFor(cwd) : undefined) ?? framework;
+    // #1248: Python files run with pytest, never with a JavaScript runner.
+    const frameworkIn = (group: { cwd: string; files: string[] }): string => {
+      if (group.files.some(isPythonTestFile)) {
+        if (frameworkFromConfig || framework.toLowerCase() === 'pytest') return 'pytest';
+        throw new TestRunnerExecutionError(
+          `Python test files cannot run with ${framework}: ${group.files.filter(isPythonTestFile).join(', ')}. ` +
+          `Use framework 'pytest', or leave the framework unset.`);
+      }
+      return (frameworkFromConfig ? runnerFrameworkFor(group.cwd) : undefined) ?? framework;
+    };
     if (groups.length === 1) {
-      return this.executeProjectFiles(groups[0].files, frameworkIn(groups[0].cwd), timeout, groups[0].cwd);
+      return this.executeProjectFiles(groups[0].files, frameworkIn(groups[0]), timeout, groups[0].cwd);
     }
     // Each project gets its own runner and timeout. Their coverage maps are
     // merged from raw counters, or left unmeasured (#1030).
+    const frameworks = groups.map(frameworkIn);
     const results = await Promise.all(
-      groups.map(group => this.executeProjectFiles(group.files, frameworkIn(group.cwd), timeout, group.cwd))
+      groups.map((group, index) => this.executeProjectFiles(group.files, frameworks[index], timeout, group.cwd))
     );
     const combined = this.aggregateResults(results);
     const merged = this.mergeSequentialCoverage(results);
@@ -594,7 +607,7 @@ Provide:
   }
 
   /**
-   * Spawn actual test runner process (vitest, jest, mocha)
+   * Spawn actual test runner process (vitest, jest, mocha, node:test, pytest)
    */
   private async spawnTestRunner(
     files: string[],
@@ -642,6 +655,7 @@ Provide:
           env: {
             ...process.env,
             FORCE_COLOR: '0', // Disable color codes for easier parsing
+            ...PYTEST_ENV, // pytest reads any FORCE_COLOR as "force colour" (#1248)
             CI: 'true', // Enable CI mode for consistent output
           },
         });
@@ -691,11 +705,15 @@ Provide:
           finish(err(toError(error)));
           return;
         }
-        if (reportText === undefined) {
+        // #1248: pytest reports its own missing report (pytest not installed).
+        const pytest = framework.toLowerCase() === 'pytest';
+        if (reportText === undefined && !pytest) {
           finish(err(new TestRunnerExecutionError(`The current Vitest JSON report is missing for ${fileLabel}.`)));
           return;
         }
-        const parseResult = this.parseTestOutput(reportText, stderr, fileLabel, framework, code);
+        const parseResult = pytest
+          ? this.parsePytestOutput(reportText, `${stderr}\n${stdout}`, files, code, command)
+          : this.parseTestOutput(reportText ?? '', stderr, fileLabel, framework, code);
 
         // Read only this invocation's coverage artifacts. A previous or
         // concurrent run's project coverage directory is not evidence.
@@ -728,7 +746,7 @@ Provide:
   private buildTestCommand(
     fileOrFiles: string | string[],
     framework: string
-  ): { command: string; args: string[]; report?: VitestJsonReport; coverageDirectory?: string } {
+  ): { command: string; args: string[]; report?: VitestJsonReport | PytestJunitReport; coverageDirectory?: string } {
     // #909: absolute paths never start with '-', so a file cannot be read as a
     // flag; Jest's positional patterns are regexes, so escape and anchor them.
     const files = (Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles]).map(file => runnerFilePath(file));
@@ -771,8 +789,14 @@ Provide:
           command: process.execPath,
           args: ['--test', ...files],
         };
+      case 'pytest': {
+        // #1248: results come from the JUnit report file; no coverage is collected.
+        const report = createPytestJunitReport();
+        return { ...pytestCommand(files, report.path), report };
+      }
       default: {
-        // Default to vitest
+        // Default to vitest. Python files never get here: executeTestFiles
+        // sends them to pytest or refuses the run (#1248).
         const coverageDirectory = createCoverageDirectory();
         let report: VitestJsonReport;
         try { report = createVitestJsonReport(); } catch (error) {
@@ -819,6 +843,49 @@ Provide:
         `stdout: ${capDiagnostics(stdout, 500)}\nstderr: ${capDiagnostics(stderr, 500)}`
       ));
     }
+  }
+
+  /**
+   * #1248: a pytest run from its JUnit report (undefined when pytest wrote none).
+   */
+  private parsePytestOutput(
+    report: string | undefined,
+    output: string,
+    files: string[],
+    exitCode: number | null,
+    python: string
+  ): Result<TestExecutionResult, Error> {
+    const run = pytestRunFromReport(report, files, exitCode, output, python);
+    if (!run.success) return run;
+    const failedTests: FailedTest[] = run.value.tests
+      .filter(test => test.status === 'failed')
+      .map(test => ({
+        testId: uuidv4(),
+        testName: test.name,
+        file: test.file,
+        error: test.failureMessage ?? 'Test failed',
+        stack: test.failureMessage ?? '',
+        duration: test.duration ?? 0,
+      }));
+    const testCases: TestCase[] = run.value.tests.map(test => {
+      const failureMessage = test.failureMessage && testCaseFailureMessage(test.failureMessage);
+      return {
+        name: test.name,
+        file: test.file,
+        status: test.status,
+        ...(test.duration !== undefined ? { duration: test.duration } : {}),
+        ...(failureMessage ? { failureMessage } : {}),
+      };
+    });
+    return ok({
+      total: run.value.total,
+      passed: run.value.passed,
+      failed: run.value.failed,
+      skipped: run.value.skipped,
+      failedTests,
+      testCases,
+      coverage: undefined,
+    });
   }
 
   /**
