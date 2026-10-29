@@ -7,7 +7,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { prunePredictionHistory } from '../prediction-history.js';
+import { predictionTargetForFiles, prunePredictionHistory } from '../prediction-history.js';
 import { LoggerFactory } from '../../../logging/index.js';
 import { Result, ok, err, Severity } from '../../../shared/types';
 import { MemoryBackend } from '../../../kernel/interfaces';
@@ -28,7 +28,7 @@ import { TypeScriptParser } from '../../../shared/parsers';
 
 // ADR-051: LLM Router for AI-enhanced defect prediction
 import type { HybridRouter, ChatResponse } from '../../../shared/llm';
-import { toError } from '../../../shared/error-utils.js';
+import { toError, toErrorMessage } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { getClaudeModelForTier } from '../../../shared/llm/model-registry.js';
 import { measuredFileCoverage } from '../../quality-assessment/coverage-report-event.js';
@@ -444,7 +444,7 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
       }
 
       // Store prediction for potential feedback
-      await this.storePrediction(predictions);
+      const retained = await this.storePrediction(predictions, files);
 
       // Update metrics
       this.modelMetrics.totalPredictions += predictions.length;
@@ -456,6 +456,7 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
         factors: Array.from(factors),
         // ADR-051: Include LLM analysis in result if available
         llmAnalysis: llmAnalysis ?? undefined,
+        ...(retained ? {} : { retention: 'failed' as const }),
       });
     } catch (error) {
       return err(toError(error));
@@ -1160,18 +1161,27 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
     return squareDiffs.reduce((a, b) => a + b, 0) / values.length;
   }
 
-  private async storePrediction(predictions: FilePrediction[]): Promise<void> {
+  /** Records the run; `false` when it was stored but older runs could not be pruned (#1137). */
+  private async storePrediction(predictions: FilePrediction[], files: readonly string[]): Promise<boolean> {
     const predictionId = uuidv4();
     await this.memory.set(
       `${this.config.modelNamespace}:prediction:${predictionId}`,
       {
         id: predictionId,
+        target: predictionTargetForFiles(files),
         predictions,
         timestamp: new Date().toISOString(),
       },
       { namespace: 'defect-intelligence', ttl: 86400 * 7 } // 7 days
     );
-    await prunePredictionHistory(this.memory, this.config.modelNamespace);
+    try {
+      await prunePredictionHistory(this.memory, this.config.modelNamespace);
+      return true;
+    } catch (error) {
+      // The run is stored; retention catches up on the next run or the TTL.
+      logger.warn('Defect prediction stored, but pruning older runs failed', { error: toErrorMessage(error) });
+      return false;
+    }
   }
 
   private async recalculateMetrics(feedback: PredictionFeedback): Promise<void> {

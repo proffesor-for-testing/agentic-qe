@@ -24,8 +24,9 @@ const INVENTED = /workflow-orchestrator|security-scanner\.ts|memory-backend\.ts|
 /** A prediction recorded the way DefectPredictorService.storePrediction does. */
 async function recordPrediction(store: NamespacedStore, id: string, timestamp: string, predictions: Array<{
   file: string; probability: number; riskLevel: string; factors?: Array<{ name: string; contribution: number }>;
-}>) {
+}>, extra: Record<string, unknown> = {}) {
   await store.memory.set(`defect-intelligence:predictor:prediction:${id}`, {
+    ...extra,
     id,
     timestamp,
     predictions: predictions.map((p) => ({
@@ -213,5 +214,82 @@ describe('#1043 — defect-predictor worker relays real domain predictions only'
     await recordPrediction(store, 'p-4', recent(1), [{ file: 'src/risky.ts', probability: 0.3, riskLevel: 'low' }]);
     await new DefectPredictorWorker().execute(contextFor(store.memory));
     expect(store.read('defect:predictions')).toMatchObject({ measured: true, predictionId: 'p-4' });
+  });
+
+  describe('#1137 — the latest run of every target is reported', () => {
+    it('predicting src/b after src/a keeps src/a', async () => {
+      const store = namespacedStore();
+      await recordPrediction(store, 'p-a', recent(10), [{ file: 'src/risky.ts', probability: 0.8, riskLevel: 'high' }], { target: `${root}/src/risky.ts` });
+      await recordPrediction(store, 'p-b', recent(1), [{ file: 'src/calm.ts', probability: 0.1, riskLevel: 'info' }], { target: `${root}/src/calm.ts` });
+
+      const result = await new DefectPredictorWorker().execute(contextFor(store.memory));
+
+      expect(riskFindings(result.findings)).toEqual([expect.objectContaining({ type: 'high-defect-risk', resource: 'src/risky.ts' })]);
+      const stored = store.read('defect:predictions') as Record<string, any>;
+      expect(stored).toMatchObject({ predictionId: 'p-b', predictedAt: expect.any(String) });
+      expect(stored.predictions.map((p: { file: string }) => p.file)).toEqual(['src/calm.ts', 'src/risky.ts']);
+      expect(stored.runs).toEqual([
+        expect.objectContaining({ predictionId: 'p-b', target: `${root}/src/calm.ts`, files: 1 }),
+        expect.objectContaining({ predictionId: 'p-a', target: `${root}/src/risky.ts`, files: 1 }),
+      ]);
+      expect(result.metrics.domainMetrics).toMatchObject({ filesAnalyzed: 2, targetsReported: 2 });
+    });
+
+    it('a file named by two targets takes the newest run\'s prediction, under either spelling', async () => {
+      const store = namespacedStore();
+      await recordPrediction(store, 'p-src', recent(10), [
+        { file: path.join(root, 'src', 'risky.ts'), probability: 0.9, riskLevel: 'critical' },
+        { file: path.join(root, 'src', 'calm.ts'), probability: 0.1, riskLevel: 'info' },
+      ], { target: `${root}/src` });
+      await recordPrediction(store, 'p-file', recent(1), [{ file: 'src/risky.ts', probability: 0, riskLevel: 'info' }], { target: 'files:src/risky.ts' });
+
+      const result = await new DefectPredictorWorker().execute(contextFor(store.memory));
+
+      expect(riskFindings(result.findings)).toEqual([]);
+      const stored = store.read('defect:predictions') as { predictions: Array<{ file: string; probability: number }> };
+      expect(stored.predictions).toEqual([
+        expect.objectContaining({ file: 'src/risky.ts', probability: 0 }),
+        expect.objectContaining({ file: path.join(root, 'src', 'calm.ts'), probability: 0.1 }),
+      ]);
+    });
+
+    it('an ambiguous target is skipped with a finding while other targets are still reported', async () => {
+      const store = namespacedStore();
+      const tied = recent(1);
+      await recordPrediction(store, 'p-t1', tied, [{ file: 'src/calm.ts', probability: 0.9, riskLevel: 'critical' }], { target: 'files:src/calm.ts' });
+      await recordPrediction(store, 'p-t2', tied, [{ file: 'src/calm.ts', probability: 0, riskLevel: 'info' }], { target: 'files:src/calm.ts' });
+      await recordPrediction(store, 'p-ok', recent(5), [{ file: 'src/risky.ts', probability: 0.8, riskLevel: 'high' }], { target: 'files:src/risky.ts' });
+
+      const result = await new DefectPredictorWorker().execute(contextFor(store.memory));
+
+      expect(riskFindings(result.findings)).toEqual([expect.objectContaining({ resource: 'src/risky.ts' })]);
+      expect(result.findings).toContainEqual(expect.objectContaining({ type: 'defect-prediction-ambiguous', severity: 'info' }));
+      expect(store.read('defect:predictions')).toMatchObject({ predictionId: 'p-ok', ambiguousTargetsSkipped: 1 });
+    });
+
+    it('labels each finding by the method of the run it came from', async () => {
+      const store = namespacedStore();
+      await recordPrediction(store, 'p-model', recent(10), [{ file: 'src/risky.ts', probability: 0.8, riskLevel: 'high' }], { target: 'files:src/risky.ts' });
+      await recordPrediction(store, 'p-static', recent(1), [{ file: 'src/calm.ts', probability: 0.85, riskLevel: 'critical' }],
+        { target: `${root}/src/calm.ts`, predictionMethod: 'static-code-indicators', estimated: true, filesSkipped: 2 });
+
+      const result = await new DefectPredictorWorker().execute(contextFor(store.memory));
+
+      const byFile = Object.fromEntries(riskFindings(result.findings).map((f: any) => [f.resource, f.description]));
+      expect(byFile['src/calm.ts']).toContain('estimated code-risk score (static-code-indicators)');
+      expect(byFile['src/risky.ts']).toContain('predicted defect probability (defect-intelligence predictor)');
+      expect(store.read('defect:predictions')).toMatchObject({ estimated: true, filesSkipped: 2 });
+    });
+
+    it('ignores a record whose target is not a bounded string', async () => {
+      const store = namespacedStore();
+      await recordPrediction(store, 'p-long', recent(1), [{ file: 'src/risky.ts', probability: 0.9, riskLevel: 'critical' }], { target: 'x'.repeat(4097) });
+      await recordPrediction(store, 'p-num', recent(1), [{ file: 'src/risky.ts', probability: 0.9, riskLevel: 'critical' }], { target: 42 });
+
+      const result = await new DefectPredictorWorker().execute(contextFor(store.memory));
+
+      expect(riskFindings(result.findings)).toEqual([]);
+      expect(result.metrics.healthScore).toBeNull();
+    });
   });
 });

@@ -227,7 +227,7 @@ export class HeartbeatHandler implements ICommandHandler {
         const dm = entry.domainMetrics || {};
         console.log(
           `  ${chalk.gray(ts)}  ${status}  ` +
-          `score:${chalk.cyan(String(entry.healthScore))}  ` +
+          `score:${chalk.cyan(String(entry.healthScore ?? 'unmeasured'))}  ` +
           `+${dm.promoted ?? 0}/-${dm.deprecated ?? 0}  ` +
           `${chalk.gray(formatDuration(entry.durationMs))}`
         );
@@ -342,7 +342,7 @@ interface HeartbeatHistoryEntry {
   timestamp: string;
   success: boolean;
   durationMs: number;
-  healthScore: number;
+  healthScore: number | null;
   domainMetrics: Record<string, number | string>;
 }
 
@@ -417,7 +417,8 @@ function statusColor(status: string): string {
   }
 }
 
-function scoreColor(score: number): string {
+function scoreColor(score: number | null): string {
+  if (score === null) return chalk.gray('unmeasured');
   if (score >= 80) return chalk.green(String(score));
   if (score >= 50) return chalk.yellow(String(score));
   return chalk.red(String(score));

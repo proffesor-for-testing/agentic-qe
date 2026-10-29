@@ -238,12 +238,19 @@ describe('DefectPredictorWorker', () => {
 
   describe('health score calculation', () => {
     it('should calculate health score between 0 and 100', async () => {
-      const context = createMockContext();
+      const context = createMockContext(recordedPrediction());
 
       const result = await worker.execute(context);
 
       expect(result.metrics.healthScore).toBeGreaterThanOrEqual(0);
       expect(result.metrics.healthScore).toBeLessThanOrEqual(100);
+    });
+
+    it('#1137: reports no health score, not a passing 100, when nothing was measured', async () => {
+      const result = await worker.execute(createMockContext());
+
+      expect(result.metrics.healthScore).toBeNull();
+      expect(result.metrics.domainMetrics).toMatchObject({ health: 'unmeasured' });
     });
   });
 

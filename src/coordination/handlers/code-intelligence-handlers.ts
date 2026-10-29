@@ -6,10 +6,10 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { prunePredictionHistory } from '../../domains/defect-intelligence/prediction-history.js';
+import { MAX_PREDICTION_TARGET_LENGTH, prunePredictionHistory } from '../../domains/defect-intelligence/prediction-history.js';
 import * as path from 'path';
 import { ok, err, type Result } from '../../shared/types';
-import { toError } from '../../shared/error-utils.js';
+import { CallerInputError, toError, toErrorMessage } from '../../shared/error-utils.js';
 import type { TaskHandlerContext } from './handler-types';
 import { discoverSourceFiles } from './handler-utils';
 import { resolveProjectRootFromPaths } from '../../domains/code-intelligence/project-root-resolver.js';
@@ -64,6 +64,11 @@ async function collectProjectMetricsForTarget(
 /** #1126: a caller-named target must be a file or directory inside the project. */
 async function confineTarget(taskType: string, target: string | undefined): Promise<Result<string | undefined, Error>> {
   if (!target || target === '.') return ok(undefined);
+  // #1137: no path is longer than PATH_MAX; refuse before resolving, echoing or storing it.
+  if (typeof target === 'string' && target.length > MAX_PREDICTION_TARGET_LENGTH) {
+    return err(new CallerInputError(
+      `Invalid ${taskType} payload: 'target' is ${target.length} characters; the limit is ${MAX_PREDICTION_TARGET_LENGTH}`));
+  }
   return requirePayloadPath(taskType, 'target', target, { allowDirectory: true, allowMissing: true });
 }
 
@@ -328,6 +333,7 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
       const id = randomUUID();
       await ctx.memory.set(`defect-intelligence:predictor:prediction:${id}`, {
         id,
+        target: targetPath,
         timestamp: new Date().toISOString(),
         predictions,
         predictionMethod: 'static-code-indicators',
@@ -335,7 +341,14 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
         filesSkipped,
         scanStatus: filesSkipped > 0 ? 'partial' : 'complete',
       }, { namespace: 'defect-intelligence', ttl: 86400 * 7 });
-      await prunePredictionHistory(ctx.memory);
+      // #1137: the run is stored; a retention failure must not report it lost.
+      let retentionError: string | undefined;
+      try {
+        await prunePredictionHistory(ctx.memory);
+      } catch (error) {
+        retentionError = toErrorMessage(error);
+        logger.warn('Defect prediction stored, but pruning older runs failed', { error: retentionError });
+      }
 
       // Sort by probability descending
       predictedDefects.sort((a, b) => b.probability - a.probability);
@@ -374,6 +387,7 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
         scanStatus: filesSkipped > 0 ? 'partial' : 'complete',
         predictionMethod: 'static-code-indicators',
         estimated: true,
+        ...(retentionError ? { retention: 'failed', retentionError } : {}),
       });
     } catch (error) {
       return err(toError(error));
