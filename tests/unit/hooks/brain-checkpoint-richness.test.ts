@@ -3,7 +3,8 @@
  * published aqe.rvf for the #629 richness guard to compare against. When the
  * guard refuses, the old checkpoint stays and the hook backs off like the
  * too-large path (#1238). A deliberate shrink (`aqe learning prune --apply`)
- * leaves an acknowledgement that the next export honours once.
+ * leaves an acknowledgement that the CLI honours once, within 24h, while the
+ * brain holds the counts the shrink left (--accept-shrink).
  *
  * Covers both the shipped helper and the inline copy `aqe init` generates.
  */
@@ -12,7 +13,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync,
 } from 'fs';
-import { execFileSync } from 'child_process';
+import { execFileSync, spawnSync } from 'child_process';
 import { tmpdir } from 'os';
 import { join, resolve } from 'path';
 
@@ -40,7 +41,10 @@ const variants: Variant[] = [
 let tmp: string;
 afterEach(() => { if (tmp) rmSync(tmp, { recursive: true, force: true }); });
 
-/** Project with the helper and a fake `aqe` that logs its arguments; `mode` picks its behaviour. */
+/**
+ * Project with the helper and a fake `aqe` that logs its arguments; `mode`
+ * picks its behaviour and `verdict` its answer to --accept-shrink.
+ */
 function project(variant: Variant) {
   tmp = mkdtempSync(join(tmpdir(), 'aqe-1251-hook-'));
   const aqeDir = join(tmp, 'proj', '.agentic-qe');
@@ -52,32 +56,38 @@ function project(variant: Variant) {
 
   const argsLog = join(tmp, 'args.log');
   const modeFile = join(tmp, 'mode');
+  const verdictFile = join(tmp, 'verdict');
+  writeFileSync(verdictFile, 'HONOURED: prune');
   const fakeAqe = join(tmp, 'aqe');
   writeFileSync(fakeAqe, `#!/bin/sh\necho "$*" >> "${argsLog}"\n`
-    + `if [ "$(cat "${modeFile}")" = richer ]; then echo "  Brain export failed: ${RICHER}" >&2; exit 1; fi\n`
     + `if [ "$(cat "${modeFile}")" = crash ]; then exit 3; fi\n`
+    + `case "$*" in *--accept-shrink*) echo "  SHRINK_ACK_$(cat "${verdictFile}")";; esac\n`
+    + `if [ "$(cat "${modeFile}")" = richer ]; then echo "  Brain export failed: ${RICHER}" >&2; exit 1; fi\n`
     + 'while [ $# -gt 0 ]; do [ "$1" = "-o" ] && out=$2; shift; done\n'
     + 'printf NEW-RVF > "$out"; echo "Patterns: 5"\n');
   chmodSync(fakeAqe, 0o755);
 
+  const env = { PATH: process.env.PATH ?? '', AQE_HOOK_BIN: fakeAqe };
   const run = (cmd: 'export' | 'verify') => JSON.parse(execFileSync(
-    process.execPath, [helper, cmd, '--json'],
-    { env: { PATH: process.env.PATH ?? '', AQE_HOOK_BIN: fakeAqe }, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] },
+    process.execPath, [helper, cmd, '--json'], { env, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] },
   ));
+  const stderrOf = (cmd: 'export' | 'verify') =>
+    spawnSync(process.execPath, [helper, cmd, '--json'], { env, encoding: 'utf-8' }).stderr;
   const calls = () => (existsSync(argsLog) ? readFileSync(argsLog, 'utf-8').split('\n').filter(Boolean) : []);
   const rvf = join(aqeDir, 'aqe.rvf');
   const ack = join(aqeDir, CHECKPOINT_SHRINK_ACK_FILE);
   const skip = join(aqeDir, 'brain-checkpoint.skip.json');
   return {
-    run, calls, rvf, ack, skip,
+    run, stderrOf, calls, rvf, ack, skip,
     mode: (m: 'richer' | 'ok' | 'crash') => writeFileSync(modeFile, m),
+    verdict: (v: string) => writeFileSync(verdictFile, v),
     seedCheckpoint: (secondsAgo = 60) => {
       writeFileSync(rvf, 'RICH-RVF');
       const t = new Date(Date.now() - secondsAgo * 1000);
       utimesSync(rvf, t, t);
     },
     acknowledge: (secondsAgo = 0) => writeFileSync(ack, JSON.stringify({
-      at: new Date(Date.now() - secondsAgo * 1000).toISOString(), reason: 'aqe learning prune --apply',
+      at: new Date(Date.now() - secondsAgo * 1000).toISOString(), producer: 'prune', tableCounts: { qe_patterns: 5 },
     })),
   };
 }
@@ -115,13 +125,29 @@ describe.skipIf(process.platform === 'win32').each(variants)('brain-checkpoint $
     expect(p.calls()).toHaveLength(1);
   });
 
-  it('should_reportThePause_when_theSessionStartsDuringTheBackOff', () => {
+  it('should_logTheBackOffOnce_notOnEverySkippedTurn', () => {
+    const p = project(variant);
+    p.mode('richer');
+    p.seedCheckpoint();
+
+    const refusalLog = p.stderrOf('export');
+    const skippedLog = p.stderrOf('export');
+
+    expect(refusalLog).toContain('Skipping the checkpoint export until');
+    expect(skippedLog).toBe('');
+  });
+
+  it('should_reportThePauseAndHowToResume_when_theSessionStartsDuringTheBackOff', () => {
     const p = project(variant);
     p.mode('richer');
     p.seedCheckpoint();
     const refused = p.run('export');
 
-    expect(p.run('verify')).toMatchObject({ pausedUntil: refused.retryAfter, pauseReason: RICHER });
+    const verified = p.run('verify');
+
+    expect(verified).toMatchObject({ pausedUntil: refused.retryAfter, pauseReason: RICHER });
+    expect(verified.resumeHint).toContain('aqe brain export -o .agentic-qe/aqe.rvf --force-overwrite-richer');
+    expect(verified.resumeHint).toContain('delete .agentic-qe/brain-checkpoint.skip.json');
   });
 
   it('should_overwriteOnceAndSpendTheAck_when_aShrinkWasAcknowledged', () => {
@@ -133,11 +159,39 @@ describe.skipIf(process.platform === 'win32').each(variants)('brain-checkpoint $
     const accepted = p.run('export');
     p.run('export');
 
-    expect(accepted).toMatchObject({ exported: true, acceptedShrink: 'aqe learning prune --apply' });
-    expect(p.calls()[0]).toContain('--force-overwrite-richer');
-    expect(p.calls()[0]).not.toContain('--compare-with');
+    expect(accepted).toMatchObject({ exported: true, acceptedShrink: 'prune' });
+    expect(p.calls()[0]).toContain(`--compare-with ${p.rvf} --richness-policy checkpoint --accept-shrink ${p.ack}`);
+    expect(p.calls()[0]).not.toContain('--force-overwrite-richer');
     expect(existsSync(p.ack)).toBe(false);
-    expect(p.calls()[1]).toContain('--compare-with');
+    expect(p.calls()[1]).not.toContain('--accept-shrink');
+  });
+
+  it('should_dropTheAckAndApplyTheNormalPolicy_when_theCliIgnoresIt', () => {
+    const p = project(variant);
+    p.mode('richer');
+    p.verdict('IGNORED: the brain shrank again since the prune: refusing to replace richer mirrored tables: qe_patterns 95 -> 70');
+    p.seedCheckpoint();
+    p.acknowledge();
+
+    const stderr = p.stderrOf('export');
+
+    expect(stderr).toContain('Ignored the shrink acknowledgement (the brain shrank again since the prune');
+    expect(stderr).toContain('Export refused, previous aqe.rvf kept');
+    expect(existsSync(p.ack)).toBe(false);
+    expect(readFileSync(p.rvf, 'utf-8')).toBe('RICH-RVF');
+  });
+
+  it('should_dropAnAckOlderThan24hWithoutPassingIt', () => {
+    const p = project(variant);
+    p.mode('ok');
+    p.seedCheckpoint(30 * 3600);
+    p.acknowledge(25 * 3600);
+
+    const stderr = p.stderrOf('export');
+
+    expect(stderr).toContain('Ignored the shrink acknowledgement (older than 24h)');
+    expect(p.calls()[0]).not.toContain('--accept-shrink');
+    expect(existsSync(p.ack)).toBe(false);
   });
 
   it('should_endTheBackOff_when_theShrinkIsAcknowledgedAfterTheRefusal', () => {
@@ -148,7 +202,7 @@ describe.skipIf(process.platform === 'win32').each(variants)('brain-checkpoint $
     p.mode('ok');
     p.acknowledge(-1); // a second after the refusal
 
-    expect(p.run('export')).toMatchObject({ exported: true, acceptedShrink: 'aqe learning prune --apply' });
+    expect(p.run('export')).toMatchObject({ exported: true, acceptedShrink: 'prune' });
     expect(existsSync(p.skip)).toBe(false);
   });
 
@@ -171,7 +225,7 @@ describe.skipIf(process.platform === 'win32').each(variants)('brain-checkpoint $
 
     p.run('export');
 
-    expect(p.calls()[0]).not.toContain('--force-overwrite-richer');
+    expect(p.calls()[0]).not.toContain('--accept-shrink');
     expect(existsSync(p.ack)).toBe(false);
   });
 });

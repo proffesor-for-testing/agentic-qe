@@ -35,7 +35,14 @@ import {
   type MergeResult,
 } from './brain-shared.js';
 import { appendBrainImportWitness } from './brain-import-audit.js';
-import { assertNotPoorerThanMirror, RvfMirrorGuardError, type RichnessPolicy } from './brain-rvf-richness.js';
+import {
+  assertNotPoorerThanMirror,
+  CODE_INDEX_VECTOR_ID_PREFIX,
+  evaluateShrinkAck,
+  RvfMirrorGuardError,
+  type RichnessPolicy,
+  type ShrinkAckVerdict,
+} from './brain-rvf-richness.js';
 
 // --- Types ---
 
@@ -92,6 +99,13 @@ export interface RvfBrainExportOptions {
   readonly compareWithPath?: string;
   /** How much shrinkage the richness guard tolerates. Defaults to 'strict'. */
   readonly richnessPolicy?: RichnessPolicy;
+  /**
+   * A deliberate-shrink acknowledgement (parsed JSON, #1251). When it still
+   * vouches for this export, it replaces the mirror comparison.
+   */
+  readonly shrinkAck?: unknown;
+  /** Told whether `shrinkAck` was honoured, before the mirror comparison runs. */
+  readonly onShrinkAck?: (verdict: ShrinkAckVerdict) => void;
   /** Kernel size ceiling in bytes. Defaults to RVF_MAX_KERNEL_BYTES; lowered only by tests. */
   readonly maxKernelBytes?: number;
 }
@@ -122,7 +136,7 @@ export const RVF_MAX_KERNEL_BYTES = 128 * 1024 * 1024;
  * index, C4 diagrams). They are derived from source code and rebuilt by
  * `aqe code index`, so they stay out of the brain kernel (#1238).
  */
-export const CODE_INDEX_VECTOR_ID_PREFIX = 'code-intelligence:';
+export { CODE_INDEX_VECTOR_ID_PREFIX };
 
 const CODE_INDEX_VECTOR_MATCH = `substr(id, 1, ${CODE_INDEX_VECTOR_ID_PREFIX.length}) = ?`;
 
@@ -462,7 +476,15 @@ export function exportBrainToRvf(
     // #1251: the Stop-hook checkpoint writes to a temp path and names the
     // published checkpoint in `compareWithPath`, so it is compared here too.
     const comparePath = options.compareWithPath ? resolve(options.compareWithPath) : outPath;
-    if (existsSync(comparePath) && !options.allowOverwriteRicher) {
+    let allowOverwriteRicher = options.allowOverwriteRicher === true;
+    if (options.shrinkAck !== undefined && !allowOverwriteRicher) {
+      const verdict = evaluateShrinkAck(
+        options.shrinkAck, TABLE_CONFIGS.map(({ tableName }) => tableName), manifest.stats.tableCounts!,
+      );
+      options.onShrinkAck?.(verdict);
+      allowOverwriteRicher = verdict.honoured;
+    }
+    if (existsSync(comparePath) && !allowOverwriteRicher) {
       let existing: RvfBrainManifest | undefined;
       try {
         // Code-index vectors are no longer exported (#1238), so an older mirror

@@ -6,6 +6,7 @@
  */
 
 import path from 'path';
+import { readFileSync } from 'fs';
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { ICommandHandler, CLIContext } from './interfaces.js';
@@ -23,7 +24,11 @@ import type {
   TableDiff,
 } from '../../integrations/ruvector/brain-diff.js';
 import type { BrainSearchResult } from '../../integrations/ruvector/brain-search.js';
-import { isRichnessPolicy, RICHNESS_POLICIES } from '../../integrations/ruvector/brain-rvf-richness.js';
+import {
+  isRichnessPolicy,
+  RICHNESS_POLICIES,
+  type ShrinkAckVerdict,
+} from '../../integrations/ruvector/brain-rvf-richness.js';
 
 /** Export refusals with a self-explaining message: printed without a stack. */
 const EXPECTED_EXPORT_FAILURES = new Set([
@@ -63,6 +68,7 @@ export class BrainHandler implements ICommandHandler {
       .option('--force-overwrite-richer', 'Allow replacing an existing RVF with fewer patterns', false)
       .option('--compare-with <path>', 'RVF to check richness against instead of the output path (rvf format)')
       .option('--richness-policy <policy>', 'Richness guard: strict (default) or checkpoint (refuses only a collapse)', 'strict')
+      .option('--accept-shrink <path>', 'Deliberate-shrink acknowledgement to honour if it still applies (checkpoint hook)')
       .action(async (options: ExportOptions) => {
         await this.executeExport(options);
       });
@@ -137,6 +143,13 @@ export class BrainHandler implements ICommandHandler {
         allowOverwriteRicher: options.forceOverwriteRicher,
         compareWithPath: options.compareWith ? path.resolve(options.compareWith) : undefined,
         richnessPolicy: options.richnessPolicy,
+        ...(options.acceptShrink ? {
+          shrinkAck: readShrinkAck(options.acceptShrink),
+          // One line on stdout the checkpoint hook acts on (#1251).
+          onShrinkAck: (v: ShrinkAckVerdict) => console.log(v.honoured
+            ? `  SHRINK_ACK_HONOURED: ${v.producer}`
+            : `  SHRINK_ACK_IGNORED: ${v.reason}`),
+        } : {}),
       });
 
       console.log(chalk.green('  Export complete.'));
@@ -444,6 +457,16 @@ interface ExportOptions {
   forceOverwriteRicher: boolean;
   compareWith?: string;
   richnessPolicy: string;
+  acceptShrink?: string;
+}
+
+/** The acknowledgement's JSON, or null when it cannot be read (then ignored as malformed). */
+function readShrinkAck(file: string): unknown {
+  try {
+    return JSON.parse(readFileSync(path.resolve(file), 'utf-8'));
+  } catch {
+    return null;
+  }
 }
 
 interface ImportOptions {

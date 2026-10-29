@@ -70,16 +70,27 @@ checkpoint with `aqe brain export --compare-with <aqe.rvf>`.
 The strict rule would refuse almost every turn: routine retention deletes
 mirrored rows between turns (routing-outcome retention, concept-edge pruning,
 q-value and trajectory cleanup). The hook therefore passes
-`--richness-policy checkpoint`, which refuses only a collapse: a table that
-lost at least 10 rows and more than half of them, or more than 10% for
-`qe_patterns` and `captured_experiences`. A table that the older mirror lacks
+`--richness-policy checkpoint`, which refuses only a collapse. A table is
+refused when it lost more than half its rows (more than 10% for `qe_patterns`
+and `captured_experiences`), and either at least 10 rows or every row from at
+least 3. That catches both #629 regressions (25 -> 5, 7 -> 0) and passes
+routine retention such as 500 -> 450. A table that the older mirror lacks
 counts as empty. A mirror with no table inventory is still ambiguous. Manual
 exports keep the strict rule.
 
-On a refusal the hook keeps `aqe.rvf`, logs the reason, and backs off the
-same way as a too-large export. Session-start `verify` reports the pause. A
-deliberate shrink (`aqe learning prune --apply`, or dream retention when it
-removed rows) writes `.agentic-qe/brain-checkpoint.accept-shrink.json`. The
-next hook export passes `--force-overwrite-richer` once and deletes the file.
-This is the only case where automation supplies the override, and it does so
-because an operator command or opted-in retention recorded the shrink.
+On a refusal the hook keeps `aqe.rvf`, logs the reason once, and backs off
+for 6h the same way as a too-large export. Skipped turns are silent.
+Session-start `verify` reports the pause and how to resume: run
+`aqe brain export --force-overwrite-richer` manually, or delete the back-off
+marker.
+
+A deliberate shrink (`aqe learning prune --apply`, or dream retention when it
+removed rows) writes `.agentic-qe/brain-checkpoint.accept-shrink.json` with
+its creation time, its producer (`prune` or `dream`), and the mirrored row
+counts right after the shrink. The hook passes it with `--accept-shrink`.
+The export honours it in place of the mirror comparison only if it is under
+24h old and no table has collapsed since, under the checkpoint policy. Growth
+is always fine. Otherwise the hook deletes it, logs that it did, and the
+normal policy applies. An honoured acknowledgement is deleted after the export
+succeeds. Automation therefore never overrides the guard without a fresh
+record of a deliberate shrink that still matches the brain.

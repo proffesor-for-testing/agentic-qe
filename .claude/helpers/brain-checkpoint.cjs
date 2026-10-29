@@ -26,10 +26,13 @@ const RETRY_ENV = Number.parseFloat(process.env.AQE_BRAIN_CHECKPOINT_RETRY_HOURS
 const TOO_LARGE_RETRY_HOURS = Number.isFinite(RETRY_ENV) && RETRY_ENV >= 0 ? RETRY_ENV : 6;
 // #1251: the export is compared with the published aqe.rvf and refused when a
 // table collapsed (memory.db recreated from seed data, say). A deliberate shrink
-// (`aqe learning prune --apply`, dream retention) leaves this acknowledgement;
-// the next export then replaces the checkpoint once without the comparison.
+// (`aqe learning prune --apply`, dream retention) leaves this acknowledgement
+// with the row counts it left. The CLI honours it once, within 24h, and only
+// while the brain still holds those counts; otherwise the hook drops it.
 const SHRINK_ACK_PATH = path.join(AQE_DIR, 'brain-checkpoint.accept-shrink.json');
+const SHRINK_ACK_MAX_AGE_HOURS = 24;
 const MIRROR_REFUSAL = /RVF_MIRROR_(?:RICHER|INSPECTION_AMBIGUOUS):[^\n]*/;
+const SHRINK_ACK_VERDICT = /SHRINK_ACK_(HONOURED|IGNORED): ([^\n]*)/;
 /**
  * How to run `aqe`. POSIX: the `aqe` binary. Windows (#872): never execFile
  * `aqe.cmd` (EINVAL without a shell since CVE-2024-27980, and a shell is unsafe);
@@ -98,9 +101,15 @@ function activeSkip() {
   return skip;
 }
 
+function dropShrinkAck(why) {
+  try { removeEntry(SHRINK_ACK_PATH); } catch { /* best-effort */ }
+  log('Ignored the shrink acknowledgement (' + why + '); the normal checkpoint policy applies.');
+}
+
 /**
- * The acknowledgement of a deliberate shrink, or null. One older than aqe.rvf
- * is spent: an export has already checkpointed the smaller brain.
+ * The acknowledgement of a deliberate shrink, or null. One that is unreadable,
+ * over 24h old, or older than aqe.rvf (already checkpointed) is dropped. The
+ * CLI checks the counts it records against the export (--accept-shrink).
  */
 function pendingShrinkAck() {
   let st;
@@ -110,11 +119,28 @@ function pendingShrinkAck() {
   const at = ack ? Date.parse(ack.at) : NaN;
   let rvfMtime = 0;
   try { rvfMtime = fs.lstatSync(RVF_PATH).mtimeMs; } catch { /* absent */ }
-  if (!Number.isFinite(at) || rvfMtime > at) {
-    try { removeEntry(SHRINK_ACK_PATH); } catch { /* best-effort */ }
-    return null;
-  }
-  return { at, reason: typeof ack.reason === 'string' ? ack.reason : 'deliberate shrink' };
+  let why = null;
+  if (!Number.isFinite(at)) why = 'unreadable';
+  else if (Date.now() - at > SHRINK_ACK_MAX_AGE_HOURS * 3600000) why = 'older than 24h';
+  else if (rvfMtime > at) why = 'already checkpointed';
+  if (why) { dropShrinkAck(why); return null; }
+  return { at, producer: String(ack.producer) };
+}
+
+/** Act on the CLI's verdict on the acknowledgement; returns its producer when honoured. */
+function settleShrinkAck(output) {
+  const verdict = String(output || '').match(SHRINK_ACK_VERDICT);
+  if (!verdict) return null; // no verdict (the export failed first): keep it for the next turn
+  if (verdict[1] === 'IGNORED') { dropShrinkAck(verdict[2].trim()); return null; }
+  return verdict[2].trim();
+}
+
+/** How to end a back-off now, for the session-start report. */
+function resumeHint(skip) {
+  return MIRROR_REFUSAL.test(skip.reason)
+    ? 'To resume now, back up aqe.rvf and run `aqe brain export -o .agentic-qe/aqe.rvf --force-overwrite-richer`, '
+      + 'or delete .agentic-qe/brain-checkpoint.skip.json to retry.'
+    : 'To retry now, delete .agentic-qe/brain-checkpoint.skip.json.';
 }
 
 function writeSkip(reason) {
@@ -195,7 +221,7 @@ function exportBrain() {
   const skip = activeSkip();
   // A shrink acknowledged after the back-off began is the answer to it.
   if (skip && !(ack && ack.at > Date.parse(skip.at))) {
-    log('Export skipped until ' + skip.retryAfter + ': ' + skip.reason);
+    // Logged once, when the back-off began; session-start verify reports it.
     return { exported: false, skipped: true, reason: skip.reason, retryAfter: skip.retryAfter };
   }
   const aqe = aqeInvocation();
@@ -206,8 +232,8 @@ function exportBrain() {
     // The name is fresh, but drop anything already there without following it.
     for (const suffix of ['', ...RVF_SIDECARS]) removeEntry(tmp + suffix);
     const args = [...aqe.args, 'brain', 'export', '-o', tmp, '--format', 'rvf'];
-    if (ack) args.push('--force-overwrite-richer');
-    else if (lexists(RVF_PATH)) args.push('--compare-with', RVF_PATH, '--richness-policy', 'checkpoint');
+    if (lexists(RVF_PATH)) args.push('--compare-with', RVF_PATH, '--richness-policy', 'checkpoint');
+    if (ack) args.push('--accept-shrink', SHRINK_ACK_PATH);
     const result = execFileSync(
       aqe.cmd, args,
       { timeout: 60000, encoding: 'utf-8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }
@@ -218,18 +244,20 @@ function exportBrain() {
     const m = result.match(/Patterns:\s+(\d+)/);
     const p = m ? m[1] : '0';
     log('Exported ' + p + ' patterns to aqe.rvf');
-    if (!ack) return { exported: true, patterns: parseInt(p) };
+    const accepted = ack ? settleShrinkAck(result) : null;
+    if (!accepted) return { exported: true, patterns: parseInt(p) };
     try { removeEntry(SHRINK_ACK_PATH); removeEntry(SKIP_PATH); } catch { /* spent: older than aqe.rvf now */ }
-    log('Accepted the smaller brain (' + ack.reason + ')');
-    return { exported: true, patterns: parseInt(p), acceptedShrink: ack.reason };
+    log('Accepted the smaller brain (' + accepted + ')');
+    return { exported: true, patterns: parseInt(p), acceptedShrink: accepted };
   } catch (e) {
     const output = String(e.stderr || '') + String(e.stdout || '');
+    if (ack) settleShrinkAck(e.stdout);
     const refused = output.match(MIRROR_REFUSAL);
     if (refused) {
       const skip = writeSkip(refused[0].trim());
       log('Export refused, previous aqe.rvf kept: ' + skip.reason);
-      log('Skipping the checkpoint export until ' + skip.retryAfter + '. If the smaller brain is intended, back up '
-        + 'aqe.rvf and run: aqe brain export -o .agentic-qe/aqe.rvf --force-overwrite-richer');
+      log('Skipping the checkpoint export until ' + skip.retryAfter + ' (logged once). If the smaller brain is '
+        + 'intended, back up aqe.rvf and run: aqe brain export -o .agentic-qe/aqe.rvf --force-overwrite-richer');
       return { exported: false, richer: true, reason: skip.reason, retryAfter: skip.retryAfter };
     }
     const tooLarge = output.match(/RVF_KERNEL_TOO_LARGE:[^\n]*/);
@@ -251,16 +279,18 @@ function verifyBrain() {
   if (!fs.existsSync(RVF_PATH)) {
     const skip = activeSkip();
     if (skip) {
-      log('No aqe.rvf found; checkpoint export paused until ' + skip.retryAfter + ': ' + skip.reason);
-      return { valid: false, reason: 'missing', skippedUntil: skip.retryAfter };
+      log('No aqe.rvf found; checkpoint export paused until ' + skip.retryAfter + ': ' + skip.reason + ' ' + resumeHint(skip));
+      return { valid: false, reason: 'missing', skippedUntil: skip.retryAfter, resumeHint: resumeHint(skip) };
     }
     log('No aqe.rvf found');
     return { valid: false, reason: 'missing' };
   }
   const stat = fs.statSync(RVF_PATH);
   const paused = activeSkip();
-  if (paused) log('Checkpoint export paused until ' + paused.retryAfter + ': ' + paused.reason);
-  const pause = paused ? { pausedUntil: paused.retryAfter, pauseReason: paused.reason } : {};
+  if (paused) log('Checkpoint export paused until ' + paused.retryAfter + ': ' + paused.reason + ' ' + resumeHint(paused));
+  const pause = paused
+    ? { pausedUntil: paused.retryAfter, pauseReason: paused.reason, resumeHint: resumeHint(paused) }
+    : {};
   const ageH = (Date.now() - stat.mtimeMs) / 3600000;
   if (stat.size < 1024) { log('aqe.rvf too small'); return { valid: false, reason: 'too-small', ...pause }; }
   if (ageH > MAX_AGE_HOURS) { log('aqe.rvf is ' + ageH.toFixed(1) + 'h old'); return { valid: true, stale: true, ...pause }; }

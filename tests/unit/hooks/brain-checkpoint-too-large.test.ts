@@ -105,6 +105,9 @@ describe.skipIf(process.platform === 'win32').each(variants)('brain-checkpoint $
     const failed = run('export');
 
     expect(failed.retryAfter).toEqual(expect.any(String));
-    expect(run('verify')).toEqual({ valid: false, reason: 'missing', skippedUntil: failed.retryAfter });
+    expect(run('verify')).toEqual({
+      valid: false, reason: 'missing', skippedUntil: failed.retryAfter,
+      resumeHint: 'To retry now, delete .agentic-qe/brain-checkpoint.skip.json.',
+    });
   });
 });

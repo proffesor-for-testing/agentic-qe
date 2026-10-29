@@ -308,7 +308,7 @@ export function runDreamRetention(
     steps.push(capOutcomeConcepts(db, { maxNodes: settings.outcomeConceptCap, dryRun }));
   }
   // #1251: a deliberate shrink, so the next brain checkpoint accepts it.
-  if (removedRows(steps)) acknowledgeCheckpointShrink(db.name, 'dream retention (AQE_DREAM_RETENTION=on)');
+  if (removedRows(steps)) acknowledgeCheckpointShrink(db, 'dream');
   return { enabled: settings.enabled, steps };
 }
 

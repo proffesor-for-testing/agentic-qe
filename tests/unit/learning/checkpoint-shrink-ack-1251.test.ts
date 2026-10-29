@@ -63,17 +63,23 @@ describe('removedRows', () => {
 });
 
 describe('acknowledgeCheckpointShrink', () => {
-  it('should_writeTheReasonAndTime_nextToTheDatabase', () => {
-    const written = acknowledgeCheckpointShrink(dbPath, 'aqe learning prune --apply');
+  const withDb = <T>(file: string, fn: (db: Database.Database) => T): T => {
+    const db = new Database(file);
+    try { return fn(db); } finally { db.close(); }
+  };
+
+  it('should_writeTheTimeProducerAndCounts_nextToTheDatabase', () => {
+    const written = withDb(dbPath, (db) => acknowledgeCheckpointShrink(db, 'prune'));
 
     expect(written).toBe(ackPath);
     const ack = JSON.parse(readFileSync(ackPath, 'utf-8'));
-    expect(ack.reason).toBe('aqe learning prune --apply');
+    expect(ack.producer).toBe('prune');
+    expect(ack.tableCounts).toMatchObject({ dream_cycles: 1, qe_patterns: 0 });
     expect(Number.isFinite(Date.parse(ack.at))).toBe(true);
   });
 
   it('should_writeNothing_when_theDatabaseIsInMemory', () => {
-    expect(acknowledgeCheckpointShrink(':memory:', 'x')).toBeUndefined();
+    expect(withDb(':memory:', (db) => acknowledgeCheckpointShrink(db, 'dream'))).toBeUndefined();
   });
 
   it('should_replaceAPlantedSymlinkWithoutWritingThroughIt', () => {
@@ -81,7 +87,7 @@ describe('acknowledgeCheckpointShrink', () => {
     writeFileSync(target, 'UNTOUCHED');
     symlinkSync(target, ackPath);
 
-    acknowledgeCheckpointShrink(dbPath, 'x');
+    withDb(dbPath, (db) => acknowledgeCheckpointShrink(db, 'prune'));
 
     expect(readFileSync(target, 'utf-8')).toBe('UNTOUCHED');
     expect(lstatSync(ackPath).isSymbolicLink()).toBe(false);
@@ -97,7 +103,7 @@ describe('deliberate shrinks acknowledge the checkpoint', () => {
       db.close();
     }
 
-    expect(JSON.parse(readFileSync(ackPath, 'utf-8')).reason).toContain('dream retention');
+    expect(JSON.parse(readFileSync(ackPath, 'utf-8'))).toMatchObject({ producer: 'dream', tableCounts: { dream_cycles: 0 } });
   });
 
   it('should_notAcknowledge_when_dreamRetentionOnlyPreviews', () => {
@@ -122,7 +128,8 @@ describe('deliberate shrinks acknowledge the checkpoint', () => {
   it('should_acknowledge_when_pruneApplyRemovedRows', async () => {
     await prune('--apply', '--no-backup');
 
-    expect(JSON.parse(readFileSync(ackPath, 'utf-8')).reason).toBe('aqe learning prune --apply');
+    // The counts after the shrink, which the checkpoint export is held to.
+    expect(JSON.parse(readFileSync(ackPath, 'utf-8'))).toMatchObject({ producer: 'prune', tableCounts: { dream_cycles: 0 } });
   });
 
   it('should_notAcknowledge_when_pruneIsADryRun', async () => {

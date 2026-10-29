@@ -92,6 +92,7 @@ Rows deleted inside the file are reused by SQLite; run VACUUM to shrink the file
 
         const db = openDatabase(dbPath, { readonly: dryRun, fileMustExist: true });
         const results: RetentionStepResult[] = [];
+        let checkpointAck: string | undefined;
         try {
           results.push(pruneFailedDreamCycles(db, { retentionDays: failedDays, dryRun }));
           results.push(capOutcomeConcepts(db, { maxNodes: outcomeMax, dryRun }));
@@ -99,13 +100,11 @@ Rows deleted inside the file are reused by SQLite; run VACUUM to shrink the file
           if (routingDays !== undefined) {
             results.push(pruneRoutingOutcomes(db, { olderThanDays: routingDays, dryRun }));
           }
+          // #1251: the next brain checkpoint replaces aqe.rvf with the smaller brain once.
+          if (removedRows(results)) checkpointAck = acknowledgeCheckpointShrink(db, 'prune');
         } finally {
           db.close();
         }
-        // #1251: the next brain checkpoint replaces aqe.rvf with the smaller brain once.
-        const checkpointAck = removedRows(results)
-          ? acknowledgeCheckpointShrink(dbPath, 'aqe learning prune --apply')
-          : undefined;
 
         if (options.json) {
           printJson({ dryRun, dbPath, backupPath, checkpointAck, steps: results });

@@ -15,6 +15,7 @@ import { join } from 'path';
 import { isRvfNativeAvailable } from '../../src/integrations/ruvector/rvf-native-adapter.js';
 import { exportBrainToRvf } from '../../src/integrations/ruvector/brain-rvf-exporter.js';
 import { ensureAllBrainTables } from '../../src/integrations/ruvector/brain-table-ddl.js';
+import { mirroredTableCounts, type ShrinkAckVerdict } from '../../src/integrations/ruvector/brain-rvf-richness.js';
 
 const describeNative = isRvfNativeAvailable() ? describe : describe.skip;
 const CACHE_ROOT = join(process.cwd(), 'node_modules', '.cache');
@@ -98,5 +99,41 @@ describeNative('checkpoint richness guard (#1251)', { timeout: 60_000 }, () => {
     } finally {
       trimmed.close();
     }
+  });
+
+  it('should_replaceTheCheckpointOnce_when_aFreshAckVouchesForTheShrink', () => {
+    const c = checkpoint();
+    const pruned = seedDb(join(c.dir, 'pruned.db'), 25, 0);
+    const verdicts: ShrinkAckVerdict[] = [];
+    try {
+      const ack = { at: new Date().toISOString(), producer: 'prune', tableCounts: mirroredTableCounts(pruned) };
+      exportBrainToRvf(pruned, {
+        outputPath: c.tmp, compareWithPath: c.rvf, richnessPolicy: 'checkpoint',
+        shrinkAck: ack, onShrinkAck: (v) => verdicts.push(v),
+      });
+    } finally {
+      pruned.close();
+    }
+    expect(verdicts).toEqual([{ honoured: true, producer: 'prune' }]);
+    expect(existsSync(c.tmp)).toBe(true);
+  });
+
+  it('should_refuse_when_theAckPredatesARecreationFromSeed', () => {
+    const c = checkpoint();
+    const pruned = seedDb(join(c.dir, 'pruned.db'), 25, 0);
+    const ack = { at: new Date().toISOString(), producer: 'prune', tableCounts: mirroredTableCounts(pruned) };
+    pruned.close();
+    const seed = seedDb(join(c.dir, 'seed.db'), 5, 0);
+    const verdicts: ShrinkAckVerdict[] = [];
+    try {
+      expect(() => exportBrainToRvf(seed, {
+        outputPath: c.tmp, compareWithPath: c.rvf, richnessPolicy: 'checkpoint',
+        shrinkAck: ack, onShrinkAck: (v) => verdicts.push(v),
+      })).toThrow(/RVF_MIRROR_RICHER.*qe_patterns 25 -> 5/);
+    } finally {
+      seed.close();
+    }
+    expect(verdicts[0]).toMatchObject({ honoured: false, reason: expect.stringContaining('qe_patterns 25 -> 5') });
+    expect(readFileSync(c.rvf).equals(c.bytes)).toBe(true);
   });
 });

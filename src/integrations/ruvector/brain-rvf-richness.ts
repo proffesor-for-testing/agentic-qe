@@ -6,19 +6,31 @@
  *   fewer rows than the existing mirror refuses the export.
  * - `checkpoint` (the Stop-hook checkpoint): routine retention trims rows
  *   between turns (routing outcomes, concept edges, q-values, trajectories),
- *   so only a collapse refuses: a table that lost at least
- *   CHECKPOINT_MIN_LOST_ROWS rows and more than its share in
- *   CHECKPOINT_MAX_LOSS (half by default). A database recreated from seed data
- *   loses that much; a retention pass does not. A table the existing mirror
- *   does not have (added in a later release) held no rows to lose.
+ *   so only a collapse refuses: a table that lost more than its share in
+ *   CHECKPOINT_MAX_LOSS (half by default), and either at least
+ *   CHECKPOINT_MIN_LOST_ROWS rows or every row of a table that had at least
+ *   CHECKPOINT_MIN_EMPTIED_ROWS. A database recreated from seed data loses
+ *   that much; a retention pass does not. A table the existing mirror does
+ *   not have (added in a later release) held no rows to lose.
+ *
+ * A deliberate shrink (`aqe learning prune --apply`, dream retention) records
+ * a CheckpointShrinkAck. The checkpoint honours it in place of the mirror
+ * comparison only while it is fresh and the export still holds the counts the
+ * shrink left, so it cannot approve a later, unrelated drop.
  */
+
+import type Database from 'better-sqlite3';
+import { TABLE_CONFIGS, countRows } from './brain-shared.js';
 
 export type RichnessPolicy = 'strict' | 'checkpoint';
 
 export const RICHNESS_POLICIES: readonly RichnessPolicy[] = ['strict', 'checkpoint'];
 
-/** Smallest loss the checkpoint policy refuses, so a tiny table can empty out. */
+/** Smallest loss the checkpoint policy refuses, so retention can trim a small table. */
 export const CHECKPOINT_MIN_LOST_ROWS = 10;
+
+/** A table emptied from at least this many rows is refused even under the minimum loss. */
+export const CHECKPOINT_MIN_EMPTIED_ROWS = 3;
 
 /**
  * Largest share of a table the checkpoint policy lets go. Learned patterns
@@ -30,6 +42,9 @@ export const CHECKPOINT_MAX_LOSS: Readonly<Record<string, number>> = {
   captured_experiences: 0.1,
 };
 const CHECKPOINT_DEFAULT_MAX_LOSS = 0.5;
+
+/** Code-intelligence vectors are a regenerable cache, never exported (#1238). */
+export const CODE_INDEX_VECTOR_ID_PREFIX = 'code-intelligence:';
 
 export type RvfMirrorGuardCode = 'RVF_MIRROR_RICHER' | 'RVF_MIRROR_INSPECTION_AMBIGUOUS';
 
@@ -49,7 +64,8 @@ function isLoss(tableName: string, existing: number, candidate: number, policy: 
   if (policy === 'strict') return existing > candidate;
   const lost = existing - candidate;
   const maxLoss = CHECKPOINT_MAX_LOSS[tableName] ?? CHECKPOINT_DEFAULT_MAX_LOSS;
-  return lost >= CHECKPOINT_MIN_LOST_ROWS && lost > existing * maxLoss;
+  const emptied = candidate === 0 && existing >= CHECKPOINT_MIN_EMPTIED_ROWS;
+  return lost > existing * maxLoss && (lost >= CHECKPOINT_MIN_LOST_ROWS || emptied);
 }
 
 /**
@@ -92,4 +108,69 @@ export function assertNotPoorerThanMirror(
       `first, or repeat with --force-overwrite-richer after preserving a backup.`,
     );
   }
+}
+
+/** Row counts of every mirrored table, counted the way the RVF export counts them. */
+export function mirroredTableCounts(db: Database.Database): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const { tableName } of TABLE_CONFIGS) {
+    counts[tableName] = tableName === 'vectors'
+      ? countRows(db, 'vectors', `(id IS NULL OR substr(id, 1, ?) != ?)`,
+        [CODE_INDEX_VECTOR_ID_PREFIX.length, CODE_INDEX_VECTOR_ID_PREFIX])
+      : countRows(db, tableName);
+  }
+  return counts;
+}
+
+// --- Deliberate-shrink acknowledgement ---
+
+export type ShrinkProducer = 'prune' | 'dream';
+
+/** What a deliberate shrink records for the checkpoint hook. */
+export interface CheckpointShrinkAck {
+  readonly at: string;
+  readonly producer: ShrinkProducer;
+  /** mirroredTableCounts() right after the shrink. */
+  readonly tableCounts: Readonly<Record<string, number>>;
+}
+
+/** An acknowledgement is honoured for this long after the shrink. */
+export const SHRINK_ACK_MAX_AGE_MS = 24 * 3600_000;
+/** Clock skew tolerated for an acknowledgement dated in the future. */
+const SHRINK_ACK_MAX_SKEW_MS = 5 * 60_000;
+
+export type ShrinkAckVerdict =
+  | { readonly honoured: true; readonly producer: ShrinkProducer }
+  | { readonly honoured: false; readonly reason: string };
+
+/**
+ * Whether the acknowledgement `raw` (parsed JSON, or anything else) still
+ * vouches for an export with `candidateCounts`: under 24h old, and no table
+ * collapsed since the shrink, under the checkpoint policy. Growth is fine.
+ */
+export function evaluateShrinkAck(
+  raw: unknown,
+  tableNames: readonly string[],
+  candidateCounts: Readonly<Record<string, number>>,
+  now = Date.now(),
+): ShrinkAckVerdict {
+  const ack = raw as Partial<CheckpointShrinkAck> | null;
+  if (!ack || typeof ack !== 'object' || (ack.producer !== 'prune' && ack.producer !== 'dream')
+    || !ack.tableCounts || typeof ack.tableCounts !== 'object') {
+    return { honoured: false, reason: 'malformed acknowledgement' };
+  }
+  const at = Date.parse(String(ack.at));
+  if (!Number.isFinite(at) || at > now + SHRINK_ACK_MAX_SKEW_MS) {
+    return { honoured: false, reason: `invalid time ${String(ack.at)}` };
+  }
+  if (now - at > SHRINK_ACK_MAX_AGE_MS) {
+    return { honoured: false, reason: `older than 24h (${ack.producer} at ${ack.at})` };
+  }
+  try {
+    assertNotPoorerThanMirror(tableNames, ack.tableCounts, candidateCounts, 'checkpoint');
+  } catch (error) {
+    const detail = error instanceof Error ? error.message.replace(/^RVF_MIRROR_[A-Z_]+: /, '') : String(error);
+    return { honoured: false, reason: `the brain shrank again since the ${ack.producer}: ${detail.split('.')[0]}` };
+  }
+  return { honoured: true, producer: ack.producer };
 }
