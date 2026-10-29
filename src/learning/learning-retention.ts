@@ -28,6 +28,7 @@
  */
 
 import type { Database as DatabaseType } from 'better-sqlite3';
+import { acknowledgeCheckpointShrink, removedRows } from './checkpoint-shrink-ack.js';
 
 export interface TableCount {
   readonly table: string;
@@ -306,6 +307,8 @@ export function runDreamRetention(
   if (settings.outcomeConceptCap !== null) {
     steps.push(capOutcomeConcepts(db, { maxNodes: settings.outcomeConceptCap, dryRun }));
   }
+  // #1251: a deliberate shrink, so the next brain checkpoint accepts it.
+  if (removedRows(steps)) acknowledgeCheckpointShrink(db, 'dream');
   return { enabled: settings.enabled, steps };
 }
 

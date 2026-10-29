@@ -6,8 +6,9 @@
 | **Status** | Proposed — implementation candidate (dual-host review pending) |
 | **Date** | 2026-08-30 |
 | **Updated** | 2026-08-30 — adversarial review expanded the guard to all mirrored tables and fail-closed ambiguous inspection |
+| **Amended** | 2026-10-29 — #1251: the Stop-hook checkpoint is compared too, under a checkpoint policy |
 | **Author** | AQE Core |
-| **Related** | ADR-072; issues #563, #574, #629 |
+| **Related** | ADR-072; issues #563, #574, #629, #1251 |
 
 ## Context
 
@@ -58,3 +59,38 @@ experiences, (3) a readable mirror with ambiguous kernel metadata, and (4) the
 explicit override. The RVF and sidecars remain byte-identical on refusal. The
 #563 corrupt-store recovery regression remains green. No project or production
 database is opened.
+
+## Amendment (#1251): the Stop-hook checkpoint
+
+The checkpoint hook (`.claude/helpers/brain-checkpoint.cjs export`) exports
+to a temp path and renames it over `aqe.rvf` (#1238), so the guard above had
+nothing at its output path to compare with. The hook now names the published
+checkpoint with `aqe brain export --compare-with <aqe.rvf>`.
+
+The strict rule would refuse almost every turn: routine retention deletes
+mirrored rows between turns (routing-outcome retention, concept-edge pruning,
+q-value and trajectory cleanup). The hook therefore passes
+`--richness-policy checkpoint`, which refuses only a collapse. A table is
+refused when it lost more than half its rows (more than 10% for `qe_patterns`
+and `captured_experiences`), and either at least 10 rows or every row from at
+least 3. That catches both #629 regressions (25 -> 5, 7 -> 0) and passes
+routine retention such as 500 -> 450. A table that the older mirror lacks
+counts as empty. A mirror with no table inventory is still ambiguous. Manual
+exports keep the strict rule.
+
+On a refusal the hook keeps `aqe.rvf`, logs the reason once, and backs off
+for 6h the same way as a too-large export. Skipped turns are silent.
+Session-start `verify` reports the pause and how to resume: run
+`aqe brain export --force-overwrite-richer` manually, or delete the back-off
+marker.
+
+A deliberate shrink (`aqe learning prune --apply`, or dream retention when it
+removed rows) writes `.agentic-qe/brain-checkpoint.accept-shrink.json` with
+its creation time, its producer (`prune` or `dream`), and the mirrored row
+counts right after the shrink. The hook passes it with `--accept-shrink`.
+The export honours it in place of the mirror comparison only if it is under
+24h old and no table has collapsed since, under the checkpoint policy. Growth
+is always fine. Otherwise the hook deletes it, logs that it did, and the
+normal policy applies. An honoured acknowledgement is deleted after the export
+succeeds. Automation therefore never overrides the guard without a fresh
+record of a deliberate shrink that still matches the brain.

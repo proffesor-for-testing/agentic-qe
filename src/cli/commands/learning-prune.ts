@@ -17,6 +17,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { openDatabase } from '../../shared/safe-db.js';
 import { backupLearningDatabase } from './learning-snapshot.js';
+import { acknowledgeCheckpointShrink, removedRows } from '../../learning/checkpoint-shrink-ack.js';
 import { getDbPath, printError, printJson } from './learning-helpers.js';
 import {
   DEFAULT_FAILED_DREAM_CYCLE_RETENTION_DAYS,
@@ -91,6 +92,7 @@ Rows deleted inside the file are reused by SQLite; run VACUUM to shrink the file
 
         const db = openDatabase(dbPath, { readonly: dryRun, fileMustExist: true });
         const results: RetentionStepResult[] = [];
+        let checkpointAck: string | undefined;
         try {
           results.push(pruneFailedDreamCycles(db, { retentionDays: failedDays, dryRun }));
           results.push(capOutcomeConcepts(db, { maxNodes: outcomeMax, dryRun }));
@@ -98,12 +100,14 @@ Rows deleted inside the file are reused by SQLite; run VACUUM to shrink the file
           if (routingDays !== undefined) {
             results.push(pruneRoutingOutcomes(db, { olderThanDays: routingDays, dryRun }));
           }
+          // #1251: the next brain checkpoint replaces aqe.rvf with the smaller brain once.
+          if (removedRows(results)) checkpointAck = acknowledgeCheckpointShrink(db, 'prune');
         } finally {
           db.close();
         }
 
         if (options.json) {
-          printJson({ dryRun, dbPath, backupPath, steps: results });
+          printJson({ dryRun, dbPath, backupPath, checkpointAck, steps: results });
           return;
         }
         console.log(chalk.bold(`\nLearning prune${dryRun ? ' (dry run, nothing written)' : ''}\n`));
@@ -114,6 +118,9 @@ Rows deleted inside the file are reused by SQLite; run VACUUM to shrink the file
             ? `, ${(step.payloadBytes / (1024 * 1024)).toFixed(1)} MB of payload`
             : '';
           console.log(`  ${describeRetention(step)}${extra}`);
+        }
+        if (checkpointAck) {
+          console.log(chalk.gray('\n  The next brain checkpoint will replace aqe.rvf with the smaller brain.'));
         }
         if (dryRun) console.log(chalk.gray('\n  Re-run with --apply to make these changes.'));
         if (!options.compactExperiences || routingDays === undefined) {

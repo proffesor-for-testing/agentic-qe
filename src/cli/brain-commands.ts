@@ -28,6 +28,7 @@ import {
   type RvfBrainManifest,
   type RvfBrainImportResult,
 } from '../integrations/ruvector/brain-rvf-exporter.js';
+import type { RichnessPolicy, ShrinkAckVerdict } from '../integrations/ruvector/brain-rvf-richness.js';
 import {
   diffBrains,
   type BrainDiffOptions,
@@ -57,7 +58,14 @@ export type BrainImportResultUnified = BrainImportResult | RvfBrainImportResult;
  */
 export async function exportBrain(
   dbPath: string,
-  options: BrainExportOptions & { format?: string; allowOverwriteRicher?: boolean }
+  options: BrainExportOptions & {
+    format?: string;
+    allowOverwriteRicher?: boolean;
+    compareWithPath?: string;
+    richnessPolicy?: RichnessPolicy;
+    shrinkAck?: unknown;
+    onShrinkAck?: (verdict: ShrinkAckVerdict) => void;
+  }
 ): Promise<BrainManifest> {
   const format = resolveFormat(options.format);
 
@@ -68,6 +76,10 @@ export async function exportBrain(
         outputPath: options.outputPath,
         domains: options.domains,
         allowOverwriteRicher: options.allowOverwriteRicher,
+        compareWithPath: options.compareWithPath,
+        richnessPolicy: options.richnessPolicy,
+        shrinkAck: options.shrinkAck,
+        onShrinkAck: options.onShrinkAck,
       }, dbPath);
     } finally {
       db.close();
