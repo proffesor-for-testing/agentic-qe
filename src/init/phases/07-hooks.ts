@@ -485,6 +485,8 @@ const SHRINK_ACK_PATH = path.join(AQE_DIR, 'brain-checkpoint.accept-shrink.json'
 const SHRINK_ACK_MAX_AGE_HOURS = 24;
 const MIRROR_REFUSAL = /RVF_MIRROR_(?:RICHER|INSPECTION_AMBIGUOUS):[^\\n]*/;
 const SHRINK_ACK_VERDICT = /SHRINK_ACK_(HONOURED|IGNORED): ([^\\n]*)/;
+// An older global aqe rejects the #1251 flags: back off rather than fail every turn.
+const OUTDATED_CLI = /unknown option '(--(?:compare-with|richness-policy|accept-shrink))'/;
 // Windows (#872): never execFile aqe.cmd (EINVAL without a shell); reuse the
 // hook shim's resolver, which runs the AQE bundle via node instead.
 function aqeInvocation() {
@@ -549,7 +551,9 @@ function resumeHint(skip) {
   return MIRROR_REFUSAL.test(skip.reason)
     ? 'To resume now, back up aqe.rvf and run \`aqe brain export -o .agentic-qe/aqe.rvf --force-overwrite-richer\`, '
       + 'or delete .agentic-qe/brain-checkpoint.skip.json to retry.'
-    : 'To retry now, delete .agentic-qe/brain-checkpoint.skip.json.';
+    : skip.reason.includes('upgrade to enable the checkpoint guard')
+      ? 'Upgrade the global aqe (npm i -g agentic-qe), then delete .agentic-qe/brain-checkpoint.skip.json.'
+      : 'To retry now, delete .agentic-qe/brain-checkpoint.skip.json.';
 }
 
 function writeSkip(reason) {
@@ -594,6 +598,17 @@ function promote(tmp) {
   }
 }
 
+// Version of the installed aqe, for the outdated-CLI back-off.
+function aqeVersion(aqe) {
+  try {
+    const out = execFileSync(aqe.cmd, [...aqe.args, '--version'],
+      { timeout: 10000, encoding: 'utf-8', windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
+    return out.trim().split(/\\s+/).pop() || 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
 function exportBrain() {
   if (!fs.existsSync(DB_PATH)) { log('No memory.db, skipping'); return { exported: false }; }
   const aqe = aqeInvocation();
@@ -633,6 +648,13 @@ function exportBrain() {
   } catch (e) {
     const output = String(e.stderr || '') + String(e.stdout || '');
     if (ack) settleShrinkAck(e.stdout);
+    const outdated = output.match(OUTDATED_CLI);
+    if (outdated) {
+      const skip = writeSkip('installed aqe ' + aqeVersion(aqe) + ' lacks ' + outdated[1] + '; upgrade to enable the checkpoint guard');
+      log('Export skipped, previous aqe.rvf kept: ' + skip.reason);
+      log('Skipping the checkpoint export until ' + skip.retryAfter + ' (logged once).');
+      return { exported: false, outdatedCli: true, reason: skip.reason, retryAfter: skip.retryAfter };
+    }
     const refused = output.match(MIRROR_REFUSAL);
     if (refused) {
       const skip = writeSkip(refused[0].trim());

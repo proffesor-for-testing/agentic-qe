@@ -60,6 +60,8 @@ function project(variant: Variant) {
   writeFileSync(verdictFile, 'HONOURED: prune');
   const fakeAqe = join(tmp, 'aqe');
   writeFileSync(fakeAqe, `#!/bin/sh\necho "$*" >> "${argsLog}"\n`
+    + 'if [ "$1" = --version ]; then echo 3.15.11; exit 0; fi\n'
+    + `if [ "$(cat "${modeFile}")" = old ]; then echo "error: unknown option '--compare-with'" >&2; exit 1; fi\n`
     + `if [ "$(cat "${modeFile}")" = crash ]; then exit 3; fi\n`
     + `case "$*" in *--accept-shrink*) echo "  SHRINK_ACK_$(cat "${verdictFile}")";; esac\n`
     + `if [ "$(cat "${modeFile}")" = richer ]; then echo "  Brain export failed: ${RICHER}" >&2; exit 1; fi\n`
@@ -79,7 +81,7 @@ function project(variant: Variant) {
   const skip = join(aqeDir, 'brain-checkpoint.skip.json');
   return {
     run, stderrOf, calls, rvf, ack, skip,
-    mode: (m: 'richer' | 'ok' | 'crash') => writeFileSync(modeFile, m),
+    mode: (m: 'richer' | 'ok' | 'crash' | 'old') => writeFileSync(modeFile, m),
     verdict: (v: string) => writeFileSync(verdictFile, v),
     seedCheckpoint: (secondsAgo = 60) => {
       writeFileSync(rvf, 'RICH-RVF');
@@ -227,5 +229,21 @@ describe.skipIf(process.platform === 'win32').each(variants)('brain-checkpoint $
 
     expect(p.calls()[0]).not.toContain('--accept-shrink');
     expect(existsSync(p.ack)).toBe(false);
+  });
+
+  it('should_keepTheCheckpointAndBackOffOnce_when_theInstalledAqeLacksTheNewFlags', () => {
+    const p = project(variant);
+    p.mode('old');
+    p.seedCheckpoint();
+    const reason = 'installed aqe 3.15.11 lacks --compare-with; upgrade to enable the checkpoint guard';
+
+    const first = p.run('export');
+    const skippedLog = p.stderrOf('export');
+
+    expect(first).toMatchObject({ exported: false, outdatedCli: true, reason });
+    expect(readFileSync(p.rvf, 'utf-8')).toBe('RICH-RVF');
+    expect(skippedLog).toBe('');
+    expect(p.calls().filter((c) => c.startsWith('brain export'))).toHaveLength(1);
+    expect(p.run('verify')).toMatchObject({ pauseReason: reason, resumeHint: expect.stringContaining('Upgrade the global aqe') });
   });
 });
