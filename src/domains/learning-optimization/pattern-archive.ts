@@ -29,7 +29,15 @@ import type { MemoryBackend } from '../../kernel/interfaces.js';
 import { LEARNING_NS, LEARNING_PATTERN_KEY_PREFIX, isActivePatternKey } from './active-patterns.js';
 import type { LearnedPattern } from './interfaces.js';
 
-export type ArchiveOutcome = 'archived' | 'missing' | 'failed';
+/**
+ * Outcome of one move:
+ * - `archived`: copied, verified, and removed from the active set
+ * - `missing`: the active record is gone; nothing was written
+ * - `changed`: the active record changed since it was selected, or during
+ *   the move; it stays active and no archive copy is kept
+ * - `failed`: the archive copy could not be verified; the pattern stays active
+ */
+export type ArchiveOutcome = 'archived' | 'missing' | 'changed' | 'failed';
 
 /**
  * Outcome of removing the active key after a copy:
@@ -77,7 +85,8 @@ export async function copyPatternToArchive(
   if (!isActivePatternKey(activeKey)) return 'missing';
 
   const current = await memory.get<Record<string, unknown>>(activeKey, LEARNING_NS);
-  if (!current || current.id !== pattern.id || changedSinceSelection(current, pattern)) return 'missing';
+  if (!current || current.id !== pattern.id) return 'missing';
+  if (changedSinceSelection(current, pattern)) return 'changed';
 
   const archiveKey = archiveKeyOf(pattern.id);
   const expected = { ...current, archivedAt };
@@ -128,7 +137,7 @@ export async function archiveSelectedPattern(
     const removed = await removeArchivedPattern(memory, pattern);
     if (removed === 'removed') return 'archived';
     await discardArchiveCopy(memory, pattern);
-    return removed === 'failed' ? 'failed' : 'missing';
+    return removed;
   });
 }
 

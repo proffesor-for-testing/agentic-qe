@@ -134,7 +134,7 @@ describe('#1071 consolidation protocol on the learning namespace (real SQLite)',
 
     expect(result.value.dryRun).toBe(false);
     expect(result.value.stats).toMatchObject({ patternsRemoved: 1, patternsArchived: 1 });
-    expect(result.value.domainReports[0].archiveCounts).toEqual({ selected: 1, archived: 1, missing: 0, failed: 0 });
+    expect(result.value.domainReports[0].archiveCounts).toEqual({ selected: 1, archived: 1, missing: 0, changed: 0, failed: 0 });
     expect(await memory.get(`learning:pattern:${ids.oldLow}`, NS)).toBeUndefined();
     expect(await memory.get(`learning:pattern:archived:${ids.oldLow}`, NS)).toMatchObject({ id: ids.oldLow, archivedAt: expect.any(String) });
     expect(await Promise.all(keep.map((id) => memory.get(`learning:pattern:${id}`, NS)))).toEqual(keptBefore);
@@ -191,7 +191,7 @@ describe('#1071 consolidation protocol on the learning namespace (real SQLite)',
     const used = { ...selected!, usageCount: selected!.usageCount + 1, lastUsedAt: new Date() };
     await memory.set(`learning:pattern:${ids.oldLow}`, used, { ...NS, persist: true });
 
-    expect(await archiveSelectedPattern(memory, selected!)).toBe('missing');
+    expect(await archiveSelectedPattern(memory, selected!)).toBe('changed');
     expect(await memory.get(`learning:pattern:${ids.oldLow}`, NS)).toEqual(JSON.parse(JSON.stringify(used)));
     expect(await memory.get(`learning:pattern:archived:${ids.oldLow}`, NS)).toBeUndefined();
   });

@@ -162,7 +162,7 @@ describe('#1149 pattern archive compare-and-delete (real SQLite)', () => {
       expect((await active(ids[0]))?.usageCount).toBe(pattern.usageCount + 1);
     });
 
-    it('trim path: archiveSelectedPattern reports the pattern as changed and drops the stale copy', async () => {
+    it('trim path: a change during the move is reported as changed and the stale copy is dropped', async () => {
       const pattern = (await active(ids[0]))!;
       hooks = {
         get: async (key) => {
@@ -174,8 +174,25 @@ describe('#1149 pattern archive compare-and-delete (real SQLite)', () => {
         },
       };
 
-      expect(await archiveSelectedPattern(memory, pattern)).toBe('missing');
+      expect(await archiveSelectedPattern(memory, pattern)).toBe('changed');
       expect((await active(ids[0]))?.usageCount).toBe(pattern.usageCount + 1);
+      expect(await archived(ids[0])).toBeFalsy();
+    });
+
+    it('trim path: a pattern changed after selection is reported as changed, not missing', async () => {
+      const pattern = (await active(ids[0]))!;
+      await bumpUsage(ids[0]);
+
+      expect(await archiveSelectedPattern(memory, pattern)).toBe('changed');
+      expect((await active(ids[0]))?.usageCount).toBe(pattern.usageCount + 1);
+      expect(await archived(ids[0])).toBeFalsy();
+    });
+
+    it('trim path: only a pattern whose active record is gone is reported as missing', async () => {
+      const pattern = (await active(ids[0]))!;
+      await backend.delete(activeKey(ids[0]), NS);
+
+      expect(await archiveSelectedPattern(memory, pattern)).toBe('missing');
       expect(await archived(ids[0])).toBeFalsy();
     });
 
