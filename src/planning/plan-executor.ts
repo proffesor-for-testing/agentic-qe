@@ -320,8 +320,8 @@ export class PlanExecutor {
     // This allows async unified storage initialization
     if (!this.config.useUnified) {
       // Legacy mode: create separate database immediately
-      this.db = openDatabase(dbPath ?? ':memory:', { walMode: false });
-      this.db.pragma('journal_mode = WAL');
+      // #1164: openDatabase() set the journal mode (retrying contention, honouring AQE_DISABLE_WAL).
+      this.db = openDatabase(dbPath ?? ':memory:');
     }
   }
 

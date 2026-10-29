@@ -19,6 +19,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import type { EndpointIdentity } from './embedder-endpoint-client.js';
 import { findProjectRoot } from '../kernel/project-root.js';
+import { setJournalModeWithRetry } from '../shared/sqlite-journal-mode.js';
 
 // `require` is unavailable in pure ESM; createRequire gives us synchronous
 // access to CommonJS modules like better-sqlite3 from the ESM build output.
@@ -68,8 +69,9 @@ function openDb(): import('better-sqlite3').Database | null {
       mkdirSync(dir, { recursive: true });
     }
     const db = new Database(path);
-    db.pragma('journal_mode = WAL');
+    // busy_timeout first; the WAL switch retries within it (#1164).
     db.pragma('busy_timeout = 5000');
+    setJournalModeWithRetry(db, 'WAL', 5000);
     db.exec(`
       CREATE TABLE IF NOT EXISTS kv_store (
         key TEXT NOT NULL,

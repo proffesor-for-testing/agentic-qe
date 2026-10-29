@@ -142,8 +142,8 @@ export class EmbeddingCache {
           mkdirSync(dir, { recursive: true });
         }
 
+        // #1164: openDatabase() set the journal mode (retrying contention, honouring AQE_DISABLE_WAL).
         this.db = openDatabase(this.storagePath);
-        this.db.pragma('journal_mode = WAL');
         this.db.pragma('synchronous = NORMAL');
 
         // Create table if not exists (only for legacy mode)

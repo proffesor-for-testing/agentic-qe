@@ -107,8 +107,8 @@ export async function migrateToUnifiedMemory(
       if (!fs.existsSync(opts.baseDir)) {
         fs.mkdirSync(opts.baseDir, { recursive: true });
       }
+      // #1164: openDatabase() set the journal mode (retrying contention, honouring AQE_DISABLE_WAL).
       targetDb = openDatabase(memoryDbPath);
-      targetDb.pragma('journal_mode = WAL');
     }
 
     // Get list of tables to migrate
