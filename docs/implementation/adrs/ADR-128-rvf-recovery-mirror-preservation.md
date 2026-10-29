@@ -6,8 +6,9 @@
 | **Status** | Proposed — implementation candidate (dual-host review pending) |
 | **Date** | 2026-08-30 |
 | **Updated** | 2026-08-30 — adversarial review expanded the guard to all mirrored tables and fail-closed ambiguous inspection |
+| **Amended** | 2026-10-29 — #1251: the Stop-hook checkpoint is compared too, under a checkpoint policy |
 | **Author** | AQE Core |
-| **Related** | ADR-072; issues #563, #574, #629 |
+| **Related** | ADR-072; issues #563, #574, #629, #1251 |
 
 ## Context
 
@@ -58,3 +59,27 @@ experiences, (3) a readable mirror with ambiguous kernel metadata, and (4) the
 explicit override. The RVF and sidecars remain byte-identical on refusal. The
 #563 corrupt-store recovery regression remains green. No project or production
 database is opened.
+
+## Amendment (#1251): the Stop-hook checkpoint
+
+The checkpoint hook (`.claude/helpers/brain-checkpoint.cjs export`) exports
+to a temp path and renames it over `aqe.rvf` (#1238), so the guard above had
+nothing at its output path to compare with. The hook now names the published
+checkpoint with `aqe brain export --compare-with <aqe.rvf>`.
+
+The strict rule would refuse almost every turn: routine retention deletes
+mirrored rows between turns (routing-outcome retention, concept-edge pruning,
+q-value and trajectory cleanup). The hook therefore passes
+`--richness-policy checkpoint`, which refuses only a collapse: a table that
+lost at least 10 rows and more than half of them, or more than 10% for
+`qe_patterns` and `captured_experiences`. A table that the older mirror lacks
+counts as empty. A mirror with no table inventory is still ambiguous. Manual
+exports keep the strict rule.
+
+On a refusal the hook keeps `aqe.rvf`, logs the reason, and backs off the
+same way as a too-large export. Session-start `verify` reports the pause. A
+deliberate shrink (`aqe learning prune --apply`, or dream retention when it
+removed rows) writes `.agentic-qe/brain-checkpoint.accept-shrink.json`. The
+next hook export passes `--force-overwrite-richer` once and deletes the file.
+This is the only case where automation supplies the override, and it does so
+because an operator command or opted-in retention recorded the shrink.

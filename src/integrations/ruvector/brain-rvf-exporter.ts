@@ -35,6 +35,7 @@ import {
   type MergeResult,
 } from './brain-shared.js';
 import { appendBrainImportWitness } from './brain-import-audit.js';
+import { assertNotPoorerThanMirror, RvfMirrorGuardError, type RichnessPolicy } from './brain-rvf-richness.js';
 
 // --- Types ---
 
@@ -84,6 +85,13 @@ export interface RvfBrainExportOptions {
   readonly signerKeyId?: string;
   /** Explicit operator acknowledgement that a richer existing mirror may be replaced. */
   readonly allowOverwriteRicher?: boolean;
+  /**
+   * The mirror to compare richness against, when it is not `outputPath`
+   * (#1251: the checkpoint hook exports to a temp path, then renames).
+   */
+  readonly compareWithPath?: string;
+  /** How much shrinkage the richness guard tolerates. Defaults to 'strict'. */
+  readonly richnessPolicy?: RichnessPolicy;
   /** Kernel size ceiling in bytes. Defaults to RVF_MAX_KERNEL_BYTES; lowered only by tests. */
   readonly maxKernelBytes?: number;
 }
@@ -451,55 +459,34 @@ export function exportBrainToRvf(
     // promotion. Inspection is fail-closed when the RVF itself remains readable
     // but its kernel cannot yield a complete table inventory. A genuinely
     // unreadable/corrupt RVF remains replaceable to preserve #563 recovery.
-    if (existsSync(outPath) && !options.allowOverwriteRicher) {
+    // #1251: the Stop-hook checkpoint writes to a temp path and names the
+    // published checkpoint in `compareWithPath`, so it is compared here too.
+    const comparePath = options.compareWithPath ? resolve(options.compareWithPath) : outPath;
+    if (existsSync(comparePath) && !options.allowOverwriteRicher) {
       let existing: RvfBrainManifest | undefined;
       try {
         // Code-index vectors are no longer exported (#1238), so an older mirror
         // that still holds them is compared on the rows both exports carry.
-        existing = readBrainInfo(outPath, true);
+        existing = readBrainInfo(comparePath, true);
       } catch (error) {
-        if (hasReadableBrainKernel(outPath) || !isKnownUnusableRvfError(error)) {
+        if (hasReadableBrainKernel(comparePath) || !isKnownUnusableRvfError(error)) {
           const detail = error instanceof Error ? error.message : String(error);
-          throw new Error(
-            `RVF_MIRROR_INSPECTION_AMBIGUOUS: the existing mirror is readable but its ` +
-            `richness could not be established (${detail}). Preserve/import it before retrying, ` +
-            `or repeat with --force-overwrite-richer after preserving a backup.`,
+          throw new RvfMirrorGuardError(
+            'RVF_MIRROR_INSPECTION_AMBIGUOUS',
+            `the existing mirror is readable but its richness could not be established ` +
+            `(${detail}). Preserve/import it before retrying, or repeat with ` +
+            `--force-overwrite-richer after preserving a backup.`,
           );
         }
       }
 
       if (existing) {
-        const existingCounts = existing.stats.tableCounts;
-        const candidateCounts = manifest.stats.tableCounts!;
-        const missing = TABLE_CONFIGS
-          .map(({ tableName }) => tableName)
-          .filter((tableName) => !existingCounts || !Number.isSafeInteger(existingCounts[tableName]));
-        if (missing.length > 0) {
-          throw new Error(
-            `RVF_MIRROR_INSPECTION_AMBIGUOUS: existing mirror lacks trustworthy counts for ` +
-            `${missing.join(', ')}. Preserve/import it before retrying, or repeat with ` +
-            `--force-overwrite-richer after preserving a backup.`,
-          );
-        }
-
-        const richer = TABLE_CONFIGS
-          .map(({ tableName }) => ({
-            tableName,
-            existing: existingCounts![tableName],
-            candidate: candidateCounts[tableName],
-          }))
-          .filter(({ existing: existingCount, candidate }) => existingCount > candidate);
-        if (richer.length > 0) {
-          const differences = richer
-            .map(({ tableName, existing: existingCount, candidate }) =>
-              `${tableName} ${existingCount} -> ${candidate}`)
-            .join(', ');
-          throw new Error(
-            `RVF_MIRROR_RICHER: refusing to replace richer mirrored tables: ${differences}. ` +
-            `Restore/import the mirror first, or repeat with --force-overwrite-richer after ` +
-            `preserving a backup.`,
-          );
-        }
+        assertNotPoorerThanMirror(
+          TABLE_CONFIGS.map(({ tableName }) => tableName),
+          existing.stats.tableCounts,
+          manifest.stats.tableCounts!,
+          options.richnessPolicy,
+        );
       }
     }
 
