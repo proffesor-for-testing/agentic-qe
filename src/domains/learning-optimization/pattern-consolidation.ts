@@ -8,7 +8,7 @@
  */
 
 import type { LearnedPattern, PatternContext } from './interfaces.js';
-import { isMeasuredPattern } from './reward-source.js';
+import { patternEvidenceOf, type PatternEvidence } from './reward-source.js';
 
 /** Usage-weighted mean of one score (equal weights when nothing was used). */
 function usageWeighted(patterns: readonly LearnedPattern[], score: (p: LearnedPattern) => number): number {
@@ -17,6 +17,20 @@ function usageWeighted(patterns: readonly LearnedPattern[], score: (p: LearnedPa
     (sum, p) => sum + score(p) * (totalUsage > 0 ? p.usageCount / totalUsage : 1 / patterns.length),
     0
   );
+}
+
+/**
+ * #1147: a merge keeps the most conservative evidence of its sources:
+ * `assigned` if any source is, else `pre-1120` if any source is, else
+ * `measured`. `pre-1120` has no tag of its own; the merge is left untagged,
+ * which `patternEvidenceOf` reads as `pre-1120` (the kept template is a
+ * source's, so it is not read as assigned unless a source was).
+ */
+function mergedEvidence(patterns: readonly LearnedPattern[]): PatternEvidence {
+  const evidence = new Set(patterns.map(patternEvidenceOf));
+  if (evidence.has('assigned')) return 'assigned';
+  if (evidence.has('pre-1120')) return 'pre-1120';
+  return 'measured';
 }
 
 /** Merge similar patterns: best template, combined contexts, weighted scores. */
@@ -37,6 +51,7 @@ export function buildConsolidatedPattern(
     tags: [...new Set(patterns.flatMap((p) => p.context.tags))],
   };
 
+  const evidence = mergedEvidence(patterns);
   return {
     id,
     type: bestPattern.type,
@@ -50,6 +65,6 @@ export function buildConsolidatedPattern(
     template: bestPattern.template,
     createdAt: now,
     lastUsedAt: now,
-    rewardSource: patterns.every(isMeasuredPattern) ? 'measured' : 'assigned',
+    ...(evidence === 'pre-1120' ? {} : { rewardSource: evidence }),
   };
 }

@@ -116,13 +116,27 @@ describe('#1129 experience capture records measured failures', () => {
     return service.completeCapture(id, outcome);
   }
 
+  /** #1147: a failed run is recorded against the pattern of an earlier run of the same task. */
+  function existingPattern(task: string): void {
+    vi.mocked(patternStore.search).mockResolvedValue(ok([{
+      pattern: {
+        id: 'p-1', patternType: 'test-template', qeDomain: 'test-execution',
+        context: { experienceOrigin: { task, domain: 'test-execution', patternType: 'test-template' } },
+      },
+      similarity: 0, score: 1,
+    }]) as never);
+  }
+
   it('records a failed test run as a failed, measured use', async () => {
+    existingPattern('execute-tests: {"testFiles":["tests/math.test.ts"]}');
+
     const result = await capture({ success: false, quality: 0.3, outcomeBasis: 'test-results' });
 
     expect(result.success).toBe(true);
     expect(patternStore.recordUsage).toHaveBeenCalledWith(
-      'p-new', false, { outcome: 'measured', outcomeBasis: 'test-results' }
+      'p-1', false, { outcome: 'measured', outcomeBasis: 'test-results' }
     );
+    expect(patternStore.create).not.toHaveBeenCalled();
   });
 
   it('tags a completion-only success as unmeasured', async () => {
@@ -134,11 +148,12 @@ describe('#1129 experience capture records measured failures', () => {
   });
 
   it('carries the run id so rows from one run count once', async () => {
+    existingPattern('execute-tests: run');
     const id = service.startCapture('execute-tests: run', { domain: 'test-execution', metadata: { runId: 'task-7' } });
     await service.completeCapture(id, { success: false, quality: 0.3, outcomeBasis: 'test-results' });
 
     expect(patternStore.recordUsage).toHaveBeenCalledWith(
-      'p-new', false, { outcome: 'measured', outcomeBasis: 'test-results', runId: 'task-7' }
+      'p-1', false, { outcome: 'measured', outcomeBasis: 'test-results', runId: 'task-7' }
     );
   });
 
