@@ -618,6 +618,8 @@ export interface CrossDomainSharingReport {
   /** Null when no transfer was attempted (#1121). */
   readonly transferSuccessRate: number | null;
   readonly newPatternsCreated: number;
+  /** Pattern merges that failed; absent when none did (#1149). */
+  readonly mergeFailures?: ReadonlyArray<{ readonly sourcePatternIds: string[]; readonly error: string }>;
 }
 
 export interface LearningDashboard {

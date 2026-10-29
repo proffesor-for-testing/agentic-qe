@@ -316,6 +316,7 @@ function continuousLearningWorkflow(): WorkflowDefinition {
         outputMapping: {
           transferSuccessRate: 'transfer.successRate',
           newPatternsCreated: 'transfer.newPatterns',
+          mergeFailures: 'transfer.mergeFailures',
         },
       },
       {

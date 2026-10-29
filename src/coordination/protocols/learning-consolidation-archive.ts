@@ -12,8 +12,9 @@
  * - The active record must still be the selected pattern (same id, and the
  *   same scores and last use) when the archive runs, or nothing is written or
  *   deleted. A pattern used or re-scored since it was selected is left active.
- * - The archive copy is read back before the active key is deleted, so a
- *   failed write never loses the pattern.
+ * - The archive copy is read back and compared in full before the active
+ *   key is deleted, so a failed write never loses the pattern; the delete is
+ *   a compare-and-delete against that copy (#1149).
  * The move is implemented in domains/learning-optimization/pattern-archive.ts.
  */
 

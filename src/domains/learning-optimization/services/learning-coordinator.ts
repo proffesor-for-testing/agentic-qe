@@ -30,7 +30,8 @@ import {
 import { toError } from '../../../shared/error-utils.js';
 import { readActivePatterns } from '../active-patterns.js';
 import { isMeasuredPattern, partitionByRewardSource, patternEvidenceOf } from '../reward-source.js';
-import { copyPatternToArchive, removeArchivedPattern } from '../pattern-archive.js';
+import { withPatternMoveLock } from '../pattern-archive.js';
+import { commitPatternMerge } from '../pattern-merge.js';
 import { buildConsolidatedPattern } from '../pattern-consolidation.js';
 import {
   QEFlashAttention,
@@ -490,56 +491,32 @@ Provide:
         return err(new Error('Need at least 2 patterns to consolidate'));
       }
 
-      const patterns: LearnedPattern[] = [];
-      for (const id of patternIds) {
-        const pattern = await this.memory.get<LearnedPattern>(
-          `learning:pattern:${id}`,
-          LEARNING_NS
-        );
-        if (pattern) {
-          patterns.push(pattern);
+      // #1149: one move at a time per backend. A second merge of the same ids
+      // reads its sources after the first has removed them, and stops.
+      return await withPatternMoveLock(this.memory, async () => {
+        const patterns: LearnedPattern[] = [];
+        for (const id of patternIds) {
+          const pattern = await this.memory.get<LearnedPattern>(
+            `learning:pattern:${id}`,
+            LEARNING_NS
+          );
+          if (pattern) {
+            patterns.push(pattern);
+          }
         }
-      }
 
-      if (patterns.length < 2) {
-        return err(new Error('Not enough valid patterns found'));
-      }
+        if (patterns.length < 2) {
+          return err(new Error('Not enough valid patterns found'));
+        }
 
-      // Merge patterns - take best template, combine contexts
-      const consolidatedPattern = buildConsolidatedPattern(patterns, uuidv4());
+        // Merge patterns - take best template, combine contexts
+        const consolidatedPattern = buildConsolidatedPattern(patterns, uuidv4());
 
-      // #1106: all or nothing. Every source pattern's archive copy is written
-      // and read back first; then the consolidated pattern is stored and read
-      // back; only then are the source patterns removed from the active set.
-      // If any step fails, no source pattern is deleted.
-      const archivedAt = new Date();
-      let notCopied = 0;
-      for (const pattern of patterns) {
-        if (await copyPatternToArchive(this.memory, pattern, archivedAt) !== 'copied') notCopied++;
-      }
-      if (notCopied > 0) {
-        return err(new Error(
-          `${notCopied} of ${patterns.length} source patterns could not be archived (archive copy not verified); ` +
-          'nothing was merged and every source pattern was left active'
-        ));
-      }
-
-      await this.storePattern(consolidatedPattern);
-      const stored = await this.memory.get<{ id?: unknown }>(
-        `learning:pattern:${consolidatedPattern.id}`,
-        LEARNING_NS
-      );
-      if (!stored || stored.id !== consolidatedPattern.id) {
-        return err(new Error(
-          'Consolidated pattern could not be read back; nothing was merged and every source pattern was left active'
-        ));
-      }
-
-      for (const pattern of patterns) {
-        await removeArchivedPattern(this.memory, pattern);
-      }
-
-      return ok(consolidatedPattern);
+        // #1106/#1149: every source is archived and verified, then the
+        // consolidated pattern is stored and verified, then the sources are
+        // removed with compare-and-delete; failures roll back (pattern-merge.ts).
+        return commitPatternMerge(this.memory, patterns, consolidatedPattern, (p) => this.storePattern(p));
+      });
     } catch (error) {
       return err(toError(error));
     }
