@@ -227,6 +227,29 @@ describe('LearningOptimizationCoordinator', () => {
           // Expected if not initialized
         }
       });
+
+      it('reports a failed pattern merge instead of dropping it (#1149)', async () => {
+        const internals = coordinator as unknown as {
+          learningService: { getPatternStats: unknown; consolidatePatterns: unknown };
+          transferService: { queryKnowledge: unknown };
+          findSimilarPatterns: unknown;
+        };
+        const patterns = [{ id: 'p-1' }, { id: 'p-2' }];
+        vi.spyOn(internals.transferService as never, 'queryKnowledge' as never).mockResolvedValue({ success: true, value: [] } as never);
+        vi.spyOn(internals.learningService as never, 'getPatternStats' as never).mockResolvedValue({ success: true, value: { topPatterns: patterns } } as never);
+        vi.spyOn(internals as never, 'findSimilarPatterns' as never).mockReturnValue([patterns] as never);
+        vi.spyOn(internals.learningService as never, 'consolidatePatterns' as never).mockResolvedValue(
+          { success: false, error: new Error('Merge partially applied: removed: p-1; left active: p-2 (changed after its archive copy)') } as never
+        );
+
+        const result = await coordinator.shareCrossDomainLearnings();
+
+        expect(result.success).toBe(true);
+        expect(result.success && result.value.newPatternsCreated).toBe(0);
+        expect(result.success && result.value.mergeFailures).toEqual([
+          { sourcePatternIds: ['p-1', 'p-2'], error: 'Merge partially applied: removed: p-1; left active: p-2 (changed after its archive copy)' },
+        ]);
+      });
     });
   });
 

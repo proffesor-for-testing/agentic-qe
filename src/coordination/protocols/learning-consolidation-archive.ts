@@ -12,8 +12,9 @@
  * - The active record must still be the selected pattern (same id, and the
  *   same scores and last use) when the archive runs, or nothing is written or
  *   deleted. A pattern used or re-scored since it was selected is left active.
- * - The archive copy is read back before the active key is deleted, so a
- *   failed write never loses the pattern.
+ * - The archive copy is read back and compared in full before the active
+ *   key is deleted, so a failed write never loses the pattern; the delete is
+ *   a compare-and-delete against that copy (#1149).
  * The move is implemented in domains/learning-optimization/pattern-archive.ts.
  */
 
@@ -29,14 +30,16 @@ export interface ArchiveCounts {
   selected: number;
   /** Selected patterns moved to `:archived:` and removed from the active set. */
   archived: number;
-  /** Selected patterns whose active record was gone or changed; left alone. */
+  /** Selected patterns whose active record was gone; nothing written. */
   missing: number;
+  /** Selected patterns changed since selection or during the move; left active (#1149). */
+  changed: number;
   /** Selected patterns whose archive copy could not be verified; left active. */
   failed: number;
 }
 
 export function emptyArchiveCounts(): ArchiveCounts {
-  return { selected: 0, archived: 0, missing: 0, failed: 0 };
+  return { selected: 0, archived: 0, missing: 0, changed: 0, failed: 0 };
 }
 
 /** True when the pattern was created less than `graceDays` days ago. */

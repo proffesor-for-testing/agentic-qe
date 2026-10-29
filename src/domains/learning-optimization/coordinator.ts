@@ -575,6 +575,7 @@ export class LearningOptimizationCoordinator
       let knowledgeShared = 0;
       const domainsUpdated: DomainName[] = [];
       let newPatternsCreated = 0;
+      const mergeFailures: { sourcePatternIds: string[]; error: string }[] = [];
       let totalTransfers = 0;
       let successfulTransfers = 0;
 
@@ -634,6 +635,11 @@ export class LearningOptimizationCoordinator
               );
               if (consolidateResult.success) {
                 newPatternsCreated++;
+              } else {
+                // #1149: a merge failure is reported, never dropped.
+                const failure = { sourcePatternIds: group.map((p) => p.id), error: consolidateResult.error.message };
+                mergeFailures.push(failure);
+                logger.warn('Pattern merge failed during cross-domain sharing', failure);
               }
             }
           }
@@ -649,6 +655,7 @@ export class LearningOptimizationCoordinator
         transferSuccessRate:
           totalTransfers > 0 ? successfulTransfers / totalTransfers : null,
         newPatternsCreated,
+        ...(mergeFailures.length > 0 ? { mergeFailures } : {}),
       };
 
       // Publish event
