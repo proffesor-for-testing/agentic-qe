@@ -86,7 +86,8 @@ export function legacyExperienceEmbeddingTexts(row: LegacyExperienceRow): string
   return [...texts];
 }
 
-function storedVector(row: LegacyExperienceRow): number[] | null {
+/** The row's stored float32 vector, or null when the blob is short. */
+export function storedExperienceVector(row: LegacyExperienceRow): number[] | null {
   if (row.embedding.length < row.embedding_dimension * 4) return null;
   const v: number[] = [];
   for (let i = 0; i < row.embedding_dimension; i++) v.push(row.embedding.readFloatLE(i * 4));
@@ -151,7 +152,7 @@ export async function verifyLegacyExperienceSpaces(
   let lastRowid = 0;
   try {
     for (const row of rows) {
-      const stored = storedVector(row);
+      const stored = storedExperienceVector(row);
       let matched = false;
       if (stored) {
         for (const text of legacyExperienceEmbeddingTexts(row)) {

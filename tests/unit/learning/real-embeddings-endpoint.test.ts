@@ -478,6 +478,51 @@ describe('real-embeddings.ts — ADR-097 endpoint branch', () => {
       expect(warn.mock.calls.some((c) => /identity changed since last run/.test(String(c[0])))).toBe(true);
     });
 
+    /** Turn the database into one written before #1298: stored vectors, no registry rows. */
+    function makePreRegistry(spaceId: string, tasks: string[]): void {
+      resetInitialization();
+      resetUnifiedMemory();
+      const db = new Database(join(dir, 'memory.db'));
+      try {
+        db.prepare(`DELETE FROM kv_store WHERE namespace = '_system' AND key LIKE 'embedding_space:%'`).run();
+        db.exec(`CREATE TABLE IF NOT EXISTS captured_experiences (
+          id TEXT PRIMARY KEY, task TEXT NOT NULL, agent TEXT NOT NULL, domain TEXT NOT NULL DEFAULT '',
+          steps_json TEXT, source TEXT DEFAULT 'middleware',
+          embedding BLOB, embedding_dimension INTEGER, embedding_space_id TEXT)`);
+        const insert = db.prepare(`INSERT INTO captured_experiences
+          (id, task, agent, domain, embedding, embedding_dimension, embedding_space_id)
+          VALUES (?, ?, 'qe-test-architect', 'test-generation', ?, 384, ?)`);
+        tasks.forEach((task, i) => {
+          const vector = new Float32Array(fakeEmbedding(`test-generation: ${task}`));
+          insert.run(`e${i}`, task, Buffer.from(vector.buffer), spaceId);
+        });
+      } finally {
+        db.close();
+      }
+    }
+
+    it('#1302: a noisy first start after upgrading adopts the pre-registry space id its stored experiences prove', async () => {
+      const legacySpace = await start();
+      makePreRegistry(legacySpace, ['generate tests for add()', 'fix flaky login test']);
+      const warn = vi.spyOn(console, 'warn');
+
+      flaky.mode = 'same-model-noisy';
+      const restartedSpace = await start();
+
+      expect(restartedSpace).toBe(legacySpace);
+      expect(warn.mock.calls.some((c) => /identity changed since last run/.test(String(c[0])))).toBe(false);
+      // The next noisy start resolves it from the registry.
+      expect(await start()).toBe(legacySpace);
+    });
+
+    it('#1302: with no stored experience to verify, a noisy first start after upgrading mints a new id as before', async () => {
+      const legacySpace = await start();
+      makePreRegistry(legacySpace, []);
+
+      flaky.mode = 'same-model-noisy';
+      expect(await start()).not.toBe(legacySpace);
+    });
+
     it('without an open UnifiedMemory the space is derived as before', async () => {
       const firstSpace = await start();
       flaky.mode = 'same-model-noisy';

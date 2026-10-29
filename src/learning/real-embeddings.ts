@@ -27,10 +27,11 @@ import {
   type EmbeddingSpaceIdentity,
 } from './embedding-space.js';
 import {
-  resolveEmbeddingSpace,
+  resolveEmbeddingSpaceAdoptingLegacy,
   type EmbeddingSpaceRegistryDb,
   type ResolvedEmbeddingSpace,
 } from './embedding-space-registry.js';
+import { findAdoptableLegacySpace } from './embedding-space-legacy-adoption.js';
 
 /**
  * Type for the @xenova/transformers pipeline function
@@ -214,7 +215,12 @@ async function initializeModel(
         });
         const boundCanary = endpointClient.getBoundCanary();
         const space = boundCanary
-          ? await resolveActiveSpace(derivedSpace, ENDPOINT_IDENTITY_CANARY, [...boundCanary])
+          ? await resolveActiveSpace(
+              derivedSpace,
+              ENDPOINT_IDENTITY_CANARY,
+              [...boundCanary],
+              createEndpointPipeline(endpointClient)
+            )
           : null;
         activeEmbeddingSpaceIdentity = space?.identity ?? derivedSpace;
         console.log(
@@ -229,9 +235,12 @@ async function initializeModel(
         try {
           const previous = loadEmbedderIdentity(endpointIdentity.endpoint);
           // #1298: a restart that kept its registered space is not a change,
-          // even when float noise moved the fingerprint.
+          // even when float noise moved the fingerprint (#1302: nor one that
+          // adopted its pre-registry space).
           const spaceKept =
-            space?.resolution === 'matched-exact' || space?.resolution === 'matched-cosine';
+            space?.resolution === 'matched-exact' ||
+            space?.resolution === 'matched-cosine' ||
+            space?.resolution === 'adopted-legacy';
           const changed =
             (previous !== null && previous.fingerprint !== endpointIdentity.fingerprint) ||
             (space?.otherSpaces ?? 0) > 0;
@@ -305,7 +314,7 @@ async function initializeModel(
         runtimeFingerprint: fingerprintEmbeddingRuntime(canaryVector),
       });
       activeEmbeddingSpaceIdentity = (
-        await resolveActiveSpace(derivedSpace, EMBEDDING_SPACE_CANARY, canaryVector)
+        await resolveActiveSpace(derivedSpace, EMBEDDING_SPACE_CANARY, canaryVector, initializedModel)
       ).identity;
 
       initializationFailed = false;
@@ -334,11 +343,17 @@ export function __spaceRegistrationSettledForTests(): Promise<void> {
  * of minting a new id from the exact fingerprint. Uses the shared memory.db
  * connection only when UnifiedMemory is already open; otherwise (and on any
  * registry error) the derived space is used, as before.
+ *
+ * #1302: when no registered space matches, a pre-registry space id whose
+ * stored experience vectors `model` reproduces is adopted instead of minting
+ * a new one. That check re-embeds a bounded number of rows and runs once:
+ * afterwards the chosen space is registered and matched from the registry.
  */
 async function resolveActiveSpace(
   derived: EmbeddingSpaceIdentity,
   canaryText: string,
-  canary: number[]
+  canary: number[],
+  model: FeatureExtractionPipeline
 ): Promise<ResolvedEmbeddingSpace> {
   let db: EmbeddingSpaceRegistryDb | null = null;
   try {
@@ -347,7 +362,28 @@ async function resolveActiveSpace(
   } catch (error) {
     console.warn(`[RealEmbeddings] embedding-space registry unavailable: ${toErrorMessage(error)}`);
   }
-  const resolved = resolveEmbeddingSpace(db, derived, canaryText, canary);
+  const resolved = await resolveEmbeddingSpaceAdoptingLegacy(
+    db,
+    derived,
+    canaryText,
+    canary,
+    async (space, registered) => {
+      const adoption = await findAdoptableLegacySpace(db!, space, registered, async (text) => {
+        if (isNonSemanticText(text)) return new Array<number>(space.dimensions).fill(0);
+        const output = await model(text, { pooling: 'mean', normalize: true });
+        return Array.from(output.data);
+      });
+      if (adoption.spaceId) {
+        console.log(
+          `[RealEmbeddings] Embedding space ${adoption.spaceId.slice(0, 12)} adopted: it has no reference canary, ` +
+            `and the active runtime reproduces its stored experience vectors: ${adoption.reason}`
+        );
+      } else {
+        console.log(`[RealEmbeddings] No earlier embedding space adopted: ${adoption.reason}`);
+      }
+      return adoption.spaceId;
+    }
+  );
   lastSpaceRegistration = resolved.registration;
   if (resolved.resolution === 'matched-cosine') {
     console.log(

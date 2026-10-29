@@ -55,6 +55,8 @@ export type EmbeddingSpaceResolution =
   | 'matched-cosine'
   /** No registered space matched: the derived space was registered. */
   | 'registered'
+  /** No registered space matched; a pre-registry space id was verified and registered (#1302). */
+  | 'adopted-legacy'
   /** No usable registry: the derived space is used as before. */
   | 'unavailable';
 
@@ -181,11 +183,75 @@ export function resolveEmbeddingSpace(
   canaryText: string,
   canary: readonly number[],
 ): ResolvedEmbeddingSpace {
-  const unavailable = (): ResolvedEmbeddingSpace => ({
-    identity: derived,
-    resolution: 'unavailable',
-    otherSpaces: 0,
-    registration: Promise.resolve(),
+  const lookup = lookupEmbeddingSpace(db, derived, canaryText, canary);
+  if (lookup.resolved) return lookup.resolved;
+  return registerResolvedSpace(lookup.db, derived, canaryText, canary, 'registered', lookup.otherSpaces);
+}
+
+/**
+ * Picks a legacy space id (one with stored vectors but no registry entry) the
+ * runtime belongs to, or null. Throws only on an unexpected failure.
+ */
+export type LegacySpaceAdopter = (
+  derived: EmbeddingSpaceIdentity,
+  registered: readonly RegisteredEmbeddingSpace[],
+) => Promise<string | null>;
+
+/**
+ * #1302: like resolveEmbeddingSpace, but before registering a new space the
+ * adopter may name a legacy space id the runtime has been shown to reproduce.
+ * That id is kept and registered with the current canary as its reference.
+ * Its identity carries the current runtime fields: a pre-registry id is a
+ * hash that cannot be reversed into the fields it was minted from.
+ */
+export async function resolveEmbeddingSpaceAdoptingLegacy(
+  db: EmbeddingSpaceRegistryDb | null,
+  derived: EmbeddingSpaceIdentity,
+  canaryText: string,
+  canary: readonly number[],
+  adoptLegacy: LegacySpaceAdopter,
+): Promise<ResolvedEmbeddingSpace> {
+  const lookup = lookupEmbeddingSpace(db, derived, canaryText, canary);
+  if (lookup.resolved) return lookup.resolved;
+  let legacySpaceId: string | null = null;
+  try {
+    legacySpaceId = await adoptLegacy(derived, lookup.entries);
+  } catch (error) {
+    console.warn(
+      `[EmbeddingSpaceRegistry] legacy space check failed (${toErrorMessage(error)}); ` +
+        `registering the derived space id`,
+    );
+  }
+  if (legacySpaceId) {
+    const adopted: EmbeddingSpaceIdentity = { ...derived, spaceId: legacySpaceId };
+    return registerResolvedSpace(lookup.db, adopted, canaryText, canary, 'adopted-legacy', 0);
+  }
+  return registerResolvedSpace(lookup.db, derived, canaryText, canary, 'registered', lookup.otherSpaces);
+}
+
+type SpaceLookup =
+  | { resolved: ResolvedEmbeddingSpace }
+  | {
+      resolved?: undefined;
+      db: EmbeddingSpaceRegistryDb;
+      entries: RegisteredEmbeddingSpace[];
+      otherSpaces: number;
+    };
+
+/** A registered match (or the unavailable fallback), or what is needed to register. */
+function lookupEmbeddingSpace(
+  db: EmbeddingSpaceRegistryDb | null,
+  derived: EmbeddingSpaceIdentity,
+  canaryText: string,
+  canary: readonly number[],
+): SpaceLookup {
+  const unavailable = (): SpaceLookup => ({
+    resolved: {
+      identity: derived,
+      resolution: 'unavailable',
+      otherSpaces: 0,
+      registration: Promise.resolve(),
+    },
   });
   if (!db) return unavailable();
 
@@ -203,23 +269,36 @@ export function resolveEmbeddingSpace(
   const match = matchRegisteredSpace(derived, canaryText, canary, entries);
   if (match) {
     return {
-      identity: match.entry.identity,
-      resolution: match.exact ? 'matched-exact' : 'matched-cosine',
-      otherSpaces: 0,
-      registration: Promise.resolve(),
+      resolved: {
+        identity: match.entry.identity,
+        resolution: match.exact ? 'matched-exact' : 'matched-cosine',
+        otherSpaces: 0,
+        registration: Promise.resolve(),
+      },
     };
   }
 
   const otherSpaces = entries.filter(
     (entry) => entry.canaryText === canaryText && sameEmbeddingSpaceConfig(entry.identity, derived),
   ).length;
+  return { db, entries, otherSpaces };
+}
+
+function registerResolvedSpace(
+  db: EmbeddingSpaceRegistryDb,
+  identity: EmbeddingSpaceIdentity,
+  canaryText: string,
+  canary: readonly number[],
+  resolution: 'registered' | 'adopted-legacy',
+  otherSpaces: number,
+): ResolvedEmbeddingSpace {
   const registration = Promise.resolve()
-    .then(() => registerEmbeddingSpace(db, { identity: derived, canaryText, canary: [...canary] }))
+    .then(() => registerEmbeddingSpace(db, { identity, canaryText, canary: [...canary] }))
     .catch((error: unknown) => {
       console.warn(
-        `[EmbeddingSpaceRegistry] could not register embedding space ${derived.spaceId.slice(0, 12)} ` +
+        `[EmbeddingSpaceRegistry] could not register embedding space ${identity.spaceId.slice(0, 12)} ` +
           `(${toErrorMessage(error)}); it is registered at a later start`,
       );
     });
-  return { identity: derived, resolution: 'registered', otherSpaces, registration };
+  return { identity, resolution, otherSpaces, registration };
 }
