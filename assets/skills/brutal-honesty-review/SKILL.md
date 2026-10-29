@@ -15,8 +15,8 @@ trust_tier: 2
 validation:
   schema_path: schemas/output.json
   validator_path: scripts/validate-config.json
+  eval_path: evals/brutal-honesty-review.yaml
 ---
-
 # Brutal Honesty Review
 
 <default_to_action>
@@ -24,8 +24,9 @@ When brutal honesty is needed:
 1. CHOOSE MODE: Linus (technical), Ramsay (standards), Bach (BS detection)
 2. VERIFY CONTEXT: Senior engineer? Repeated mistake? Critical bug? Explicit request?
 3. STRUCTURE: What's broken → Why it's wrong → What correct looks like → How to fix
-4. ATTACK THE WORK, not the worker
-5. ALWAYS provide actionable path forward
+4. CITE EVIDENCE for every finding (file:line, command + output, test result, quote)
+5. ATTACK THE WORK, not the worker
+6. ALWAYS provide actionable path forward
 
 **Quick Mode Selection:**
 - **Linus**: Code is technically wrong, inefficient, misunderstands fundamentals
@@ -39,8 +40,8 @@ When brutal honesty is needed:
 
 **DO NOT USE FOR:** Junior devs' first PRs, demoralized teams, public forums, low psychological safety
 
-## Minimum Findings Enforcement
-All brutal honesty reviews enforce a minimum of 3 weighted findings (CRITICAL=3, HIGH=2, MEDIUM=1, LOW=0.5). If the initial review finds fewer, escalate to deeper analysis. Brutally honest reviewers should ALWAYS find something -- if you can't, explain exactly why with evidence.
+## Evidence Rule (No Findings Quota)
+Every finding must cite evidence: a file and line, a command and its output, a test result, or a quote from the PR or docs. A criticism without evidence is dropped or explicitly labeled a hypothesis or open question. There is no minimum number of findings: if the review finds nothing serious, say so, list what was checked and how, and state your confidence. Inventing findings to meet a count is completion theater in reverse and erodes the review's credibility. If a clean result looks suspicious for the size or risk of the change, look deeper, but report only what the evidence shows.
 </default_to_action>
 
 ## Quick Reference Card
@@ -147,8 +148,10 @@ ISTQB tests:
 - Names of techniques you'll never use
 - V-model terminology
 
-If ISTQB helped testers, companies with certified teams would ship
-higher quality. They don't."
+Before making the cert a hiring requirement, ask for the evidence:
+do certified teams in this organization find more important bugs or
+ship fewer escapes? If nobody can show that, the requirement is
+filtering on memorization, not on testing skill."
 ```
 
 ---
@@ -190,7 +193,8 @@ await Task("Code Review", {
   code: pullRequestDiff,
   mode: 'linus',  // or 'ramsay', 'bach'
   calibration: 'direct',  // or 'harsh', 'brutal'
-  requireActionable: true
+  requireActionable: true,
+  requireEvidence: true   // every finding cites file:line, output, or quote
 }, "qe-code-reviewer");
 
 // BS detection for vendor claims

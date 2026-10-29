@@ -65,7 +65,7 @@ Sequential: risk-analyzer → test-gen → executor → coverage → gate
 ```
 
 ### Success Criteria
-✅ 10x deployment frequency with same/better quality
+✅ Deployment frequency rises without escaped defects rising (measured against your own baseline)
 ✅ Coverage gaps detected in real-time
 ✅ Bugs caught pre-production
 ❌ Agents acting without human oversight on critical decisions
@@ -80,9 +80,9 @@ Sequential: risk-analyzer → test-gen → executor → coverage → gate
 |-------|----------|------------|
 | Traditional | Manual everything | Human bottleneck |
 | Automation | Scripts + fixed scenarios | Needs orchestration |
-| **Agentic** | AI agents + human judgment | Requires trust-building |
+| **Agentic** | AI agents + human judgment | Requires confidence-building: evidence that agent output holds up |
 
-**Core Premise:** Agents amplify human expertise for 10x scale.
+**Core Premise:** Agents amplify human expertise. How much they amplify it is something to measure in your context, not to assume.
 
 ### Key Capabilities
 
@@ -219,7 +219,7 @@ aqe agent spawn qe-test-generator
 
 # Week 4: Measure impact
 aqe agent metrics qe-test-generator
-# → Tests: 150, Bugs: 12, Time saved: 8h
+# → Compare tests, bugs found and review time with the baseline; keep what the data supports
 ```
 
 ---
@@ -296,4 +296,4 @@ agent_assignments:
 
 ---
 
-**Success Metric:** Deploy 10x more frequently with same or better quality through intelligent agent collaboration.
+**Success Metric:** Ship more often with the same or better quality through agent collaboration, and be able to show the evidence for both.

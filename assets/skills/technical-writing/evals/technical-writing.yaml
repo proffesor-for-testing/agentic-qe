@@ -1,0 +1,96 @@
+# =============================================================================
+# AQE Skill Evaluation Test Suite: Technical Writing v1.0.0
+# =============================================================================
+#
+# Guards the "never invent figures" rule:
+# - No numbers appear that the input did not provide
+# - Provided numbers are used accurately, with their source
+# - Missing data is marked or asked for, not filled in
+#
+# Schema: .claude/skills/.validation/schemas/skill-eval.schema.json
+#
+# =============================================================================
+
+skill: technical-writing
+version: 1.0.0
+description: >
+  Evaluation suite for technical-writing. Verifies that writing stays factual:
+  no invented statistics, accurate use of provided figures, and explicit
+  placeholders or questions when data is missing.
+
+models_to_test:
+  - claude-sonnet-5      # Primary
+  - claude-haiku-4-5     # Minimum quality floor
+
+test_cases:
+
+  - id: tc001_no_invented_numbers
+    description: "With no metrics in the input, the draft contains no percentages or numeric outcomes"
+    category: factual_accuracy
+    priority: critical
+    input:
+      prompt: >
+        Write a three-paragraph blog introduction about our team moving
+        exploratory testing into story refinement. We have not measured
+        the impact yet.
+    expected_output:
+      must_not_contain:
+        - "%"
+      custom_assertions:
+        - type: semantic
+          expression: "The draft states no quantitative outcomes (counts, percentages, durations) that were not in the input."
+          expected: true
+    validation:
+      schema_check: false
+
+  - id: tc002_uses_provided_numbers_with_source
+    description: "Provided figures are reproduced exactly and attributed to their source"
+    category: factual_accuracy
+    priority: critical
+    input:
+      prompt: >
+        Write a short paragraph for a release blog post. From our defect
+        tracker: escaped defects went from 14 in Q1 to 6 in Q2 after we added
+        contract tests. Do not add other numbers.
+    expected_output:
+      must_contain:
+        - "\\b14\\b"
+        - "\\b6\\b"
+        - "tracker"
+      custom_assertions:
+        - type: semantic
+          expression: "The paragraph uses only the figures 14 and 6 (and Q1/Q2), attributes them to the defect tracker, and adds no other statistics."
+          expected: true
+    validation:
+      schema_check: false
+      keyword_match_threshold: 1.0
+
+  - id: tc003_marks_missing_data
+    description: "When asked to include a figure that was not provided, the draft marks it or asks for it"
+    category: factual_accuracy
+    priority: high
+    input:
+      prompt: >
+        Write a LinkedIn-length summary of our migration from Selenium to
+        Playwright, including how much faster the suite got.
+    expected_output:
+      must_match_regex:
+        - "(\\[(number|date|duration)\\?\\]|how much faster|could you share|what was the|do you have)"
+      custom_assertions:
+        - type: semantic
+          expression: "The response does not state a specific speed-up; it uses a placeholder or asks for the measured figure."
+          expected: true
+    validation:
+      schema_check: false
+
+success_criteria:
+  pass_rate: 0.9
+  critical_pass_rate: 1.0
+  max_execution_time_ms: 300000
+
+metadata:
+  author: "agentic-qe"
+  created: "2026-10-29"
+  coverage_target: >
+    Factual accuracy in technical writing: no invented figures, accurate
+    sourced figures, and explicit handling of missing data.

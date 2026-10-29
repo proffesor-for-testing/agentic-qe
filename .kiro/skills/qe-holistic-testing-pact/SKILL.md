@@ -17,7 +17,7 @@ When designing test strategies or building quality into teams:
 
 **Quick PACTS Application:**
 - Proactive → Design testability into architecture, risk analysis during refinement
-- Autonomous → Devs run tests locally, CI pipeline with no manual gates
+- Autonomous → Devs run tests locally, CI gates automated wherever risk and regulation allow
 - Collaborative → Three Amigos, QE pairs with dev, shared test ownership
 - Targeted → Risk-based planning, focus on critical flows, kill valueless tests
 - Structured → Governance, observability, and explainability of agent behavior; measure confidence, not trust
@@ -79,7 +79,7 @@ await Task("Risk Analysis", {
 ### Autonomous: Teams Own Quality
 - Developers run full test suite locally
 - CI fails fast with clear diagnostics
-- No manual deployment approvals
+- Deployment approvals automated where the risk allows; where regulation or risk requires a human sign-off, make it fast and evidence-based rather than a queue
 - Self-service test environments
 
 ### Collaborative: Whole-Team Thinking
@@ -126,7 +126,7 @@ PACT originated with Reuven Cohen (Agentics Foundation) and was adapted to quali
 engineering by Dragan Spiridonov. PACTS adds a fifth principle — **Structured** —
 inspired by DORA's research on AI-assisted delivery and platform-engineering
 quality measurement. The addition reflects that autonomous, agentic quality work
-needs governance, observability, and explainability to be trustworthy at scale.
+needs governance, observability, and explainability to earn confidence at scale.
 
 ---
 
@@ -143,7 +143,7 @@ needs governance, observability, and explainability to be trustworthy at scale.
 
 ## Success Signals
 
-- Features deploy multiple times per day
+- Deployments happen as often as the business and its risk profile need, without fear (a medical device and a consumer web app have different right answers)
 - Bug escape rate trending down
 - Team discusses quality naturally
 - Developers write tests without being told

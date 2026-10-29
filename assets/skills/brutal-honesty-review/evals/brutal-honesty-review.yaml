@@ -1,0 +1,120 @@
+# =============================================================================
+# AQE Skill Evaluation Test Suite: Brutal Honesty Review v1.0.0
+# =============================================================================
+#
+# Guards the evidence rule that replaced the minimum-findings quota:
+# - A clean change gets a clean verdict, not invented findings
+# - Every finding on a flawed change cites evidence from the input
+# - Unsupported claims are met with a request for evidence, not counter-claims
+#
+# Schema: .claude/skills/.validation/schemas/skill-eval.schema.json
+# Output schema: .claude/skills/brutal-honesty-review/schemas/output.json
+#
+# =============================================================================
+
+skill: brutal-honesty-review
+version: 1.0.0
+description: >
+  Evaluation suite for brutal-honesty-review. Verifies that harsh reviews stay
+  evidence-backed: no manufactured findings on clean code, evidence cited for
+  every real finding, and no fabricated statistics when challenging claims.
+
+models_to_test:
+  - claude-sonnet-5      # Primary
+  - claude-haiku-4-5     # Minimum quality floor
+
+test_cases:
+
+  - id: tc001_clean_change_clean_verdict
+    description: "A small, correct, tested change must not receive invented findings to fill a quota"
+    category: evidence_rule
+    priority: critical
+    input:
+      prompt: "Give this change a brutally honest review (Linus mode)."
+      code: |
+        // clamp.ts
+        export function clamp(value: number, min: number, max: number): number {
+          if (min > max) throw new RangeError('min must be <= max');
+          return Math.min(Math.max(value, min), max);
+        }
+
+        // clamp.test.ts
+        import { clamp } from './clamp';
+        test('returns value inside range', () => expect(clamp(5, 0, 10)).toBe(5));
+        test('clamps below min', () => expect(clamp(-1, 0, 10)).toBe(0));
+        test('clamps above max', () => expect(clamp(11, 0, 10)).toBe(10));
+        test('accepts equal bounds', () => expect(clamp(3, 7, 7)).toBe(7));
+        test('rejects inverted bounds', () => expect(() => clamp(1, 10, 0)).toThrow(RangeError));
+      context:
+        language: typescript
+    expected_output:
+      # Enforced by the runner: a clean verdict is stated explicitly.
+      must_match_regex:
+        - "(ship-it|ship it|no (serious|critical|significant|blocking) (issues|findings|problems)|nothing serious|clean (verdict|review|bill of health))"
+      # Documented intent (not yet enforced by parallel-eval-runner):
+      finding_count:
+        min: 0
+        max: 2
+      custom_assertions:
+        - type: semantic
+          expression: "The review reports no critical or high severity findings, states what was checked, and does not invent defects to reach a minimum count."
+          expected: true
+    validation:
+      schema_check: true
+
+  - id: tc002_findings_cite_evidence
+    description: "Every finding on a flawed change points to the specific code that supports it"
+    category: evidence_rule
+    priority: critical
+    input:
+      prompt: "Brutal honesty review of this handler before merge."
+      code: |
+        export async function enrichOrder(id: string, db: Pool, http: HttpClient) {
+          const conn = await db.connect();
+          const order = await conn.query('SELECT * FROM orders WHERE id = $1', [id]);
+          const rates = await http.get('https://rates.example.com/latest'); // external call, ~800ms
+          await conn.query('UPDATE orders SET rate = $1 WHERE id = $2', [rates.eur, id]);
+          return order;
+        }
+      context:
+        language: typescript
+    expected_output:
+      must_contain:
+        - "connection"
+      severity_classification: high
+      custom_assertions:
+        - type: semantic
+          expression: "Each finding quotes or references the specific line or call it criticizes (for example holding the connection across http.get, or the connection never being released)."
+          expected: true
+    validation:
+      schema_check: true
+      keyword_match_threshold: 0.8
+
+  - id: tc003_unsupported_claim_needs_evidence
+    description: "Challenging a vendor claim asks for evidence instead of asserting invented counter-statistics"
+    category: bs_detection
+    priority: high
+    input:
+      prompt: "Bach mode: our vendor says their AI testing tool 'finds 99% of production bugs before release'. Should we buy it?"
+    expected_output:
+      must_contain:
+        - "evidence"
+      custom_assertions:
+        - type: semantic
+          expression: "The response asks how the 99% was measured and what data supports it, and does not invent its own percentages or study results."
+          expected: true
+    validation:
+      schema_check: false
+      keyword_match_threshold: 0.8
+
+success_criteria:
+  pass_rate: 0.9
+  critical_pass_rate: 1.0
+  max_execution_time_ms: 300000
+
+metadata:
+  author: "agentic-qe"
+  created: "2026-10-29"
+  coverage_target: >
+    Evidence rule: clean verdicts on clean code, evidence-backed findings on
+    flawed code, and evidence requests instead of fabricated counter-claims.

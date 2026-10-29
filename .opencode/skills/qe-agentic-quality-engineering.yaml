@@ -19,10 +19,10 @@ steps:
     prompt: |
       Coordination Patterns
   - name: success-criteria
-    description: "✅ 10x deployment frequency with same/better quality ✅ Coverage gaps detected in real-time ✅ Bugs caught pre-production ❌ Agents acting without human oversight on critical decisions ❌ Deploying all 19 agents at once (start with 1-2)"
+    description: "✅ Deployment frequency rises without escaped defects rising (measured against your own baseline) ✅ Coverage gaps detected in real-time ✅ Bugs caught pre-production ❌ Agents acting without human oversight on critical decisions ❌ Deploying all 19 agents at once (start with 1-2)"
     tools: ["bash", "read"]
     prompt: |
-      ✅ 10x deployment frequency with same/better quality ✅ Coverage gaps detected in real-time ✅ Bugs caught pre-production ❌ Agents acting without human oversight on critical decisions ❌ Deploying all 19 agents at once (start with 1-2)
+      ✅ Deployment frequency rises without escaped defects rising (measured against your own baseline) ✅ Coverage gaps detected in real-time ✅ Bugs caught pre-production ❌ Agents acting without human oversight on critical decisions ❌ Deploying all 19 agents at once (start with 1-2)
   - name: core-concepts
     description: "Core Concepts"
     tools: ["bash", "read"]

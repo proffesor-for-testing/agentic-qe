@@ -132,8 +132,10 @@ ISTQB tests:
 - Names of techniques you'll never use
 - V-model terminology
 
-If ISTQB helped testers, companies with certified teams would ship
-higher quality. They don't."
+Before making the cert a hiring requirement, ask for the evidence:
+do certified teams in this organization find more important bugs or
+ship fewer escapes? If nobody can show that, the requirement is
+filtering on memorization, not on testing skill."
 ```
 
 ---

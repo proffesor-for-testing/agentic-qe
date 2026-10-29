@@ -29,10 +29,10 @@ steps:
     prompt: |
       Proactive: Test Before Bugs
   - name: autonomous-teams-own-quality
-    description: "- Developers run full test suite locally - CI fails fast with clear diagnostics - No manual deployment approvals - Self-service test environments"
+    description: "- Developers run full test suite locally - CI fails fast with clear diagnostics - Deployment approvals automated where the risk allows; where regulation or risk requires a human sign-off, make it fast and evidence-based rather than a queue - Self-service test environments"
     tools: ["bash", "read"]
     prompt: |
-      - Developers run full test suite locally - CI fails fast with clear diagnostics - No manual deployment approvals - Self-service test environments
+      - Developers run full test suite locally - CI fails fast with clear diagnostics - Deployment approvals automated where the risk allows; where regulation or risk requires a human sign-off, make it fast and evidence-based rather than a queue - Self-service test environments
   - name: collaborative-whole-team-thinking
     description: "- QE attends planning and refinement - Three Amigos for every user story - Shared ownership of test code - Ensemble testing for complex scenarios"
     tools: ["bash", "read"]
