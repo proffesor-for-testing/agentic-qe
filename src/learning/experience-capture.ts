@@ -501,16 +501,18 @@ export class ExperienceCaptureService {
     // Extract patterns: require positive reward (or no reward signal) AND quality threshold
     // Zero or negative reward blocks extraction — only learn from genuinely positive outcomes
     const rewardAllowsExtraction = experience.reward === undefined || experience.reward > 0;
+    const passesExtractionGates =
+      experience.success &&
+      experience.quality >= this.config.minQualityForPatternExtraction &&
+      rewardAllowsExtraction;
     // #1129: a measured outcome is recorded whether it succeeded or failed.
     // Recording only successes made the usage success rate 100% by selection.
-    if (
-      experience.outcomeBasis !== undefined || (
-        experience.success &&
-        experience.quality >= this.config.minQualityForPatternExtraction &&
-        rewardAllowsExtraction
-      )
-    ) {
-      const extractionResult = await this.extractPattern(experience);
+    // #1147: only a run that passes the gates creates a pattern; any other
+    // measured run updates the usage of an existing matching pattern.
+    if (passesExtractionGates || experience.outcomeBasis !== undefined) {
+      const extractionResult = await this.extractPattern(experience, {
+        createIfMissing: passesExtractionGates,
+      });
       if (extractionResult.newPattern || extractionResult.reinforced) {
         experience.patterns = [extractionResult.patternId!];
       }
@@ -656,7 +658,10 @@ export class ExperienceCaptureService {
   /**
    * Extract pattern from experience
    */
-  async extractPattern(experience: TaskExperience): Promise<PatternExtractionResult> {
+  async extractPattern(
+    experience: TaskExperience,
+    options: { createIfMissing?: boolean } = {}
+  ): Promise<PatternExtractionResult> {
     if (!this.patternStore) {
       return { newPattern: false, reinforced: false, promoted: false };
     }
@@ -715,6 +720,12 @@ export class ExperienceCaptureService {
           promoted,
         };
       }
+    }
+
+    // #1147: a run that did not pass the extraction gates (e.g. a measured
+    // failure) never mints a pattern; with no existing match nothing is stored.
+    if (options.createIfMissing === false) {
+      return { newPattern: false, reinforced: false, promoted: false };
     }
 
     // Create new pattern from experience

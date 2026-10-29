@@ -6,6 +6,7 @@
 import { LoggerFactory } from '../../logging/index.js';
 import { readActivePatterns, LEARNING_NS } from './active-patterns.js';
 import { partitionByRewardSource } from './reward-source.js';
+import { measuredSuccessRate, rankTopPerformingDomains, type DomainSuccessRate } from './domain-ranking.js';
 import { searchAllKeys } from '../../shared/utils/namespaced-search.js';
 import { v4 as uuidv4 } from 'uuid';
 import { toError } from '../../shared/error-utils.js';
@@ -692,10 +693,14 @@ export class LearningOptimizationCoordinator
       // Get experiences from last 24h
       const timeRange = TimeRange.lastNDays(1);
       let experiencesLast24h = 0;
+      const domainRates: DomainSuccessRate[] = [];
       for (const domain of ALL_DOMAINS) {
-        const expResult = await this.getExperiencesForDomain(domain, timeRange);
+        // #1147: read through the learning service, which reads the
+        // learning-optimization namespace the experiences are stored in.
+        const expResult = await this.learningService.getExperiences(domain, timeRange);
         if (expResult.success) {
           experiencesLast24h += expResult.value.length;
+          domainRates.push({ domain, successRate: measuredSuccessRate(expResult.value) });
         }
       }
 
@@ -716,16 +721,9 @@ export class LearningOptimizationCoordinator
         ? patternStats.avgSuccessRate * 0.6 + (patternStats.avgConfidence * 0.4)
         : null;
 
-      // Determine top performing domains
-      const topPerformingDomains: DomainName[] = [];
-      if (patternStats) {
-        const domainScores = Object.entries(patternStats.byDomain)
-          .filter(([_, count]) => count > 0)
-          .map(([domain, count]) => ({ domain: domain as DomainName, score: count }))
-          .sort((a, b) => b.score - a.score);
-
-        topPerformingDomains.push(...domainScores.slice(0, 3).map((d) => d.domain));
-      }
+      // #1147: rank by measured success over the same 24h, not by pattern
+      // count; a domain with no measured outcome or at 0% is left out.
+      const { topPerformingDomains } = rankTopPerformingDomains(domainRates);
 
       const dashboard: LearningDashboard = {
         overallLearningRate,

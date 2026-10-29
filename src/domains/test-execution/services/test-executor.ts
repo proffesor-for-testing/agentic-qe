@@ -22,7 +22,7 @@ import {
 import { MemoryBackend } from '../../../kernel/interfaces';
 import type { HybridRouter } from '../../../shared/llm';
 import { TEST_EXECUTION_CONSTANTS, LLM_ANALYSIS_CONSTANTS } from '../../constants.js';
-import { toErrorMessage, toError } from '../../../shared/error-utils.js';
+import { CallerInputError, isCallerInputError, toErrorMessage, toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { secureRandom, secureRandomInt } from '../../../shared/utils/crypto-random.js';
 import { writeTestRunEvidence } from '../../quality-assessment/quality-evidence.js';
@@ -587,6 +587,9 @@ Provide:
     if (result.success === false) {
       // Runner/suite errors have no trustworthy assertion receipt to aggregate.
       if (result.error instanceof TestRunnerExecutionError) throw result.error;
+      // #1147: the caller's input (a test file that does not exist) is not a
+      // failed test, so it is never counted as a measured failure.
+      if (isCallerInputError(result.error)) throw result.error;
       // Return as a failed test rather than throwing — allows other files to still run
       return {
         total: files.length,
@@ -618,7 +621,7 @@ Provide:
     // Verify test file exists
     const missingFile = files.find(file => !existsSync(file));
     if (missingFile) {
-      return err(new Error(`Test file not found: ${missingFile}`));
+      return err(new CallerInputError(`Test file not found: ${missingFile}`));
     }
 
     // Build command based on framework

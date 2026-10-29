@@ -185,6 +185,10 @@ describe('#1109 assigned rewards are recorded but never reported as measured', (
     await eventBus.publish(createMockEvent('test-execution.TestRunCompleted', 'test-execution', {
       runId: 'r-1', passed: 1, failed: 3, duration: 10,
     }));
+    // #1147: a domain whose measured runs all failed is not top-performing.
+    await eventBus.publish(createMockEvent('test-execution.TestRunCompleted', 'test-execution', {
+      runId: 'r-2', passed: 10, failed: 0, duration: 10,
+    }));
 
     const result = await tool().invoke({ action: 'dashboard' }, { memory });
 

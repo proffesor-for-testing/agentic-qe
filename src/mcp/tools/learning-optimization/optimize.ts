@@ -26,6 +26,7 @@ import {
 } from '../../../domains/learning-optimization/interfaces.js';
 import type { LearningOptimizationAPI } from '../../../domains/learning-optimization/plugin.js';
 import { partitionByRewardSource } from '../../../domains/learning-optimization/reward-source.js';
+import { rankTopPerformingDomains, type DomainSuccessRate } from '../../../domains/learning-optimization/domain-ranking.js';
 import type { PersistedSONAStats } from '../../../integrations/ruvector/sona-persistence.js';
 
 // ============================================================================
@@ -67,6 +68,8 @@ export interface LearnResult {
   experienceIdsNotFound?: number;
   evidenceStatus?: 'insufficient-evidence';
   patternsLearned: number;
+  /** #1147: why nothing was learned from the requested experiences. */
+  noPatternReason?: string;
   newPatterns: LearnedPattern[];
   /** No baseline is recorded to compare against, so improvement is not measured (#1109). */
   improvement: number | null;
@@ -150,7 +153,10 @@ export interface DashboardResult {
   assignedPatternsExcluded?: number;
   /** #1121: untagged patterns mined before #1120 (rate selected over successes), excluded likewise. */
   legacyPatternsExcluded?: number;
-  /** Ranked by measured success rate; empty when no domain has a measured outcome. */
+  /**
+   * Ranked by measured success rate (#1147): domains with no measured outcome,
+   * or with 0% measured success, are left out.
+   */
   topPerformingDomains: DomainName[];
   evidenceStatus?: 'insufficient-evidence';
   unmeasured?: string[];
@@ -370,8 +376,19 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
     const readResult = await learningCoordinator.getExperiencesByIds(experienceIds);
     if (!readResult.success) throw readResult.error;
     const read = readResult.value;
+    const requested = new Set(experienceIds).size;
     const { measured, assignedExcluded } = partitionByRewardSource(read);
     const learned = measured.length > 0 ? await learningCoordinator.learnPattern(read) : null;
+    // #1147: say why nothing was learned instead of returning a bare 0.
+    let noPatternReason: string | undefined;
+    if (read.length === 0) {
+      noPatternReason = `None of the ${requested} requested experience ID(s) were found.`;
+    } else if (measured.length === 0) {
+      noPatternReason = `None of the ${read.length} experience(s) read has a measured outcome` +
+        (assignedExcluded > 0 ? ` (${assignedExcluded} with an assigned reward excluded).` : '.');
+    } else if (learned && !learned.success) {
+      noPatternReason = learned.error.message;
+    }
     const newPatterns: LearnedPattern[] = learned?.success
       ? [{
           id: learned.value.id,
@@ -387,11 +404,12 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
     this.markAsRealData();
     return {
       experiencesProcessed: read.length,
-      experienceIdsNotFound: new Set(experienceIds).size - read.length,
+      experienceIdsNotFound: requested - read.length,
       measuredExperiences: measured.length,
       assignedRewardsExcluded: assignedExcluded,
       ...(measured.length === 0 ? { evidenceStatus: 'insufficient-evidence' as const } : {}),
       patternsLearned: newPatterns.length,
+      ...(noPatternReason ? { noPatternReason } : {}),
       newPatterns,
       improvement: null,
       unmeasured: ['improvement'],
@@ -701,7 +719,7 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
 
     let experiencesLast24h = 0;
     let assignedRewardsExcluded = 0;
-    const domainPerformance: { domain: DomainName; successRate: number }[] = [];
+    const domainPerformance: DomainSuccessRate[] = [];
 
     for (const domain of domains) {
       const mineResult = await learningCoordinator.mineExperiences(domain, recentTimeRange);
@@ -709,18 +727,12 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
         experiencesLast24h += mineResult.value.experienceCount;
         assignedRewardsExcluded += mineResult.value.assignedRewardsExcluded ?? 0;
         // #1109: only a measured success rate can rank a domain.
-        const { successRate } = mineResult.value;
-        if (successRate !== null) {
-          domainPerformance.push({ domain, successRate });
-        }
+        domainPerformance.push({ domain, successRate: mineResult.value.successRate });
       }
     }
 
-    // Calculate top performing domains
-    domainPerformance.sort((a, b) => b.successRate - a.successRate);
-    const topPerformingDomains = domainPerformance
-      .slice(0, 3)
-      .map(d => d.domain);
+    // #1147: rank by measured success; a domain at 0% is not top-performing.
+    const { topPerformingDomains, measuredDomains } = rankTopPerformingDomains(domainPerformance);
 
     // Calculate overall learning rate from pattern stats
     // getPatternStats already leaves out patterns learned from assigned rewards.
@@ -779,7 +791,7 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
 
     const unmeasured: string[] = [];
     if (overallLearningRate === null) unmeasured.push('overallLearningRate');
-    if (topPerformingDomains.length === 0) unmeasured.push('topPerformingDomains');
+    if (measuredDomains === 0) unmeasured.push('topPerformingDomains');
 
     return {
       overallLearningRate,
