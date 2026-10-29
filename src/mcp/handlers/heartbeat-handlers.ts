@@ -33,7 +33,8 @@ export interface HeartbeatStatusResult {
   lastResult: {
     success: boolean;
     durationMs: number;
-    healthScore: number;
+    /** `null` when the run measured nothing (#1137). */
+    healthScore: number | null;
     trend: string;
     domainMetrics: Record<string, number | string>;
   } | null;
@@ -47,7 +48,8 @@ export interface HeartbeatTriggerParams {
 export interface HeartbeatTriggerResult {
   success: boolean;
   durationMs: number;
-  healthScore: number;
+  /** `null` when the run measured nothing (#1137). */
+  healthScore: number | null;
   trend: string;
   promoted: number;
   deprecated: number;

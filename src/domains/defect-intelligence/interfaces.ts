@@ -47,6 +47,8 @@ export interface PredictionResult {
   factors: string[];
   /** ADR-051: LLM-enhanced analysis when enabled */
   llmAnalysis?: LLMDefectAnalysis;
+  /** #1137: the run was stored, but pruning older runs failed. */
+  retention?: 'failed';
 }
 
 /**

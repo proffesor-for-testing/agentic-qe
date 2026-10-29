@@ -97,8 +97,8 @@ export interface WorkerMetrics {
   /** Number of issues found */
   readonly issuesFound: number;
 
-  /** Health score (0-100) */
-  readonly healthScore: number;
+  /** Health score (0-100); `null` when nothing was measured (#1137) */
+  readonly healthScore: number | null;
 
   /** Trend direction */
   readonly trend: 'improving' | 'stable' | 'degrading';

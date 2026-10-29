@@ -18,6 +18,10 @@
  * A `defect:predictions` record without
  * the measured stamp (the invented one written by <= 3.15.6) is ignored and
  * replaced by the next measured run.
+ *
+ * #1137: the latest run of every target is reported, so predicting `src/b`
+ * after `src/a` keeps `src/a`'s files; a file named by several targets takes
+ * its prediction from the newest run that names it.
  */
 
 import * as fs from 'fs';
@@ -68,6 +72,10 @@ interface MeasuredDefectPredictions {
   missingFilesSkipped: number;
   /** Predicted paths outside the project root (after resolving symlinks), left out. */
   outsideProjectSkipped: number;
+  /** #1137: the latest run of each target that contributed a file, newest first. */
+  runs: Array<{ predictionId: string; target?: string; predictedAt: string; files: number; estimated?: true }>;
+  /** #1137: targets whose latest runs share a timestamp, so neither is reported. */
+  ambiguousTargetsSkipped?: number;
   /** Set when a newer prediction exists but names no usable file: this record is no longer current. */
   stale?: true;
   staleSince?: string;
@@ -75,6 +83,7 @@ interface MeasuredDefectPredictions {
 }
 
 type FileDisposition = 'inside' | 'outside' | 'missing';
+type PredictionRun = NonNullable<ReturnType<typeof parsePredictionRecord>>;
 
 /**
  * Where a predicted path lies, resolved against the project root with
@@ -121,7 +130,7 @@ export class DefectPredictorWorker extends BaseWorker {
     const findings: WorkerFinding[] = [];
     const recommendations: WorkerRecommendation[] = [];
 
-    const { measured: latest, unusable } = await this.readLatestPrediction(context);
+    const { measured: latest, unusable, estimatedFiles } = await this.readLatestPrediction(context);
 
     if (!latest) {
       findings.push({
@@ -144,9 +153,11 @@ export class DefectPredictorWorker extends BaseWorker {
         {
           itemsAnalyzed: 0,
           issuesFound: 0,
-          healthScore: 100,
+          // #1137: nothing was measured, so there is no health to report.
+          healthScore: null,
           trend: 'stable',
           domainMetrics: {
+            health: 'unmeasured',
             filesAnalyzed: 0,
             highRiskFiles: 0,
             hotspots: 'unmeasured',
@@ -159,6 +170,13 @@ export class DefectPredictorWorker extends BaseWorker {
     }
 
     const { predictions } = latest;
+    if (latest.ambiguousTargetsSkipped) {
+      findings.push({
+        type: 'defect-prediction-ambiguous', severity: 'info', domain: 'defect-intelligence',
+        title: 'Ambiguous Defect Prediction',
+        description: `${latest.ambiguousTargetsSkipped} predicted targets have several latest runs with the same timestamp, so their files are not reported. Run defect_predict on them again to assess.`,
+      });
+    }
     if (latest.filesSkipped) {
       findings.push({
         type: 'defect-prediction-partial', severity: 'info', domain: 'defect-intelligence',
@@ -166,7 +184,7 @@ export class DefectPredictorWorker extends BaseWorker {
         description: `${latest.filesSkipped} source files could not be read; risk estimates cover only ${predictions.length} successfully analyzed files.`,
       });
     }
-    this.analyzeHighRiskPredictions(predictions, findings, recommendations, latest.estimated === true);
+    this.analyzeHighRiskPredictions(predictions, findings, recommendations, estimatedFiles);
 
     await context.memory.set(PREDICTIONS_KEY, latest);
     await context.memory.set('defect:lastAnalysis', latest.evaluatedAt);
@@ -194,6 +212,7 @@ export class DefectPredictorWorker extends BaseWorker {
           highRiskFiles: highRisk,
           missingFilesSkipped: latest.missingFilesSkipped,
           outsideProjectSkipped: latest.outsideProjectSkipped,
+          targetsReported: latest.runs.length,
           hotspots: 'unmeasured',
           avgDefectProbability: (predictions.reduce((sum, p) => sum + p.probability, 0) / predictions.length).toFixed(2),
         },
@@ -218,63 +237,108 @@ export class DefectPredictorWorker extends BaseWorker {
   }
 
   /**
-   * #1043: the most recent prediction run the defect-intelligence predictor
+   * #1043: the most recent prediction runs the defect-intelligence predictor
    * recorded, restricted to regular files whose real path is inside the
-   * project root. `measured` is `null` when there is no such prediction;
-   * `unusable` describes an ambiguous newest timestamp or a newest prediction
-   * none of whose files qualify.
+   * project root. #1137: the latest run of each target contributes, and a
+   * file takes its prediction from the newest run naming it. `measured` is
+   * `null` when no file qualifies; `unusable` then describes the newest run
+   * (or its ambiguous timestamp).
    */
   private async readLatestPrediction(context: WorkerContext): Promise<{
     measured: MeasuredDefectPredictions | null;
     unusable: { id: string; outside: number; missing: number; ambiguous?: true } | null;
+    estimatedFiles: ReadonlySet<DomainFilePrediction>;
   }> {
     const keys = await context.memory.search(PREDICTION_KEY_PATTERN, Number.MAX_SAFE_INTEGER, { namespace: DEFECT_NAMESPACE });
     const now = Date.now();
-    let latest: ReturnType<typeof parsePredictionRecord> = null;
-    let ambiguous = false;
+    const byTarget = new Map<string, { run: PredictionRun; ambiguous: boolean }>();
     for (const found of keys) {
       // #1049: the in-memory backend returns `<namespace>:<key>` from a namespaced search.
       const key = bareSearchKey(found, DEFECT_NAMESPACE, PREDICTION_KEY_PATTERN);
       const parsed = parsePredictionRecord(await context.memory.get<unknown>(key, { namespace: DEFECT_NAMESPACE }), now);
       if (!parsed) continue;
-      if (!latest || Date.parse(parsed.timestamp) > Date.parse(latest.timestamp)) {
-        latest = parsed;
-        ambiguous = false;
-      } else if (Date.parse(parsed.timestamp) === Date.parse(latest.timestamp) && parsed.id !== latest.id) {
-        ambiguous = true;
+      const current = byTarget.get(parsed.target);
+      if (!current || Date.parse(parsed.timestamp) > Date.parse(current.run.timestamp)) {
+        byTarget.set(parsed.target, { run: parsed, ambiguous: false });
+      } else if (Date.parse(parsed.timestamp) === Date.parse(current.run.timestamp) && parsed.id !== current.run.id) {
+        // Timestamp precision cannot establish ordering between concurrent runs.
+        // Never let backend key ordering decide whether the current scan is clean.
+        current.ambiguous = true;
       }
     }
-    if (!latest) return { measured: null, unusable: null };
-    // Timestamp precision cannot establish ordering between concurrent runs.
-    // Never let backend key ordering decide whether the current scan is clean.
-    if (ambiguous) return {
-      measured: null,
-      unusable: { id: `ambiguous:${latest.timestamp}`, outside: 0, missing: 0, ambiguous: true },
-    };
+    const estimatedFiles = new Set<DomainFilePrediction>();
+    const latestRuns = [...byTarget.values()]
+      .sort((a, b) => Date.parse(b.run.timestamp) - Date.parse(a.run.timestamp));
+    if (latestRuns.length === 0) return { measured: null, unusable: null, estimatedFiles };
 
     const realRoot = realProjectRoot();
-    const disposition = latest.predictions.map((p) => classifyPredictedFile(p.file, realRoot));
-    const existing = latest.predictions.filter((_, i) => disposition[i] === 'inside');
-    const outside = disposition.filter((d) => d === 'outside').length;
-    const missing = disposition.filter((d) => d === 'missing').length;
-    if (outside > 0) {
-      context.logger.warn('Ignoring defect predictions for paths outside the project root', { predictionId: latest.id, outside });
+    const claimed = new Set<string>();
+    const contributing: Array<{ run: PredictionRun; files: DomainFilePrediction[] }> = [];
+    let outside = 0;
+    let missing = 0;
+    let ambiguousTargets = 0;
+    let newestCounts = { outside: 0, missing: 0 };
+    for (const [index, { run, ambiguous }] of latestRuns.entries()) {
+      if (ambiguous) {
+        ambiguousTargets++;
+        continue;
+      }
+      const disposition = run.predictions.map((p) => classifyPredictedFile(p.file, realRoot));
+      const runOutside = disposition.filter((d) => d === 'outside').length;
+      const runMissing = disposition.filter((d) => d === 'missing').length;
+      outside += runOutside;
+      missing += runMissing;
+      if (index === 0) newestCounts = { outside: runOutside, missing: runMissing };
+      if (runOutside > 0) {
+        context.logger.warn('Ignoring defect predictions for paths outside the project root', { predictionId: run.id, outside: runOutside });
+      }
+      const files = run.predictions.filter((p, i) => {
+        if (disposition[i] !== 'inside') return false;
+        const identity = path.resolve(realRoot, p.file);
+        if (claimed.has(identity)) return false;
+        claimed.add(identity);
+        return true;
+      });
+      if (files.length > 0) contributing.push({ run, files });
     }
-    if (existing.length === 0) {
-      context.logger.info('Latest defect prediction names no file inside the project', { predictionId: latest.id });
-      return { measured: null, unusable: { id: latest.id, outside, missing } };
+
+    if (contributing.length === 0) {
+      const newest = latestRuns[0];
+      context.logger.info('Latest defect predictions name no file inside the project', { predictionId: newest.run.id });
+      return {
+        measured: null,
+        unusable: newest.ambiguous
+          ? { id: `ambiguous:${newest.run.timestamp}`, outside: 0, missing: 0, ambiguous: true }
+          : { id: newest.run.id, ...newestCounts },
+        estimatedFiles,
+      };
     }
-    return { unusable: null, measured: {
+
+    const estimatedRuns = contributing.filter(({ run }) => run.estimated);
+    for (const { files } of estimatedRuns) files.forEach((p) => estimatedFiles.add(p));
+    const newest = contributing[0].run;
+    return { unusable: null, estimatedFiles, measured: {
       measured: true,
       schemaVersion: SCHEMA_VERSION,
       source: 'defect-intelligence',
-      predictionId: latest.id,
-      ...(latest.estimated ? { estimated: true, predictionMethod: latest.predictionMethod, filesSkipped: latest.filesSkipped } : {}),
-      predictedAt: latest.timestamp,
+      predictionId: newest.id,
+      ...(estimatedRuns.length > 0 ? {
+        estimated: true, predictionMethod: 'static-code-indicators',
+        filesSkipped: estimatedRuns.reduce((sum, { run }) => sum + (run.filesSkipped ?? 0), 0),
+      } : {}),
+      predictedAt: newest.timestamp,
       evaluatedAt: new Date().toISOString(),
-      predictions: existing,
+      predictions: contributing.flatMap(({ files }) => files),
+      runs: contributing.map(({ run, files }) => ({
+        predictionId: run.id,
+        ...(run.target ? { target: run.target } : {}),
+        predictedAt: run.timestamp,
+        files: files.length,
+        ...(run.estimated ? { estimated: true as const } : {}),
+      })),
       missingFilesSkipped: missing,
       outsideProjectSkipped: outside,
+      ...(ambiguousTargets > 0 ? { ambiguousTargetsSkipped: ambiguousTargets } : {}),
     } };
   }
 
@@ -282,12 +346,13 @@ export class DefectPredictorWorker extends BaseWorker {
     predictions: DomainFilePrediction[],
     findings: WorkerFinding[],
     recommendations: WorkerRecommendation[],
-    estimated = false,
+    estimatedFiles: ReadonlySet<DomainFilePrediction>,
   ): void {
     const critical = predictions.filter(p => p.riskLevel === 'critical');
     const high = predictions.filter(p => p.riskLevel === 'high');
 
     for (const prediction of [...critical, ...high]) {
+      const estimated = estimatedFiles.has(prediction);
       const name = prediction.file.split(/[\\/]/).pop();
       findings.push({
         type: `${prediction.riskLevel}-defect-risk`,

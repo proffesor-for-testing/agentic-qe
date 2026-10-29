@@ -273,6 +273,9 @@ export interface DefectPredictResult {
   scanStatus?: 'partial' | 'complete';
   predictionMethod?: 'static-code-indicators';
   estimated?: boolean;
+  /** #1137: the run was stored, but pruning older runs failed. */
+  retention?: 'failed';
+  retentionError?: string;
   taskId: string;
   status: string;
   predictedDefects: Array<{
@@ -1158,6 +1161,7 @@ export const defectPredictConfig: DomainHandlerConfig<DefectPredictParams, Defec
       filesAnalyzed: data.filesAnalyzed as number, filesSkipped: data.filesSkipped as number,
       scanStatus: data.scanStatus as 'partial' | 'complete',
     } : {}),
+    ...(data.retention === 'failed' ? { retention: 'failed', retentionError: String(data.retentionError ?? '') } : {}),
     predictedDefects: (data.predictedDefects as Array<{ file: string; probability: number; reason: string }>) || [],
     riskScore: (data.riskScore as number) || 0,
     recommendations: (data.recommendations as string[]) || [],
