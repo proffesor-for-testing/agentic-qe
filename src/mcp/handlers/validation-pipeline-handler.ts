@@ -87,8 +87,9 @@ export async function handleValidationPipeline(
       { allowMissing: true, maxBytes: MAX_PAYLOAD_FILE_BYTES });
     if (!confined.success) return { success: false, error: confined.error.message };
     // #1161: read from the validated descriptor, not the name checked above.
+    // #1186: a hardlink cannot be confined by path, so it is refused.
     try {
-      content = await readConfinedText(confined.value, { maxBytes: MAX_PAYLOAD_FILE_BYTES });
+      content = await readConfinedText(confined.value, { maxBytes: MAX_PAYLOAD_FILE_BYTES, hardlinks: 'refuse' });
     } catch (readErr) {
       if (readErr instanceof ConfinedReadError && readErr.reason === 'not-found') {
         return {

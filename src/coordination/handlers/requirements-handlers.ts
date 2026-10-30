@@ -89,7 +89,8 @@ export function registerRequirementsHandlers(ctx: TaskHandlerContext): void {
       // Check if the contract file exists
       try {
         // #1161: read from the descriptor that was validated, not the name.
-        const content = await readConfinedText(confined.value, { maxBytes: MAX_PAYLOAD_FILE_BYTES });
+        // #1186: a hardlink cannot be confined by path, so it is refused.
+        const content = await readConfinedText(confined.value, { maxBytes: MAX_PAYLOAD_FILE_BYTES, hardlinks: 'refuse' });
         const isJson = payload.contractPath.endsWith('.json');
         const isYaml = payload.contractPath.endsWith('.yaml') || payload.contractPath.endsWith('.yml');
 

@@ -80,9 +80,10 @@ export class QualityGateTool extends MCPToolBase<QualityGateParams, ReachAwareQu
         if (!confined.success) return { success: false, error: confined.error.message };
         anchorPath = confined.value;
         // #1161: the runner gets the anchor read from the validated descriptor,
-        // so a file swapped after the check is never read by name.
+        // so a file swapped after the check is never read by name. #1186: a
+        // hardlink cannot be confined by path, so it is refused.
         anchor = parseAnchorSet(
-          await readConfinedText(anchorPath, { maxBytes: MAX_PAYLOAD_FILE_BYTES }), params.anchorPath,
+          await readConfinedText(anchorPath, { maxBytes: MAX_PAYLOAD_FILE_BYTES, hardlinks: 'refuse' }), params.anchorPath,
         );
       }
 
