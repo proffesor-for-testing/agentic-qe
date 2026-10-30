@@ -418,7 +418,10 @@ export class FileReader {
     try {
       // The lexical root, so a path spelled under a symlinked root still
       // counts as inside; the primitive resolves the root's realpath itself.
-      return ok(await readConfinedText(lexical, { projectRoot: this.projectRoot ?? rootReal }));
+      // #1186: the caller's spelling, not `lexical`, so `link/../x` resolves
+      // through the link the way the kernel and the payload guard resolve it.
+      const raw = path.isAbsolute(filePath) ? filePath : `${path.resolve(this.basePath)}${path.sep}${filePath}`;
+      return ok(await readConfinedText(raw, { projectRoot: this.projectRoot ?? rootReal }));
     } catch (error) {
       if (!(error instanceof ConfinedReadError)) return err(readError(error, lexical));
       if (error.reason === 'outside-project-root') {

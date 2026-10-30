@@ -16,7 +16,7 @@ import { extname, resolve } from 'node:path';
 import type { DomainName } from '../../shared/types/index.js';
 import { walkSourceFiles } from './file-discovery.js';
 import { summarizeCoverage } from './coverage-data.js';
-import { describeNoData, resolveExistingCoverage } from '../../coordination/handlers/coverage-target.js';
+import { describeNoData, describeRefusedReports, resolveExistingCoverage } from '../../coordination/handlers/coverage-target.js';
 import { describeEvidence } from '../../coordination/handlers/coverage-evidence.js';
 import { MAX_SAST_FILE_BYTES } from '../../domains/security-compliance/sast-path-guard.js';
 import { confinePayloadPaths } from '../../shared/io/payload-path-guard.js';
@@ -91,13 +91,20 @@ export async function planFleetOperation(
     case 'analyze': {
       const existing = await resolveExistingCoverage(targetPath);
       if (existing.status === 'no-report') {
+        // #1186: a report that exists but was refused is named with its reason.
+        if (existing.refused.length > 0) {
+          return refuse(`${describeRefusedReports(existing.refused)} There is no coverage to analyze for project ` +
+            `${existing.projectRoot}.`);
+        }
         return refuse(`No coverage report for project ${existing.projectRoot}, so there is no coverage to ` +
           'analyze. Run your tests with coverage first (e.g. `npm test -- --coverage`), or pass the report ' +
           'file as --target.');
       }
       if (existing.status === 'target-missing') return refuse(describeNoData('target-missing', target, null));
       const { evaluation, projectRoot } = existing;
-      if (evaluation.status !== 'measured') return refuse(describeNoData(evaluation.reason, target, projectRoot));
+      if (evaluation.status !== 'measured') {
+        return refuse(describeNoData(evaluation.reason, target, projectRoot, evaluation.refused));
+      }
       const coverageData = { files: evaluation.files, summary: summarizeCoverage(evaluation.files) };
       const insufficientEvidence = describeEvidence(evaluation.evidence, projectRoot);
       return {
