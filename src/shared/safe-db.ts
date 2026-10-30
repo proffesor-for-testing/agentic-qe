@@ -22,7 +22,7 @@ export interface SafeDbOptions {
   fileMustExist?: boolean;
   /** Busy timeout in ms (default: 5000) */
   busyTimeout?: number;
-  /** Enable WAL mode (default: true for writable, false for readonly) */
+  /** Enable WAL mode (default: true for writable; always ignored for readonly) */
   walMode?: boolean;
   /**
    * M3.2: on a malformed/corrupt existing DB, auto-restore the newest verified
@@ -174,10 +174,11 @@ export function openDatabase(dbPath: string, opts?: SafeDbOptions): DatabaseType
         }
       }
     }
-  } else if (walMode) {
+  } else if (walMode && !readonly) {
     // WAL mode for writable connections prevents corruption from concurrent
-    // writers. Readonly connections inherit WAL from the DB file but we set it
-    // explicitly to be safe in case the DB was created without WAL.
+    // writers. Readonly connections inherit the file's journal mode and must
+    // not switch it: that is a write and fails with SQLITE_READONLY on a
+    // rollback-journal file (#1320), so `walMode` is ignored for readonly opens.
     //
     // #1164: switching a rollback-journal file to WAL upgrades a read lock to a
     // write lock, and SQLite returns SQLITE_BUSY for that at once instead of

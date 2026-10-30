@@ -67,12 +67,10 @@ export class SQLiteReader implements DataReader<SQLiteRecord> {
     }
 
     try {
-      // Open read-only
+      // Open read-only. Never set journal_mode/synchronous here: switching the
+      // journal mode is a write, so it fails with SQLITE_READONLY on a
+      // rollback-journal source (#1320). A reader must leave the source as-is.
       this.db = openDatabase(this.dbPath, { readonly: true });
-
-      // Enable performance settings for reads
-      this.db.pragma('journal_mode = WAL');
-      this.db.pragma('synchronous = NORMAL');
 
       console.log(`[SQLiteReader:${this.name}] Initialized: ${this.dbPath}`);
     } catch (error) {
