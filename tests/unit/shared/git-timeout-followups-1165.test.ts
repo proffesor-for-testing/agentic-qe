@@ -102,6 +102,9 @@ exec ${JSON.stringify(realGit)} "$@"
     const analyzer = new GitAnalyzer({ repoRoot: repo, enableCache: true });
 
     expect(await analyzer.getBugHistory('auth.ts')).toBe(0.2);
+    // Git answered (with an error, as `blame` does for an untracked file), so
+    // the result is "no git data", not an incomplete read.
+    expect(analyzer.consumeTimeout('auth.ts')).toBe(false);
 
     // Nothing was cached: once git answers, the measured value comes back.
     vi.stubEnv('FAIL_GREP', '');
