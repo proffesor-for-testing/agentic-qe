@@ -10,6 +10,7 @@
  */
 
 import * as path from 'path';
+import { AsyncLocalStorage } from 'async_hooks';
 import { assertSafeGitRef } from './ref-validation';
 import { GitTimeoutError, runGit } from './git-process.js';
 
@@ -99,13 +100,28 @@ const DEFAULT_CONFIG: Required<GitAnalyzerConfig> = {
 /** Room for `git blame --line-porcelain` on large files (execFileSync allowed 1 MiB). */
 const GIT_MAX_BUFFER = 64 * 1024 * 1024;
 
-/** Git queries that share one deadline. A timeout rejects; it never reads as "no history". */
+/**
+ * Git queries that share one deadline. A timeout, an output overflow or a
+ * non-zero exit rejects; none of them reads as "no history" (#1115, #1165).
+ */
 interface GitQuery {
   text(args: string[]): Promise<string>;
-  /** Non-empty output lines, or none when git fails (e.g. the file is not tracked). */
+  /** Non-empty output lines. */
   lines(args: string[]): Promise<string[]>;
   /** Paths from a `-z` query; NUL records preserve whitespace, newlines and quoted Unicode. */
   paths(args: string[]): Promise<string[]>;
+}
+
+/** One withFileDeadline() call: its deadline, and whether git left its data incomplete. */
+interface FileScope {
+  filePath: string;
+  deadline: number;
+  incomplete: boolean;
+}
+
+/** Git had an answer that was not read: it timed out or overflowed the output limit. */
+function isIncompleteRead(error: unknown): boolean {
+  return error instanceof GitTimeoutError || (error as NodeJS.ErrnoException)?.code === 'ENOBUFS';
 }
 
 /**
@@ -117,9 +133,10 @@ export class GitAnalyzer {
   private isGitRepo: boolean | null = null;
   /** After a rev-parse timeout, when to ask git again (until then: "timeout"). */
   private repoRetryAt = 0;
+  /** Files whose git data came back incomplete outside any withFileDeadline() call. */
   private readonly timedOutFiles = new Set<string>();
-  /** Files inside withFileDeadline() and when their git time runs out. */
-  private readonly fileDeadlines = new Map<string, number>();
+  /** The withFileDeadline() call each async context runs in, so concurrent calls on one file stay apart (#1165). */
+  private readonly fileScopes = new AsyncLocalStorage<FileScope>();
 
   constructor(config: GitAnalyzerConfig = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -133,26 +150,30 @@ export class GitAnalyzer {
   }
 
   /**
-   * True when git timed out while analysing `filePath` since the last call, so
-   * the analysis returned its "git unavailable" default rather than a result.
+   * True when git timed out, or its output overflowed, while analysing
+   * `filePath` since the last call, so the analysis returned its "git
+   * unavailable" default rather than a result. Inside withFileDeadline() it
+   * reports only that call's analyses, not another caller's on the same file (#1165).
    */
   consumeTimeout(filePath: string): boolean {
-    return this.timedOutFiles.delete(filePath);
+    const scope = this.scopeFor(filePath);
+    if (!scope) return this.timedOutFiles.delete(filePath);
+    const incomplete = scope.incomplete;
+    scope.incomplete = false;
+    return incomplete;
   }
 
   /**
    * Run `work`, during which every analysis of `filePath` also stops at one
    * shared `fileTimeoutMs` deadline. One file's analyses then wait for git at
-   * most that long together, rather than `gitTimeoutMs` each (#1115).
+   * most that long together, rather than `gitTimeoutMs` each (#1115). Each
+   * call has its own deadline and timeout flag, even when calls on the same
+   * file overlap (#1165); call consumeTimeout() inside `work` to read the flag.
    */
   async withFileDeadline<T>(filePath: string, work: () => Promise<T>): Promise<T> {
-    if (this.fileDeadlines.has(filePath)) return work();
-    this.fileDeadlines.set(filePath, Date.now() + this.config.fileTimeoutMs);
-    try {
-      return await work();
-    } finally {
-      this.fileDeadlines.delete(filePath);
-    }
+    if (this.scopeFor(filePath)) return work();
+    const scope: FileScope = { filePath, deadline: Date.now() + this.config.fileTimeoutMs, incomplete: false };
+    return this.fileScopes.run(scope, work);
   }
 
   /**
@@ -164,7 +185,7 @@ export class GitAnalyzer {
     const cached = this.getFromCache<number>(cacheKey);
     if (cached !== undefined) return cached;
 
-    return this.analyze(filePath, 0.4, async (git, relativePath) => {
+    return this.analyze(filePath, 0.4, {}, async (git, relativePath) => {
       // Literal pathspecs preserve route filenames such as app/[id].tsx.
       // Arguments go to git directly, without shell interpretation.
       const output = (await git.text(['--literal-pathspecs', 'log', '--oneline', '--since=90 days ago', '--', relativePath])).trim();
@@ -185,7 +206,7 @@ export class GitAnalyzer {
     const cached = this.getFromCache<number>(cacheKey);
     if (cached !== undefined) return cached;
 
-    return this.analyze(filePath, 0.5, async (git, relativePath) => {
+    return this.analyze(filePath, 0.5, {}, async (git, relativePath) => {
       const blameOutput = await git.text(['--literal-pathspecs', 'blame', '--line-porcelain', '--', relativePath]);
 
       // Parse blame output - count authors manually instead of piping through shell
@@ -216,7 +237,7 @@ export class GitAnalyzer {
     const cached = this.getFromCache<number>(cacheKey);
     if (cached !== undefined) return cached;
 
-    return this.analyze(filePath, 0.4, async (git, relativePath) => {
+    return this.analyze(filePath, 0.4, {}, async (git, relativePath) => {
       // First commit: the last line (oldest) of the commits that added the file
       const added = await git.lines(['--literal-pathspecs', 'log', '--format=%at', '--follow', '--diff-filter=A', '--', relativePath]);
       const firstCommitTimestamp = parseInt(added[added.length - 1] ?? '', 10);
@@ -256,7 +277,7 @@ export class GitAnalyzer {
     const cached = this.getFromCache<number>(cacheKey);
     if (cached !== undefined) return cached;
 
-    return this.analyze(filePath, 0.2, async (git, relativePath) => {
+    return this.analyze(filePath, 0.2, {}, async (git, relativePath) => {
       const bugCommits = await this.countBugFixCommits(git, relativePath);
       const riskScore = Math.min(1, bugCommits / 10); // Normalize: 10+ bug fixes = 1.0
       this.setCache(cacheKey, riskScore);
@@ -266,14 +287,16 @@ export class GitAnalyzer {
 
   /**
    * Get comprehensive file history analysis
+   * @throws GitTimeoutError when git does not answer within `gitTimeoutMs`, and
+   *   an ENOBUFS error when its output overflows; zero history would be a false answer (#1165)
    */
   async getFileHistory(filePath: string): Promise<FileHistory> {
     const cacheKey = `history:${filePath}`;
     const cached = this.getFromCache<FileHistory>(cacheKey);
     if (cached) return cached;
 
-    return this.analyze(filePath, this.getDefaultFileHistory(filePath), async (git, relativePath) => {
-      // Each query yields no lines when the file is not in git
+    return this.analyze(filePath, this.getDefaultFileHistory(filePath), { strict: true }, async (git, relativePath) => {
+      // `git log` yields no lines when the file is not in git
       const totalCommits = (await git.lines(['--literal-pathspecs', 'log', '--oneline', '--', relativePath])).length;
       // Parse authors here instead of piping through sort/wc
       const uniqueAuthors = new Set(await git.lines(['--literal-pathspecs', 'log', '--format=%ae', '--', relativePath])).size;
@@ -317,7 +340,8 @@ export class GitAnalyzer {
    * Get files changed since a specific date
    * @param since - Date to check changes from (default: 24 hours ago)
    * @returns Array of changed file paths relative to repo root
-   * @throws GitTimeoutError when git does not answer within `gitTimeoutMs`
+   * @throws GitTimeoutError when git does not answer within `gitTimeoutMs`, and
+   *   an Error when git fails; neither means "no changes" (#1165)
    */
   async getChangedFiles(since?: Date): Promise<string[]> {
     if (!(await this.isGitRepository())) {
@@ -325,7 +349,8 @@ export class GitAnalyzer {
     }
 
     const sinceDate = since || new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const files = await this.query().paths(['log', `--since=${sinceDate.toISOString()}`, '--name-only', '-z', '--format=']);
+    const git = this.query();
+    const files = await this.unlessUnborn(git, git.paths(['log', `--since=${sinceDate.toISOString()}`, '--name-only', '-z', '--format=']));
     return Array.from(new Set(files));
   }
 
@@ -336,7 +361,8 @@ export class GitAnalyzer {
    * @throws Error when `commitHash` is option-shaped (starts with "-") or otherwise
    *   not a safe revision argument; git would otherwise parse it as an option
    *   (e.g. `--output=<path>` writes an arbitrary file). See issue #960.
-   * @throws GitTimeoutError when git does not answer within `gitTimeoutMs`
+   * @throws GitTimeoutError when git does not answer within `gitTimeoutMs`, and
+   *   an Error when git fails, e.g. on an unknown revision (#1165)
    */
   async getCommitFiles(commitHash: string = 'HEAD'): Promise<string[]> {
     // Validate before touching git: there is no shell, so stripping
@@ -353,7 +379,8 @@ export class GitAnalyzer {
   /**
    * Get files with uncommitted changes (staged + unstaged)
    * @returns Array of modified file paths relative to repo root
-   * @throws GitTimeoutError when git does not answer within `gitTimeoutMs`
+   * @throws GitTimeoutError when git does not answer within `gitTimeoutMs`, and
+   *   an Error when git fails (#1165)
    */
   async getUncommittedFiles(): Promise<string[]> {
     if (!(await this.isGitRepository())) {
@@ -362,7 +389,7 @@ export class GitAnalyzer {
 
     // `diff HEAD` fails before the first commit; `--cached` still lists staged files.
     const git = this.query();
-    const unstaged = await git.paths(['diff', '--name-only', '-z', 'HEAD']);
+    const unstaged = await this.unlessUnborn(git, git.paths(['diff', '--name-only', '-z', 'HEAD']));
     const staged = await git.paths(['diff', '--name-only', '-z', '--cached']);
     return Array.from(new Set([...unstaged, ...staged]));
   }
@@ -380,27 +407,64 @@ export class GitAnalyzer {
   }
 
   /**
+   * `query`'s paths, or none when the repository has no commit yet, which
+   * `git log` and `git diff HEAD` report as an error.
+   */
+  private async unlessUnborn(git: GitQuery, query: Promise<string[]>): Promise<string[]> {
+    try {
+      return await query;
+    } catch (error) {
+      if (error instanceof GitTimeoutError) throw error;
+      try {
+        await git.text(['rev-parse', '--verify', '-q', 'HEAD']);
+      } catch (headError) {
+        if (headError instanceof GitTimeoutError) throw headError;
+        return [];
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Run one file's analysis with every git call sharing one `gitTimeoutMs`
-   * deadline (#1115). When git is unavailable or times out, the analysis
-   * returns its default, which callers treat as "no git data", and a timeout
-   * is recorded for consumeTimeout(). A timeout never yields a measured 0.
+   * deadline (#1115). When git is unavailable or fails, the analysis returns
+   * its default, which callers treat as "no git data", never a measured 0
+   * (#1165). A timeout or an output overflow is recorded for consumeTimeout(),
+   * or, with `strict`, rejects.
    */
   private async analyze<T>(
     filePath: string,
     fallback: T,
+    options: { strict?: boolean },
     work: (git: GitQuery, relativePath: string) => Promise<T>,
   ): Promise<T> {
+    const scope = this.scopeFor(filePath);
     const repo = await this.repoState();
-    if (repo !== true) {
-      if (repo === 'timeout') this.timedOutFiles.add(filePath);
-      return fallback;
+    if (repo === 'timeout') {
+      if (options.strict) throw new GitTimeoutError(['rev-parse', '--is-inside-work-tree'], this.config.gitTimeoutMs);
+      this.markIncomplete(filePath, scope);
     }
+    if (repo !== true) return fallback;
     try {
-      return await work(this.query(this.fileDeadlines.get(filePath)), this.getRelativePath(filePath));
+      return await work(this.query(scope?.deadline), this.getRelativePath(filePath));
     } catch (error) {
-      if (error instanceof GitTimeoutError) this.timedOutFiles.add(filePath);
+      // Any other failure is git's answer for this file, e.g. `blame` of an untracked file.
+      if (!isIncompleteRead(error)) return fallback;
+      if (options.strict) throw error;
+      this.markIncomplete(filePath, scope);
       return fallback;
     }
+  }
+
+  /** The withFileDeadline() call on `filePath` that the current async context runs in. */
+  private scopeFor(filePath: string): FileScope | undefined {
+    const scope = this.fileScopes.getStore();
+    return scope?.filePath === filePath ? scope : undefined;
+  }
+
+  private markIncomplete(filePath: string, scope: FileScope | undefined): void {
+    if (scope) scope.incomplete = true;
+    else this.timedOutFiles.add(filePath);
   }
 
   /**
@@ -435,18 +499,10 @@ export class GitAnalyzer {
     const text = (args: string[]) => runGit(args, {
       cwd: this.config.repoRoot, timeout: deadline - Date.now(), maxBuffer: GIT_MAX_BUFFER,
     });
-    const orNothing = async (args: string[], separator: string): Promise<string[]> => {
-      try {
-        return (await text(args)).split(separator);
-      } catch (error) {
-        if (error instanceof GitTimeoutError) throw error;
-        return [];
-      }
-    };
     return {
       text,
-      lines: async (args) => (await orNothing(args, '\n')).map((line) => line.trim()).filter(Boolean),
-      paths: async (args) => (await orNothing(args, '\0')).filter(Boolean),
+      lines: async (args) => (await text(args)).split('\n').map((line) => line.trim()).filter(Boolean),
+      paths: async (args) => (await text(args)).split('\0').filter(Boolean),
     };
   }
 

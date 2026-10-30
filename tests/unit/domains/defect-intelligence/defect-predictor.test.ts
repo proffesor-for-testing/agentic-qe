@@ -191,6 +191,19 @@ describe('DefectPredictorService', () => {
       expect(cachedKeys.some(key => key.endsWith(':file-metrics:src/fast.ts'))).toBe(true);
     });
 
+    // #1165: a prediction built on git defaults must not carry full confidence.
+    it('should lower model confidence when git history timed out', async () => {
+      mockGit.withFileDeadline = vi.fn((_file: string, work: () => Promise<unknown>) => work()) as GitAnalyzer['withFileDeadline'];
+      mockGit.consumeTimeout = vi.fn(() => false);
+      const healthy = await service.predictDefects({ files: ['src/fast.ts'] });
+      mockGit.consumeTimeout = vi.fn(() => true);
+      const timedOut = await service.predictDefects({ files: ['src/slow.ts'] });
+
+      expect(healthy.success && timedOut.success).toBe(true);
+      if (!healthy.success || !timedOut.success) return;
+      expect(timedOut.value.modelConfidence).toBeLessThan(healthy.value.modelConfidence);
+    });
+
     it('should return error for empty files array', async () => {
       const result = await service.predictDefects({ files: [] });
 

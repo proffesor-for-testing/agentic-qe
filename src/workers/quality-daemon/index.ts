@@ -283,7 +283,7 @@ export class QualityDaemon {
           if (delta.newGaps.length > 0) {
             const suggestions = await this.testSuggester.suggest(
               delta.newGaps,
-              payload.changedFiles,
+              payload.changedFiles ?? [],
               memory
             );
             this._suggestionsGenerated += suggestions.length;

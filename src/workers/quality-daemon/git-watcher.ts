@@ -11,7 +11,7 @@ import { resolve, join } from 'path';
 import { existsSync, readFileSync } from 'fs';
 import type { PriorityQueue, GitCommitPayload, QueueItem, DaemonTaskPayload } from './priority-queue';
 import { getGitRefError } from '../../shared/git/ref-validation';
-import { runGit } from '../../shared/git/git-process.js';
+import { GitTimeoutError, runGit } from '../../shared/git/git-process.js';
 
 /** A hung git must not stall the watcher; its process group is stopped (#1115). */
 const GIT_TIMEOUT_MS = 10_000;
@@ -45,6 +45,8 @@ export class GitWatcher {
   private debounceTimer: NodeJS.Timeout | undefined;
   private _running = false;
   private _polling = false;
+  /** Ref changes to read again after git timed out on them (fs.watch mode). */
+  private readonly retryTimers = new Set<NodeJS.Timeout>();
 
   constructor(
     private readonly queue: PriorityQueue,
@@ -110,6 +112,8 @@ export class GitWatcher {
       this.watcher.close();
       this.watcher = undefined;
     }
+    for (const timer of this.retryTimers) clearTimeout(timer);
+    this.retryTimers.clear();
     this._running = false;
   }
 
@@ -136,8 +140,10 @@ export class GitWatcher {
         const [branch, hash] = line.split(' ');
         const lastHash = this.lastKnownHeads.get(branch);
         if (lastHash && lastHash !== hash) {
+          // #1165: on a git timeout keep the old head, so the next poll
+          // covers this commit too.
+          if (!(await this.enqueueCommitAnalysis(branch, hash, lastHash))) continue;
           changedBranches.push(branch);
-          await this.enqueueCommitAnalysis(branch, hash);
         }
         this.lastKnownHeads.set(branch, hash);
       }
@@ -179,42 +185,73 @@ export class GitWatcher {
     const lastHash = this.lastKnownHeads.get(branch);
     if (lastHash === newHash) return; // no change
 
+    if (!(await this.enqueueCommitAnalysis(branch, newHash, lastHash))) {
+      // #1165: git timed out; keep the old head and read the ref again later.
+      const timer = setTimeout(() => {
+        this.retryTimers.delete(timer);
+        this.processRefChange(filename).catch((err) => {
+          console.debug('[GitWatcher] Error processing ref change:', err);
+        });
+      }, this.options.pollIntervalMs);
+      timer.unref?.();
+      this.retryTimers.add(timer);
+      return;
+    }
     this.lastKnownHeads.set(branch, newHash);
-    await this.enqueueCommitAnalysis(branch, newHash);
   }
 
+  /**
+   * Enqueue the files changed from `lastHash` (the last head seen) to
+   * `commitHash`, or in `commitHash` alone. Returns false when git timed out,
+   * so the caller keeps `lastHash` and tries again (#1165). When git fails,
+   * the changed files are left unknown rather than reported as none.
+   */
   private async enqueueCommitAnalysis(
     branch: string,
-    commitHash: string
-  ): Promise<void> {
+    commitHash: string,
+    lastHash?: string
+  ): Promise<boolean> {
     // The hash is read from a ref file; never let an option-shaped value
     // (e.g. `--output=<path>`) reach `git diff-tree` (issue #960).
-    if (getGitRefError(commitHash, 'commit hash')) return;
+    if (getGitRefError(commitHash, 'commit hash')) return true;
+    const since = lastHash && !getGitRefError(lastHash, 'commit hash') ? lastHash : undefined;
 
-    let changedFiles: string[] = [];
-    try {
+    const diffTree = async (revisions: string[]): Promise<string[]> => {
       const stdout = await runGit([
         'diff-tree',
         '--no-commit-id',
         '--name-only',
         '-r',
-        commitHash,
+        ...revisions,
       ], { cwd: this.options.repoRoot, timeout: GIT_TIMEOUT_MS });
-
-      changedFiles = stdout
+      return stdout
         .trim()
         .split('\n')
         .filter(Boolean)
         .slice(0, this.options.maxChangedFiles);
-    } catch {
-      // fallback: empty changed files list
+    };
+
+    let changedFiles: string[] | undefined;
+    try {
+      // From the last head seen, so commits between two polls are not skipped.
+      changedFiles = await diffTree(since ? [since, commitHash] : ['--root', commitHash]);
+    } catch (error) {
+      if (error instanceof GitTimeoutError) return false;
+      // The last head can be gone after a force-push and gc; fall back to this commit.
+      if (since) {
+        try {
+          changedFiles = await diffTree(['--root', commitHash]);
+        } catch (fallbackError) {
+          if (fallbackError instanceof GitTimeoutError) return false;
+        }
+      }
     }
 
     const payload: GitCommitPayload = {
       type: 'git_commit',
       branch,
       commitHash,
-      changedFiles,
+      ...(changedFiles ? { changedFiles } : {}),
     };
 
     const item: QueueItem<DaemonTaskPayload> = {
@@ -227,6 +264,7 @@ export class GitWatcher {
     };
 
     this.queue.enqueue(item);
+    return true;
   }
 
   private async snapshotHeads(): Promise<void> {

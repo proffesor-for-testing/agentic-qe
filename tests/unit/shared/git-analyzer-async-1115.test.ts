@@ -111,9 +111,8 @@ exec ${JSON.stringify(realGit)} "$@"
     expect(await analyzer.getBugHistory('auth.ts')).toBe(0.2);
     expect(analyzer.consumeTimeout('auth.ts')).toBe(true);
     expect(analyzer.consumeTimeout('auth.ts')).toBe(false);
-    // The rest of the history shares the deadline and also falls back as a whole.
-    expect(await analyzer.getFileHistory('auth.ts')).toMatchObject({ totalCommits: 0, bugFixCommits: 0, lastCommit: null });
-    expect(analyzer.consumeTimeout('auth.ts')).toBe(true);
+    // #1165: the file history rejects rather than reporting zero history.
+    await expect(analyzer.getFileHistory('auth.ts')).rejects.toThrow(/timed out/);
 
     // Nothing was cached: once git answers, the measured value comes back.
     vi.stubEnv('HANG_GREP', '');
@@ -126,17 +125,20 @@ exec ${JSON.stringify(realGit)} "$@"
     // Each analysis alone could wait 20s; together they get 1.5s.
     const analyzer = new GitAnalyzer({ repoRoot: repo, enableCache: false, gitTimeoutMs: 20000, fileTimeoutMs: 1500 });
     const started = Date.now();
-    const [frequency, bugs, age] = await analyzer.withFileDeadline('auth.ts', async () => [
+    const [frequency, bugs, age, timedOut] = await analyzer.withFileDeadline('auth.ts', async () => [
       await analyzer.getChangeFrequency('auth.ts'),
       await analyzer.getBugHistory('auth.ts'),
       await analyzer.getCodeAge('auth.ts'),
+      // #1165: the timeout belongs to this call, so it is read inside it.
+      analyzer.consumeTimeout('auth.ts'),
     ]);
     expect(frequency).toBeCloseTo(1 / 30);
     expect(bugs).toBe(0.2);
     // The deadline has passed, so code age falls back without asking git.
     expect(age).toBe(0.4);
     expect(Date.now() - started).toBeLessThan(6000);
-    expect(analyzer.consumeTimeout('auth.ts')).toBe(true);
+    expect(timedOut).toBe(true);
+    expect(analyzer.consumeTimeout('auth.ts')).toBe(false);
   }, 30000);
 
   it('stops the whole git process group at the timeout', async () => {

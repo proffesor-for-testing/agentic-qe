@@ -26,7 +26,8 @@ export interface GitCommitPayload {
   readonly type: 'git_commit';
   readonly branch: string;
   readonly commitHash: string;
-  readonly changedFiles: string[];
+  /** Files changed since the last commit seen; absent when git could not list them (#1165). */
+  readonly changedFiles?: string[];
 }
 
 export interface CoverageDeltaPayload {
