@@ -1304,6 +1304,10 @@ export class PlanExecutor {
       }
       // #1157: goal and condition keys can come from callers; an inherited
       // member such as `constructor` is not part of the world state.
+      // #1186: deliberately, a key resolves only through own properties of
+      // objects. An array's own `length` resolves (`items.length`), but a
+      // primitive has no world-state members, so `name.length` on a string
+      // is undefined and a condition on it is unmet.
       if (typeof current !== 'object' || !Object.hasOwn(current, part)) {
         return undefined;
       }
