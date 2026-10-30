@@ -14,17 +14,18 @@ tags: [writing, documentation, communication, blogs, tutorials]
 trust_tier: 1
 validation:
   schema_path: schemas/output.json
+  eval_path: evals/technical-writing.yaml
 ---
-
 # Technical Writing
 
 <default_to_action>
 When writing technical content:
 1. LEAD with value (what will reader learn/gain?)
-2. SHOW, don't tell (specific examples, code, numbers)
+2. SHOW, don't tell (specific examples, code, and numbers you measured or can source)
 3. STRUCTURE for scanning (headers, bold, short paragraphs)
 4. CUT ruthlessly (every sentence must earn its place)
 5. BE honest about trade-offs
+6. NEVER invent figures: every number, duration, and date traces to a source (tracker, benchmark, PR, release note). Missing a number? Write `[number?]` and ask, or describe what changed without one.
 
 **Blog Post Structure:**
 ```markdown
@@ -55,10 +56,13 @@ When writing technical content:
 
 | Principle | Bad | Good |
 |-----------|-----|------|
-| **Lead with value** | "In today's landscape..." | "Here's how we cut bugs 60%" |
-| **Show, don't tell** | "We improved testing" | "Bug detection: 12→47 per sprint" |
-| **Be specific** | "Performance improved" | "Response time: 2.3s→180ms" |
-| **Honest trade-offs** | "This approach is best" | "TDD slowed velocity 20%, reduced bugs 75%" |
+| **Lead with value** | "In today's landscape..." | "Here's what changed when we moved testing into refinement" |
+| **Show, don't tell** | "We improved testing" | "Bugs found per sprint, before and after, from our tracker: [before]→[after]" |
+| **Be specific** | "Performance improved" | "p95 response time before and after, with how and where it was measured" |
+| **Honest trade-offs** | "This approach is best" | "TDD slowed our first features; here is what we got back, with the numbers we measured" |
+| **Source every figure** | "Coverage jumped 40%" (from memory) | The figure plus where it came from, or no figure at all |
+
+Bracketed values are placeholders for your own measured data. Never fill them with plausible-sounding numbers.
 
 ### Words to Cut
 
@@ -99,6 +103,7 @@ Before publishing:
 - [ ] Title promises something specific
 - [ ] Opening hooks in 30 seconds
 - [ ] Claims backed by examples
+- [ ] Every number, duration, and date traced to a source (or removed)
 - [ ] All unnecessary words cut
 - [ ] Code examples tested and correct
 - [ ] Takeaway crystal clear
@@ -120,7 +125,7 @@ Before publishing:
 "The benefits of this approach are numerous and include improved quality, faster feedback loops, and better team collaboration."
 
 **After:**
-"Three outcomes: bugs found 2 days earlier on average, 30% fewer regression issues, and devs now ask QE for input during design."
+"Three outcomes: bugs now surface during refinement instead of after merge, the regression suite stopped growing with every release, and developers ask QE for input during design." (Add figures only if you measured them, and say where they came from.)
 
 ---
 

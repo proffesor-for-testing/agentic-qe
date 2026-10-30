@@ -4,7 +4,7 @@ description: "Apply the Holistic Testing Model evolved with PACTS (Proactive, Au
 category: testing-methodologies
 priority: critical
 tokenEstimate: 1100
-agents: [qe-fleet-commander, qe-test-generator, qe-quality-analyzer, qe-requirements-validator]
+agents: [qe-fleet-commander, qe-test-architect, qe-quality-gate, qe-requirements-validator]
 implementation_status: optimized
 optimization_version: 1.0
 last_optimized: 2025-12-02
@@ -27,7 +27,7 @@ When designing test strategies or building quality into teams:
 
 **Quick PACTS Application:**
 - Proactive → Design testability into architecture, risk analysis during refinement
-- Autonomous → Devs run tests locally, CI pipeline with no manual gates
+- Autonomous → Devs run tests locally, CI gates automated wherever risk and regulation allow
 - Collaborative → Three Amigos, QE pairs with dev, shared test ownership
 - Targeted → Risk-based planning, focus on critical flows, kill valueless tests
 - Structured → Governance, observability, and explainability of agent behavior; measure confidence, not trust
@@ -66,10 +66,10 @@ When designing test strategies or building quality into teams:
 ### Agent Selection by PACTS + Quadrant
 | PACTS Dimension | Agents |
 |----------------|--------|
-| Proactive + Tech | qe-test-generator, qe-requirements-validator |
-| Autonomous + Tech | qe-test-executor, qe-coverage-analyzer |
+| Proactive + Tech | qe-test-architect, qe-requirements-validator |
+| Autonomous + Tech | qe-parallel-executor, qe-coverage-specialist |
 | Collaborative | qe-fleet-commander (orchestration) |
-| Targeted | qe-regression-risk-analyzer, qe-quality-gate |
+| Targeted | qe-regression-analyzer, qe-quality-gate |
 | Structured | qe-fleet-commander, qe-quality-gate (governance, observability, explainability) |
 
 ---
@@ -89,7 +89,7 @@ await Task("Risk Analysis", {
 ### Autonomous: Teams Own Quality
 - Developers run full test suite locally
 - CI fails fast with clear diagnostics
-- No manual deployment approvals
+- Deployment approvals automated where the risk allows; where regulation or risk requires a human sign-off, make it fast and evidence-based rather than a queue
 - Self-service test environments
 
 ### Collaborative: Whole-Team Thinking
@@ -105,7 +105,7 @@ await Task("Risk Analysis", {
 await Task("Risk-Based Planning", {
   critical: ['checkout', 'payment'],
   light: ['admin-panel', 'settings']
-}, "qe-regression-risk-analyzer");
+}, "qe-regression-analyzer");
 ```
 
 ### Structured: Governance, Observability, Explainability
@@ -136,7 +136,7 @@ PACT originated with Reuven Cohen (Agentics Foundation) and was adapted to quali
 engineering by Dragan Spiridonov. PACTS adds a fifth principle — **Structured** —
 inspired by DORA's research on AI-assisted delivery and platform-engineering
 quality measurement. The addition reflects that autonomous, agentic quality work
-needs governance, observability, and explainability to be trustworthy at scale.
+needs governance, observability, and explainability to earn confidence at scale.
 
 ---
 
@@ -153,7 +153,7 @@ needs governance, observability, and explainability to be trustworthy at scale.
 
 ## Success Signals
 
-- Features deploy multiple times per day
+- Deployments happen as often as the business and its risk profile need, without fear (a medical device and a consumer web app have different right answers)
 - Bug escape rate trending down
 - Team discusses quality naturally
 - Developers write tests without being told
@@ -179,9 +179,9 @@ const holisticFleet = await FleetManager.coordinate({
   pacts: { proactive: true, autonomous: true, collaborative: true, targeted: true, structured: true },
   agents: [
     'qe-fleet-commander',       // Orchestration
-    'qe-test-generator',        // Tech quadrant
+    'qe-test-architect',        // Tech quadrant
     'qe-requirements-validator', // Business quadrant
-    'qe-quality-analyzer'       // Metrics
+    'qe-quality-gate'           // Quality decisions
   ],
   topology: 'mesh'
 });

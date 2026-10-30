@@ -41,9 +41,9 @@
           "items": {
             "$ref": "#/$defs/reviewFinding"
           },
-          "minItems": 1,
+          "minItems": 0,
           "maxItems": 200,
-          "description": "Detailed findings with no sugar-coating"
+          "description": "Evidence-backed findings with no sugar-coating. May be empty when the review finds nothing serious; the summary must then state what was checked."
         },
         "codeQuality": {
           "$ref": "#/$defs/codeQuality"
@@ -95,11 +95,17 @@
   "$defs": {
     "reviewFinding": {
       "type": "object",
-      "required": ["id", "title", "severity", "category", "honestAssessment"],
+      "required": ["id", "title", "severity", "category", "honestAssessment", "evidence"],
       "properties": {
         "id": {
           "type": "string",
           "pattern": "^REV-\\d{3,6}$"
+        },
+        "evidence": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 3000,
+          "description": "What supports this finding: file:line, command and output, test result, or quote"
         },
         "title": {
           "type": "string",

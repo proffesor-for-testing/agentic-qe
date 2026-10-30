@@ -16,7 +16,6 @@ validation:
   schema_path: schemas/output.json
   validator_path: scripts/validate-config.json
 ---
-
 # Code Review Quality
 
 <default_to_action>
@@ -149,8 +148,8 @@ This validation logic appears in 3 places. A `validateEmail()` helper would redu
 - Is this doing too many things?
 - Is there duplication we could reduce?
 
-## Minimum Findings Enforcement
-Reviews must meet a minimum weighted finding score of 3.0 (CRITICAL=3, HIGH=2, MEDIUM=1, LOW=0.5, INFORMATIONAL=0.25). If the initial review falls short, run the qe-devils-advocate agent as a meta-reviewer to find additional observations. Every review should have at least 3 actionable observations.
+## Evidence Over Volume
+Every review comment must point at evidence: the line, the failing case, the command output, or the requirement it violates. There is no minimum number of findings. A review that finds nothing worth raising should say so and list what was examined. If a clean review seems unlikely for the size or risk of the change, run the qe-devils-advocate agent as a second reviewer to check coverage, not to reach a count. Severity weights (CRITICAL=3, HIGH=2, MEDIUM=1, LOW=0.5, INFORMATIONAL=0.25) are for prioritizing findings, not for setting quotas.
 
 ---
 

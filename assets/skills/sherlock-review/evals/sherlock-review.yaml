@@ -1,0 +1,124 @@
+# =============================================================================
+# AQE Skill Evaluation Test Suite: Sherlock Review v1.0.0
+# =============================================================================
+#
+# Guards evidence-over-volume investigations:
+# - A claim the evidence supports is closed clean, without manufactured clues
+# - A claim the evidence contradicts is called FALSE with the evidence
+# - A claim with no evidence either way is UNVERIFIED, not guessed
+#
+# Schema: .claude/skills/.validation/schemas/skill-eval.schema.json
+# Output schema: .claude/skills/sherlock-review/schemas/output.json
+#
+# =============================================================================
+
+skill: sherlock-review
+version: 1.0.0
+description: >
+  Evaluation suite for sherlock-review. Verifies verdicts follow the evidence:
+  TRUE when supported, FALSE when contradicted, UNVERIFIED when the evidence
+  is missing, and no invented observations to make an investigation look busy.
+
+models_to_test:
+  - claude-sonnet-5      # Primary
+  - claude-haiku-4-5     # Minimum quality floor
+
+test_cases:
+
+  - id: tc001_supported_claim_closes_clean
+    description: "A PR whose code and test match its description is closed clean"
+    category: verdicts
+    priority: critical
+    input:
+      prompt: "Investigate this PR claim: 'Adds retry with exponential backoff (max 3 attempts) to fetchProfile'."
+      code: |
+        export async function fetchProfile(id: string, get = httpGet, sleep = delay) {
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try { return await get(`/profiles/${id}`); }
+            catch (err) {
+              if (attempt === 2) throw err;
+              await sleep(100 * 2 ** attempt);
+            }
+          }
+        }
+
+        test('retries with backoff then succeeds', async () => {
+          const get = jest.fn().mockRejectedValueOnce(new Error('x')).mockResolvedValue({ id: 'p1' });
+          const sleep = jest.fn().mockResolvedValue(undefined);
+          await expect(fetchProfile('p1', get, sleep)).resolves.toEqual({ id: 'p1' });
+          expect(sleep).toHaveBeenCalledWith(100);
+        });
+        test('gives up after 3 attempts', async () => {
+          const get = jest.fn().mockRejectedValue(new Error('down'));
+          await expect(fetchProfile('p1', get, jest.fn())).rejects.toThrow('down');
+          expect(get).toHaveBeenCalledTimes(3);
+        });
+      context:
+        language: typescript
+    expected_output:
+      must_match_regex:
+        - "\\b(true|case-closed-clean|supported)\\b"
+      # Documented intent (not yet enforced by parallel-eval-runner):
+      finding_count:
+        min: 0
+        max: 2
+      custom_assertions:
+        - type: semantic
+          expression: "The verdict is that the claim holds; any recommendation is minor, and no defects are invented."
+          expected: true
+    validation:
+      schema_check: true
+
+  - id: tc002_contradicted_claim_is_false
+    description: "A claim the code contradicts is called FALSE with the evidence"
+    category: verdicts
+    priority: critical
+    input:
+      prompt: "Investigate this PR claim: 'Eliminates the race condition by adding mutex locking'."
+      code: |
+        // before: callbacks fired saveA and saveB concurrently
+        export async function saveBoth(a: Doc, b: Doc) {
+          await saveA(a);
+          await saveB(b);
+        }
+      context:
+        language: typescript
+    expected_output:
+      must_contain:
+        - "FALSE"
+        - "mutex"
+      custom_assertions:
+        - type: semantic
+          expression: "The investigation notes there is no mutex or lock in the code and that the race is avoided by sequencing the awaits, citing the code."
+          expected: true
+    validation:
+      schema_check: true
+      keyword_match_threshold: 0.8
+
+  - id: tc003_missing_evidence_is_unverified
+    description: "A performance claim with no benchmark is UNVERIFIED, with what would settle it"
+    category: verdicts
+    priority: high
+    input:
+      prompt: "Investigate this PR claim: 'Improves search performance by 50%'. The PR changes a loop to use a Map lookup and includes no benchmark."
+    expected_output:
+      must_match_regex:
+        - "(unverified|insufficient evidence|not enough evidence)"
+      custom_assertions:
+        - type: semantic
+          expression: "The response does not confirm or deny the 50% figure, and names the benchmark that would settle it."
+          expected: true
+    validation:
+      schema_check: false
+
+success_criteria:
+  pass_rate: 0.9
+  critical_pass_rate: 1.0
+  max_execution_time_ms: 300000
+
+metadata:
+  author: "agentic-qe"
+  created: "2026-10-29"
+  coverage_target: >
+    Verdicts that follow the evidence: clean close, FALSE on contradiction,
+    UNVERIFIED on missing evidence.

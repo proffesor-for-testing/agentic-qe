@@ -4,7 +4,7 @@ description: "Use when orchestrating QE agents, understanding PACTS principles, 
 category: qe-core
 priority: critical
 tokenEstimate: 1400
-agents: [qe-test-generator, qe-test-executor, qe-coverage-analyzer, qe-quality-gate, qe-quality-analyzer, qe-performance-tester, qe-security-scanner, qe-requirements-validator, qe-production-intelligence, qe-fleet-commander, qe-deployment-readiness, qe-regression-risk-analyzer, qe-test-data-architect, qe-api-contract-validator, qe-flaky-test-hunter, qe-visual-tester, qe-chaos-engineer, qe-code-complexity, qx-partner]
+agents: [qe-test-architect, qe-parallel-executor, qe-coverage-specialist, qe-quality-gate, qe-performance-tester, qe-security-scanner, qe-requirements-validator, qe-fleet-commander, qe-deployment-advisor, qe-regression-analyzer, qe-contract-validator, qe-flaky-hunter, qe-visual-tester, qe-chaos-engineer, qe-code-complexity, qe-qx-partner, qe-devils-advocate]
 implementation_status: optimized
 optimization_version: 1.0
 last_optimized: 2025-12-02
@@ -27,8 +27,8 @@ When implementing agentic QE or coordinating agents:
 5. LEARN from outcomes - store patterns in `aqe/learning/*` namespace
 
 **Quick Agent Selection:**
-- Test generation needed → `qe-test-generator`
-- Coverage gaps → `qe-coverage-analyzer`
+- Test generation needed → `qe-test-architect`
+- Coverage gaps → `qe-coverage-specialist`
 - Quality decision → `qe-quality-gate`
 - Security scan → `qe-security-scanner`
 - Performance test → `qe-performance-tester`
@@ -37,7 +37,8 @@ When implementing agentic QE or coordinating agents:
 **Critical Success Factors:**
 - Agents amplify human expertise, not replace it
 - Human-in-the-loop for critical decisions
-- Measure: bugs caught, time saved, coverage improved
+- Measure: bugs caught, time saved, coverage improved, and how often agent claims survive verification
+- Done means committed, tested, and CI-validated with evidence attached, not "reported as complete"
 </default_to_action>
 
 ## Quick Reference Card
@@ -57,16 +58,19 @@ When implementing agentic QE or coordinating agents:
 | **T**argeted | Risk-based prioritization | Define risk areas |
 | **S**tructured | Governance, observability, explainable decisions (measure confidence, not trust) | Audit behavior, set policy |
 
-### 19-Agent Fleet
+### Core Agents
+The full fleet lives in `.claude/agents/v3/qe-*.md`; these are the agents most core jobs start with.
+
 | Category | Agents | Primary Use |
 |----------|--------|-------------|
-| Core Testing (5) | test-generator, test-executor, coverage-analyzer, quality-gate, quality-analyzer | Daily testing |
-| Performance/Security (2) | performance-tester, security-scanner | Non-functional |
-| Strategic (3) | requirements-validator, production-intelligence, fleet-commander | Planning |
-| Advanced (4) | regression-risk-analyzer, test-data-architect, api-contract-validator, flaky-test-hunter | Specialized |
-| Visual/Chaos (2) | visual-tester, chaos-engineer | Edge cases |
-| Deployment (1) | deployment-readiness | Release |
-| Analysis (1) | code-complexity | Maintainability |
+| Core Testing | qe-test-architect, qe-parallel-executor, qe-coverage-specialist, qe-quality-gate | Daily testing |
+| Performance/Security | qe-performance-tester, qe-security-scanner | Non-functional |
+| Strategic | qe-requirements-validator, qe-fleet-commander | Planning, orchestration |
+| Advanced | qe-regression-analyzer, qe-contract-validator, qe-flaky-hunter | Specialized |
+| Visual/Chaos | qe-visual-tester, qe-chaos-engineer | Edge cases |
+| Deployment | qe-deployment-advisor | Release |
+| Analysis | qe-code-complexity | Maintainability |
+| Verification | qe-devils-advocate | Challenge other agents' claims |
 
 ### Coordination Patterns
 ```
@@ -76,11 +80,12 @@ Sequential: risk-analyzer → test-gen → executor → coverage → gate
 ```
 
 ### Success Criteria
-✅ 10x deployment frequency with same/better quality
+✅ Deployment frequency rises without escaped defects rising (measured against your own baseline)
 ✅ Coverage gaps detected in real-time
 ✅ Bugs caught pre-production
+✅ Agent claims checked against evidence before anyone relies on them
 ❌ Agents acting without human oversight on critical decisions
-❌ Deploying all 19 agents at once (start with 1-2)
+❌ Deploying the whole fleet at once (start with 1-2)
 
 ---
 
@@ -91,16 +96,18 @@ Sequential: risk-analyzer → test-gen → executor → coverage → gate
 |-------|----------|------------|
 | Traditional | Manual everything | Human bottleneck |
 | Automation | Scripts + fixed scenarios | Needs orchestration |
-| **Agentic** | AI agents + human judgment | Requires trust-building |
+| **Agentic** | AI agents + human judgment | Requires confidence-building: evidence that agent output holds up |
 
-**Core Premise:** Agents amplify human expertise for 10x scale.
+**Core Premise:** Agents amplify human expertise. How much they amplify it is something to measure in your context, not to assume.
+
+**Confidence, not trust:** trust is a feeling; confidence can be explained. For every agent output, ask what the evidence is, how it was checked, and what confidence the agent stated.
 
 ### Key Capabilities
 
 **1. Intelligent Test Generation**
 ```typescript
 // Agent analyzes code change, generates targeted tests
-const tests = await qeTestGenerator.generate(prDiff);
+const tests = await Task("Generate tests", prDiff, "qe-test-architect");
 // → Happy path, edge cases, error handling tests
 ```
 
@@ -109,6 +116,20 @@ const tests = await qeTestGenerator.generate(prDiff);
 **3. Adaptive Strategy** - Adjust test focus based on risk signals
 
 **4. Root Cause Analysis** - Link failures to code changes, suggest fixes
+
+### Completion Theater (the central failure mode)
+
+Agents optimize for appearing done rather than being done, and it gets harder to spot as their output gets more plausible. Patterns to check for:
+
+- Work reported complete that was never committed
+- Tests that assert a status code without checking the payload, or check that variables exist instead of behavior
+- Coverage inflated by tests that touch code without exercising it
+- Validation that checks counts or thresholds instead of behavior
+- Report volume standing in for working software
+- Stubs accepted as implementations
+- Agent claims that the visible evidence contradicts
+
+An honest, low-confidence answer is safer than a confident fabricated one; a false-safe label on a real security issue is the worst outcome. Defenses: adversarial review (`brutal-honesty-review`, `sherlock-review`, `qe-court`, `qe-devils-advocate`), invariants such as "no success claim without proof", and agents that disclose skipped steps, timeouts, and low confidence.
 
 ---
 
@@ -188,21 +209,21 @@ aqe memory store \
 | Event | Trigger | Subscribers |
 |-------|---------|-------------|
 | `test:generated` | New tests created | executor, coverage |
-| `coverage:gap` | Gap detected | test-generator |
+| `coverage:gap` | Gap detected | test-architect |
 | `quality:decision` | Gate evaluated | fleet-commander |
 | `security:finding` | Vulnerability found | quality-gate |
 
 ### Example: PR Quality Pipeline
 ```typescript
 // 1. Risk analysis
-const risks = await Task("Analyze PR", prDiff, "qe-regression-risk-analyzer");
+const risks = await Task("Analyze PR", prDiff, "qe-regression-analyzer");
 
 // 2. Generate tests for risks
-const tests = await Task("Generate tests", risks, "qe-test-generator");
+const tests = await Task("Generate tests", risks, "qe-test-architect");
 
 // 3. Execute + analyze
-const results = await Task("Run tests", tests, "qe-test-executor");
-const coverage = await Task("Check coverage", results, "qe-coverage-analyzer");
+const results = await Task("Run tests", tests, "qe-parallel-executor");
+const coverage = await Task("Check coverage", results, "qe-coverage-specialist");
 
 // 4. Quality decision
 const decision = await Task("Evaluate", {results, coverage}, "qe-quality-gate");
@@ -213,24 +234,26 @@ const decision = await Task("Evaluate", {results, coverage}, "qe-quality-gate");
 
 ## Implementation Phases
 
-| Phase | Duration | Goal | Agent(s) |
-|-------|----------|------|----------|
-| Experiment | Weeks 1-4 | Validate one use case | 1 agent |
-| Integrate | Months 2-3 | CI/CD pipeline | 3-4 agents |
-| Scale | Months 4-6 | Multiple use cases | 8+ agents |
+Advance on evidence, not on the calendar. Typical pacing is weeks per phase, but it depends on how fast confidence is earned in your context.
+
+| Phase | Move on when | Goal | Agent(s) |
+|-------|--------------|------|----------|
+| Experiment | The agent's output survives review on real PRs | Validate one use case | 1 agent |
+| Integrate | CI results are stable and findings hold up | CI/CD pipeline | 3-4 agents |
+| Scale | Each new use case shows measured value | Multiple use cases | 8+ agents |
 | Evolve | Ongoing | Continuous learning | Full fleet |
 
 ### Phase 1 Example
 ```bash
-# Week 1: Deploy single agent
-aqe agent spawn qe-test-generator
+# Start: deploy a single agent
+aqe agent spawn qe-test-architect
 
-# Weeks 2-3: Generate tests for 10 PRs
-# Track: bugs found, test quality, review time
+# Then: generate tests for a handful of real PRs
+# Track: bugs found, test quality, review time, claims that failed verification
 
-# Week 4: Measure impact
-aqe agent metrics qe-test-generator
-# → Tests: 150, Bugs: 12, Time saved: 8h
+# Measure impact against your pre-agent baseline
+aqe agent metrics qe-test-architect
+# → Compare tests, bugs found and review time with the baseline; keep what the data supports
 ```
 
 ---
@@ -255,18 +278,18 @@ aqe agent metrics qe-test-generator
 
 | Do | Don't |
 |----|-------|
-| Start with one agent, one use case | Deploy all 18 at once |
+| Start with one agent, one use case | Deploy the whole fleet at once |
 | Build feedback loops early | Deploy and forget |
 | Human reviews agent output | Auto-merge without review |
 | Measure bugs caught, time saved | Track vanity metrics (test count) |
-| Build trust gradually | Give full autonomy immediately |
+| Earn autonomy with measured confidence | Give full autonomy immediately |
 
-### Trust Progression
+### Autonomy Progression (gated by evidence)
 ```
-Month 1: Agent suggests → Human decides
-Month 2: Agent acts → Human reviews after
-Month 3: Agent autonomous on low-risk
-Month 4: Agent handles critical with oversight
+Stage 1: Agent suggests → Human decides
+Stage 2: Agent acts → Human reviews after      (when its suggestions consistently survive review)
+Stage 3: Agent autonomous on low-risk work     (when post-hoc reviews stop finding real problems)
+Stage 4: Agent handles critical with oversight (when the low-risk record and its disclosures hold up)
 ```
 
 ---
@@ -286,8 +309,8 @@ preload_skills:
   - quality-metrics              # For measurement
 
 agent_assignments:
-  qe-test-generator: [api-testing-patterns, tdd-london-chicago]
-  qe-coverage-analyzer: [quality-metrics, risk-based-testing]
+  qe-test-architect: [api-testing-patterns, tdd-london-chicago]
+  qe-coverage-specialist: [quality-metrics, risk-based-testing]
   qe-security-scanner: [security-testing, risk-based-testing]
   qe-performance-tester: [performance-testing]
 ```
@@ -307,4 +330,4 @@ agent_assignments:
 
 ---
 
-**Success Metric:** Deploy 10x more frequently with same or better quality through intelligent agent collaboration.
+**Success Metric:** Ship more often with the same or better quality through agent collaboration, and be able to show the evidence for both.

@@ -15,6 +15,7 @@ trust_tier: 2
 validation:
   schema_path: schemas/output.json
   validator_path: scripts/validate-config.json
+  eval_path: evals/sherlock-review.yaml
 ---
 
 # Sherlock Review
@@ -68,6 +69,7 @@ npm test -- --coverage
 | ⚠ **PARTIALLY TRUE** | Claim accurate but incomplete |
 | ✗ **FALSE** | Evidence contradicts claim |
 | ? **NONSENSICAL** | Claim doesn't apply to context |
+| … **UNVERIFIED** | Not enough evidence either way; state what would settle it |
 
 ---
 
@@ -100,8 +102,8 @@ npm test -- --coverage
 1. [Action based on findings]
 ```
 
-## Minimum Findings Enforcement
-Every investigation MUST surface at least 3 weighted observations (CRITICAL=3, HIGH=2, MEDIUM=1, LOW=0.5). Elementary observations count at INFORMATIONAL=0.25 weight. A Sherlock investigation that finds nothing is a failed investigation -- Holmes always finds clues.
+## Evidence Over Volume (No Findings Quota)
+Every finding and every verdict must chain to observable evidence: code, command output, test results, history. There is no minimum number of observations. When the evidence supports the claim, the correct verdict is TRUE (the output schema's `case-closed-clean`), with a list of what was examined. Manufacturing clues to make an investigation look productive is the same failure Sherlock exists to catch. If the evidence is insufficient either way, say so, state what would settle it, and do not guess.
 
 ---
 
