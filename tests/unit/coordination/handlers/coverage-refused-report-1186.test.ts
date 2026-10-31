@@ -7,7 +7,7 @@
  * and `aqe fleet analyze`. Uses real symlinks and FIFOs in a temp project.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -16,6 +16,7 @@ import { registerCoverageHandlers } from '../../../../src/coordination/handlers/
 import type { InstanceTaskHandler } from '../../../../src/coordination/handlers/handler-types';
 import { evaluateCliCoverage, type CoverageAnalyzeAPI } from '../../../../src/cli/utils/coverage-verdict';
 import { planFleetOperation } from '../../../../src/cli/utils/fleet-operation';
+import { readInstrumentedCoverage } from '../../../../src/cli/utils/coverage-data';
 import { DEFAULT_MAX_CONFINED_READ_BYTES } from '../../../../src/shared/io/confined-read';
 
 const fifoSupported = process.platform !== 'win32';
@@ -176,6 +177,45 @@ describe('refused vs missing coverage report (#1186)', () => {
       const message = plan.success ? '' : plan.error;
       expect(message).toContain(`Coverage report refused and not read: ${report} (outside-project-root`);
       expect(message).not.toContain('No coverage report for project');
+    });
+  });
+
+  // The CLI estimate path reads coverage-final.json a second time. It used a
+  // plain readFileSync, which blocked `aqe coverage` forever on a FIFO and read
+  // a report linked out of the project.
+  describe('CLI instrumented-coverage reader', () => {
+    const finalJson = (): string => path.join(root, 'coverage', 'coverage-final.json');
+    const istanbul = (): string => JSON.stringify({
+      [path.join(root, 'src', 'a.js')]: {
+        path: path.join(root, 'src', 'a.js'),
+        statementMap: { 0: { start: { line: 2, column: 2 }, end: { line: 2, column: 14 } } },
+        s: { 0: 1 }, fnMap: {}, f: {}, branchMap: {}, b: {},
+      },
+    });
+
+    it('reads a regular coverage-final.json inside the project', () => {
+      fs.writeFileSync(finalJson(), istanbul());
+      expect(readInstrumentedCoverage(root)?.size).toBe(1);
+    });
+
+    it('does not read a coverage-final.json linked out of the project', () => {
+      fs.writeFileSync(path.join(base, 'outside', 'coverage-final.json'), istanbul());
+      fs.symlinkSync(path.join(base, 'outside', 'coverage-final.json'), finalJson());
+      expect(readInstrumentedCoverage(root)).toBeNull();
+    });
+
+    it.runIf(fifoSupported)('skips a FIFO coverage-final.json without blocking', () => {
+      execFileSync('mkfifo', [finalJson()]);
+      // A writer that opens the FIFO after a delay: a blocking open would wait
+      // for it, so the elapsed time tells a refused read from a blocked one.
+      const writer = spawn('sh', ['-c', `sleep 6; exec 3>"$0"`, finalJson()], { stdio: 'ignore' });
+      try {
+        const started = Date.now();
+        expect(readInstrumentedCoverage(root)).toBeNull();
+        expect(Date.now() - started).toBeLessThan(3000);
+      } finally {
+        writer.kill('SIGKILL');
+      }
     });
   });
 });

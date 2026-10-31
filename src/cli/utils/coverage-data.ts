@@ -13,6 +13,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { parseCoverageJson } from '../../coordination/handlers/handler-utils.js';
+import { readConfinedTextSync } from '../../shared/io/confined-read.js';
 
 export interface FileCoverage {
   path: string;
@@ -66,7 +67,10 @@ export function readInstrumentedCoverage(projectRoot: string): Map<string, FileC
     if (!fs.existsSync(fullPath)) continue;
 
     try {
-      const content = fs.readFileSync(fullPath, 'utf-8');
+      // #1186: a confined read, as the report resolver does. A plain
+      // readFileSync blocks forever on a FIFO and follows a report linked out
+      // of the project; both are refused here and skipped.
+      const content = readConfinedTextSync(fullPath, { projectRoot, outsideRoot: 'allow' });
       const raw = JSON.parse(content);
 
       // coverage-summary.json has a different shape
