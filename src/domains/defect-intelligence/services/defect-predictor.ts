@@ -140,8 +140,8 @@ const DEFAULT_FEATURES: PredictionFeature[] = [
 const logger = LoggerFactory.create('defect-intelligence/defect-predictor');
 
 const GIT_TIMEOUT_WARNING =
-  'Git history timed out for this file: change frequency, developer experience, code age and bug history ' +
-  'use their "no git data" defaults, so this prediction is incomplete.';
+  'Git history timed out or was too large to read for this file: change frequency, developer experience, ' +
+  'code age and bug history use their "no git data" defaults, so this prediction is incomplete.';
 
 export class DefectPredictorService implements IDefectPredictorService {
   private readonly config: DefectPredictorConfig;
@@ -669,14 +669,17 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
       codeAge: await this.getCodeAge(file),
       bugHistory: await this.getBugHistory(file),
     });
-    // #1115: the git-based metrics of one file share one deadline.
-    const metrics = this.gitAnalyzer.withFileDeadline
-      ? await this.gitAnalyzer.withFileDeadline(file, measure)
-      : await measure();
-
     // #1115: a git timeout left defaults in the git-based metrics; do not
-    // cache them as this file's measured metrics.
-    const gitTimedOut = this.gitAnalyzer.consumeTimeout?.(file) === true;
+    // cache them as this file's measured metrics. #1165: read the flag inside
+    // the deadline call, so another prediction on the same file cannot take it.
+    const measureOnce = async () => ({
+      metrics: await measure(),
+      gitTimedOut: this.gitAnalyzer.consumeTimeout?.(file) === true,
+    });
+    // #1115: the git-based metrics of one file share one deadline.
+    const { metrics, gitTimedOut } = this.gitAnalyzer.withFileDeadline
+      ? await this.gitAnalyzer.withFileDeadline(file, measureOnce)
+      : await measureOnce();
     if (!gitTimedOut) {
       await this.memory.set(
         `${this.config.modelNamespace}:file-metrics:${file}`,
@@ -1150,6 +1153,11 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
 
     // More predictions generally mean better confidence
     if (predictions.length > 10) confidence *= 1.05;
+
+    // #1165: git defaults stand in for most features of a prediction whose
+    // git history timed out; such predictions halve their share of confidence.
+    const incomplete = predictions.filter((p) => p.warnings?.includes(GIT_TIMEOUT_WARNING)).length;
+    if (predictions.length > 0) confidence *= 1 - incomplete / predictions.length / 2;
 
     return Math.min(1, Math.max(0, confidence));
   }

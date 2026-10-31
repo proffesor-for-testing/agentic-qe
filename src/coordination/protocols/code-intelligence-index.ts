@@ -420,11 +420,14 @@ export class CodeIntelligenceIndexProtocol implements ICodeIntelligenceIndexProt
         changedFiles.push(...uncommittedFiles);
       }
 
-      // Then, get committed changes since last index
+      // Then, get committed changes since last index. #1165: a git failure or
+      // timeout fails the detection; indexing without the committed changes
+      // would record a new last-index time and skip them for good.
       const gitChanges = await this.detectGitChanges(lastIndexTime);
-      if (gitChanges.success) {
-        changedFiles.push(...gitChanges.value);
+      if (!gitChanges.success) {
+        return gitChanges;
       }
+      changedFiles.push(...gitChanges.value);
 
       // Deduplicate
       const uniqueFiles = [...new Set(changedFiles)];

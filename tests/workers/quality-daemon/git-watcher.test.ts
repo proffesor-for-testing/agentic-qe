@@ -6,6 +6,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { PriorityQueue } from '../../../src/workers/quality-daemon/priority-queue';
 import { GitWatcher } from '../../../src/workers/quality-daemon/git-watcher';
 import type { DaemonTaskPayload, GitCommitPayload } from '../../../src/workers/quality-daemon/priority-queue';
+import { GitTimeoutError } from '../../../src/shared/git/git-process';
 
 const mockExecFile = vi.fn();
 
@@ -15,7 +16,8 @@ vi.mock('child_process', () => ({
 }));
 
 // git runs through runGit; route it to the execFile-style mock (#1115).
-vi.mock('../../../src/shared/git/git-process', () => ({
+vi.mock('../../../src/shared/git/git-process', async (importOriginal) => ({
+  ...(await importOriginal() as Record<string, unknown>),
   runGit: (args: string[], options: unknown) => new Promise((resolve, reject) => {
     mockExecFile('git', args, options, (error: unknown, out: { stdout: string }) => (error ? reject(error) : resolve(out.stdout)));
   }),
@@ -196,5 +198,49 @@ describe('GitWatcher', () => {
 
     const item = queue.dequeue()!;
     expect(item.ttlMs).toBe(5 * 60 * 1000);
+  });
+  // -------------------------------------------------------------------------
+  // Unreadable commits (#1165)
+  // -------------------------------------------------------------------------
+
+  it('keeps the baseline on a diff-tree timeout and covers the commit on the next poll (#1165)', async () => {
+    setupGitMock([{ name: 'main', hash: 'aaa111' }]);
+    await watcher.poll(); // baseline
+
+    setupGitMock([{ name: 'main', hash: 'bbb222' }]);
+    const healthy = mockExecFile.getMockImplementation()!;
+    mockExecFile.mockImplementation((cmd: string, args: string[], opts: unknown, cb?: Function) => {
+      if (args.includes('diff-tree')) return cb?.(new GitTimeoutError(args, 10_000), { stdout: '', stderr: '' });
+      return healthy(cmd, args, opts, cb);
+    });
+    expect(await watcher.poll()).toEqual([]);
+    // Nothing is queued with an empty file list that would read as "no changes".
+    expect(queue.isEmpty).toBe(true);
+
+    // Git answers again, and a newer commit has landed meanwhile.
+    setupGitMock([{ name: 'main', hash: 'ccc333' }]);
+    expect(await watcher.poll()).toEqual(['main']);
+    const payload = queue.dequeue()!.payload as GitCommitPayload;
+    expect(payload.commitHash).toBe('ccc333');
+    expect(payload.changedFiles).toEqual(['src/foo.ts', 'src/bar.ts']);
+    // The files are diffed from the last commit seen, so bbb222 is not skipped.
+    const diffArgs = mockExecFile.mock.calls.filter(([, args]) => (args as string[]).includes('diff-tree')).at(-1)![1] as string[];
+    expect(diffArgs.slice(-2)).toEqual(['aaa111', 'ccc333']);
+  });
+
+  it('marks the changed files unknown, not empty, when diff-tree fails (#1165)', async () => {
+    setupGitMock([{ name: 'main', hash: 'aaa111' }]);
+    await watcher.poll(); // baseline
+
+    setupGitMock([{ name: 'main', hash: 'bbb222' }]);
+    const healthy = mockExecFile.getMockImplementation()!;
+    mockExecFile.mockImplementation((cmd: string, args: string[], opts: unknown, cb?: Function) => {
+      if (args.includes('diff-tree')) return cb?.(new Error('fatal: bad object'), { stdout: '', stderr: '' });
+      return healthy(cmd, args, opts, cb);
+    });
+    expect(await watcher.poll()).toEqual(['main']);
+    const payload = queue.dequeue()!.payload as GitCommitPayload;
+    expect(payload.commitHash).toBe('bbb222');
+    expect(payload.changedFiles).toBeUndefined();
   });
 });

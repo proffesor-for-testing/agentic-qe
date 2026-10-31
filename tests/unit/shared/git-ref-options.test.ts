@@ -66,8 +66,9 @@ describe('GitAnalyzer.getCommitFiles rejects option-shaped refs (#960)', () => {
     expect(await analyzer.getCommitFiles()).toEqual(['second.ts']);
   });
 
-  it('still returns [] for a well-formed but unknown ref', async () => {
-    expect(await analyzer.getCommitFiles('no-such-branch')).toEqual([]);
+  // #1165: an unknown ref is a git failure, not a commit without changes.
+  it('rejects a well-formed but unknown ref instead of returning []', async () => {
+    await expect(analyzer.getCommitFiles('no-such-branch')).rejects.toThrow();
   });
 
   it('rejects the ref through the public code-intelligence index protocol', async () => {
