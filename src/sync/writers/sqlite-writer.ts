@@ -49,8 +49,8 @@ export class SQLiteWriter {
     }
 
     try {
+      // #1164: openDatabase() set the journal mode (retrying contention, honouring AQE_DISABLE_WAL).
       this.db = openDatabase(this.dbPath);
-      this.db.pragma('journal_mode = WAL');
       this.db.pragma('synchronous = NORMAL');
       logger.debug(`Opened SQLite database: ${this.dbPath}`);
     } catch (error) {

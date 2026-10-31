@@ -13,6 +13,7 @@ import Database, { type Database as DatabaseType } from 'better-sqlite3';
 import { basename } from 'node:path';
 import { attemptAutoRestore } from './db-recovery.js';
 import { withNativeModuleRemedy } from './native-module-errors.js';
+import { setJournalModeWithRetry } from './sqlite-journal-mode.js';
 
 export interface SafeDbOptions {
   /** Open in read-only mode (default: false) */
@@ -127,8 +128,11 @@ export function openDatabase(dbPath: string, opts?: SafeDbOptions): DatabaseType
         // 2026-07-07), so continuing to write in WAL would trade a loud outage for
         // silent corruption. Availability is not worth that; the message below
         // carries the exact command that finds the real holder.
+        //
+        // Concurrent openers racing the same one-time switch (#1164) are retried
+        // within busyTimeout first; only contention that outlasts it fails closed.
         try {
-          db.pragma(`journal_mode = ${desired}`);
+          setJournalModeWithRetry(db, desired, busyTimeout);
         } catch (err) {
           const code = (err as NodeJS.ErrnoException)?.code;
           db.close();
@@ -174,7 +178,16 @@ export function openDatabase(dbPath: string, opts?: SafeDbOptions): DatabaseType
     // WAL mode for writable connections prevents corruption from concurrent
     // writers. Readonly connections inherit WAL from the DB file but we set it
     // explicitly to be safe in case the DB was created without WAL.
-    db.pragma('journal_mode = WAL');
+    //
+    // #1164: switching a rollback-journal file to WAL upgrades a read lock to a
+    // write lock, and SQLite returns SQLITE_BUSY for that at once instead of
+    // waiting on busy_timeout. Concurrent first opens retry within busyTimeout.
+    try {
+      setJournalModeWithRetry(db, 'WAL', busyTimeout);
+    } catch (err) {
+      db.close();
+      throw err;
+    }
   }
 
   return db;

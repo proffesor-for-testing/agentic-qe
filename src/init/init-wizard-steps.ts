@@ -16,6 +16,7 @@ import { createN8nInstaller } from './n8n-installer.js';
 import { toErrorMessage } from '../shared/error-utils.js';
 import { isNativeModuleLoadFailure, withNativeModuleRemedy } from '../shared/native-module-errors.js';
 import { openDatabase } from '../shared/safe-db.js';
+import { setJournalModeWithRetry } from '../shared/sqlite-journal-mode.js';
 import { safeJsonParse } from '../shared/safe-json.js';
 
 // ============================================================================
@@ -164,8 +165,9 @@ export async function initializePersistenceDatabase(projectRoot: string): Promis
   try {
     const db = new Database!(dbPath);
 
-    db.pragma('journal_mode = WAL');
+    // busy_timeout first; the WAL switch retries within it (#1164).
     db.pragma('busy_timeout = 5000');
+    setJournalModeWithRetry(db, 'WAL', 5000);
 
     db.exec(`
       CREATE TABLE IF NOT EXISTS kv_store (

@@ -218,9 +218,8 @@ export async function syncClaudeFlowToAQE(options: SyncOptions = {}): Promise<Sy
     const { openDatabase } = await import('../shared/safe-db.js');
     const db = openDatabase(aqeDbPath);
 
+    // #1164: openDatabase() set the journal mode (retrying contention, honouring AQE_DISABLE_WAL).
     try {
-      db.pragma('journal_mode = WAL');
-
       // Prepare insert statements
       const insertKv = db.prepare(`
         INSERT OR REPLACE INTO kv_store (key, namespace, value, expires_at, created_at)
