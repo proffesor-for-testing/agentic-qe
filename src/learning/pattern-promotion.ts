@@ -233,9 +233,52 @@ export interface SeedingDeps {
   signal?: AbortSignal;
 }
 
+/** Tag stored on every pattern written by cross-domain seeding. */
+export const CROSS_DOMAIN_TRANSFER_TAG = 'cross-domain-transfer';
+
+/** Maximum original patterns transferred out of one source domain per run. */
+const SEED_SOURCE_LIMIT = 50;
+
+function isCrossDomainTransfer(pattern: QEPattern): boolean {
+  return pattern.context?.tags?.includes(CROSS_DOMAIN_TRANSFER_TAG) ?? false;
+}
+
+interface DomainSnapshot {
+  /** Patterns that were not produced by cross-domain seeding. */
+  originals: QEPattern[];
+  /** Names of every pattern in the domain, transferred ones included. */
+  names: Set<string>;
+}
+
+/**
+ * Snapshot one domain before seeding writes anything, or null when the store
+ * cannot list it. Counting and transferring only originals keeps every run's
+ * decisions the same as the first run's, so a re-run finds every transfer it
+ * would make already present by name (#1325).
+ */
+async function snapshotDomain(
+  deps: SeedingDeps,
+  domain: QEDomain,
+  domainCount: number,
+): Promise<DomainSnapshot | null> {
+  if (domainCount === 0) return { originals: [], names: new Set() };
+  const result = await deps.searchPatterns('', { domain, limit: domainCount });
+  if (!result.success) return null;
+  const patterns = result.value.map(({ pattern }) => pattern);
+  return {
+    originals: patterns.filter((pattern) => !isCrossDomainTransfer(pattern)),
+    names: new Set(patterns.map((pattern) => pattern.name)),
+  };
+}
+
 /**
  * Seed cross-domain patterns by transferring generalizable patterns
  * from populated domains to their related domains.
+ *
+ * Idempotent (#1325): only original patterns are counted and transferred
+ * (never a pattern tagged `cross-domain-transfer`), and a transfer whose exact
+ * target name already exists in the target domain is skipped. Re-running it
+ * against a seeded store transfers nothing.
  */
 export async function seedCrossDomainPatterns(
   deps: SeedingDeps,
@@ -246,31 +289,51 @@ export async function seedCrossDomainPatterns(
   let transferred = 0;
   let skipped = 0;
 
+  // Snapshot all involved domains up front, before any transfer is written.
+  const domains = new Set<QEDomain>();
+  for (const [source, targets] of Object.entries(RELATED_DOMAINS)) {
+    domains.add(source as QEDomain);
+    for (const target of targets) domains.add(target);
+  }
+  const snapshots = new Map<QEDomain, DomainSnapshot | null>();
+  for (const domain of domains) {
+    signal?.throwIfAborted();
+    snapshots.set(domain, await snapshotDomain(deps, domain, stats.byDomain[domain] || 0));
+  }
+
   for (const [sourceDomainStr, targetDomains] of Object.entries(
     RELATED_DOMAINS,
   )) {
     signal?.throwIfAborted();
     const sourceDomain = sourceDomainStr as QEDomain;
-    const sourceCount = stats.byDomain[sourceDomain] || 0;
+    const source = snapshots.get(sourceDomain);
+    if (!source) continue;
+    const sourceCount = source.originals.length;
     if (sourceCount === 0) continue;
-
-    const sourceResult = await deps.searchPatterns('', {
-      domain: sourceDomain,
-      limit: 50,
-    });
-
-    if (!sourceResult.success) continue;
+    const sourcePatterns = source.originals.slice(0, SEED_SOURCE_LIMIT);
 
     for (const targetDomain of targetDomains) {
       signal?.throwIfAborted();
-      const targetCount = stats.byDomain[targetDomain] || 0;
-      if (targetCount >= sourceCount) {
+      const target = snapshots.get(targetDomain);
+      if (!target) {
+        // Cannot prove which transfers already exist: transfer nothing rather
+        // than risk duplicating the target domain.
+        skipped++;
+        continue;
+      }
+      if (target.originals.length >= sourceCount) {
         skipped++;
         continue;
       }
 
-      for (const { pattern: sourcePattern } of sourceResult.value) {
+      for (const sourcePattern of sourcePatterns) {
         signal?.throwIfAborted();
+        const transferredName = `${sourcePattern.name} (from ${sourceDomain})`;
+        if (target.names.has(transferredName)) {
+          skipped++;
+          continue;
+        }
+
         const existingCheck = await deps.searchPatterns(sourcePattern.name, {
           domain: targetDomain,
           limit: 1,
@@ -291,7 +354,7 @@ export async function seedCrossDomainPatterns(
         const transferResult = await deps.storePattern({
           patternType: sourcePattern.patternType,
           qeDomain: targetDomain,
-          name: `${sourcePattern.name} (from ${sourceDomain})`,
+          name: transferredName,
           description: `${sourcePattern.description} [Transferred from ${sourceDomain} domain]`,
           template: sourcePattern.template,
           context: {
@@ -299,7 +362,7 @@ export async function seedCrossDomainPatterns(
             relatedDomains: [sourceDomain, targetDomain],
             tags: [
               ...sourcePattern.context.tags,
-              'cross-domain-transfer',
+              CROSS_DOMAIN_TRANSFER_TAG,
               `source:${sourceDomain}`,
             ],
           },
@@ -307,6 +370,7 @@ export async function seedCrossDomainPatterns(
         });
 
         if (transferResult.success) {
+          target.names.add(transferredName);
           transferred++;
         } else {
           skipped++;

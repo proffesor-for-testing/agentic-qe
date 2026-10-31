@@ -481,7 +481,12 @@ export class RvfPatternStore implements IPatternStore {
     // Empty string query = return all patterns sorted by quality score
     if (typeof query === 'string' && !query.trim() && this.sqliteStore) {
       try {
-        const allPatterns = this.sqliteStore.getPatterns({ limit: limit * 2 });
+        // Filter by domain in SQL (#1325): a global LIMIT followed by the
+        // domain filter below silently dropped patterns of that domain.
+        const allPatterns = this.sqliteStore.getPatterns({
+          domain: options.domain,
+          limit: limit * 2,
+        });
         const existingIds = new Set(results.map(r => r.pattern.id));
 
         for (const pattern of allPatterns) {
