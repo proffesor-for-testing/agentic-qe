@@ -399,6 +399,22 @@ describe('RvfPatternStore', () => {
   });
 
   describe('Search', () => {
+    it('should list every pattern of a domain for an empty query (#1325)', async () => {
+      // Ten higher-quality patterns elsewhere would fill a global LIMIT of 4.
+      for (let i = 0; i < 10; i++) {
+        await store.store(makePattern({ qeDomain: 'coverage-analysis', qualityScore: 0.9, name: `other-${i}` }));
+      }
+      await store.store(makePattern({ qeDomain: 'test-generation', qualityScore: 0.1, name: 'wanted-a' }));
+      await store.store(makePattern({ qeDomain: 'test-generation', qualityScore: 0.1, name: 'wanted-b' }));
+
+      const result = await store.search('', { domain: 'test-generation', limit: 2 });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.value.map((r) => r.pattern.name).sort()).toEqual(['wanted-a', 'wanted-b']);
+      }
+    });
+
     it('should search by vector via RVF adapter', async () => {
       // Store a pattern first
       const pattern = makePattern();
