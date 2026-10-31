@@ -25,12 +25,14 @@ import { walkSourceFiles } from './file-discovery.js';
 import { buildCoverageData, summarizeCoverage, type CoverageData } from './coverage-data.js';
 import {
   describeNoData,
+  describeRefusedReports,
   reconcileRecommendations,
   resolveExistingCoverage,
   thresholdVerdict,
   type NoDataReason,
 } from '../../coordination/handlers/coverage-target.js';
 import { describeEvidence, describeExcludedEntries, type CoverageEvidence } from '../../coordination/handlers/coverage-evidence.js';
+import type { RefusedCoverageReport } from '../../coordination/handlers/handler-utils.js';
 
 /** `aqe coverage` exit code when no coverage measurement exists for the target (#995). */
 export const EXIT_UNMEASURED = 3;
@@ -40,7 +42,11 @@ export const MEASURED_METHOD = 'instrumented-report';
 export const ESTIMATE_METHOD = 'static-estimation';
 
 export type CliCoverage =
-  | { kind: 'data'; data: CoverageData; projectRoot?: string; evidence?: CoverageEvidence }
+  | {
+      kind: 'data'; data: CoverageData; projectRoot?: string; evidence?: CoverageEvidence;
+      /** #1186: reports that exist but were refused unread (estimate only). */
+      refused?: RefusedCoverageReport[];
+    }
   | { kind: 'no-data'; reason: NoDataReason; message: string }
   | { kind: 'no-sources' };
 
@@ -75,13 +81,19 @@ export async function resolveCliCoverageData(
       };
       return { kind: 'data', data, projectRoot, evidence };
     }
-    return { kind: 'no-data', reason: evaluation.reason, message: describeNoData(evaluation.reason, targetPath, projectRoot) };
+    return {
+      kind: 'no-data', reason: evaluation.reason,
+      message: describeNoData(evaluation.reason, targetPath, projectRoot, evaluation.refused),
+    };
   }
 
   const sourceFiles = walkSourceFiles(existing.target, { includeTests: false });
   if (sourceFiles.length === 0) return { kind: 'no-sources' };
   log(chalk.gray(`  Analyzing ${sourceFiles.length} files...\n`));
-  return { kind: 'data', data: buildCoverageData(sourceFiles, existing.projectRoot), projectRoot: existing.projectRoot };
+  return {
+    kind: 'data', data: buildCoverageData(sourceFiles, existing.projectRoot), projectRoot: existing.projectRoot,
+    ...(existing.refused.length > 0 ? { refused: existing.refused } : {}),
+  };
 }
 
 /** Which optional metrics an instrumented report actually carries. */
@@ -124,6 +136,8 @@ export type CliCoverageOutcome =
       /** Estimated figures — for display only. */
       summary: NullableSummary & { files: number };
       message: string;
+      /** #1186: the project's report exists but was refused unread. */
+      refused?: RefusedCoverageReport[];
     }
   | {
       kind: 'measured';
@@ -138,11 +152,17 @@ export type CliCoverageOutcome =
     };
 
 const isError = (reason: NoDataReason): boolean =>
-  reason === 'target-missing' || reason === 'unreadable-report';
+  reason === 'target-missing' || reason === 'unreadable-report' || reason === 'refused-report';
 
-/** Caller-facing explanation of a static estimate. */
-export function estimateMessage(): string {
-  return 'UNMEASURED: no coverage report exists for this project, so these figures are a ' +
+/**
+ * Caller-facing explanation of a static estimate. #1186: when the project's
+ * report exists but was refused, it says so instead of "no report exists".
+ */
+export function estimateMessage(refused: readonly RefusedCoverageReport[] = []): string {
+  const why = refused.length > 0
+    ? `UNMEASURED: ${describeRefusedReports(refused)} So these figures are a `
+    : 'UNMEASURED: no coverage report exists for this project, so these figures are a ';
+  return why +
     'STATIC ESTIMATE derived from source shape — not measured coverage. No threshold verdict ' +
     'is given and nothing is stored as evidence. Run your tests with coverage first ' +
     '(e.g. `npm test -- --coverage`) and re-run.';
@@ -182,7 +202,10 @@ export async function evaluateCliCoverage(
   };
 
   if (!measured) {
-    return { kind: 'estimate', data, summary: { ...report.summary }, message: estimateMessage() };
+    return {
+      kind: 'estimate', data, summary: { ...report.summary }, message: estimateMessage(resolved.refused),
+      ...(resolved.refused ? { refused: resolved.refused } : {}),
+    };
   }
 
   // #995 review NB5: a metric the report never collected is null — not 0 —
