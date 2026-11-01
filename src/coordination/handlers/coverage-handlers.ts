@@ -20,6 +20,7 @@ import {
 } from './coverage-collection';
 import {
   describeNoData,
+  describeRefusedReports,
   evaluateCoverageForTarget,
   isUnmeasured,
   packageFilterForTarget,
@@ -31,6 +32,7 @@ import {
   type NoDataReason,
 } from './coverage-target';
 import { describeEvidence, describeExcludedEntries, type CoverageEvidence } from './coverage-evidence';
+import type { RefusedCoverageReport } from './handler-utils';
 import { randomUUID } from 'crypto';
 import * as path from 'path';
 import { describeRunFailure, runJsCoverage, testRunStatus } from './coverage-runner';
@@ -96,6 +98,8 @@ interface CollectResult {
   testRun?: { runId: string; passed: number; failed: number; skipped: number };
   /** #1154: unmeasured target files and report staleness. */
   evidence?: CoverageEvidence;
+  /** #1186: existing reports that were refused unread, so not used. */
+  refused?: RefusedCoverageReport[];
 }
 
 function fromEvaluation(
@@ -105,7 +109,10 @@ function fromEvaluation(
 ): CollectResult {
   return evaluation.status === 'measured'
     ? { collected: instrumented(evaluation.files), ranTests, projectRoot, evidence: evaluation.evidence }
-    : { collected: null, ranTests, noData: evaluation.reason, projectRoot };
+    : {
+        collected: null, ranTests, noData: evaluation.reason, projectRoot,
+        ...(evaluation.refused ? { refused: evaluation.refused } : {}),
+      };
 }
 
 /**
@@ -134,9 +141,14 @@ async function collectCoverage(targetPath: string): Promise<CollectResult> {
     return fromEvaluation(existing.evaluation, false, existing.projectRoot);
   }
 
-  const { target } = existing;
-  let projectRoot = existing.projectRoot;
+  // #1186: a report that exists but was refused is named in the result,
+  // whatever the run or estimate below produces.
+  const result = await collectWithoutReport(existing.target, existing.projectRoot);
+  return existing.refused.length > 0 ? { ...result, refused: existing.refused } : result;
+}
 
+/** Steps 2-3 of the cascade: no usable report exists at the project root. */
+async function collectWithoutReport(target: string, projectRoot: string): Promise<CollectResult> {
   // #569 work item 1: delegate to real instrumentation where available.
   if (isRustProject(target)) {
     const rust = await collectRustCoverage(target);
@@ -232,9 +244,10 @@ function noDataWarning(
   reason: NoDataReason | undefined,
   ranTests: boolean,
   targetPath: string,
-  projectRoot: string | null
+  projectRoot: string | null,
+  refused: RefusedCoverageReport[] = [],
 ): string {
-  if (reason) return describeNoData(reason, targetPath, projectRoot);
+  if (reason) return describeNoData(reason, targetPath, projectRoot, refused);
   return ranTests
     ? 'Tests ran but no coverage output was generated. Ensure a coverage provider is configured (e.g., @vitest/coverage-v8, istanbul).'
     : 'No coverage data found and could not run tests automatically. ' + estimationGuidance(targetPath);
@@ -282,7 +295,10 @@ export function registerCoverageHandlers(ctx: TaskHandlerContext): void {
       const analyzer = ctx.getCoverageAnalyzer();
       const threshold = payload.threshold || 80;
 
-      const { collected, ranTests, noData, projectRoot, notes, runStatus, testRun, evidence } = await collectCoverage(targetPath);
+      const { collected, ranTests, noData, projectRoot, notes, runStatus, testRun, evidence, refused } =
+        await collectCoverage(targetPath);
+      // #1186: a refused report is named, never reported as a missing one.
+      const refusedNote = refused?.length && noData !== 'refused-report' ? [describeRefusedReports(refused)] : [];
 
       // #995 review N5: say so plainly instead of "no coverage data found".
       if (noData === 'target-missing') {
@@ -305,7 +321,10 @@ export function registerCoverageHandlers(ctx: TaskHandlerContext): void {
           // #995(d): "no measurement exists for this target", distinct from 0%.
           ...(unmeasured ? { unmeasured: true } : {}),
           algorithm: 'sublinear-O(log n)',
-          warning: notes?.length ? notes.join(' ') : noDataWarning(noData, ranTests, targetPath, projectRoot),
+          warning: [
+            ...refusedNote,
+            notes?.length ? notes.join(' ') : noDataWarning(noData, ranTests, targetPath, projectRoot, refused),
+          ].join(' '),
         });
       }
 
@@ -362,7 +381,7 @@ export function registerCoverageHandlers(ctx: TaskHandlerContext): void {
       // sources, leave the evidence insufficient: the figures stand for the
       // measured files only, and the threshold is not met on them.
       const evidenceReasons = describeEvidence(evidence, projectRoot ?? targetPath);
-      const warnings = [...provenance.notes, ...(notes ?? [])];
+      const warnings = [...refusedNote, ...provenance.notes, ...(notes ?? [])];
       if (provenance.estimated) warnings.push(estimationGuidance(targetPath));
       if (evidenceReasons.length > 0) {
         warnings.push(`INSUFFICIENT EVIDENCE — the threshold is not met on this report: ${evidenceReasons.join('; ').replace(/\.?$/, '.')}`);

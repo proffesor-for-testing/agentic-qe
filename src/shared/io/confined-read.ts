@@ -5,18 +5,31 @@
  * it again later, so a file or symlink swapped in between could be read
  * unchecked. These readers OPEN first and validate what was opened:
  *
- * - the path's realpath is opened with O_NOFOLLOW (a symlink swapped onto the
- *   final name fails the open) and O_NONBLOCK (a FIFO cannot hang the open);
+ * - the path is resolved the kernel's way (a symlink is followed before a
+ *   later `..` is applied, as the payload guard does), and that realpath is
+ *   opened with O_NOFOLLOW (a symlink swapped onto the final name fails the
+ *   open) and O_NONBLOCK (a FIFO cannot hang the open);
  * - the descriptor must be a regular file within the size limit (fstat);
  * - the descriptor's real location (/proc/self/fd/N on Linux; elsewhere the
  *   re-resolved realpath, which must be the same inode) must lie inside the
  *   project root, so a directory component swapped for a symlink is caught;
+ *   a file that was replaced or unlinked after the open is refused as
+ *   'changed-during-read';
  * - the content is read from that same descriptor, and never past the limit,
  *   even if the file grows after the fstat.
  *
  * A path spelled outside the root is refused before any filesystem call,
  * unless the caller opts into `outsideRoot: 'allow'` for paths it accepts
  * from a trusted source (the other checks still apply).
+ *
+ * Hardlinks (#1186): no path check can see a hardlink, because every name of
+ * a hardlinked file is equally real and the kernel offers no way to list the
+ * other names. `hardlinks: 'refuse'` refuses any file with more than one link
+ * (st_nlink > 1), which also refuses a hardlink whose other name is inside
+ * the project (pnpm stores, `cp -al` snapshots). A file whose outside name
+ * was removed has one link and is read. The policy trusts the link count the
+ * filesystem reports: one that reports 1 for every file (FAT, some network
+ * shares) hides a hardlink from it. Verified on Linux only.
  */
 
 import { constants as fsConstants, type Stats } from 'node:fs';
@@ -34,7 +47,11 @@ export type ConfinedReadReason =
   | 'not-a-file'
   | 'outside-project-root'
   | 'unreadable'
-  | 'too-large';
+  | 'too-large'
+  /** The opened file is no longer at the checked path (replaced or unlinked). */
+  | 'changed-during-read'
+  /** `hardlinks: 'refuse'` and the file has more than one link. */
+  | 'hardlinked';
 
 export interface ConfinedReadOptions {
   /** Project root; defaults to findProjectRoot(). */
@@ -47,6 +64,11 @@ export interface ConfinedReadOptions {
    * trusts it. Paths spelled inside the root are always held to the root.
    */
   outsideRoot?: 'refuse' | 'allow';
+  /**
+   * 'refuse' refuses a file with more than one hardlink, which a path check
+   * cannot confine (see the module comment). Default 'allow'.
+   */
+  hardlinks?: 'allow' | 'refuse';
 }
 
 /**
@@ -80,18 +102,21 @@ export function isWithinRoot(root: string, candidate: string): boolean {
 }
 
 /**
- * Where an OPEN descriptor really points. On Linux, /proc/self/fd/N resolves
- * to the opened file itself. Elsewhere, re-resolve the path and accept it only
- * if it is the same inode as the descriptor, so a swap after the open is
- * detected. Returns null when it cannot be proven.
+ * Where an OPEN descriptor really points. On Linux, /proc/self/fd/N names the
+ * opened file itself; when /proc answers, its answer is final (#1186): a file
+ * unlinked or replaced since the open reads as "<path> (deleted)" or names
+ * another inode, and is not re-resolved by name. Without /proc (macOS,
+ * Windows, /proc not mounted), re-resolve the path and accept it only if it
+ * is the same inode as the descriptor, so a swap after the open is detected.
+ * Returns null when the opened file is no longer where it was checked.
  */
 export async function openedLocation(fd: number, lexical: string, opened: Stats): Promise<string | null> {
   const sameFile = async (candidate: string): Promise<boolean> => {
     const st = await fs.stat(candidate).catch(() => null);
     return st !== null && st.dev === opened.dev && st.ino === opened.ino;
   };
-  const viaProc = await fs.realpath(`/proc/self/fd/${fd}`).catch(() => null);
-  if (viaProc && path.isAbsolute(viaProc) && await sameFile(viaProc)) return viaProc;
+  const viaProc = await fs.readlink(`/proc/self/fd/${fd}`).catch(() => null);
+  if (viaProc !== null) return path.isAbsolute(viaProc) && await sameFile(viaProc) ? viaProc : null;
   const real = await fs.realpath(lexical).catch(() => null);
   if (real && await sameFile(real)) return real;
   return null;
@@ -107,12 +132,12 @@ export function openedLocationSync(fd: number, lexical: string, opened: Stats): 
       return false;
     }
   };
-  const realOrNull = (p: string): string | null => {
-    try { return fsSync.realpathSync(p); } catch { return null; }
-  };
-  const viaProc = realOrNull(`/proc/self/fd/${fd}`);
-  if (viaProc && path.isAbsolute(viaProc) && sameFile(viaProc)) return viaProc;
-  const real = realOrNull(lexical);
+  const viaProc = ((): string | null => {
+    try { return fsSync.readlinkSync(`/proc/self/fd/${fd}`); } catch { return null; }
+  })();
+  if (viaProc !== null) return path.isAbsolute(viaProc) && sameFile(viaProc) ? viaProc : null;
+  let real: string | null = null;
+  try { real = fsSync.realpathSync.native(lexical); } catch { /* not resolvable */ }
   if (real && sameFile(real)) return real;
   return null;
 }
@@ -131,10 +156,17 @@ function fail(filePath: string, reason: ConfinedReadReason, error?: unknown): Co
 
 interface Plan {
   lexical: string;
+  /**
+   * The caller's spelling, made absolute without collapsing `..`, so realpath
+   * follows a symlink before applying a later `..`, as the kernel and the
+   * payload guard do (#1186). path.resolve() would collapse `link/..` as text.
+   */
+  raw: string;
   rootReal: string;
   /** The path was spelled inside the root, so what is opened must stay there. */
   inRoot: boolean;
   limit: number;
+  hardlinks: 'allow' | 'refuse';
 }
 
 function plan(filePath: string, rootReal: string, options: ConfinedReadOptions): Plan {
@@ -147,13 +179,19 @@ function plan(filePath: string, rootReal: string, options: ConfinedReadOptions):
   // Spelled outside the root: refused before any filesystem call, so the
   // reason cannot reveal whether an outside path exists.
   if (!inRoot && options.outsideRoot !== 'allow') throw fail(filePath, 'outside-project-root');
-  return { lexical, rootReal, inRoot, limit: options.maxBytes ?? DEFAULT_MAX_CONFINED_READ_BYTES };
+  const raw = path.isAbsolute(filePath) ? filePath : `${process.cwd()}${path.sep}${filePath}`;
+  return {
+    lexical, raw, rootReal, inRoot,
+    limit: options.maxBytes ?? DEFAULT_MAX_CONFINED_READ_BYTES,
+    hardlinks: options.hardlinks ?? 'allow',
+  };
 }
 
 /** Check the opened descriptor's stat before anything is read. */
-function checkOpened(filePath: string, st: Stats, limit: number): void {
+function checkOpened(filePath: string, st: Stats, p: Plan): void {
   if (!st.isFile()) throw fail(filePath, 'not-a-file');
-  if (st.size > limit) throw fail(filePath, 'too-large');
+  if (st.size > p.limit) throw fail(filePath, 'too-large');
+  if (p.hardlinks === 'refuse' && st.nlink > 1) throw fail(filePath, 'hardlinked');
 }
 
 /**
@@ -167,7 +205,9 @@ export async function readConfinedFile(filePath: string, options: ConfinedReadOp
 
   let real: string;
   try {
-    real = await fs.realpath(p.lexical);
+    // fs.promises.realpath is the native realpath(3): it resolves `..` after
+    // following the symlink before it.
+    real = await fs.realpath(p.raw);
   } catch (error) {
     throw fail(filePath, reasonFor(error), error);
   }
@@ -181,10 +221,11 @@ export async function readConfinedFile(filePath: string, options: ConfinedReadOp
   }
   try {
     const st = await handle.stat();
-    checkOpened(filePath, st, p.limit);
+    checkOpened(filePath, st, p);
     if (p.inRoot) {
       const location = await openedLocation(handle.fd, real, st);
-      if (!location || !isWithinRoot(p.rootReal, location)) throw fail(filePath, 'outside-project-root');
+      if (!location) throw fail(filePath, 'changed-during-read');
+      if (!isWithinRoot(p.rootReal, location)) throw fail(filePath, 'outside-project-root');
     }
     // Read at most limit + 1 bytes from this descriptor: a file that grew
     // after the fstat is refused rather than read without bound.
@@ -221,7 +262,8 @@ export function readConfinedFileSync(filePath: string, options: ConfinedReadOpti
 
   let real: string;
   try {
-    real = fsSync.realpathSync(p.lexical);
+    // .native: the JS realpathSync collapses `..` as text before resolving.
+    real = fsSync.realpathSync.native(p.raw);
   } catch (error) {
     throw fail(filePath, reasonFor(error), error);
   }
@@ -235,10 +277,11 @@ export function readConfinedFileSync(filePath: string, options: ConfinedReadOpti
   }
   try {
     const st = fsSync.fstatSync(fd);
-    checkOpened(filePath, st, p.limit);
+    checkOpened(filePath, st, p);
     if (p.inRoot) {
       const location = openedLocationSync(fd, real, st);
-      if (!location || !isWithinRoot(p.rootReal, location)) throw fail(filePath, 'outside-project-root');
+      if (!location) throw fail(filePath, 'changed-during-read');
+      if (!isWithinRoot(p.rootReal, location)) throw fail(filePath, 'outside-project-root');
     }
     const chunks: Buffer[] = [];
     let total = 0;

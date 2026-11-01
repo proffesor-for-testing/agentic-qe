@@ -86,6 +86,7 @@ import type {
   SuccessImportData,
 } from './types.js';
 import type { QEPatternType } from '../qe-patterns.js';
+import { addToCount } from '../../shared/utils/safe-record.js';
 
 // ============================================================================
 // Configuration Types
@@ -237,8 +238,9 @@ export interface ApplyInsightResult {
  * The actual ConceptGraph uses async methods and SQLite persistence,
  * while the spreading activation expects synchronous in-memory access.
  * This adapter maintains an in-memory cache for fast access during dreams.
+ * Exported for tests only (#1186).
  */
-class ConceptGraphAdapter implements SpreadingConceptGraph, InsightConceptGraph {
+export class ConceptGraphAdapter implements SpreadingConceptGraph, InsightConceptGraph {
   private nodeCache: Map<string, ConceptNode> = new Map();
   private edgeCache: Map<string, ConceptEdge[]> = new Map();
   private activationLevels: Map<string, number> = new Map();
@@ -354,7 +356,9 @@ class ConceptGraphAdapter implements SpreadingConceptGraph, InsightConceptGraph 
 
     let totalActivation = 0;
     for (const node of nodes) {
-      byType[node.conceptType] = (byType[node.conceptType] ?? 0) + 1;
+      // #1186: a stored concept type such as `constructor` or `__proto__` is
+      // counted as its own bucket, not added to the inherited member.
+      addToCount(byType, node.conceptType);
       totalActivation += this.activationLevels.get(node.id) ?? node.activationLevel;
     }
 

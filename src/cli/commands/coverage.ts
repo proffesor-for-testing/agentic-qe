@@ -166,7 +166,10 @@ missing coverage evidence.`)
             for (const note of describeExcludedEntries(outcome.evidence)) console.log(chalk.yellow(`  ${note}\n`));
           }
         } else {
-          console.log(chalk.yellow('  No coverage report found — showing a heuristic STATIC ESTIMATE (UNMEASURED)'));
+          // #1186: a report that exists but was refused is not "no report".
+          console.log(chalk.yellow(outcome.kind === 'estimate' && outcome.refused?.length
+            ? '  Coverage report refused (not read) — showing a heuristic STATIC ESTIMATE (UNMEASURED)'
+            : '  No coverage report found — showing a heuristic STATIC ESTIMATE (UNMEASURED)'));
           console.log(chalk.gray('  Run tests with coverage first: npm test -- --coverage\n'));
         }
 

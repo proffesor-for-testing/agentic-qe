@@ -20,16 +20,17 @@
  */
 
 import * as fs from 'fs';
-import { readConfinedText, readConfinedTextSync } from '../../shared/io/confined-read.js';
+import { ConfinedReadError, readConfinedText, readConfinedTextSync } from '../../shared/io/confined-read.js';
 import * as os from 'os';
 import * as path from 'path';
 import type { CoverageData, FileCoverage } from '../../domains/coverage-analysis/interfaces';
 import {
-  loadCoverageReport,
+  findCoverageReport,
   parseCoberturaXml,
   parseCoverageJson,
   parseCoverageSummaryJson,
   parseLcovInfo,
+  type RefusedCoverageReport,
 } from './handler-utils';
 import { isTestPath } from './coverage-collection';
 import { assessCoverageEvidence, type CoverageEvidence } from './coverage-evidence';
@@ -326,14 +327,31 @@ export function isCoverageReportFile(filePath: string): boolean {
  * can't be parsed, or lists no files.
  */
 export async function loadCoverageReportFile(filePath: string): Promise<CoverageData | null> {
+  return (await readCoverageReportFile(filePath)).data;
+}
+
+/**
+ * `loadCoverageReportFile`, plus why the report was refused unread when it
+ * was (#1186), so a refused report is not described as an unparseable one.
+ */
+export async function readCoverageReportFile(
+  filePath: string,
+): Promise<{ data: CoverageData | null; refused?: RefusedCoverageReport }> {
   let content: string;
   try {
     // #1161: read from the validated descriptor, not the name checked earlier;
     // a report linked out of the project, or to a device, is not read.
     content = await readConfinedText(filePath, { outsideRoot: 'allow' });
-  } catch {
-    return null;
+  } catch (error) {
+    if (error instanceof ConfinedReadError && error.reason !== 'not-found') {
+      return { data: null, refused: { path: filePath, reason: error.reason } };
+    }
+    return { data: null };
   }
+  return { data: parseCoverageReportContent(filePath, content) };
+}
+
+function parseCoverageReportContent(filePath: string, content: string): CoverageData | null {
   if (content.trim().length === 0) return null;
 
   try {
@@ -417,6 +435,8 @@ export type NoDataReason =
   | 'target-missing'
   /** A coverage report was given but cannot be parsed (malformed, raw V8, empty). */
   | 'unreadable-report'
+  /** A coverage report exists but was refused unread (#1186): see `refused`. */
+  | 'refused-report'
   /** The report lists only test files. */
   | 'test-only-report'
   /** The report has no entries under the target — it did not measure it. */
@@ -426,7 +446,7 @@ export type NoDataReason =
 
 export type CoverageEvaluation =
   | { status: 'measured'; files: FileCoverage[]; evidence: CoverageEvidence }
-  | { status: 'no-data'; reason: NoDataReason };
+  | { status: 'no-data'; reason: NoDataReason; refused?: RefusedCoverageReport[] };
 
 /**
  * Decide what a report says about `target`. Shared by the MCP handler and the
@@ -473,7 +493,8 @@ export function evaluateCoverageForTarget(
 
 export type ExistingCoverage =
   | { status: 'target-missing'; target: string }
-  | { status: 'no-report'; target: string; projectRoot: string }
+  /** `refused`: reports that exist but were not read (#1186); empty when none exists. */
+  | { status: 'no-report'; target: string; projectRoot: string; refused: RefusedCoverageReport[] }
   | {
       status: 'evaluated';
       target: string;
@@ -499,17 +520,19 @@ export async function resolveExistingCoverage(targetPath: string): Promise<Exist
     const reportDir = path.dirname(target);
     const projectRoot = findCoverageProjectRoot(reportDir)
       ?? (path.basename(reportDir) === 'coverage' ? path.dirname(reportDir) : reportDir);
-    const report = await loadCoverageReportFile(target);
+    const { data: report, refused } = await readCoverageReportFile(target);
     // The report itself is the target: judged whole, but still checked for staleness.
     const evaluation: CoverageEvaluation = report
       ? evaluateCoverageForTarget(report, projectRoot, projectRoot, { reportPath: target, checkCompleteness: false })
-      : { status: 'no-data', reason: 'unreadable-report' };
+      : refused
+        ? { status: 'no-data', reason: 'refused-report', refused: [refused] }
+        : { status: 'no-data', reason: 'unreadable-report' };
     return { status: 'evaluated', target, projectRoot, source: 'report-file', evaluation };
   }
 
   const projectRoot = findCoverageProjectRoot(target) ?? (stat.isDirectory() ? target : path.dirname(target));
-  const existing = await loadCoverageReport(projectRoot);
-  if (!existing) return { status: 'no-report', target, projectRoot };
+  const { report: existing, refused } = await findCoverageReport(projectRoot);
+  if (!existing) return { status: 'no-report', target, projectRoot, refused };
   return {
     status: 'evaluated', target, projectRoot, source: 'project-report',
     evaluation: evaluateCoverageForTarget(existing.data, projectRoot, target, { reportPath: existing.path }),
@@ -567,11 +590,40 @@ export function isUnmeasured(reason: NoDataReason): boolean {
   return reason === 'target-not-covered' || reason === 'no-tests-ran';
 }
 
+const REFUSAL_EXPLANATIONS: Record<string, string> = {
+  'outside-project-root': 'it resolves outside the project (a symlink pointing out of it)',
+  'not-a-file': 'it is not a regular file (a FIFO, device or directory)',
+  'too-large': 'it is over the read size limit',
+  'changed-during-read': 'it was replaced or removed while it was being read',
+  'hardlinked': 'it has more than one hardlink',
+  'unreadable': 'it could not be opened (permissions)',
+};
+
+/**
+ * Why existing coverage reports were not used (#1186). A refused report is
+ * named with its reason, never described as a missing one. Shared by MCP and CLI.
+ */
+export function describeRefusedReports(refused: readonly RefusedCoverageReport[]): string {
+  const items = refused.map(r =>
+    `${r.path} (${r.reason}: ${Object.hasOwn(REFUSAL_EXPLANATIONS, r.reason) ? REFUSAL_EXPLANATIONS[r.reason] : r.reason})`);
+  return `Coverage report refused and not read: ${items.join('; ')}. ` +
+    'Write the report as a regular file inside the project, or pass a report file inside the project as the target.';
+}
+
 /** Caller-facing explanation of a no-data verdict. Shared by MCP and CLI. */
-export function describeNoData(reason: NoDataReason, target: string, projectRoot: string | null): string {
+export function describeNoData(
+  reason: NoDataReason,
+  target: string,
+  projectRoot: string | null,
+  refused: readonly RefusedCoverageReport[] = [],
+): string {
   switch (reason) {
     case 'target-missing':
       return `Target does not exist: ${target}`;
+    case 'refused-report':
+      return refused.length > 0
+        ? describeRefusedReports(refused)
+        : `Coverage report refused and not read: ${target}.`;
     case 'unreadable-report':
       return `Unreadable coverage report: ${target}. It could not be parsed or lists no files. ` +
         'Supported: lcov.info, istanbul coverage-final.json / coverage-summary.json, Cobertura XML. ' +

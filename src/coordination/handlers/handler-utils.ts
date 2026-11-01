@@ -6,7 +6,7 @@
  */
 
 import * as fs from 'fs/promises';
-import { readConfinedText } from '../../shared/io/confined-read.js';
+import { ConfinedReadError, readConfinedText, type ConfinedReadReason } from '../../shared/io/confined-read.js';
 import * as path from 'path';
 import { isAqeManagedDir } from '../../shared/aqe-managed-dirs.js';
 import { safeJsonParse } from '../../shared/safe-json.js';
@@ -65,6 +65,26 @@ export async function loadCoverageData(targetPath: string): Promise<CoverageData
 
 /** `loadCoverageData` plus the path of the report it read (#1154: staleness needs it). */
 export async function loadCoverageReport(targetPath: string): Promise<{ data: CoverageData; path: string } | null> {
+  return (await findCoverageReport(targetPath)).report;
+}
+
+/** A coverage report that exists but was refused unread (#1186). */
+export interface RefusedCoverageReport {
+  path: string;
+  reason: ConfinedReadReason;
+}
+
+/**
+ * `loadCoverageReport` plus the reports that were refused unread (#1186): a
+ * report linked out of the project, a FIFO or device, or one over the size
+ * limit is not a missing report, and the caller must be able to say why it
+ * was not used.
+ */
+export async function findCoverageReport(targetPath: string): Promise<{
+  report: { data: CoverageData; path: string } | null;
+  refused: RefusedCoverageReport[];
+}> {
+  const refused: RefusedCoverageReport[] = [];
   // Try various coverage file locations (JS, Python, Java, etc.)
   const coverageLocations = [
     // JavaScript/TypeScript (Istanbul/nyc/vitest)
@@ -87,20 +107,24 @@ export async function loadCoverageReport(targetPath: string): Promise<{ data: Co
       const content = await readConfinedText(coveragePath, { outsideRoot: 'allow' });
 
       if (coveragePath.endsWith('coverage-summary.json')) {
-        return { data: parseCoverageSummaryJson(content), path: coveragePath };
+        return { report: { data: parseCoverageSummaryJson(content), path: coveragePath }, refused };
       } else if (coveragePath.endsWith('.json')) {
-        return { data: parseCoverageJson(content), path: coveragePath };
+        return { report: { data: parseCoverageJson(content), path: coveragePath }, refused };
       } else if (coveragePath.endsWith('.info')) {
-        return { data: parseLcovInfo(content), path: coveragePath };
+        return { report: { data: parseLcovInfo(content), path: coveragePath }, refused };
       } else if (coveragePath.endsWith('.xml')) {
-        return { data: parseCoberturaXml(content), path: coveragePath };
+        return { report: { data: parseCoberturaXml(content), path: coveragePath }, refused };
       }
-    } catch {
-      // File not found, try next
+    } catch (error) {
+      // Not found (or unparseable): try the next location. A refused report
+      // is recorded so it is not reported as a missing one.
+      if (error instanceof ConfinedReadError && error.reason !== 'not-found') {
+        refused.push({ path: coveragePath, reason: error.reason });
+      }
     }
   }
 
-  return null;
+  return { report: null, refused };
 }
 
 /**
