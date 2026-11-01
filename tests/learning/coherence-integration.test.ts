@@ -25,10 +25,14 @@ import type { EventBus } from '../../src/kernel/interfaces.js';
 import type { CoherenceNode, CoherenceResult } from '../../src/integrations/coherence/types.js';
 import type { Result } from '../../src/shared/types/index.js';
 import { PatternMutationError } from '../../src/learning/pattern-mutation-error.js';
+import { mulberry32 } from '../../src/arena/rng.js';
 
 // ============================================================================
 // Test Helpers
 // ============================================================================
+
+/** Memory key QEReasoningBank.initialize() uses to seed cross-domain patterns once */
+const CROSS_DOMAIN_SEED_FLAG = 'reasoning-bank:cross-domain-seeded';
 
 /**
  * Helper to create test patterns with customizable properties
@@ -135,7 +139,13 @@ describe('Learning Module Coherence Integration', () => {
   });
 
   beforeEach(async () => {
+    // #1318: QEReasoningBank seeds cross-domain patterns once per DB lifetime
+    // and records that in `memory`. The patterns live in this process's
+    // SQLite DB, which clear() does not reset, so dropping the flag made every
+    // test re-seed a growing DB until bank.initialize() exceeded the timeouts.
+    const seeded = await memory.get<boolean>(CROSS_DOMAIN_SEED_FLAG);
     await memory.clear();
+    if (seeded) await memory.set(CROSS_DOMAIN_SEED_FLAG, true);
   });
 
   // ============================================================================
@@ -622,11 +632,14 @@ describe('Learning Module Coherence Integration', () => {
     });
 
     it('should detect spurious correlations', async () => {
-      // Test spurious correlation: random data with no causal relationship
+      // Test spurious correlation: random data with no causal relationship.
+      // #1318: seeded, because unseeded samples of 30 reach |r| >= 0.5 in about
+      // 0.5% of runs. This seed gives r = 0.083.
+      const rng = mulberry32(1318);
       const causalData = {
         sampleSize: 30,
-        causeValues: Array.from({ length: 30 }, () => Math.random()), // Random cause
-        effectValues: Array.from({ length: 30 }, () => Math.random()), // Random effect
+        causeValues: Array.from({ length: 30 }, () => rng()), // Random cause
+        effectValues: Array.from({ length: 30 }, () => rng()), // Random effect
         confounders: [],
       };
 
