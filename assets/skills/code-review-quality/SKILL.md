@@ -16,6 +16,7 @@ validation:
   schema_path: schemas/output.json
   validator_path: scripts/validate-config.json
 ---
+
 # Code Review Quality
 
 <default_to_action>

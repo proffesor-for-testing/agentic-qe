@@ -16,6 +16,7 @@ validation:
   schema_path: schemas/output.json
   eval_path: evals/technical-writing.yaml
 ---
+
 # Technical Writing
 
 <default_to_action>
