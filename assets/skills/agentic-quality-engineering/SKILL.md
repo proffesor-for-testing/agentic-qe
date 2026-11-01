@@ -4,7 +4,7 @@ description: "Use when orchestrating QE agents, understanding PACTS principles, 
 category: qe-core
 priority: critical
 tokenEstimate: 1400
-agents: [qe-test-generator, qe-test-executor, qe-coverage-analyzer, qe-quality-gate, qe-quality-analyzer, qe-performance-tester, qe-security-scanner, qe-requirements-validator, qe-production-intelligence, qe-fleet-commander, qe-deployment-readiness, qe-regression-risk-analyzer, qe-test-data-architect, qe-api-contract-validator, qe-flaky-test-hunter, qe-visual-tester, qe-chaos-engineer, qe-code-complexity, qx-partner]
+agents: [qe-test-architect, qe-parallel-executor, qe-coverage-specialist, qe-quality-gate, qe-performance-tester, qe-security-scanner, qe-requirements-validator, qe-fleet-commander, qe-deployment-advisor, qe-regression-analyzer, qe-contract-validator, qe-flaky-hunter, qe-visual-tester, qe-chaos-engineer, qe-code-complexity, qe-qx-partner, qe-devils-advocate]
 implementation_status: optimized
 optimization_version: 1.0
 last_optimized: 2025-12-02
@@ -15,6 +15,7 @@ trust_tier: 1
 validation:
   schema_path: schemas/output.json
 ---
+
 # Agentic Quality Engineering
 
 <default_to_action>

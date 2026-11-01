@@ -4,7 +4,7 @@ description: "Apply the Holistic Testing Model evolved with PACTS (Proactive, Au
 category: testing-methodologies
 priority: critical
 tokenEstimate: 1100
-agents: [qe-fleet-commander, qe-test-generator, qe-quality-analyzer, qe-requirements-validator]
+agents: [qe-fleet-commander, qe-test-architect, qe-quality-gate, qe-requirements-validator]
 implementation_status: optimized
 optimization_version: 1.0
 last_optimized: 2025-12-02
@@ -14,6 +14,7 @@ tags: [holistic, pacts, quality, whole-team, proactive, autonomous, collaborativ
 trust_tier: 0
 validation:
 ---
+
 # Holistic Testing Model with PACTS Principles
 
 <default_to_action>
