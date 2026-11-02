@@ -667,6 +667,47 @@ describe('CloudSyncAgent', () => {
       expect(mockWriter._mocks.upsert).not.toHaveBeenCalled();
       expect(report.status).toBe('completed');
       expect(report.totalRecordsSynced).toBe(2); // Records count from mock
+      // #1331: a dry run never opens the IAP tunnel or the cloud connection.
+      expect(createConnectionManager).not.toHaveBeenCalled();
+      expect(createPostgresWriter).not.toHaveBeenCalled();
+      expect(report.errors).toEqual([]);
+    });
+
+    it('should not connect to the cloud in an incremental dry run (#1331)', async () => {
+      (createPostgresWriter as Mock).mockImplementation(() => {
+        throw new Error('Tunnel process exited with code 1');
+      });
+      const agent = new CloudSyncAgent({
+        sync: {
+          mode: 'incremental',
+          interval: '1h',
+          batchSize: 1000,
+          conflictResolution: 'newer-wins',
+          sourcePriority: {},
+          sources: [
+            {
+              name: 'test-source',
+              type: 'sqlite',
+              path: 'test.db',
+              targetTable: 'test_table',
+              priority: 'high',
+              mode: 'incremental',
+              enabled: true,
+            },
+          ],
+          dryRun: true,
+        },
+      });
+
+      await agent.initialize();
+      const report = await agent.syncIncremental(new Date(0));
+
+      expect(createConnectionManager).not.toHaveBeenCalled();
+      expect(createPostgresWriter).not.toHaveBeenCalled();
+      expect(report.status).toBe('completed');
+      expect(report.errors).toEqual([]);
+      expect(report.totalRecordsSynced).toBe(2);
+      expect(report.dryRun).toBe(true);
     });
   });
 

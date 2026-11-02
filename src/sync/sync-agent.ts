@@ -403,6 +403,12 @@ export class CloudSyncAgent {
 
   private async connectToCloud(): Promise<void> {
     if (this.writer) return;
+    // #1331: a dry run only reads local sources and counts what it would
+    // send, so it must not open the IAP tunnel or need cloud credentials.
+    if (this.config.sync.dryRun) {
+      this.log('[DRY RUN] Not connecting to the cloud database');
+      return;
+    }
 
     const tunnelManager = createConnectionManager(this.config.cloud);
 
@@ -429,6 +435,7 @@ export class CloudSyncAgent {
       status: 'running',
       environment: this.config.environment,
       mode,
+      ...(this.config.sync.dryRun ? { dryRun: true } : {}),
       results: [],
       totalRecordsSynced: 0,
       totalConflictsResolved: 0,
