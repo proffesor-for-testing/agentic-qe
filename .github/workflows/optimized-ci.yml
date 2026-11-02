@@ -65,6 +65,36 @@ jobs:
         if: always()
         run: npm audit --audit-level=high || echo "::warning::devDep CVEs found — fix before they migrate into prod"
 
+  # ─── Publish asset sync (#1341) ───
+  # npm-publish.yml regenerates the shipped agent and skill copies with
+  # `npm run prepublishOnly` and fails the release if git then shows a diff.
+  # Run the same check on every PR, so drift fails here instead of at
+  # publish time (it broke the first v3.15.18 publish). The two scripts only
+  # copy files, so no install is needed. Untracked output counts too, which
+  # is stricter than the publish job: a new asset must be committed, not
+  # only generated at publish time.
+  publish-asset-sync:
+    name: Publish Asset Sync
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: '24.22.1' }
+      - name: Regenerate publish assets
+        run: npm run prepublishOnly
+      - name: Fail if the committed assets are stale
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git status --short
+            git diff --stat
+            echo "::error::Shipped assets are out of date. Run \`npm run prepublishOnly\` and commit the result."
+            exit 1
+          fi
+          echo "Publish assets match their sources."
+
   # ─── Witness chain audit gate (ADR-070 Phase 6.2 / A13) ───
   # Seeds a throwaway chain (append -> archive -> verify, then a deliberate
   # tamper) and exercises the real `aqe audit verify --chain=audit` path
