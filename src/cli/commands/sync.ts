@@ -305,7 +305,7 @@ function printSyncReport(report: SyncReport): void {
   console.log();
   if (report.dryRun) {
     // #1331: a dry run reads local sources only and sends nothing.
-    console.log(chalk.yellow('Dry run: nothing was sent to the cloud; counts are records that would sync.'));
+    console.log(chalk.yellow('Dry run: nothing was sent to the cloud; counts are the records found locally (a real sync may skip rows that already exist).'));
     console.log();
   }
 

@@ -671,6 +671,7 @@ describe('CloudSyncAgent', () => {
       expect(createConnectionManager).not.toHaveBeenCalled();
       expect(createPostgresWriter).not.toHaveBeenCalled();
       expect(report.errors).toEqual([]);
+      expect(report.dryRun).toBe(true);
     });
 
     it('should not connect to the cloud in an incremental dry run (#1331)', async () => {
