@@ -29,6 +29,8 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  # #1344: the fallback issue when Actions may not open pull requests here.
+  issues: write
 
 concurrency:
   group: dependency-update-scheduled
@@ -64,6 +66,9 @@ jobs:
       - name: Open PR if the lockfile changed
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SERVER: ${{ github.server_url }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
           if git diff --quiet -- package-lock.json; then
@@ -75,16 +80,46 @@ jobs:
           git checkout -B "${BRANCH}"
           git add package-lock.json
           git commit -m "chore(deps): in-range security updates (automated, ADR-115)"
-          git push --force-with-lease -u origin "${BRANCH}"
+          # #1344: checkout fetched only main, so there is no remote-tracking
+          # ref for the branch and a bare --force-with-lease refuses with
+          # "stale info". Lease against the sha the remote has right now
+          # (empty = the branch must not exist yet), which still refuses a
+          # push that races ours.
+          expected="$(git ls-remote --heads origin "refs/heads/${BRANCH}" | cut -f1)"
+          git push --force-with-lease="refs/heads/${BRANCH}:${expected}" origin "HEAD:refs/heads/${BRANCH}"
           # Reuse an open PR from this branch if present, else create one.
-          if [ -z "$(gh pr list --head "${BRANCH}" --state open --json number --jq '.[0].number // empty')" ]; then
-            gh pr create --base main --head "${BRANCH}" \
-              --title "chore(deps): automated in-range security updates" \
-              --body-file reports/dependency-update.md \
-              --label dependencies,security || \
-            gh pr create --base main --head "${BRANCH}" \
-              --title "chore(deps): automated in-range security updates" \
-              --body-file reports/dependency-update.md
-          else
+          if [ -n "$(gh pr list --head "${BRANCH}" --state open --json number --jq '.[0].number // empty')" ]; then
             echo "Existing PR updated by force-push."
+            exit 0
           fi
+          title="chore(deps): automated in-range security updates"
+          if gh pr create --base main --head "${BRANCH}" --title "${title}" \
+               --body-file reports/dependency-update.md --label dependencies; then
+            exit 0
+          fi
+          # #1344: this repository does not let Actions open pull requests,
+          # and a PR opened with GITHUB_TOKEN would start no CI anyway. Ask a
+          # maintainer to open it instead, in one issue that each run updates.
+          compare="${SERVER}/${REPO}/compare/main...${BRANCH}?expand=1"
+          {
+            echo "The scheduled dependency update pushed \`${BRANCH}\` but could not open the pull request itself."
+            echo
+            echo "**Open the PR:** ${compare}"
+            echo
+            echo "Paste the report below as the PR body. Run: ${RUN_URL}"
+            echo
+            echo "---"
+            echo
+            cat reports/dependency-update.md
+          } > reports/dependency-update-issue.md
+          issue_title="Automated in-range security updates are ready on ${BRANCH}"
+          existing="$(gh issue list --state open --search "\"${issue_title}\" in:title" --json number,title |
+            jq -r --arg t "${issue_title}" '[.[] | select(.title == $t)][0].number // empty')"
+          if [ -n "${existing}" ]; then
+            gh issue edit "${existing}" --body-file reports/dependency-update-issue.md
+            gh issue comment "${existing}" --body "Updated by ${RUN_URL}"
+          else
+            gh issue create --title "${issue_title}" --body-file reports/dependency-update-issue.md --label dependencies
+          fi
+          echo "::warning::Could not open a PR; asked for one in the issue \"${issue_title}\"."
+          echo "Open the PR: ${compare}" >> "${GITHUB_STEP_SUMMARY}"
