@@ -212,6 +212,8 @@ export interface ContractValidateResult {
   valid: boolean;
   breakingChanges: string[];
   warnings: string[];
+  /** #1329: why the contract could not be validated (unreadable, refused, unparseable). */
+  error?: string;
   duration: number;
   savedFiles?: string[];
   /** #933: true when result files were written; see savedFiles for their paths. */
@@ -1044,6 +1046,8 @@ export const contractValidateConfig: DomainHandlerConfig<ContractValidateParams,
     valid: (data.valid as boolean) || false,
     breakingChanges: (data.breakingChanges as string[]) || [],
     warnings: (data.warnings as string[]) || [],
+    // #1329: without this the caller sees valid:false and no reason.
+    ...(typeof data.error === 'string' ? { error: data.error } : {}),
     duration,
     savedFiles,
   }),
