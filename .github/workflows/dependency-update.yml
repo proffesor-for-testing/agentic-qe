@@ -29,6 +29,8 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  # #1344: the fallback issue when Actions may not open pull requests here.
+  issues: write
 
 concurrency:
   group: dependency-update-scheduled
@@ -64,10 +66,23 @@ jobs:
       - name: Open PR if the lockfile changed
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SERVER: ${{ github.server_url }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
+          issue_title="Automated in-range security updates are ready on ${BRANCH}"
+          find_issue() {
+            gh issue list --state open --search "\"${issue_title}\" in:title" --json number,title |
+              jq -r --arg t "${issue_title}" '[.[] | select(.title == $t)][0].number // empty'
+          }
           if git diff --quiet -- package-lock.json; then
             echo "No in-range security updates — nothing to propose."
+            # #1344: an open handoff issue now points at an outdated branch.
+            stale="$(find_issue)"
+            if [ -n "${stale}" ]; then
+              gh issue close "${stale}" --comment "No in-range security updates are needed any more (${RUN_URL}), so \`${BRANCH}\` is outdated. Closing."
+            fi
             exit 0
           fi
           git config user.name  "github-actions[bot]"
@@ -75,16 +90,55 @@ jobs:
           git checkout -B "${BRANCH}"
           git add package-lock.json
           git commit -m "chore(deps): in-range security updates (automated, ADR-115)"
-          git push --force-with-lease -u origin "${BRANCH}"
+          # #1344: checkout fetched only main, so there is no remote-tracking
+          # ref for the branch and a bare --force-with-lease refuses with
+          # "stale info". Lease against the sha the remote has right now
+          # (empty = the branch must not exist yet), which still refuses a
+          # push that races ours.
+          expected="$(git ls-remote --heads origin "refs/heads/${BRANCH}" |
+            awk -v r="refs/heads/${BRANCH}" '$2 == r { print $1 }')"
+          git push --force-with-lease="refs/heads/${BRANCH}:${expected}" origin "HEAD:refs/heads/${BRANCH}"
           # Reuse an open PR from this branch if present, else create one.
-          if [ -z "$(gh pr list --head "${BRANCH}" --state open --json number --jq '.[0].number // empty')" ]; then
-            gh pr create --base main --head "${BRANCH}" \
-              --title "chore(deps): automated in-range security updates" \
-              --body-file reports/dependency-update.md \
-              --label dependencies,security || \
-            gh pr create --base main --head "${BRANCH}" \
-              --title "chore(deps): automated in-range security updates" \
-              --body-file reports/dependency-update.md
-          else
-            echo "Existing PR updated by force-push."
+          pr="$(gh pr list --head "${BRANCH}" --state open --json number --jq '.[0].number // empty')"
+          if [ -n "${pr}" ]; then
+            # A push made with GITHUB_TOKEN starts no workflow runs, so the
+            # new head has not been tested. Refresh the body and say so.
+            gh pr edit "${pr}" --body-file reports/dependency-update.md
+            gh pr comment "${pr}" --body "Force-pushed a new lockfile (${RUN_URL}). CI does not run on pushes made by Actions here: close and reopen this PR to test the new head before merging."
+            echo "::warning::PR #${pr} was force-pushed; CI must be re-triggered by closing and reopening it."
+            exit 0
           fi
+          title="chore(deps): automated in-range security updates"
+          if gh pr create --base main --head "${BRANCH}" --title "${title}" \
+               --body-file reports/dependency-update.md --label dependencies 2> pr-create.err; then
+            exit 0
+          fi
+          cat pr-create.err >&2
+          # #1344: this repository does not let Actions open pull requests,
+          # and a PR opened with GITHUB_TOKEN would start no CI anyway. Ask a
+          # maintainer to open it instead, in one issue that each run updates.
+          # Any other failure (network, label, API) fails the step.
+          if ! grep -q 'not permitted to create' pr-create.err; then
+            exit 1
+          fi
+          compare="${SERVER}/${REPO}/compare/main...${BRANCH}?expand=1"
+          {
+            echo "The scheduled dependency update pushed \`${BRANCH}\` but could not open the pull request itself."
+            echo
+            echo "**Open the PR:** ${compare}"
+            echo
+            echo "Use the report below as the PR body: copy the text inside the block, not the rendered page, so the PR template check finds its checkbox. Run: ${RUN_URL}"
+            echo
+            echo "~~~~markdown"
+            cat reports/dependency-update.md
+            echo "~~~~"
+          } > reports/dependency-update-issue.md
+          existing="$(find_issue)"
+          if [ -n "${existing}" ]; then
+            gh issue edit "${existing}" --body-file reports/dependency-update-issue.md
+            gh issue comment "${existing}" --body "Updated by ${RUN_URL}"
+          else
+            gh issue create --title "${issue_title}" --body-file reports/dependency-update-issue.md --label dependencies
+          fi
+          echo "::warning::Could not open a PR; asked for one in the issue \"${issue_title}\"."
+          echo "Open the PR: ${compare}" >> "${GITHUB_STEP_SUMMARY}"
