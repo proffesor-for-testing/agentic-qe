@@ -5,6 +5,36 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Changes queued for 3.15.19.
+
+### Changed
+
+- **MCP tools refuse hardlinked files** ([#1329], [#1349]):
+  `validation_pipeline`, `contract_validate`, `qe/quality/gate`
+  (`anchorPath`) and `qe/requirements/quality-criteria` (`epicPath`) now
+  refuse a file that is a hardlink, with an error ending in `hardlinked`.
+  Before, a hardlink inside the project to a file outside it was read like
+  a project file, and `qe/requirements/quality-criteria` returned the
+  outside file's contents. If you keep project files as hardlinks (some
+  backup or deduplication tools do), copy the file instead. Plain files and
+  `aqe quality-gate --anchor` on the CLI are unchanged.
+- **`contract_validate` says why a contract is invalid** ([#1349]): the
+  result now carries an `error` field, for example `hardlinked` or
+  `invalid JSON`, instead of only `valid: false`.
+
+### Fixed
+
+- **`aqe sync --dry-run` without cloud access** ([#1331], [#1348]): a dry
+  run no longer opens the gcloud IAP tunnel or the database connection, so
+  it works on a machine without cloud configuration. The report is marked
+  as a dry run and shows "Records That Would Sync".
+
+[#1331]: https://github.com/proffesor-for-testing/agentic-qe/issues/1331
+[#1348]: https://github.com/proffesor-for-testing/agentic-qe/pull/1348
+[#1349]: https://github.com/proffesor-for-testing/agentic-qe/pull/1349
+
 ## [3.15.18] - 2026-11-01
 
 AQE no longer fails with "database is locked" when several processes open a
