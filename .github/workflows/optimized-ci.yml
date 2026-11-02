@@ -70,11 +70,14 @@ jobs:
   # `npm run prepublishOnly` and fails the release if git then shows a diff.
   # Run the same check on every PR, so drift fails here instead of at
   # publish time (it broke the first v3.15.18 publish). The two scripts only
-  # copy files, so no install is needed. Untracked output counts too: a
-  # regenerated asset that was never committed would also be missing here.
+  # copy files, so no install is needed. Untracked output counts too, which
+  # is stricter than the publish job: a new asset must be committed, not
+  # only generated at publish time.
   publish-asset-sync:
     name: Publish Asset Sync
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
