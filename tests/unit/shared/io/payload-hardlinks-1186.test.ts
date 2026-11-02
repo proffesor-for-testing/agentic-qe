@@ -65,8 +65,16 @@ describe('caller-named payload files refuse hardlinks (#1186)', () => {
     const refused = await run(hard);
     expect(refused.value).toMatchObject({ valid: false });
     expect(refused.value.error).toContain('hardlinked');
+    expect(JSON.stringify(refused)).not.toContain('OUTSIDE_SECRET_1186');
 
     expect((await run(plain)).value).toMatchObject({ valid: true, linesAnalyzed: 1 });
+
+    // An unparseable contract says why without quoting the file.
+    const broken = path.join(root, 'broken.json');
+    fs.writeFileSync(broken, 'SECRET_TOKEN_1329 not json');
+    const bad = await run(broken);
+    expect(bad.value).toMatchObject({ valid: false, error: 'Could not read or parse contract file: invalid JSON' });
+    expect(JSON.stringify(bad)).not.toContain('SECRET_TOKEN');
   });
 
   // #1329: the other two caller-named reads split out of #1186.

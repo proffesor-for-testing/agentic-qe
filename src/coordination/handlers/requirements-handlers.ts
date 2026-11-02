@@ -96,7 +96,8 @@ export function registerRequirementsHandlers(ctx: TaskHandlerContext): void {
 
         // Basic structural validation
         if (isJson) {
-          JSON.parse(content); // throws if invalid
+          // #1329: report the reason only; the parser message quotes the file.
+          try { JSON.parse(content); } catch { throw new Error('invalid JSON'); }
         }
 
         return ok({
