@@ -300,12 +300,17 @@ function printSyncReport(report: SyncReport): void {
   console.log(chalk.bold('Sync ID:'), report.syncId);
   console.log(chalk.bold('Status:'), statusColor(report.status.toUpperCase()));
   console.log(chalk.bold('Environment:'), report.environment);
-  console.log(chalk.bold('Mode:'), report.mode);
+  console.log(chalk.bold('Mode:'), report.dryRun ? `${report.mode} (dry run)` : report.mode);
   console.log(chalk.bold('Duration:'), `${report.totalDurationMs}ms`);
   console.log();
+  if (report.dryRun) {
+    // #1331: a dry run reads local sources only and sends nothing.
+    console.log(chalk.yellow('Dry run: nothing was sent to the cloud; counts are the records found locally (a real sync may skip rows that already exist).'));
+    console.log();
+  }
 
   console.log(chalk.bold('Summary:'));
-  console.log(`   Records Synced: ${chalk.green(report.totalRecordsSynced)}`);
+  console.log(`   ${report.dryRun ? 'Records That Would Sync' : 'Records Synced'}: ${chalk.green(report.totalRecordsSynced)}`);
   console.log(`   Conflicts Resolved: ${chalk.yellow(report.totalConflictsResolved)}`);
   console.log();
 

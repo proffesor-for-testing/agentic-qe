@@ -207,6 +207,9 @@ export interface SyncReport {
   /** Sync mode used */
   mode: SyncMode;
 
+  /** #1331: true when nothing was sent; record counts are what would sync */
+  dryRun?: boolean;
+
   /** Results per table */
   results: SyncResult[];
 
