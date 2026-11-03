@@ -66,6 +66,21 @@ describe('TestGenerationCoordinator — free-tier opt-in', () => {
     await coordinator.dispose();
   });
 
+  it('should read the source with the request\'s hardlink policy (#1350)', async () => {
+    chatMock.mockResolvedValue({ ok: true, content: goodTest, latencyMs: 10 });
+    const coordinator = new TestGenerationCoordinator(
+      ctx.eventBus, ctx.memory, ctx.agentCoordinator,
+      { ...baseConfig, enableFreeTier: true },
+    );
+
+    await coordinator.generateTests({ ...request, sourceHardlinks: 'refuse' });
+    await coordinator.generateTests(request);
+
+    expect(readFileMock.mock.calls[0]).toEqual(['/proj/src/add.ts', { outsideRoot: 'allow', hardlinks: 'refuse' }]);
+    expect(readFileMock.mock.calls[1]).toEqual(['/proj/src/add.ts', { outsideRoot: 'allow', hardlinks: 'allow' }]);
+    await coordinator.dispose();
+  });
+
   it('should retry the same local tier on invalid output (D8 repair) then succeed', async () => {
     chatMock
       .mockResolvedValueOnce({ ok: true, content: 'just prose, no test', latencyMs: 5 })

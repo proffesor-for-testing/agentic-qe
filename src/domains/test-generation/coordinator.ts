@@ -660,7 +660,8 @@ export class TestGenerationCoordinator
 
     let code = '';
     try {
-      code = await readConfinedText(src, { outsideRoot: 'allow' }); // #1161
+      // #1161; #1350: a caller-named hardlink is refused (the normal path then reports it).
+      code = await readConfinedText(src, { outsideRoot: 'allow', hardlinks: request.sourceHardlinks ?? 'allow' });
     } catch {
       return null; // unreadable → fall back
     }

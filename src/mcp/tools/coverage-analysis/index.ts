@@ -288,7 +288,8 @@ export class CoverageAnalyzeTool extends MCPToolBase<CoverageAnalyzeParams, Cove
 
       if (coverageFile) {
         try {
-          parsedReport = await parseCoverage(coverageFile, target, coverageFormat as any, language);
+          // #1350: a caller-named report that is a hardlink is refused, not read.
+          parsedReport = await parseCoverage(coverageFile, target, coverageFormat as any, language, { hardlinks: 'refuse' });
         } catch (parseError) {
           // Return error - don't silently fall back to fake data
           return {
@@ -546,7 +547,8 @@ export class CoverageGapsTool extends MCPToolBase<CoverageGapsParams, CoverageGa
 
       if (coverageFile) {
         try {
-          parsedReport = await parseCoverage(coverageFile, target, coverageFormat as any, language);
+          // #1350: a caller-named report that is a hardlink is refused, not read.
+          parsedReport = await parseCoverage(coverageFile, target, coverageFormat as any, language, { hardlinks: 'refuse' });
         } catch (parseError) {
           return {
             success: false,
