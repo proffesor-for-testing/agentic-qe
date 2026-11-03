@@ -1179,6 +1179,9 @@ export class PersistentSONAEngine {
       console.warn('[PersistentSONAEngine] Request count checkpoint failed:', err instanceof Error ? err.message : err);
     }
 
+    // A Fisher save queued while close() was awaiting lands before teardown.
+    while (this.fisherSaveInFlight) await this.fisherSaveInFlight;
+
     this.prepared.clear();
     this.db = null;
     this.persistence = null;

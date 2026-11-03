@@ -62,6 +62,11 @@ function releaseSharedRvfStores(): void {
 
 let processStoresReleased = false;
 
+/** Longest graceful shutdown waits for queued memory.db writes (#1283). */
+const SHUTDOWN_WRITE_DRAIN_MS = 2000;
+/** The drain ends this long after shutdown starts, before the 3 s watchdog. */
+const SHUTDOWN_DRAIN_DEADLINE_MS = 2700;
+
 /**
  * Release every process-wide store exactly once, on every shutdown path:
  * the shared RVF stores first, then the kernel's unified persistence/memory
@@ -111,6 +116,7 @@ async function main(): Promise<void> {
     originalStderrWrite(`[AQE] Shutting down (${reason})\n`);
     stopDaemonHeartbeat?.();
 
+    const shutdownStarted = Date.now();
     const watchdog = setTimeout(() => {
       originalStderrWrite('[AQE] Shutdown watchdog fired — forcing exit\n');
       process.exit(0);
@@ -128,6 +134,16 @@ async function main(): Promise<void> {
         await server.stop();
       }
     } catch { /* best-effort — the watchdog still guarantees exit */ } finally {
+      // #1283: writes still queued behind another process's lock would run
+      // on a closed handle and be lost. Give them until shortly before the
+      // watchdog (at most SHUTDOWN_WRITE_DRAIN_MS) to land.
+      try {
+        const { drainUnifiedMemoryWrites } = await import('../kernel/unified-memory.js');
+        const drainMs = Math.min(SHUTDOWN_WRITE_DRAIN_MS, shutdownStarted + SHUTDOWN_DRAIN_DEADLINE_MS - Date.now());
+        if (!(await drainUnifiedMemoryWrites(drainMs))) {
+          originalStderrWrite('[AQE] Shutdown: queued memory.db writes still locked; closing without them\n');
+        }
+      } catch { /* best effort */ }
       // Close data stores AFTER the server has drained connections, and even
       // when a step above threw. Shared pattern-store consumers leave
       // singleton disposal to this lifecycle; memory.db closes last.

@@ -211,6 +211,27 @@ describe('SONA writes inside tool calls (#1283)', () => {
     expect(count(um.getDatabase(), "SELECT COUNT(*) AS n FROM sona_fisher_matrices WHERE consolidation_cycles = 5")).toBe(1);
   });
 
+  it('close(): a Fisher save queued while close() is waiting still lands', async () => {
+    const um = await openMemory();
+    engine = await createPersistentSONAEngine({ domain: 'test-generation' });
+    const closing = engine;
+    engine = undefined;
+    const persist = (closing as unknown as { baseEngine: { fisherPersistFn: (...a: unknown[]) => void } })
+      .baseEngine.fisherPersistFn;
+    const vec = new Float32Array([0.4, 0.5]);
+
+    const { gap, result } = await underLock(um, async () => {
+      const closed = closing.close(); // the request-count checkpoint waits on the lock
+      await new Promise((r) => setTimeout(r, 20));
+      persist('test-generation', vec, vec, vec, { taskBoundaries: 0, consolidationCycles: 7, requestCount: 0, ewcLambda: 1000 });
+      await closed;
+    });
+
+    expect(result.status).toBe('fulfilled');
+    expect(gap).toBeLessThan(MAX_GAP_MS);
+    expect(count(um.getDatabase(), 'SELECT COUNT(*) AS n FROM sona_fisher_matrices WHERE consolidation_cycles = 7')).toBe(1);
+  });
+
   it('close(): the request-count checkpoint does not block and is saved', async () => {
     const um = await openMemory();
     engine = await createPersistentSONAEngine({ domain: 'test-generation' });
@@ -316,5 +337,51 @@ describe('witness appends (#1283)', () => {
     expect(value(result)).toBeLessThan(0.8);
     expect(gap).toBeLessThan(MAX_GAP_MS);
     expect(count(um.getDatabase(), "SELECT COUNT(*) AS n FROM witness_chain WHERE action_type = 'HEBBIAN_PENALTY'")).toBe(1);
+  });
+});
+
+describe('draining queued writes at shutdown (#1283)', () => {
+  const insert = (db: DatabaseType, key: string) => () =>
+    db.prepare("INSERT INTO kv_store (key, namespace, value) VALUES (?, 'drain', '1')").run(key);
+
+  it('waits for a queued write whose lock is released during the drain, including writes it queues', async () => {
+    const um = await openMemory();
+    const db = um.getDatabase();
+    lock();
+    const held = holder;
+    setTimeout(() => { if (holder === held) unlock(); }, 300);
+    // A write that queues another once it lands, as fire-and-forget learning writes do.
+    void um.writeWhenUnlocked(insert(db, 'first')).then(() => { void um.writeWhenUnlocked(insert(db, 'second')); });
+
+    const started = Date.now();
+    const drained = await um.drainWrites(2000);
+
+    expect(drained).toBe(true);
+    expect(Date.now() - started).toBeLessThan(2000);
+    expect(count(db, "SELECT COUNT(*) AS n FROM kv_store WHERE namespace = 'drain'")).toBe(2);
+  });
+
+  it('gives up at the cap while the lock is still held, so shutdown does not hang', async () => {
+    const um = await openMemory();
+    const db = um.getDatabase();
+    lock();
+    const pending = um.writeWhenUnlocked(insert(db, 'late')).catch((e: unknown) => e);
+
+    const started = Date.now();
+    const drained = await um.drainWrites(300);
+    const waited = Date.now() - started;
+
+    expect(drained).toBe(false);
+    expect(waited).toBeGreaterThanOrEqual(250);
+    expect(waited).toBeLessThan(800);
+    unlock();
+    await pending;
+  });
+
+  it('resolves at once when nothing is queued', async () => {
+    const um = await openMemory();
+    const started = Date.now();
+    expect(await um.drainWrites(2000)).toBe(true);
+    expect(Date.now() - started).toBeLessThan(50);
   });
 });

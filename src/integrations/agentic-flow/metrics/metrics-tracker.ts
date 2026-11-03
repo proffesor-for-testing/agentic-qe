@@ -508,8 +508,9 @@ export class MetricsTracker implements IMetricsTracker {
 
     // One queued unit on the shared connection (#1283): this runs on a timer
     // in the MCP server, and a locked memory.db must not freeze the event
-    // loop. The count and the delete it sizes stay together.
-    return writeWhenUnlockedOn(db, () => {
+    // loop. The deletes and the count run in one transaction, so a busy
+    // retry repeats the whole unit instead of counting half of it.
+    return writeWhenUnlockedOn(db, () => db.transaction(() => {
       // Delete old records
       const result = db.prepare(`
         DELETE FROM metrics_outcomes
@@ -540,7 +541,7 @@ export class MetricsTracker implements IMetricsTracker {
       }
 
       return deletedByAge;
-    });
+    })());
   }
 
   // ============================================================================

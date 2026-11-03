@@ -706,6 +706,30 @@ export class UnifiedMemoryManager {
     return result;
   }
 
+  /**
+   * Wait until no queued write is pending, for at most `timeoutMs` (#1283).
+   * Graceful shutdown calls this before close(): a write still waiting on
+   * another process's lock would otherwise run on a closed handle and be
+   * lost. Writes can queue more writes, so this waits until the queue stays
+   * empty. Resolves true when drained, false when the timeout passed first;
+   * it never rejects and never waits past the timeout.
+   */
+  async drainWrites(timeoutMs: number): Promise<boolean> {
+    const deadline = Date.now() + Math.max(0, timeoutMs);
+    while (this.queuedWrites > 0) {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) return false;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const timedOut = await Promise.race([
+        this.writeQueue.then(() => false),
+        new Promise<boolean>((resolve) => { timer = setTimeout(() => resolve(true), remaining); }),
+      ]);
+      clearTimeout(timer);
+      if (timedOut) return false;
+    }
+    return true;
+  }
+
   async kvSet(key: string, value: unknown, namespace: string = 'default', ttl?: number): Promise<void> {
     this.ensureInitialized();
     const expiresAt = ttl ? Date.now() + ttl * 1000 : null;
@@ -1312,6 +1336,15 @@ export function resetUnifiedMemory(): void {
  */
 export function writeWhenUnlockedOn<T>(db: DatabaseType, fn: () => T): Promise<T> {
   return queueWriteOn(db, fn);
+}
+
+/**
+ * Wait for the shared manager's queued writes, for at most `timeoutMs`
+ * (#1283). True when nothing is left queued (or no manager is open).
+ */
+export async function drainUnifiedMemoryWrites(timeoutMs: number): Promise<boolean> {
+  const instance = UnifiedMemoryManager.peekInitialized();
+  return instance ? instance.drainWrites(timeoutMs) : true;
 }
 
 // ============================================================================
