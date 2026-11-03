@@ -22,13 +22,35 @@ import * as path from 'path';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { readConfinedText } from '../../../shared/io/confined-read.js';
 
+/** How a coverage report is read (#1350). */
+export interface CoverageReadOptions {
+  /**
+   * 'refuse' refuses a report with more than one hardlink, which no path
+   * check can confine; for a report named by an MCP caller. Default 'allow'.
+   */
+  hardlinks?: 'allow' | 'refuse';
+}
+
 /**
  * #1161: coverage reports are found under caller-named directories, so read
  * them from a validated descriptor: a report linked out of the project, or to
  * a device such as /dev/zero, is refused instead of read.
  */
-function readCoverageFile(file: string): Promise<string> {
-  return readConfinedText(file, { outsideRoot: 'allow' });
+function readCoverageFile(file: string, read: CoverageReadOptions = {}): Promise<string> {
+  return readConfinedText(file, { outsideRoot: 'allow', hardlinks: read.hardlinks ?? 'allow' });
+}
+
+/**
+ * #1350: JSON.parse's error quotes the start of its input, and the message
+ * reaches MCP callers, so a report that does not parse is not quoted.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function parseReportJson(content: string): any {
+  try {
+    return safeJsonParse(content);
+  } catch {
+    throw new Error('Coverage report is not valid JSON');
+  }
 }
 
 // ============================================================================
@@ -200,9 +222,10 @@ export type CoverageFormat =
  */
 export async function parseLCOV(
   lcovPath: string,
-  projectRoot?: string
+  projectRoot?: string,
+  read?: CoverageReadOptions,
 ): Promise<CoverageReport> {
-  const content = await readCoverageFile(lcovPath);
+  const content = await readCoverageFile(lcovPath, read);
   return parseLCOVContent(content, projectRoot || path.dirname(lcovPath));
 }
 
@@ -417,10 +440,11 @@ export function parseLCOVContent(content: string, projectRoot: string): Coverage
  */
 export async function parseJSONCoverage(
   jsonPath: string,
-  projectRoot?: string
+  projectRoot?: string,
+  read?: CoverageReadOptions,
 ): Promise<CoverageReport> {
-  const content = await readCoverageFile(jsonPath);
-  const data = safeJsonParse(content);
+  const content = await readCoverageFile(jsonPath, read);
+  const data = parseReportJson(content);
   const root = projectRoot || path.dirname(jsonPath);
   const files = new Map<string, FileCoverageData>();
 
@@ -548,8 +572,9 @@ export async function parseJSONCoverage(
 export async function parseJaCoCo(
   xmlPath: string,
   projectRoot?: string,
+  read?: CoverageReadOptions,
 ): Promise<CoverageReport> {
-  const content = await readCoverageFile(xmlPath);
+  const content = await readCoverageFile(xmlPath, read);
   return parseJaCoCoContent(content, projectRoot || path.dirname(xmlPath));
 }
 
@@ -672,8 +697,9 @@ function parseJaCoCoCounters(xml: string): Record<string, { covered: number; tot
 export async function parseDotcover(
   xmlPath: string,
   projectRoot?: string,
+  read?: CoverageReadOptions,
 ): Promise<CoverageReport> {
-  const content = await readCoverageFile(xmlPath);
+  const content = await readCoverageFile(xmlPath, read);
   return parseDotcoverContent(content, projectRoot || path.dirname(xmlPath));
 }
 
@@ -798,8 +824,9 @@ export function parseDotcoverContent(content: string, projectRoot: string): Cove
 export async function parseTarpaulin(
   filePath: string,
   projectRoot?: string,
+  read?: CoverageReadOptions,
 ): Promise<CoverageReport> {
-  const content = await readCoverageFile(filePath);
+  const content = await readCoverageFile(filePath, read);
   const root = projectRoot || path.dirname(filePath);
 
   // If it looks like LCOV, delegate
@@ -815,7 +842,7 @@ export async function parseTarpaulin(
 
 export function parseTarpaulinContent(content: string, projectRoot: string): CoverageReport {
   const files = new Map<string, FileCoverageData>();
-  const data = safeJsonParse(content);
+  const data = parseReportJson(content);
 
   for (const fileEntry of data?.files || []) {
     const filePath = fileEntry.path || '';
@@ -882,8 +909,9 @@ export function parseTarpaulinContent(content: string, projectRoot: string): Cov
 export async function parseGoCover(
   coverPath: string,
   projectRoot?: string,
+  read?: CoverageReadOptions,
 ): Promise<CoverageReport> {
-  const content = await readCoverageFile(coverPath);
+  const content = await readCoverageFile(coverPath, read);
   return parseGoCoverContent(content, projectRoot || path.dirname(coverPath));
 }
 
@@ -973,8 +1001,9 @@ export function parseGoCoverContent(content: string, projectRoot: string): Cover
 export async function parseKover(
   xmlPath: string,
   projectRoot?: string,
+  read?: CoverageReadOptions,
 ): Promise<CoverageReport> {
-  const content = await readCoverageFile(xmlPath);
+  const content = await readCoverageFile(xmlPath, read);
   const report = parseJaCoCoContent(content, projectRoot || path.dirname(xmlPath));
   report.format = 'kover';
   report.language = 'kotlin';
@@ -995,14 +1024,15 @@ export async function parseKover(
 export async function parseXcresult(
   jsonPath: string,
   projectRoot?: string,
+  read?: CoverageReadOptions,
 ): Promise<CoverageReport> {
-  const content = await readCoverageFile(jsonPath);
+  const content = await readCoverageFile(jsonPath, read);
   return parseXcresultContent(content, projectRoot || path.dirname(jsonPath));
 }
 
 export function parseXcresultContent(content: string, projectRoot: string): CoverageReport {
   const files = new Map<string, FileCoverageData>();
-  const data = safeJsonParse(content);
+  const data = parseReportJson(content);
 
   const targets = data?.targets || [];
   for (const target of targets) {
@@ -1091,24 +1121,26 @@ const LANGUAGE_FORMAT_HINTS: Record<string, CoverageFormat[]> = {
  * @param projectRoot - Project root for relative path calculation
  * @param format - Explicit format override
  * @param language - Language hint for format inference
+ * @param read - How the report is read (#1350: an MCP caller's report refuses hardlinks)
  */
 export async function parseCoverage(
   coveragePath: string,
   projectRoot?: string,
   format?: CoverageFormat,
   language?: string,
+  read?: CoverageReadOptions,
 ): Promise<CoverageReport> {
   // If format is explicitly specified, use it directly
   if (format) {
     switch (format) {
-      case 'lcov': return parseLCOV(coveragePath, projectRoot);
-      case 'json': return parseJSONCoverage(coveragePath, projectRoot);
-      case 'jacoco': return parseJaCoCo(coveragePath, projectRoot);
-      case 'dotcover': return parseDotcover(coveragePath, projectRoot);
-      case 'tarpaulin': return parseTarpaulin(coveragePath, projectRoot);
-      case 'gocover': return parseGoCover(coveragePath, projectRoot);
-      case 'kover': return parseKover(coveragePath, projectRoot);
-      case 'xcresult': return parseXcresult(coveragePath, projectRoot);
+      case 'lcov': return parseLCOV(coveragePath, projectRoot, read);
+      case 'json': return parseJSONCoverage(coveragePath, projectRoot, read);
+      case 'jacoco': return parseJaCoCo(coveragePath, projectRoot, read);
+      case 'dotcover': return parseDotcover(coveragePath, projectRoot, read);
+      case 'tarpaulin': return parseTarpaulin(coveragePath, projectRoot, read);
+      case 'gocover': return parseGoCover(coveragePath, projectRoot, read);
+      case 'kover': return parseKover(coveragePath, projectRoot, read);
+      case 'xcresult': return parseXcresult(coveragePath, projectRoot, read);
       default: break;
     }
   }
@@ -1118,39 +1150,39 @@ export async function parseCoverage(
 
   // Detect by filename/extension
   if (ext === '.json' || basename.includes('coverage-final')) {
-    return parseJSONCoverage(coveragePath, projectRoot);
+    return parseJSONCoverage(coveragePath, projectRoot, read);
   }
 
   if (basename === 'lcov.info' || ext === '.info' || basename.includes('lcov')) {
-    return parseLCOV(coveragePath, projectRoot);
+    return parseLCOV(coveragePath, projectRoot, read);
   }
 
   if (basename.includes('jacoco') && ext === '.xml') {
-    return parseJaCoCo(coveragePath, projectRoot);
+    return parseJaCoCo(coveragePath, projectRoot, read);
   }
 
   if (basename.includes('dotcover') && ext === '.xml') {
-    return parseDotcover(coveragePath, projectRoot);
+    return parseDotcover(coveragePath, projectRoot, read);
   }
 
   if (basename.includes('tarpaulin')) {
-    return parseTarpaulin(coveragePath, projectRoot);
+    return parseTarpaulin(coveragePath, projectRoot, read);
   }
 
   if (basename.includes('kover') && ext === '.xml') {
-    return parseKover(coveragePath, projectRoot);
+    return parseKover(coveragePath, projectRoot, read);
   }
 
   if (basename.includes('coverage') && ext === '.out') {
-    return parseGoCover(coveragePath, projectRoot);
+    return parseGoCover(coveragePath, projectRoot, read);
   }
 
   if (basename.includes('xcresult') || basename.includes('xccov')) {
-    return parseXcresult(coveragePath, projectRoot);
+    return parseXcresult(coveragePath, projectRoot, read);
   }
 
   // Content-based detection
-  const content = await readCoverageFile(coveragePath);
+  const content = await readCoverageFile(coveragePath, read);
   const trimmed = content.trim();
 
   if (trimmed.startsWith('{')) {
@@ -1162,11 +1194,11 @@ export async function parseCoverage(
     if (trimmed.includes('"targets"') && trimmed.includes('"lineCoverage"')) {
       return parseXcresultContent(content, projectRoot || path.dirname(coveragePath));
     }
-    return parseJSONCoverage(coveragePath, projectRoot);
+    return parseJSONCoverage(coveragePath, projectRoot, read);
   }
 
   if (content.includes('SF:') && content.includes('end_of_record')) {
-    return parseLCOV(coveragePath, projectRoot);
+    return parseLCOV(coveragePath, projectRoot, read);
   }
 
   // Go cover format: starts with "mode:"
@@ -1197,7 +1229,7 @@ export async function parseCoverage(
     const hints = Object.hasOwn(LANGUAGE_FORMAT_HINTS, langLower) ? LANGUAGE_FORMAT_HINTS[langLower] : undefined; // #1157
     if (hints && hints.length > 0) {
       try {
-        return await parseCoverage(coveragePath, projectRoot, hints[0]);
+        return await parseCoverage(coveragePath, projectRoot, hints[0], undefined, read);
       } catch {
         // Language hint didn't help, fall through to error
       }

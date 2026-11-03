@@ -257,6 +257,9 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
         patterns: [],
         importPathOverrides,
         behaviorExamples: payload.behaviorExamples,
+        // #1350: a caller-named hardlink cannot be confined by path, so it is
+        // refused (the temp file written for sourceCode has one link).
+        sourceHardlinks: 'refuse',
       });
 
       // Always clean up the temp file we created — even on failure

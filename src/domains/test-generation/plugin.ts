@@ -161,6 +161,8 @@ export class TestGenerationPlugin extends BaseDomainPlugin {
           framework: framework ?? 'vitest',
           coverageTarget: payload.coverageTarget as number | undefined,
           patterns: payload.patterns as string[] | undefined,
+          // #1350: a hardlink cannot be confined by path, so it is refused.
+          sourceHardlinks: 'refuse',
         };
 
         return this.coordinator.generateTests(request);

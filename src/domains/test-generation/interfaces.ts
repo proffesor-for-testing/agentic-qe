@@ -61,6 +61,12 @@ export interface IGenerateTestsRequest {
    * → generated test emits `import { ... } from './src/services/auth'`
    */
   importPathOverrides?: Record<string, string>;
+  /**
+   * #1350: 'refuse' refuses a source file with more than one hardlink, which
+   * no path check can confine. MCP and task callers set it; the default
+   * ('allow') is for the operator's own files, as `aqe test generate` reads.
+   */
+  sourceHardlinks?: 'allow' | 'refuse';
 }
 
 export interface IGeneratedTests {

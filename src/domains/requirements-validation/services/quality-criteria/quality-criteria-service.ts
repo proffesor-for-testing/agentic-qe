@@ -8,6 +8,8 @@
 import { existsSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { ConfinedReadError, readConfinedTextSync } from '../../../../shared/io/confined-read.js';
+import { MAX_PAYLOAD_FILE_BYTES } from '../../../../shared/io/payload-path-guard.js';
 import type {
   QualityCriteriaServiceConfig,
   QualityCriteriaInput,
@@ -95,8 +97,14 @@ export class QualityCriteriaService implements IQualityCriteriaService {
   analyze(input: QualityCriteriaInput): QualityCriteriaOutput {
     // Load epic content
     let epicContent = input.epicContent || '';
-    if (input.epicPath && existsSync(input.epicPath)) {
-      epicContent = readFileSync(input.epicPath, 'utf-8');
+    // #1350: read epicPath as the MCP tool does: inside the project, from the
+    // opened descriptor, and never a hardlink. A missing file keeps epicContent.
+    if (input.epicPath) {
+      try {
+        epicContent = readConfinedTextSync(input.epicPath, { maxBytes: MAX_PAYLOAD_FILE_BYTES, hardlinks: 'refuse' });
+      } catch (error) {
+        if (!(error instanceof ConfinedReadError) || error.reason !== 'not-found') throw error;
+      }
     }
 
     if (!epicContent && !input.epicPath) {

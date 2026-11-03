@@ -12,6 +12,7 @@ import { registerRequirementsHandlers } from '../../../../src/coordination/handl
 import type { InstanceTaskHandler } from '../../../../src/coordination/handlers/handler-types';
 import { QualityCriteriaTool } from '../../../../src/mcp/tools/requirements-validation/quality-criteria';
 import { QualityGateTool } from '../../../../src/mcp/tools/quality-assessment/gate';
+import { createQualityCriteriaService } from '../../../../src/domains/requirements-validation/services/quality-criteria/quality-criteria-service';
 import type { MCPToolContext } from '../../../../src/mcp/tools/base';
 // Side-effect import: domain-handler-configs participates in a circular import.
 import '../../../../src/mcp/handlers/domain-handlers';
@@ -88,6 +89,19 @@ describe('caller-named payload files refuse hardlinks (#1186)', () => {
     const read = await tool.execute({ assessmentName: 'epic', epicPath: plain }, ctx());
     expect(read.success, read.error).toBe(true);
     expect(JSON.stringify(read.data)).toContain('inside');
+  });
+
+  // #1350: the exported service reads epicPath the way the MCP tool does.
+  it('QualityCriteriaService.analyze refuses a hardlinked epicPath and still reads a plain one', () => {
+    const service = createQualityCriteriaService();
+    expect(() => service.analyze({ assessmentName: 'epic', epicPath: hard })).toThrow(/hardlinked/);
+    expect(() => service.analyze({ assessmentName: 'epic', epicPath: path.join(base, 'outside', 'secret.json') }))
+      .toThrow(/outside-project-root/);
+
+    expect(service.analyze({ assessmentName: 'epic', epicPath: plain }).agentInvocation.prompt).toContain('inside');
+    // A missing file still falls back to the epicContent given.
+    expect(service.analyze({ assessmentName: 'epic', epicPath: path.join(root, 'missing.md'), epicContent: 'given' })
+      .agentInvocation.prompt).toContain('given');
   });
 
   it('qe/quality/gate refuses a hardlinked anchorPath and still reads a plain one', async () => {

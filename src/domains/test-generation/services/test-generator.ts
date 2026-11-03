@@ -11,7 +11,7 @@ import { generateBehaviorExamples } from './behavior-examples.js';
 import { validateBehaviorExamples } from './behavior-example-validation.js';
 import { LoggerFactory } from '../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
-import { readConfinedTextSync } from '../../../shared/io/confined-read.js';
+import { ConfinedReadError, readConfinedTextSync } from '../../../shared/io/confined-read.js';
 import * as path from 'path';
 import ts from 'typescript';
 import { Result, ok, err } from '../../../shared/types';
@@ -481,6 +481,10 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
           tests.push(...fileTests.value.tests);
           patternsUsed.push(...fileTests.value.patternsUsed);
           patternIds.push(...fileTests.value.patternIds);
+        } else if (fileTests.error instanceof ConfinedReadError && fileTests.error.reason === 'hardlinked') {
+          // #1350: a refused source file fails the request, as a source file
+          // outside the project does, instead of being dropped unexplained.
+          return err(fileTests.error);
         }
       }
 
@@ -603,9 +607,13 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
     let codeAnalysis: CodeAnalysis | null = null;
     let sourceContent = '';
     try {
-      sourceContent = readConfinedTextSync(sourceFile, { outsideRoot: 'allow' }); // #1161
+      // #1161; #1350: a caller-named hardlink is refused, not read.
+      sourceContent = readConfinedTextSync(sourceFile, {
+        outsideRoot: 'allow', hardlinks: originalRequest?.sourceHardlinks ?? 'allow',
+      });
       codeAnalysis = await this.analyzeSourceCode(sourceContent, sourceFile);
-    } catch {
+    } catch (error) {
+      if (error instanceof ConfinedReadError && error.reason === 'hardlinked') return err(error);
       // File doesn't exist or can't be read - use stub generation
     }
 

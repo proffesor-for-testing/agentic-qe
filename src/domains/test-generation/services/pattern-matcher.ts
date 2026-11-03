@@ -8,7 +8,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import ts from 'typescript';
-import { readConfinedTextSync } from '../../../shared/io/confined-read.js';
+import { ConfinedReadError, readConfinedTextSync } from '../../../shared/io/confined-read.js';
 import * as path from 'path';
 import { Result, ok, err } from '../../../shared/types';
 import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces';
@@ -155,9 +155,11 @@ export class PatternMatcherService implements IPatternMatchingService {
       // Read file content
       let content: string;
       try {
-        content = readConfinedTextSync(filePath, { outsideRoot: 'allow' }); // #1161
-      } catch {
-        return err(new Error(`Cannot read file: ${filePath}`));
+        // #1161; #1350: the caller names this file, so a hardlink is refused.
+        content = readConfinedTextSync(filePath, { outsideRoot: 'allow', hardlinks: 'refuse' });
+      } catch (error) {
+        const reason = error instanceof ConfinedReadError ? ` (${error.reason})` : '';
+        return err(new Error(`Cannot read file: ${filePath}${reason}`));
       }
 
       return this.matchTestablePatternsFromCode(content, filePath);
@@ -1442,7 +1444,8 @@ class TypeScriptASTParser {
     if (content) {
       this.sourceCode = content;
     } else {
-      this.sourceCode = readConfinedTextSync(filePath, { outsideRoot: 'allow' }); // #1161
+      // #1161; #1350: a file named without its content refuses a hardlink.
+      this.sourceCode = readConfinedTextSync(filePath, { outsideRoot: 'allow', hardlinks: 'refuse' });
     }
 
     this.sourceFile = ts.createSourceFile(
