@@ -12,6 +12,7 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import type { CLIContext } from '../handlers/interfaces.js';
+import { readConfinedText } from '../../shared/io/confined-read.js';
 
 export interface QualityAttestation {
   version: string;
@@ -75,12 +76,12 @@ export async function collectMetrics(projectRoot: string): Promise<QualityAttest
 
   // Check for coverage summary
   try {
+    // #1337: confined read, so a FIFO cannot hang the command and a report
+    // symlinked out of the project is not read. Missing or refused: skipped.
     const coveragePath = path.join(projectRoot, 'coverage', 'coverage-summary.json');
-    if (fs.existsSync(coveragePath)) {
-      const coverage = JSON.parse(fs.readFileSync(coveragePath, 'utf-8'));
-      metrics.coveragePercent = coverage?.total?.lines?.pct ?? 0;
-    }
-  } catch { /* non-critical */ }
+    const coverage = JSON.parse(await readConfinedText(coveragePath, { projectRoot, outsideRoot: 'allow' }));
+    metrics.coveragePercent = coverage?.total?.lines?.pct ?? 0;
+  } catch { /* non-critical: missing, refused, or unparseable */ }
 
   // Check for memory.db patterns
   try {

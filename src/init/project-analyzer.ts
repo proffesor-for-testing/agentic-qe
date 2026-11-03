@@ -8,6 +8,7 @@
 import { readFileSync, existsSync, statSync, readdirSync } from 'fs';
 import { join, basename, extname, relative } from 'path';
 import { safeJsonParse } from '../shared/safe-json.js';
+import { ConfinedReadError, readConfinedTextSync } from '../shared/io/confined-read.js';
 import type {
   ProjectAnalysis,
   DetectedFramework,
@@ -649,7 +650,11 @@ export class ProjectAnalyzer {
         // Try to read coverage summary
         if (coveragePath.endsWith('.json')) {
           try {
-            const content = safeJsonParse(readFileSync(fullPath, 'utf-8'));
+            // #1337: confined read: a FIFO cannot hang init and a summary
+            // symlinked out of the project is not read.
+            const content = safeJsonParse(
+              readConfinedTextSync(fullPath, { projectRoot: this.projectRoot, outsideRoot: 'allow' }),
+            );
             const total = content.total || {};
             return {
               lines: total.lines?.pct || 0,
@@ -660,6 +665,9 @@ export class ProjectAnalyzer {
               reportPath: coveragePath,
             };
           } catch (error) {
+            // A report the confined reader refused (a FIFO, a symlink out of
+            // the project) is not a report: try the next location.
+            if (error instanceof ConfinedReadError) continue;
             // Non-critical: coverage report parse errors
             console.debug('[ProjectAnalyzer] Coverage report parse failed:', error instanceof Error ? error.message : error);
           }

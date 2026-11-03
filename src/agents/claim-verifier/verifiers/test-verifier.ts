@@ -12,7 +12,7 @@
 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { readFile } from 'node:fs/promises';
+import { readConfinedText } from '../../../shared/io/confined-read.js';
 import { join } from 'node:path';
 import type {
   Claim,
@@ -508,7 +508,12 @@ export class TestBasedVerifier {
    */
   private async getCoverageData(): Promise<CoverageData> {
     const reportPath = join(this.config.rootDir, this.config.coverageReportPath);
-    const content = await readFile(reportPath, 'utf-8');
+    // #1337: confined read — a FIFO cannot hang verification and a report
+    // symlinked out of rootDir is not read. A configured path outside rootDir
+    // is still allowed (with the type and size checks).
+    const content = await readConfinedText(reportPath, {
+      projectRoot: this.config.rootDir, outsideRoot: 'allow',
+    });
     const data = safeJsonParse(content);
 
     // Handle common coverage report formats
