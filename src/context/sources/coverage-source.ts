@@ -2,12 +2,25 @@
  * Coverage Source - Coverage data for target files
  *
  * Reads coverage reports from standard locations (Istanbul/NYC output)
- * and extracts per-file and project-level coverage metrics.
+ * under the project root and extracts per-file and project-level coverage
+ * metrics.
+ *
+ * #1337: the reports are read through the confined reader, so a FIFO at one
+ * of these names cannot block context compilation and a report symlinked out
+ * of the project is not read into the compiled context.
  */
 
-import { existsSync, readFileSync } from 'fs';
 import { join, basename } from 'path';
+import { findProjectRoot } from '../../kernel/project-root.js';
+import { readConfinedText } from '../../shared/io/confined-read.js';
 import type { ContextSource, ContextRequest, ContextFragment } from './types.js';
+
+/** Report locations, relative to the project root, in lookup order. */
+const COVERAGE_REPORTS = [
+  join('coverage', 'coverage-summary.json'),
+  join('coverage', 'coverage-final.json'),
+  join('.coverage', 'coverage-summary.json'),
+];
 
 export class CoverageContextSource implements ContextSource {
   id = 'coverage';
@@ -15,21 +28,19 @@ export class CoverageContextSource implements ContextSource {
   priority = 50;
   maxTokens = 1000;
 
+  /** @param projectRoot - root the reports are read under; defaults to findProjectRoot() */
+  constructor(private readonly projectRoot?: string) {}
+
   async gather(request: ContextRequest): Promise<ContextFragment[]> {
     const fragments: ContextFragment[] = [];
+    const projectRoot = this.projectRoot ?? findProjectRoot();
 
-    // Look for coverage reports in standard locations
-    const coveragePaths = [
-      join(process.cwd(), 'coverage', 'coverage-summary.json'),
-      join(process.cwd(), 'coverage', 'coverage-final.json'),
-      join(process.cwd(), '.coverage', 'coverage-summary.json'),
-    ];
-
-    for (const coveragePath of coveragePaths) {
-      if (!existsSync(coveragePath)) continue;
-
+    for (const relative of COVERAGE_REPORTS) {
+      const coveragePath = join(projectRoot, relative);
       try {
-        const raw = readFileSync(coveragePath, 'utf-8');
+        // A missing report, or one refused by the confined reader (a FIFO,
+        // a symlink out of the project, an oversized file), is skipped.
+        const raw = await readConfinedText(coveragePath, { projectRoot, outsideRoot: 'allow' });
         const data = JSON.parse(raw) as Record<string, unknown>;
 
         // Extract coverage for target files
@@ -81,7 +92,7 @@ export class CoverageContextSource implements ContextSource {
 
         break; // Found a coverage file, stop looking
       } catch {
-        // Failed to parse coverage file
+        // Missing, refused, or unparseable: try the next location
         continue;
       }
     }

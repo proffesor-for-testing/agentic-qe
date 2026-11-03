@@ -24,6 +24,15 @@ vi.mock('node:fs/promises', () => ({
   readFile: vi.fn(),
 }));
 
+// The coverage report is read through the confined reader (#1337); route it to
+// the mocked readFile so these tests keep controlling the report content. The
+// confined behaviour itself is covered with real files in
+// tests/unit/shared/io/coverage-summary-readers-1337.test.ts.
+vi.mock('../../../../src/shared/io/confined-read', async () => {
+  const fsp = await import('node:fs/promises');
+  return { readConfinedText: (p: string) => fsp.readFile(p, 'utf-8') };
+});
+
 import { readFile } from 'node:fs/promises';
 import { TestBasedVerifier } from '../../../../src/agents/claim-verifier/verifiers/test-verifier';
 

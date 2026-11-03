@@ -27,6 +27,7 @@ import {
   type V3WorldState,
 } from '../../../planning/index.js';
 import { findProjectRoot } from '../../../kernel/project-root.js';
+import { readConfinedTextSync } from '../../../shared/io/confined-read.js';
 
 // ============================================================================
 // Types
@@ -153,9 +154,13 @@ function isPercent(value: unknown): value is number {
 export function readCoverageSummary(projectRoot: string = findProjectRoot()): CoverageSnapshot | null {
   const file = path.join(projectRoot, COVERAGE_SUMMARY_RELATIVE);
   try {
+    // #1337: confined read — the type and size checks are made on the opened
+    // descriptor, and a summary symlinked out of the project is not read.
+    const raw = readConfinedTextSync(file, {
+      projectRoot, outsideRoot: 'allow', maxBytes: MAX_COVERAGE_SUMMARY_BYTES,
+    });
     const stat = fs.statSync(file);
-    if (!stat.isFile() || stat.size > MAX_COVERAGE_SUMMARY_BYTES) return null;
-    const parsed = JSON.parse(fs.readFileSync(file, 'utf-8')) as {
+    const parsed = JSON.parse(raw) as {
       total?: Record<string, { pct?: unknown } | undefined>;
     };
     const line = parsed.total?.lines?.pct;

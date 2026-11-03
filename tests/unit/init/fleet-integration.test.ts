@@ -18,7 +18,10 @@ import { join } from 'path';
 // Mock Dependencies
 // ============================================================================
 
-vi.mock('fs', () => ({
+vi.mock('fs', async () => ({
+  // The project analyzer reads coverage through the confined reader (#1337),
+  // which needs the real open flags at import.
+  constants: (await vi.importActual<typeof import('fs')>('fs')).constants,
   existsSync: vi.fn(),
   readFileSync: vi.fn(),
   writeFileSync: vi.fn(),

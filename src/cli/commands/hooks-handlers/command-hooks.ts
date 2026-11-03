@@ -6,7 +6,7 @@
  */
 
 import { Command } from 'commander';
-import { existsSync, readFileSync } from 'node:fs';
+import { readConfinedTextSync } from '../../../shared/io/confined-read.js';
 import { randomUUID } from 'node:crypto';
 import chalk from 'chalk';
 import path from 'node:path';
@@ -80,9 +80,17 @@ async function persistTestAndCoverage(opts: {
     // Patch 170: parse Istanbul coverage summary if it exists. Reuses the
     // previous after_* values as before_* so coverage delta is calculable.
     try {
+      // #1337: confined to the directory it is read from, so a FIFO cannot
+      // hang the hook and a summary symlinked out of it is not read.
       const summaryPath = path.join(process.cwd(), 'coverage', 'coverage-summary.json');
-      if (existsSync(summaryPath)) {
-        const summary = JSON.parse(readFileSync(summaryPath, 'utf-8')) as {
+      let summaryText: string | null = null;
+      try {
+        summaryText = readConfinedTextSync(summaryPath, { projectRoot: process.cwd(), outsideRoot: 'allow' });
+      } catch {
+        // Missing or refused: no coverage session to record.
+      }
+      if (summaryText !== null) {
+        const summary = JSON.parse(summaryText) as {
           total?: {
             lines?: { pct?: number };
             branches?: { pct?: number };
