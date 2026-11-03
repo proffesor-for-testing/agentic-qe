@@ -9,6 +9,8 @@
  *   aqe sync status             # Show sync status
  *   aqe sync verify             # Verify sync integrity
  *   aqe sync init               # Initialize cloud schema
+ *
+ * Exit codes for sync and pull: 0 completed, 2 partial, 1 failed.
  */
 
 import { Command } from 'commander';
@@ -33,6 +35,16 @@ import { findPackageRoot } from '../../init/find-package-root.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+/**
+ * Exit code for a finished sync or pull report (#1345): 0 when every source
+ * synced, 2 when some sources failed (partial), 1 when the sync failed.
+ */
+export function syncReportExitCode(report: Pick<SyncReport, 'status'>): number {
+  if (report.status === 'completed') return 0;
+  if (report.status === 'partial') return 2;
+  return 1;
+}
 
 /**
  * Create sync commands
@@ -83,6 +95,8 @@ export function createSyncCommands(): Command {
 
         spinner.stop();
         printSyncReport(report);
+        // #1345: scripts must be able to tell a failed sync from a good one.
+        process.exitCode = syncReportExitCode(report);
       } catch (error) {
         spinner.fail(`Sync failed: ${toErrorMessage(error)}`);
         process.exit(1);
@@ -129,6 +143,7 @@ export function createSyncCommands(): Command {
 
         spinner.stop();
         printPullReport(report);
+        process.exitCode = syncReportExitCode(report);
       } catch (error) {
         spinner.fail(`Pull failed: ${toErrorMessage(error)}`);
         process.exit(1);
