@@ -43,8 +43,9 @@ function detectTestFramework(command: string): string | null {
 /**
  * Persist test_outcomes (patch 070) and coverage_sessions (patch 170) for a
  * test-framework command. Best-effort — failures are logged at debug level.
+ * Exported for tests.
  */
-async function persistTestAndCoverage(opts: {
+export async function persistTestAndCoverage(opts: {
   command: string;
   framework: string;
   success: boolean;
