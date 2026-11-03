@@ -307,14 +307,13 @@ export class QETaskRouter {
 
     const latencyMs = performance.now() - startTime;
 
-    try {
-      this._witnessChain?.append('ROUTING_DECISION', {
-        taskDescription: task.description?.slice(0, 200),
-        recommended: topScore.agent,
-        confidence: topScore.combinedScore,
-        latencyMs,
-      }, 'qe-task-router');
-    } catch { /* best-effort witness */ }
+    // Queued (#1283) so a locked memory.db does not freeze the event loop.
+    this._witnessChain?.appendWhenUnlocked('ROUTING_DECISION', {
+      taskDescription: task.description?.slice(0, 200),
+      recommended: topScore.agent,
+      confidence: topScore.combinedScore,
+      latencyMs,
+    }, 'qe-task-router').catch(() => { /* best-effort witness */ });
 
     // Compile context for the recommended agent (if files provided)
     let compiledContext: string | undefined;

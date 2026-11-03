@@ -989,11 +989,10 @@ Pattern extracted from ${exp.count} successful experiences.`;
 
     if (result.changes > 0) {
       console.log(`[PatternLifecycle] Quarantined pattern ${patternId} (asymmetric confidence drop)`);
-      try {
-        this._witnessChain?.append('PATTERN_QUARANTINE', {
-          patternId,
-        }, 'pattern-lifecycle');
-      } catch { /* best-effort witness */ }
+      // Queued (#1283) so a locked memory.db does not freeze the event loop.
+      this._witnessChain?.appendWhenUnlocked('PATTERN_QUARANTINE', {
+        patternId,
+      }, 'pattern-lifecycle').catch(() => { /* best-effort witness */ });
       return true;
     }
     return false;

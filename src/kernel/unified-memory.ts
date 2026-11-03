@@ -715,7 +715,7 @@ export class UnifiedMemoryManager {
       VALUES (?, ?, ?, ?)
     `).run(key, namespace, serialized, expiresAt));
     // ADR-194: tamper-evident audit (no-op unless the proof-gate is enabled).
-    this.auditWrite('kvSet', namespace, key, serialized);
+    await this.auditWrite('kvSet', namespace, key, serialized);
   }
 
   async kvGet<T>(key: string, namespace: string = 'default'): Promise<T | undefined> {
@@ -748,7 +748,7 @@ export class UnifiedMemoryManager {
       'DELETE FROM kv_store WHERE key = ? AND namespace = ?'
     ).run(key, namespace));
     // ADR-194: audit deletes too (no-op unless the proof-gate is enabled).
-    if (result.changes > 0) this.auditWrite('kvDelete', namespace, key, '');
+    if (result.changes > 0) await this.auditWrite('kvDelete', namespace, key, '');
     return result.changes > 0;
   }
 
@@ -833,7 +833,7 @@ export class UnifiedMemoryManager {
    * persists the chain. NEVER throws into the caller — the actual write has
    * already committed; a failed audit must not break or alter it.
    */
-  private auditWrite(op: string, namespace: string, key: string, serializedValue: string): void {
+  private async auditWrite(op: string, namespace: string, key: string, serializedValue: string): Promise<void> {
     // Lazy env-enable so an operator can turn auditing on without a code change.
     if (!this.proofGate) {
       if (this.proofGateEnvChecked) return;
@@ -845,7 +845,9 @@ export class UnifiedMemoryManager {
     if (namespace === UnifiedMemoryManager.PROOF_NS) return;
     try {
       this.proofGate.admit({ op, ns: namespace, key, value: serializedValue });
-      this.persistProofChain();
+      // Queued like the kv write itself (#1283), so a locked memory.db does
+      // not freeze the MCP server's event loop for the busy_timeout.
+      await this.writeWhenUnlocked(() => this.persistProofChain());
     } catch (error) {
       logger.warn(`proof-gate audit skipped for ${namespace}/${key}: ${toErrorMessage(error)}`);
     }

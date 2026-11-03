@@ -136,6 +136,7 @@ import {
 
 import type { ICoherenceService } from '../../integrations/coherence/coherence-service.js';
 import { isMeasuredGapPayload } from '../../shared/events/domain-events.js';
+import { writeWhenUnlockedOn } from '../../shared/sqlite-write-queue.js';
 
 /**
  * Interface for the test generation coordinator
@@ -1314,7 +1315,11 @@ export class TestGenerationCoordinator
       const { recordPatternUsage } = await import('../../learning/pattern-usage-recorder.js');
       const db = getUnifiedMemory().getDatabase();
       for (const patternId of patternIds) {
-        recordPatternUsage(db, { patternId, success: true });
+        // Queued on the shared connection (#1283): test generation runs in
+        // the MCP server, and a locked memory.db must not freeze its event
+        // loop. The read and the update stay one unit, so concurrent calls
+        // cannot lose a count.
+        await writeWhenUnlockedOn(db, () => recordPatternUsage(db, { patternId, success: true }));
       }
     } catch (error) {
       logger.warn('Pattern usage recording skipped', {
