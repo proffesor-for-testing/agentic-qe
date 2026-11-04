@@ -554,13 +554,16 @@ export class TrajectoryTracker {
     // Add to in-memory tracking
     active.steps.push(step);
 
-    // Persist to SQLite
+    // Persist to SQLite. Queued (#1283) like startTrajectory and
+    // endTrajectory, so a locked memory.db does not freeze the MCP server's
+    // event loop.
     const insertStmt = this.prepared.get('insertStep');
     if (insertStmt) {
-      insertStmt.run(
+      const stepIndex = active.steps.length - 1;
+      const run = () => insertStmt.run(
         stepId,
         trajectoryId,
-        active.steps.length - 1,
+        stepIndex,
         action,
         result.outcome,
         quality,
@@ -571,6 +574,7 @@ export class TrajectoryTracker {
         result.metrics ? JSON.stringify(result.metrics) : null,
         options.context ? JSON.stringify(options.context) : null
       );
+      await (this.unifiedMemory ? this.unifiedMemory.writeWhenUnlocked(run) : run());
     }
 
     this.stats.totalStepsRecorded++;

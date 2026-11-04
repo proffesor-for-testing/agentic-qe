@@ -131,11 +131,10 @@ export class AsymmetricLearningEngine {
     const { successRate, failureRate } = this.getConfigForDomain(domain);
     const delta = outcome === 'success' ? successRate : -failureRate;
     if (outcome === 'failure') {
-      try {
-        this._witnessChain?.append('HEBBIAN_PENALTY', {
-          previousConfidence: currentConfidence, delta, domain,
-        }, 'asymmetric-learning');
-      } catch { /* best-effort witness */ }
+      // Queued (#1283) so a locked memory.db does not freeze the event loop.
+      this._witnessChain?.appendWhenUnlocked('HEBBIAN_PENALTY', {
+        previousConfidence: currentConfidence, delta, domain,
+      }, 'asymmetric-learning').catch(() => { /* best-effort witness */ });
     }
     return clamp(currentConfidence + delta, 0, 1);
   }

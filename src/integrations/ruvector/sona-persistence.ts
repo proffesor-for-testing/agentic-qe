@@ -222,6 +222,8 @@ export class PersistentSONAEngine {
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
   /** The deferred batch currently being written, if any (#1283). */
   private flushInFlight: Promise<void> | null = null;
+  /** Last queued Fisher save (#1283); close() waits for it. */
+  private fisherSaveInFlight: Promise<void> | null = null;
   private consecutiveSaveFailures = 0;
   private serverClient: RuVectorServerClient | null = null;
 
@@ -289,7 +291,18 @@ export class PersistentSONAEngine {
         // Wire Fisher persistence: consolidation auto-saves to SQLite
         this.baseEngine.setFisherPersistence(
           (domain, fisher, optimal, base, meta) => {
-            this.saveFisherMatrix(domain, fisher, optimal, base, meta);
+            // Consolidation runs inside tool calls, so the save is queued on
+            // the shared connection (#1283) instead of blocking the MCP
+            // server's event loop while another process holds the lock.
+            // Saves keep their order; the arrays are copies.
+            const save: Promise<void> = writeWhenUnlockedOn(this.db, () =>
+              this.saveFisherMatrix(domain, fisher, optimal, base, meta),
+            ).catch((error) => {
+              logger.warn('Fisher matrix save failed', { domain, error: toErrorMessage(error) });
+            }).finally(() => {
+              if (this.fisherSaveInFlight === save) this.fisherSaveInFlight = null;
+            });
+            this.fisherSaveInFlight = save;
           },
           this.config.domain,
         );
@@ -583,7 +596,7 @@ export class PersistentSONAEngine {
 
     // If a pattern was used, update usage in SQLite
     if (result.success && result.pattern) {
-      this.updatePatternUsage(result.pattern.id);
+      await this.updatePatternUsage(result.pattern.id);
     }
 
     return result;
@@ -1129,6 +1142,7 @@ export class PersistentSONAEngine {
     // Let a deferred batch that is already writing finish first (#1283); it
     // may schedule a retry, which the clearTimeout below then cancels.
     if (this.flushInFlight) await this.flushInFlight;
+    if (this.fisherSaveInFlight) await this.fisherSaveInFlight;
 
     // Flush pending saves
     if (this.saveTimer) {
@@ -1158,11 +1172,15 @@ export class PersistentSONAEngine {
     try {
       const engine = this.baseEngine.getThreeLoopEngine();
       if (engine && this.db) {
-        this.saveRequestCount(this.config.domain, engine.getRequestCount());
+        const requestCount = engine.getRequestCount();
+        await writeWhenUnlockedOn(this.db, () => this.saveRequestCount(this.config.domain, requestCount));
       }
     } catch (err) {
       console.warn('[PersistentSONAEngine] Request count checkpoint failed:', err instanceof Error ? err.message : err);
     }
+
+    // A Fisher save queued while close() was awaiting lands before teardown.
+    while (this.fisherSaveInFlight) await this.fisherSaveInFlight;
 
     this.prepared.clear();
     this.db = null;
@@ -1543,14 +1561,16 @@ export class PersistentSONAEngine {
   }
 
   /**
-   * Update pattern usage in SQLite
+   * Update pattern usage in SQLite. Queued on the shared connection (#1283):
+   * adaptPattern runs inside MCP tool calls, and a locked memory.db must not
+   * freeze the event loop for the busy_timeout.
    */
-  private updatePatternUsage(patternId: string): void {
+  private async updatePatternUsage(patternId: string): Promise<void> {
     const stmt = this.prepared.get('updateUsage');
     if (!stmt) return;
 
     try {
-      stmt.run(patternId);
+      await writeWhenUnlockedOn(this.db, () => stmt.run(patternId));
     } catch (error) {
       // Non-critical: pattern may not be persisted yet
       console.debug('[SONAPersistence] Pattern usage update error:', error instanceof Error ? error.message : error);

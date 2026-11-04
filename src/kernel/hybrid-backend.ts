@@ -413,9 +413,13 @@ export class HybridMemoryBackend implements MemoryBackend {
 
         const db = this.unifiedMemory.getDatabase();
 
-        // Expire TTL'd entries
+        // Expire TTL'd entries. This timer runs inside the MCP server, so the
+        // deletes go through the shared write queue (#1283): a locked
+        // memory.db must not freeze the event loop for the busy_timeout.
+        const um = this.unifiedMemory;
         try {
-          const expired = db.prepare('DELETE FROM kv_store WHERE expires_at IS NOT NULL AND expires_at < ?').run(Date.now());
+          const expired = await um.writeWhenUnlocked(() =>
+            db.prepare('DELETE FROM kv_store WHERE expires_at IS NOT NULL AND expires_at < ?').run(Date.now()));
           if (expired.changes > 0) {
             console.log(`[HybridBackend] Expired ${expired.changes} kv_store entries`);
           }
@@ -432,11 +436,11 @@ export class HybridMemoryBackend implements MemoryBackend {
             const kvCount = db.prepare('SELECT COUNT(*) as cnt FROM kv_store').get() as { cnt: number };
             if (kvCount.cnt > 5000) {
               // Keep only 5000 most recent entries (by rowid as proxy for insertion order)
-              const deleted = db.prepare(`
+              const deleted = await um.writeWhenUnlocked(() => db.prepare(`
                 DELETE FROM kv_store WHERE rowid NOT IN (
                   SELECT rowid FROM kv_store ORDER BY rowid DESC LIMIT 5000
                 )
-              `).run();
+              `).run());
               if (deleted.changes > 0) {
                 console.log(`[HybridBackend] kv_store retention: pruned ${deleted.changes} rows (kept 5000)`);
               }

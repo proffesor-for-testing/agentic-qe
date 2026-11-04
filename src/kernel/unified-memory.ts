@@ -706,6 +706,30 @@ export class UnifiedMemoryManager {
     return result;
   }
 
+  /**
+   * Wait until no queued write is pending, for at most `timeoutMs` (#1283).
+   * Graceful shutdown calls this before close(): a write still waiting on
+   * another process's lock would otherwise run on a closed handle and be
+   * lost. Writes can queue more writes, so this waits until the queue stays
+   * empty. Resolves true when drained, false when the timeout passed first;
+   * it never rejects and never waits past the timeout.
+   */
+  async drainWrites(timeoutMs: number): Promise<boolean> {
+    const deadline = Date.now() + Math.max(0, timeoutMs);
+    while (this.queuedWrites > 0) {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) return false;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const timedOut = await Promise.race([
+        this.writeQueue.then(() => false),
+        new Promise<boolean>((resolve) => { timer = setTimeout(() => resolve(true), remaining); }),
+      ]);
+      clearTimeout(timer);
+      if (timedOut) return false;
+    }
+    return true;
+  }
+
   async kvSet(key: string, value: unknown, namespace: string = 'default', ttl?: number): Promise<void> {
     this.ensureInitialized();
     const expiresAt = ttl ? Date.now() + ttl * 1000 : null;
@@ -715,7 +739,7 @@ export class UnifiedMemoryManager {
       VALUES (?, ?, ?, ?)
     `).run(key, namespace, serialized, expiresAt));
     // ADR-194: tamper-evident audit (no-op unless the proof-gate is enabled).
-    this.auditWrite('kvSet', namespace, key, serialized);
+    await this.auditWrite('kvSet', namespace, key, serialized);
   }
 
   async kvGet<T>(key: string, namespace: string = 'default'): Promise<T | undefined> {
@@ -748,7 +772,7 @@ export class UnifiedMemoryManager {
       'DELETE FROM kv_store WHERE key = ? AND namespace = ?'
     ).run(key, namespace));
     // ADR-194: audit deletes too (no-op unless the proof-gate is enabled).
-    if (result.changes > 0) this.auditWrite('kvDelete', namespace, key, '');
+    if (result.changes > 0) await this.auditWrite('kvDelete', namespace, key, '');
     return result.changes > 0;
   }
 
@@ -833,7 +857,7 @@ export class UnifiedMemoryManager {
    * persists the chain. NEVER throws into the caller — the actual write has
    * already committed; a failed audit must not break or alter it.
    */
-  private auditWrite(op: string, namespace: string, key: string, serializedValue: string): void {
+  private async auditWrite(op: string, namespace: string, key: string, serializedValue: string): Promise<void> {
     // Lazy env-enable so an operator can turn auditing on without a code change.
     if (!this.proofGate) {
       if (this.proofGateEnvChecked) return;
@@ -845,7 +869,9 @@ export class UnifiedMemoryManager {
     if (namespace === UnifiedMemoryManager.PROOF_NS) return;
     try {
       this.proofGate.admit({ op, ns: namespace, key, value: serializedValue });
-      this.persistProofChain();
+      // Queued like the kv write itself (#1283), so a locked memory.db does
+      // not freeze the MCP server's event loop for the busy_timeout.
+      await this.writeWhenUnlocked(() => this.persistProofChain());
     } catch (error) {
       logger.warn(`proof-gate audit skipped for ${namespace}/${key}: ${toErrorMessage(error)}`);
     }
@@ -1310,6 +1336,15 @@ export function resetUnifiedMemory(): void {
  */
 export function writeWhenUnlockedOn<T>(db: DatabaseType, fn: () => T): Promise<T> {
   return queueWriteOn(db, fn);
+}
+
+/**
+ * Wait for the shared manager's queued writes, for at most `timeoutMs`
+ * (#1283). True when nothing is left queued (or no manager is open).
+ */
+export async function drainUnifiedMemoryWrites(timeoutMs: number): Promise<boolean> {
+  const instance = UnifiedMemoryManager.peekInitialized();
+  return instance ? instance.drainWrites(timeoutMs) : true;
 }
 
 // ============================================================================

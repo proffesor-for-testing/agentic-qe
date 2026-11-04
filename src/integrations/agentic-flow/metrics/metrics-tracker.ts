@@ -50,6 +50,7 @@ import {
   timeWindowToMs,
   DEFAULT_METRICS_TRACKER_CONFIG,
 } from './types';
+import { writeWhenUnlockedOn } from '../../../shared/sqlite-write-queue.js';
 
 // ============================================================================
 // Schema
@@ -206,7 +207,9 @@ export class MetricsTracker implements IMetricsTracker {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-    stmt.run(
+    // Queued on the shared connection (#1283): outcomes are recorded inside
+    // MCP tool calls, and a locked memory.db must not freeze the event loop.
+    await writeWhenUnlockedOn(this.db, () => stmt.run(
       id,
       component,
       taskId,
@@ -220,7 +223,7 @@ export class MetricsTracker implements IMetricsTracker {
       metadata?.itemCount ?? null,
       metadata?.errorMessage ?? null,
       metadata ? JSON.stringify(metadata) : null
-    );
+    ));
   }
 
   // ============================================================================
@@ -500,36 +503,45 @@ export class MetricsTracker implements IMetricsTracker {
     const cutoffDate = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000)
       .toISOString();
 
-    // Delete old records
-    const result = this.db!.prepare(`
-      DELETE FROM metrics_outcomes
-      WHERE created_at < ?
-    `).run(cutoffDate);
+    const db = this.db!;
+    const maxOutcomes = this.config.maxOutcomes;
 
-    const deletedByAge = result.changes;
+    // One queued unit on the shared connection (#1283): this runs on a timer
+    // in the MCP server, and a locked memory.db must not freeze the event
+    // loop. The deletes and the count run in one transaction, so a busy
+    // retry repeats the whole unit instead of counting half of it.
+    return writeWhenUnlockedOn(db, () => db.transaction(() => {
+      // Delete old records
+      const result = db.prepare(`
+        DELETE FROM metrics_outcomes
+        WHERE created_at < ?
+      `).run(cutoffDate);
 
-    // Also enforce max outcomes if set
-    if (this.config.maxOutcomes) {
-      const countRow = this.db!.prepare(
-        'SELECT COUNT(*) as count FROM metrics_outcomes'
-      ).get() as { count: number };
+      const deletedByAge = result.changes;
 
-      if (countRow.count > this.config.maxOutcomes) {
-        const toDelete = countRow.count - this.config.maxOutcomes;
-        const deleteResult = this.db!.prepare(`
-          DELETE FROM metrics_outcomes
-          WHERE id IN (
-            SELECT id FROM metrics_outcomes
-            ORDER BY created_at ASC
-            LIMIT ?
-          )
-        `).run(toDelete);
+      // Also enforce max outcomes if set
+      if (maxOutcomes) {
+        const countRow = db.prepare(
+          'SELECT COUNT(*) as count FROM metrics_outcomes'
+        ).get() as { count: number };
 
-        return deletedByAge + deleteResult.changes;
+        if (countRow.count > maxOutcomes) {
+          const toDelete = countRow.count - maxOutcomes;
+          const deleteResult = db.prepare(`
+            DELETE FROM metrics_outcomes
+            WHERE id IN (
+              SELECT id FROM metrics_outcomes
+              ORDER BY created_at ASC
+              LIMIT ?
+            )
+          `).run(toDelete);
+
+          return deletedByAge + deleteResult.changes;
+        }
       }
-    }
 
-    return deletedByAge;
+      return deletedByAge;
+    })());
   }
 
   // ============================================================================
