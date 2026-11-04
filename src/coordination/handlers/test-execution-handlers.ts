@@ -19,7 +19,7 @@ import { createPytestJunitReport, isPythonTestFile, pytestCommand, pytestRunFrom
 import { runTestRunnerProcess } from '../../shared/test-runner-process.js';
 import { MAX_PAYLOAD_FILE_BYTES, requirePayloadFiles } from '../../shared/io/payload-path-guard.js';
 import { groupByRunnerProject, requireTestRunTargets, runnerFrameworkFor } from '../../shared/test-runner-project.js';
-import { describeGateRejection, isUnexecutableScaffold } from '../../domains/test-generation/gates/gate-verdict.js';
+import { unexecutableReason } from '../../domains/test-generation/gates/gate-verdict.js';
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -303,24 +303,22 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
           generationLimits: t.generationLimits,
           testCode: rewritten.testCode,
           qualityGateResult: t.qualityGateResult,
-          unexecutable: isUnexecutableScaffold(t, analysedFile),
+          unexecutable: unexecutableReason(t, analysedFile),
         };
       });
 
-      // #1355: a scaffold (labelled so by the generator, or JS/TS the parser
-      // found unexecutable) is not a generated test; it is returned separately.
-      // Other gate findings stay on the test as qualityGateResult: the gate
-      // cannot judge non-JS assertions or alias/index imports (see
-      // isUnexecutableScaffold), so they do not drop a test.
+      // #1355: output with no test that can fail (see unexecutableReason) is
+      // not a generated test; it is returned separately as a scaffold. Other
+      // gate findings stay on the test as qualityGateResult: the full gate
+      // cannot judge non-JS assertions or alias/index imports, so they do not
+      // drop a test.
       const passed = tests.filter(t => !t.unexecutable).map(({ unexecutable: _u, ...t }) => t);
       const rejected = tests.filter(t => t.unexecutable);
       const shownFile = (f?: string) => (f && f === tempPath ? 'the supplied sourceCode' : f || 'the source');
       const scaffolds = rejected.map(({ qualityGateResult: _gate, unexecutable: _u, ...t }) => ({
         ...t, sourceFile: t.sourceFile === tempPath ? undefined : t.sourceFile,
         scaffold: true as const,
-        rejectedBecause: t.generationMode === 'scaffolding' && !_gate?.issues?.length
-          ? 'The generator produced scaffolding only.'
-          : describeGateRejection({ qualityGateResult: _gate }),
+        rejectedBecause: _u as string,
       }));
       const nothingTestable = passed.length === 0 && rejected.length > 0
         ? `Nothing testable in ${[...new Set(rejected.map(t => shownFile(t.sourceFile)))].join(', ')}: ` +

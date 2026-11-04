@@ -7,6 +7,7 @@
  * isUnexecutableScaffold, because the full gate misjudges non-JS tests.
  */
 import { isJavaScriptFamily, type TestQualityGateResult } from './test-quality-gate.js';
+import { unexecutableTestReason } from './test-substance.js';
 
 export interface GateCheckedTest {
   sourceFile?: string;
@@ -44,20 +45,36 @@ export function describeGateRejection(test: GateCheckedTest): string {
  * cannot judge every language: its assertion check for non-JS code is a regex
  * and its import check reads only quoted ES/CJS specifiers, so valid pytest,
  * Go and JUnit tests, and TS tests importing a path alias or a directory index,
- * fail it. A test is treated as scaffolding only when the generator labelled it
- * so, or when the TypeScript parser found it unexecutable (a syntax error, or
- * no executable assertion) in JavaScript/TypeScript code.
+ * fail it. The import check is never used here (#1371).
+ *
+ * Returns why the test cannot fail, or undefined to keep it:
+ * - the generator labelled it scaffolding;
+ * - JS/TS the TypeScript parser found unexecutable (syntax error, no
+ *   executable assertion);
+ * - no test that can fail (unexecutableTestReason: all skipped, empty or
+ *   tautological in JS/TS; no assertion token or all skipped elsewhere).
  *
  * @param analysedFile - the source file the test was generated from, with its
  *   real extension (the temp file for inline sourceCode).
  */
+export function unexecutableReason(
+  test: GateCheckedTest & { generationMode?: string; testCode?: string },
+  analysedFile: string | undefined,
+): string | undefined {
+  const parserIssues = analysedFile && isJavaScriptFamily(analysedFile)
+    ? (test.qualityGateResult?.issues ?? []).filter(i => i.type === 'syntax-error' || i.type === 'no-assertions')
+    : [];
+  if (parserIssues.length > 0) return describeGateRejection({ qualityGateResult: { passed: false, issues: parserIssues } });
+  const reason = unexecutableTestReason(test.testCode, analysedFile);
+  if (reason) return reason;
+  if (test.generationMode === 'scaffolding') return 'The generator produced scaffolding only.';
+  return undefined;
+}
+
+/** True when unexecutableReason finds no test that can fail. */
 export function isUnexecutableScaffold(
-  test: GateCheckedTest & { generationMode?: string },
+  test: GateCheckedTest & { generationMode?: string; testCode?: string },
   analysedFile: string | undefined,
 ): boolean {
-  if (test.generationMode === 'scaffolding') return true;
-  if (!analysedFile || !isJavaScriptFamily(analysedFile)) return false;
-  return (test.qualityGateResult?.issues ?? []).some(
-    issue => issue.type === 'syntax-error' || issue.type === 'no-assertions',
-  );
+  return unexecutableReason(test, analysedFile) !== undefined;
 }

@@ -102,6 +102,25 @@ describe('#1355 generate-tests keeps valid tests the gate cannot judge', () => {
     expect(data.note).toBeUndefined();
   });
 
+  it.each([
+    ['a tautology', 'math.ts', 'vitest', "import { it, expect } from 'vitest';\nit('works', () => { expect(true).toBe(true); });\n", /tautology/],
+    ['an empty body', 'math.ts', 'vitest', "import { it, expect } from 'vitest';\nimport { add } from './math';\nit('works', () => {});\nexpect(add).toBeDefined();\n", /empty/],
+    ['all-skipped JS', 'math.ts', 'vitest', "import { it, expect } from 'vitest';\nimport { add } from './math';\nit.skip('adds', () => { expect(add(2, 3)).toBe(5); });\n", /Every test is skipped/],
+    ['a Python pass-only test', 'calc.py', 'pytest', 'from calc import add\n\ndef test_add():\n    pass\n', /No Python assertion/],
+  ])('holds back an LLM test with %s as a scaffold', async (_label, file, framework, reply, why) => {
+    const filePath = path.join(tmpDir, file);
+    await fs.writeFile(filePath, file.endsWith('.py') ? 'def add(a, b):\n    return a + b\n' : 'export function add(a: number, b: number) { return a + b; }\n');
+
+    const data = await generate({ filePath, framework }, reply);
+
+    expect(data.testsGenerated).toBe(0);
+    expect(data.tests).toEqual([]);
+    expect(data.scaffolds![0].rejectedBecause).toMatch(why);
+    expect(data.warning).toMatch(/^Nothing testable in /);
+    expect(data.llmEnhanced).toBe(true);
+    expect(data.note).toBeUndefined();
+  });
+
   it('generates one test per file for duplicate sourceFiles', async () => {
     const filePath = path.join(tmpDir, 'math.ts');
     await fs.writeFile(filePath, 'export function add(a: number, b: number) { return a + b; }\n');

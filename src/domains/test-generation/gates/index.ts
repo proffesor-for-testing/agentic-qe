@@ -9,6 +9,8 @@ export {
   passedQualityGate,
   partitionByQualityGate,
   isUnexecutableScaffold,
+  unexecutableReason,
   describeGateRejection,
   type GateCheckedTest,
 } from './gate-verdict.js';
+export { unexecutableTestReason } from './test-substance.js';
