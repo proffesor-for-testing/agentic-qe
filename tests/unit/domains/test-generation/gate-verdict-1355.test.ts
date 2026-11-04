@@ -47,9 +47,14 @@ describe('quality-gate verdict (#1355)', () => {
       expect(isUnexecutableScaffold({ generationMode: 'scaffolding' }, 'calc.py')).toBe(true);
     });
 
-    it('holds back JS/TS the parser found unexecutable', () => {
-      expect(isUnexecutableScaffold(failed('no-assertions'), 'src/math.ts')).toBe(true);
+    it('holds back JS/TS the parser rejected', () => {
       expect(isUnexecutableScaffold(failed('syntax-error'), 'src/math.mjs')).toBe(true);
+    });
+
+    it("judges assertions itself instead of trusting the gate's no-assertions", () => {
+      const tAssert = "import { test } from 'node:test';\ntest('adds', (t) => { t.assert.strictEqual(add(2, 3), 5); });";
+      expect(isUnexecutableScaffold({ ...failed('no-assertions'), testCode: tAssert }, 'src/math.ts')).toBe(false);
+      expect(isUnexecutableScaffold({ ...failed('no-assertions'), testCode: "test('x', () => { add(1, 2); });" }, 'src/math.ts')).toBe(true);
     });
 
     it('keeps tests whose only gate findings it cannot judge', () => {

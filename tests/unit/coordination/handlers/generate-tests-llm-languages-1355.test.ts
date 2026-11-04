@@ -57,6 +57,10 @@ const LLM_TESTS = {
     'package com.example;\nimport org.junit.jupiter.api.Test;\nimport static org.junit.jupiter.api.Assertions.assertEquals;\nclass CalcTest {\n  @Test void add() { assertEquals(5, Calc.add(2, 3)); }\n}\n'],
   'ts path alias': ['math.ts', 'vitest', 'export function add(a: number, b: number) { return a + b; }\n',
     "import { describe, it, expect } from 'vitest';\nimport { add } from '@/math/index';\ndescribe('add', () => { it('adds', () => { expect(add(2, 3)).toBe(5); }); });\n"],
+  'python mock assert_called_once_with': ['calc.py', 'pytest', 'def add(a, b):\n    return a + b\n',
+    'from unittest.mock import Mock\nfrom calc import add\n\ndef test_add_logs():\n    log = Mock()\n    log(add(2, 3))\n    log.assert_called_once_with(5)\n'],
+  "node:test t.assert": ['math.ts', 'node-test', 'export function add(a: number, b: number) { return a + b; }\n',
+    "import { test } from 'node:test';\nimport { add } from './math';\ntest('adds', (t) => { t.assert.strictEqual(add(2, 3), 5); });\n"],
   'ts directory index': [path.join('utils', 'index.ts'), 'vitest', 'export function add(a: number, b: number) { return a + b; }\n',
     "import { describe, it, expect } from 'vitest';\nimport { add } from '../src/utils';\ndescribe('add', () => { it('adds', () => { expect(add(2, 3)).toBe(5); }); });\n"],
 } as const;
@@ -107,6 +111,9 @@ describe('#1355 generate-tests keeps valid tests the gate cannot judge', () => {
     ['an empty body', 'math.ts', 'vitest', "import { it, expect } from 'vitest';\nimport { add } from './math';\nit('works', () => {});\nexpect(add).toBeDefined();\n", /empty/],
     ['all-skipped JS', 'math.ts', 'vitest', "import { it, expect } from 'vitest';\nimport { add } from './math';\nit.skip('adds', () => { expect(add(2, 3)).toBe(5); });\n", /Every test is skipped/],
     ['a Python pass-only test', 'calc.py', 'pytest', 'from calc import add\n\ndef test_add():\n    pass\n', /No Python assertion/],
+    ['a commented-out Python assert', 'calc.py', 'pytest', 'from calc import add\n\ndef test_add():\n    # TODO: assert add(2, 3) == 5\n    pass\n', /No Python assertion/],
+    ['Python assert True', 'calc.py', 'pytest', 'from calc import add\n\ndef test_add():\n    assert True\n', /tautology/],
+    ['Java assertTrue(true)', 'Calc.java', 'junit5', 'class CalcTest {\n  @Test void add() { assertTrue(true); }\n}\n', /tautology/],
   ])('holds back an LLM test with %s as a scaffold', async (_label, file, framework, reply, why) => {
     const filePath = path.join(tmpDir, file);
     await fs.writeFile(filePath, file.endsWith('.py') ? 'def add(a, b):\n    return a + b\n' : 'export function add(a: number, b: number) { return a + b; }\n');

@@ -49,10 +49,9 @@ export function describeGateRejection(test: GateCheckedTest): string {
  *
  * Returns why the test cannot fail, or undefined to keep it:
  * - the generator labelled it scaffolding;
- * - JS/TS the TypeScript parser found unexecutable (syntax error, no
- *   executable assertion);
- * - no test that can fail (unexecutableTestReason: all skipped, empty or
- *   tautological in JS/TS; no assertion token or all skipped elsewhere).
+ * - JS/TS the TypeScript parser rejected (syntax error);
+ * - no test that can fail (unexecutableTestReason: no assertion, or all
+ *   skipped, empty or tautological; non-JS by a token scan).
  *
  * @param analysedFile - the source file the test was generated from, with its
  *   real extension (the temp file for inline sourceCode).
@@ -62,7 +61,10 @@ export function unexecutableReason(
   analysedFile: string | undefined,
 ): string | undefined {
   const parserIssues = analysedFile && isJavaScriptFamily(analysedFile)
-    ? (test.qualityGateResult?.issues ?? []).filter(i => i.type === 'syntax-error' || i.type === 'no-assertions')
+    // 'no-assertions' is judged by unexecutableTestReason instead: the gate's
+    // check misses node:test's t.assert.* and assert-module imports. The CLI
+    // keeps the full gate unchanged.
+    ? (test.qualityGateResult?.issues ?? []).filter(i => i.type === 'syntax-error')
     : [];
   if (parserIssues.length > 0) return describeGateRejection({ qualityGateResult: { passed: false, issues: parserIssues } });
   const reason = unexecutableTestReason(test.testCode, analysedFile);

@@ -18,6 +18,8 @@ describe('unexecutableTestReason: JS/TS (#1355)', () => {
     ['a comment-only body', "it('works', () => {\n  // TODO\n});"],
     ['it.skip / xit / test.skip', "it.skip('a', () => { expect(add(1, 2)).toBe(3); });\nxit('b', () => { expect(add(1, 2)).toBe(3); });\ntest.skip('c', () => {});"],
     ['describe.skip', "describe.skip('add', () => { it('a', () => { expect(add(1, 2)).toBe(3); }); });"],
+    ['no assertion anywhere', "it('runs', () => { add(1, 2); });"],
+    ['only expect.assertions', "it('runs', () => { expect.assertions(1); add(1, 2); });"],
   ])('flags %s', (_label, body) => {
     expect(reason(vt + body, 'src/math.ts')).toBeDefined();
   });
@@ -33,7 +35,10 @@ describe('unexecutableTestReason: JS/TS (#1355)', () => {
     ['one active test beside a skipped one', "it.skip('a', () => {});\nit('b', () => { expect(add(2, 3)).toBe(5); });"],
     ['a negated self-comparison', "it('a', () => { expect(add(1, 2)).not.toBe(4); });"],
     ['a toThrow assertion', "it('a', () => { expect(() => add()).toThrow(); });"],
-    ['a body without assertions (smoke test)', "it('runs', () => { add(1, 2); });"],
+    ['a smoke test beside a real test', "it('runs', () => { add(1, 2); });\nit('adds', () => { expect(add(2, 3)).toBe(5); });"],
+    ["node:test's t.assert.strictEqual", "import { test } from 'node:test';\ntest('adds', (t) => { t.assert.strictEqual(add(2, 3), 5); });"],
+    ['a named node:assert import', "import { test } from 'node:test';\nimport { strictEqual } from 'node:assert';\ntest('adds', () => { strictEqual(add(2, 3), 5); });"],
+    ['a namespace node:assert/strict import', "import { test } from 'node:test';\nimport * as a from 'node:assert/strict';\ntest('adds', () => { a.equal(add(2, 3), 5); });"],
     ['test.each', "test.each([[1, 2, 3]])('adds %i', (a, b, c) => { expect(add(a, b)).toBe(c); });"],
     ['node:test with assert.strictEqual', "import assert from 'node:assert';\ntest('adds', () => { assert.strictEqual(add(2, 3), 5); });"],
     ['no test calls at all (left to the gate)', "expect(add(2, 3)).toBe(5);"],
@@ -53,6 +58,15 @@ describe('unexecutableTestReason: other languages (#1355)', () => {
     ['Java class-level @Disabled', 'Calc.java', '@Disabled\nclass CalcTest {\n  @Test void add() { assertEquals(5, Calc.add(2, 3)); }\n}\n'],
     ['Java no assertion', 'Calc.java', 'class CalcTest {\n  @Test void add() { Calc.add(2, 3); }\n}\n'],
     ['Rust no assertion', 'lib.rs', '#[test]\nfn adds() { add(2, 3); }\n'],
+    ['Python assert only in a comment', 'calc.py', 'def test_add():\n    # TODO: assert add(2, 3) == 5\n    pass\n'],
+    ['Python assert only in a docstring', 'calc.py', 'def test_add():\n    """Should assert add(2, 3) == 5."""\n    pass\n'],
+    ['Java assert only in a comment', 'Calc.java', 'class CalcTest {\n  @Test void add() { /* assertEquals(5, x) */ Calc.add(2, 3); } // assertTrue\n}\n'],
+    ['Python assert True', 'calc.py', 'def test_add():\n    assert True\n'],
+    ['Python self.assertTrue(True)', 'calc.py', 'class T(unittest.TestCase):\n    def test_add(self):\n        self.assertTrue(True)\n'],
+    ['Java assertTrue(true)', 'Calc.java', 'class CalcTest {\n  @Test void add() { assertTrue(true); }\n}\n'],
+    ['Java assertEquals(1, 1)', 'Calc.java', 'class CalcTest {\n  @Test void add() { assertEquals(1, 1); }\n}\n'],
+    ['Rust assert!(true)', 'lib.rs', '#[test]\nfn adds() { assert!(true); }\n'],
+    ['Go assert.True(t, true)', 'calc.go', 'func TestAdd(t *testing.T) {\n\tassert.True(t, true)\n}\n'],
   ])('flags %s', (_label, file, code) => {
     expect(reason(code, file)).toBeDefined();
   });
@@ -72,6 +86,15 @@ describe('unexecutableTestReason: other languages (#1355)', () => {
     ['Rust assert_eq!', 'lib.rs', '#[test]\nfn adds() { assert_eq!(add(2, 3), 5); }\n'],
     ['Swift XCTAssertEqual', 'Calc.swift', 'func testAdd() { XCTAssertEqual(add(2, 3), 5) }\n'],
     ['Dart expect', 'calc.dart', "test('adds', () { expect(add(2, 3), 5); });\n"],
+    ['Python mock assert_called_once_with', 'calc.py', 'def test_logs(log):\n    add(2, 3)\n    log.assert_called_once_with(5)\n'],
+    ['numpy assert_allclose', 'calc.py', 'import numpy as np\n\ndef test_add():\n    np.testing.assert_allclose(add(2.0, 3.0), 5.0)\n'],
+    ['Python assert True beside a real assert', 'calc.py', 'def test_add():\n    assert True\n    assert add(2, 3) == 5\n'],
+    ['Go with a sub-test variable', 'calc.go', 'func TestAdd(t *testing.T) {\n\tt.Run("x", func(tt *testing.T) {\n\t\tif Add(2, 3) != 5 { tt.Errorf("bad") }\n\t})\n}\n'],
+    ['Go testify suite', 'calc.go', 'func (s *CalcSuite) TestAdd() {\n\ts.Require().Equal(5, Add(2, 3))\n}\n'],
+    ['Rust assert_matches!', 'lib.rs', '#[test]\nfn adds() { assert_matches!(add(2, 3), 5); }\n'],
+    ['Rust prop_assert_eq!', 'lib.rs', 'proptest! { fn adds(a: i32) { prop_assert_eq!(add(a, 0), a); } }\n'],
+    ['C# ClassicAssert', 'Calc.cs', '[Test] public void Adds() { ClassicAssert.AreEqual(5, Calc.Add(2, 3)); }\n'],
+    ['Java assertTrue(true) beside a real assertion', 'Calc.java', 'class CalcTest {\n  @Test void add() { assertTrue(true); assertEquals(5, Calc.add(2, 3)); }\n}\n'],
     ['an unknown language', 'calc.rb', 'def test_add; end\n'],
   ])('keeps %s', (_label, file, code) => {
     expect(reason(code, file)).toBeUndefined();
