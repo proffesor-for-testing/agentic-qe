@@ -6,7 +6,7 @@
  */
 
 import * as fs from 'fs/promises';
-import { ConfinedReadError, readConfinedText, type ConfinedReadReason } from '../../shared/io/confined-read.js';
+import { ConfinedReadError, readConfinedText, type ConfinedReadReason, type HardlinkPolicy } from '../../shared/io/confined-read.js';
 import * as path from 'path';
 import { isAqeManagedDir } from '../../shared/aqe-managed-dirs.js';
 import { safeJsonParse } from '../../shared/safe-json.js';
@@ -75,12 +75,22 @@ export interface RefusedCoverageReport {
 }
 
 /**
+ * How a coverage report is read (#1354). `hardlinks: 'refuse'` refuses a
+ * report with more than one hardlink, which no path check can confine; the
+ * MCP handler sets it, while the CLI reads the operator's own reports with
+ * the default ('allow').
+ */
+export interface ReportReadOptions {
+  hardlinks?: HardlinkPolicy;
+}
+
+/**
  * `loadCoverageReport` plus the reports that were refused unread (#1186): a
  * report linked out of the project, a FIFO or device, or one over the size
  * limit is not a missing report, and the caller must be able to say why it
  * was not used.
  */
-export async function findCoverageReport(targetPath: string): Promise<{
+export async function findCoverageReport(targetPath: string, read: ReportReadOptions = {}): Promise<{
   report: { data: CoverageData; path: string } | null;
   refused: RefusedCoverageReport[];
 }> {
@@ -104,7 +114,7 @@ export async function findCoverageReport(targetPath: string): Promise<{
   for (const coveragePath of coverageLocations) {
     try {
       // #1161: a report linked out of the project, or to a device, is not read.
-      const content = await readConfinedText(coveragePath, { outsideRoot: 'allow' });
+      const content = await readConfinedText(coveragePath, { outsideRoot: 'allow', hardlinks: read.hardlinks ?? 'allow' });
 
       if (coveragePath.endsWith('coverage-summary.json')) {
         return { report: { data: parseCoverageSummaryJson(content), path: coveragePath }, refused };

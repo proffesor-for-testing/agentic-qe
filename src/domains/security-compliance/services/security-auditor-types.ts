@@ -120,7 +120,7 @@ export async function httpGet<R>(url: string): Promise<HttpResponse<R>> {
 
 export interface ISecurityAuditorService extends IDependencySecurityService {
   runAudit(options: SecurityAuditOptions): Promise<Result<SecurityAuditReport>>;
-  scanSecrets(files: FilePath[]): Promise<Result<SecretScanResult>>;
+  scanSecrets(files: FilePath[], read?: { hardlinks?: import('../../../shared/io/confined-read.js').HardlinkPolicy }): Promise<Result<SecretScanResult>>;
   getSecurityPosture(): Promise<Result<SecurityPostureSummary>>;
   triageVulnerabilities(
     vulnerabilities: Vulnerability[]

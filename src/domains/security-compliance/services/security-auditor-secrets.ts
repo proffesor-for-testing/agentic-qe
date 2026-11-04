@@ -4,7 +4,7 @@
  */
 
 import { LoggerFactory } from '../../../logging/index.js';
-import { readConfinedText } from '../../../shared/io/confined-read.js';
+import { ConfinedReadError, readConfinedText, type HardlinkPolicy } from '../../../shared/io/confined-read.js';
 import type { FilePath } from '../../../shared/value-objects/index.js';
 import type {
   DetectedSecret,
@@ -224,14 +224,27 @@ export function validateSecret(type: DetectedSecret['type'], value: string): boo
   }
 }
 
+/** True when a scanFileForSecrets error is a refused hardlink (#1350). */
+export function isRefusedHardlink(error: unknown): boolean {
+  return error instanceof ConfinedReadError && error.reason === 'hardlinked';
+}
+
 /**
- * Scan a single file for secrets
+ * Scan a single file for secrets. A file refused for its hardlinks throws
+ * (see isRefusedHardlink), so the caller reports it instead of counting it
+ * as scanned with no secrets; any other read failure is logged and skipped.
  */
-export async function scanFileForSecrets(file: FilePath): Promise<DetectedSecret[]> {
+export async function scanFileForSecrets(
+  file: FilePath,
+  read: { hardlinks?: HardlinkPolicy; onExemptHardlink?: (filePath: string) => void } = {},
+): Promise<DetectedSecret[]> {
   const secrets: DetectedSecret[] = [];
 
   try {
-    const content = await readConfinedText(file.value, { outsideRoot: 'allow' }); // #1161
+    // #1161; #1350: `read.hardlinks` refuses a hardlink.
+    const content = await readConfinedText(file.value, {
+      outsideRoot: 'allow', hardlinks: read.hardlinks ?? 'allow', onExemptHardlink: read.onExemptHardlink,
+    });
     const lines = content.split('\n');
     const secretPatterns = getSecretPatterns();
 
@@ -271,6 +284,7 @@ export async function scanFileForSecrets(file: FilePath): Promise<DetectedSecret
       }
     }
   } catch (error) {
+    if (isRefusedHardlink(error)) throw error;
     logger.error(`Failed to scan file for secrets: ${file.value}`, error instanceof Error ? error : undefined);
   }
 

@@ -162,7 +162,7 @@ export interface ISASTService {
   /**
    * Scan with specific rule sets
    */
-  scanWithRules(files: FilePath[], ruleSetIds: string[]): Promise<Result<SASTResult>>;
+  scanWithRules(files: FilePath[], ruleSetIds: string[], read?: { hardlinks?: import('../../shared/io/confined-read.js').HardlinkPolicy }): Promise<Result<SASTResult>>;
 
   /**
    * Get available rule sets
@@ -480,6 +480,11 @@ export interface SecurityAuditOptions {
   readonly includeDependencies: boolean;
   readonly includeSecrets: boolean;
   readonly targetUrl?: string;
+  /**
+   * #1350: how the secret scan reads the files it finds. MCP task callers
+   * pass 'refuse-outside-node-modules'; default 'allow' (CLI, workflows).
+   */
+  readonly sourceHardlinks?: import('../../shared/io/confined-read.js').HardlinkPolicy;
 }
 
 export interface SecurityAuditReport {
@@ -498,6 +503,10 @@ export interface SecurityAuditReport {
 export interface SecretScanResult {
   readonly secretsFound: DetectedSecret[];
   readonly filesScanned: number;
+  /** #1350: files that were not scanned because they have more than one hardlink. */
+  readonly refused?: ReadonlyArray<{ readonly path: string; readonly reason: 'hardlinked' }>;
+  /** #1350: hardlinked files that were scanned under the node_modules exemption. */
+  readonly exemptHardlinks?: readonly string[];
 }
 
 export interface DetectedSecret {

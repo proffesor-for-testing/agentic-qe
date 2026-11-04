@@ -298,8 +298,9 @@ export class CoverageAnalyzeTool extends MCPToolBase<CoverageAnalyzeParams, Cove
           };
         }
       } else {
-        // Try to find coverage in target directory
-        parsedReport = await findAndParseCoverage(target);
+        // Try to find coverage in target directory. #1354: a discovered
+        // report that is a hardlink is refused, as a named coverageFile is.
+        parsedReport = await findAndParseCoverage(target, undefined, { hardlinks: 'refuse' });
       }
 
       // If no coverage data found, return error with actionable guidance
@@ -556,7 +557,8 @@ export class CoverageGapsTool extends MCPToolBase<CoverageGapsParams, CoverageGa
           };
         }
       } else {
-        parsedReport = await findAndParseCoverage(target);
+        // #1354: a discovered report that is a hardlink is refused.
+        parsedReport = await findAndParseCoverage(target, undefined, { hardlinks: 'refuse' });
       }
 
       // Check if demo mode is EXPLICITLY requested (only for testing/docs)

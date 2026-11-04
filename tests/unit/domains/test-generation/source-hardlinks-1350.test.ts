@@ -98,16 +98,27 @@ describe('test generation refuses hardlinked caller-named source files (#1350)',
     if (read.success) expect(read.value.tests).toHaveLength(1);
   });
 
-  it('the domain plugin generate-tests task asks the coordinator to refuse hardlinks', async () => {
+  it('the domain plugin generate-tests task refuses hardlinks only for an MCP task (trusted readHardlinks)', async () => {
     const plugin = new TestGenerationPlugin(new MockEventBus(), new MockMemoryBackend(), new MockAgentCoordinator());
     const generateTests = vi.fn(async () => ({ success: true, value: { tests: [], coverageEstimate: null, patternsUsed: [] } }));
     (plugin as unknown as { coordinator: unknown }).coordinator = { generateTests };
-    const handler = (plugin as unknown as { getTaskHandlers(): Map<string, (p: unknown) => Promise<unknown>> })
+    const handler = (plugin as unknown as { getTaskHandlers(): Map<string, (p: unknown, r?: unknown) => Promise<unknown>> })
       .getTaskHandlers().get('generate-tests')!;
+    const payload = { sourceFiles: [plain], testType: 'unit', framework: 'vitest' };
 
-    await handler({ sourceFiles: [plain], testType: 'unit', framework: 'vitest' });
+    // task_submit / task_orchestrate: the MCP server sets the policy on the task.
+    await handler(payload, { readHardlinks: 'refuse-outside-node-modules' });
+    expect(generateTests).toHaveBeenLastCalledWith(expect.objectContaining({ sourceHardlinks: 'refuse' }));
 
-    expect(generateTests).toHaveBeenCalledWith(expect.objectContaining({ sourceHardlinks: 'refuse' }));
+    // `aqe fleet run test` submits no policy: the operator's files are read as on main.
+    await handler(payload, {});
+    expect(generateTests).toHaveBeenLastCalledWith(expect.objectContaining({ sourceHardlinks: 'allow' }));
+    await handler(payload);
+    expect(generateTests).toHaveBeenLastCalledWith(expect.objectContaining({ sourceHardlinks: 'allow' }));
+
+    // A policy in the payload is not the task's: still read.
+    await handler({ ...payload, readHardlinks: 'refuse-outside-node-modules' }, {});
+    expect(generateTests).toHaveBeenLastCalledWith(expect.objectContaining({ sourceHardlinks: 'allow' }));
   });
 
   it('PatternMatcherService.matchTestablePatterns refuses a hardlinked file and still reads a plain one', async () => {

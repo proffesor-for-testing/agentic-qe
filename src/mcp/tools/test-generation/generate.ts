@@ -14,6 +14,9 @@ import { GenerateTestsRequest } from '../../../domains/test-generation/interface
 import { TokenOptimizerService } from '../../../optimization/token-optimizer-service.js';
 import { toErrorMessage } from '../../../shared/error-utils.js';
 import { BEHAVIOR_EXAMPLE_ITEM_SCHEMA, validateBehaviorExamples } from '../../../domains/test-generation/services/behavior-example-validation.js';
+import { readConfinedTextSync } from '../../../shared/io/confined-read.js';
+import { MAX_PAYLOAD_FILE_BYTES } from '../../../shared/io/payload-path-guard.js';
+import { findProjectRoot } from '../../../kernel/project-root.js';
 
 // ============================================================================
 // Types
@@ -204,7 +207,7 @@ export class TestGenerateTool extends MCPToolBase<TestGenerateParams, TestGenera
 
       // Detect anti-patterns if requested
       const antiPatterns: AntiPattern[] = detectAntiPatterns
-        ? detectAntiPatternsInSource(sourceFiles)
+        ? detectAntiPatternsInSource(sourceFiles, findProjectRoot())
         : [];
 
       this.emitStream(context, {
@@ -305,18 +308,19 @@ const TEST_GENERATE_SCHEMA: MCPToolSchema = {
  * Detect anti-patterns in source files
  * Analyzes test code for common issues: magic numbers, missing assertions, test interdependence
  */
-function detectAntiPatternsInSource(files: string[]): AntiPattern[] {
+export function detectAntiPatternsInSource(files: string[], projectRoot: string = findProjectRoot()): AntiPattern[] {
   const antiPatterns: AntiPattern[] = [];
-  const fs = require('fs');
 
   for (const file of files) {
     try {
-      // Try to read the file content
+      // #1350: the caller names these files, so read them inside the project,
+      // from the opened descriptor, within the payload size limit, and never
+      // a hardlink (which no path check can confine).
       let content: string;
       try {
-        content = fs.readFileSync(file, 'utf-8');
+        content = readConfinedTextSync(file, { projectRoot, maxBytes: MAX_PAYLOAD_FILE_BYTES, hardlinks: 'refuse' });
       } catch {
-        // File doesn't exist or can't be read, skip
+        // Missing, outside the project, a hardlink, or unreadable: skip
         continue;
       }
 

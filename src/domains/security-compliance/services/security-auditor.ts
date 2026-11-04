@@ -74,7 +74,8 @@ import { DEFAULT_CONFIG, httpGet } from './security-auditor-types.js';
 // Import extracted modules
 import { performSASTScan } from './security-auditor-sast.js';
 import { performDASTScan } from './security-auditor-dast.js';
-import { scanFileForSecrets } from './security-auditor-secrets.js';
+import { isRefusedHardlink, scanFileForSecrets } from './security-auditor-secrets.js';
+import { describeExemptHardlinks, type HardlinkPolicy } from '../../../shared/io/confined-read.js';
 import {
   calculateOverallRisk,
   generateRecommendations,
@@ -268,7 +269,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
       }
 
       if (options.includeSecrets) {
-        secretScanResults = await this.performSecretScan();
+        secretScanResults = await this.performSecretScan(options.sourceHardlinks ?? 'allow');
       }
 
       const overallRiskScore = calculateOverallRisk(
@@ -297,6 +298,19 @@ export class SecurityAuditorService implements ISecurityAuditorService {
         recommendations.unshift(
           `${packages > 0 ? `Latest versions could not be looked up for ${packages} package(s)` : 'No latest versions were looked up'} (${reasons}). Whether packages are outdated is unknown.`
         );
+      }
+      // #1350: files the secret scan refused unread (hardlinks, which can point
+      // outside the project) leave secret exposure unmeasured for them.
+      const refusedSecrets = secretScanResults?.refused ?? [];
+      if (refusedSecrets.length > 0) {
+        const names = refusedSecrets.slice(0, 5).map((r) => r.path).join(', ');
+        incompleteChecks.push(`Secret scan partial: ${refusedSecrets.length} file(s) refused unread because they have more than one hardlink (${names}${refusedSecrets.length > 5 ? ', ...' : ''})`);
+        recommendations.unshift(
+          `${refusedSecrets.length} file(s) were not scanned for secrets because they have more than one hardlink. Secret exposure is unmeasured for them; replace each with a regular file to scan it.`
+        );
+      }
+      if ((secretScanResults?.exemptHardlinks?.length ?? 0) > 0) {
+        recommendations.unshift(describeExemptHardlinks(secretScanResults!.exemptHardlinks!.length));
       }
       // #1052: a DAST target that could not be (fully) scanned is not a clean target.
       if (dastResults && dastResults.status !== 'complete') {
@@ -330,21 +344,32 @@ export class SecurityAuditorService implements ISecurityAuditorService {
     }
   }
 
-  async scanSecrets(files: FilePath[]): Promise<Result<SecretScanResult>> {
+  /**
+   * #1350: `read.hardlinks` refuses hardlinked files (listed in `refused`);
+   * MCP callers pass 'refuse-outside-node-modules'. Default 'allow'.
+   */
+  async scanSecrets(files: FilePath[], read: { hardlinks?: HardlinkPolicy } = {}): Promise<Result<SecretScanResult>> {
     try {
       const secretsFound: DetectedSecret[] = [];
+      const refused: Array<{ path: string; reason: 'hardlinked' }> = [];
+      const exempt: string[] = [];
       let filesScanned = 0;
 
       for (const file of files) {
         if (this.shouldExclude(file.value)) {
           continue;
         }
+        const secrets = await this.scanOneForSecrets(file, refused, read.hardlinks ?? 'allow', exempt);
+        if (secrets === null) continue;
         filesScanned++;
-        const secrets = await scanFileForSecrets(file);
         secretsFound.push(...secrets);
       }
 
-      return ok({ secretsFound, filesScanned });
+      return ok({
+        secretsFound, filesScanned,
+        ...(refused.length > 0 ? { refused } : {}),
+        ...(exempt.length > 0 ? { exemptHardlinks: exempt } : {}),
+      });
     } catch (error) {
       return err(toError(error));
     }
@@ -777,8 +802,10 @@ export class SecurityAuditorService implements ISecurityAuditorService {
     }
   }
 
-  private async performSecretScan(): Promise<SecretScanResult> {
+  private async performSecretScan(hardlinks: HardlinkPolicy): Promise<SecretScanResult> {
     const secretsFound: DetectedSecret[] = [];
+    const refused: Array<{ path: string; reason: 'hardlinked' }> = [];
+    const exempt: string[] = [];
     let filesScanned = 0;
 
     try {
@@ -788,16 +815,41 @@ export class SecurityAuditorService implements ISecurityAuditorService {
         if (this.shouldExclude(filePath)) {
           continue;
         }
-        filesScanned++;
         const filePathObj = { value: filePath } as FilePath;
-        const secrets = await scanFileForSecrets(filePathObj);
+        const secrets = await this.scanOneForSecrets(filePathObj, refused, hardlinks, exempt);
+        if (secrets === null) continue;
+        filesScanned++;
         secretsFound.push(...secrets);
       }
     } catch (error) {
       logger.error('Secret scan failed:', error instanceof Error ? error : undefined);
     }
 
-    return { secretsFound, filesScanned };
+    return {
+      secretsFound, filesScanned,
+      ...(refused.length > 0 ? { refused } : {}),
+      ...(exempt.length > 0 ? { exemptHardlinks: exempt } : {}),
+    };
+  }
+
+  /**
+   * #1350: scan one file, or record it in `refused` and return null when the
+   * policy refuses it as a hardlink (which can point outside the project), so
+   * a refused file is reported and not counted as scanned clean.
+   */
+  private async scanOneForSecrets(
+    file: FilePath,
+    refused: Array<{ path: string; reason: 'hardlinked' }>,
+    hardlinks: HardlinkPolicy,
+    exempt: string[],
+  ): Promise<DetectedSecret[] | null> {
+    try {
+      return await scanFileForSecrets(file, { hardlinks, onExemptHardlink: (p) => exempt.push(p) });
+    } catch (error) {
+      if (!isRefusedHardlink(error)) throw error;
+      refused.push({ path: file.value, reason: 'hardlinked' });
+      return null;
+    }
   }
 
   private async findSourceFiles(dir: string, files: string[] = []): Promise<string[]> {

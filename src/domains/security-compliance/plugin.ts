@@ -172,7 +172,7 @@ export class SecurityCompliancePlugin extends BaseDomainPlugin {
 
   protected override getTaskHandlers(): Map<string, TaskHandler> {
     return new Map([
-      ['security-audit', async (payload): Promise<Result<unknown, Error>> => {
+      ['security-audit', async (payload, request): Promise<Result<unknown, Error>> => {
         if (!this.coordinator) {
           return err(new Error('Coordinator not initialized'));
         }
@@ -186,6 +186,9 @@ export class SecurityCompliancePlugin extends BaseDomainPlugin {
           includeDependencies: (payload.includeDependencies as boolean | undefined) ?? true,
           includeSecrets: (payload.includeSecrets as boolean | undefined) ?? true,
           targetUrl: target,
+          // #1350: MCP task callers set a hardlink policy on the task (not the
+          // payload); a CLI-submitted task reads as before.
+          sourceHardlinks: request?.readHardlinks ?? 'allow',
         });
       }],
 
@@ -200,7 +203,7 @@ export class SecurityCompliancePlugin extends BaseDomainPlugin {
         return this.coordinator.runComplianceCheck(standardId);
       }],
 
-      ['sast-scan', async (payload): Promise<Result<unknown, Error>> => {
+      ['sast-scan', async (payload, request): Promise<Result<unknown, Error>> => {
         if (!this.securityScanner) {
           return err(new Error('Security scanner not initialized'));
         }
@@ -224,7 +227,12 @@ export class SecurityCompliancePlugin extends BaseDomainPlugin {
             `Pass regular files inside the project, at most ${MAX_SAST_FILE_BYTES / (1024 * 1024)} MB each.`,
           ));
         }
-        return this.securityScanner.scanFiles(accepted.map(f => FilePath.create(f)));
+        // #1350: an MCP task (task_submit, task_orchestrate) carries a hardlink
+        // policy set by the server, so a hardlink outside node_modules is
+        // reported as an unreadable file (HARDLINKED), not scanned.
+        // `aqe fleet run scan` sets none and reads as before.
+        return this.securityScanner.scanFiles(accepted.map(f => FilePath.create(f)),
+          { hardlinks: request?.readHardlinks ?? 'allow' });
       }],
 
       ['dast-scan', async (payload): Promise<Result<unknown, Error>> => {

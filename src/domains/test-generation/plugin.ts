@@ -138,7 +138,7 @@ export class TestGenerationPlugin extends BaseDomainPlugin {
   protected override getTaskHandlers(): Map<string, TaskHandler> {
     return new Map([
       // Generate tests task - main task type for this domain
-      ['generate-tests', async (payload): Promise<Result<unknown, Error>> => {
+      ['generate-tests', async (payload, task): Promise<Result<unknown, Error>> => {
         if (!this.coordinator) {
           return err(new Error('Coordinator not initialized'));
         }
@@ -161,8 +161,10 @@ export class TestGenerationPlugin extends BaseDomainPlugin {
           framework: framework ?? 'vitest',
           coverageTarget: payload.coverageTarget as number | undefined,
           patterns: payload.patterns as string[] | undefined,
-          // #1350: a hardlink cannot be confined by path, so it is refused.
-          sourceHardlinks: 'refuse',
+          // #1350: a hardlink cannot be confined by path, so an MCP task (whose
+          // trusted readHardlinks policy the server sets) refuses it; a task
+          // the CLI submits (`aqe fleet run test`) reads the operator's files.
+          sourceHardlinks: task?.readHardlinks && task.readHardlinks !== 'allow' ? 'refuse' : 'allow',
         };
 
         return this.coordinator.generateTests(request);

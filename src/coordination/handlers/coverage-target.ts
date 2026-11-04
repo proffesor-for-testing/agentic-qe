@@ -31,6 +31,7 @@ import {
   parseCoverageSummaryJson,
   parseLcovInfo,
   type RefusedCoverageReport,
+  type ReportReadOptions,
 } from './handler-utils';
 import { isTestPath } from './coverage-collection';
 import { assessCoverageEvidence, type CoverageEvidence } from './coverage-evidence';
@@ -336,12 +337,14 @@ export async function loadCoverageReportFile(filePath: string): Promise<Coverage
  */
 export async function readCoverageReportFile(
   filePath: string,
+  read: ReportReadOptions = {},
 ): Promise<{ data: CoverageData | null; refused?: RefusedCoverageReport }> {
   let content: string;
   try {
     // #1161: read from the validated descriptor, not the name checked earlier;
     // a report linked out of the project, or to a device, is not read.
-    content = await readConfinedText(filePath, { outsideRoot: 'allow' });
+    // #1354: an MCP caller's report also refuses a hardlink (`read`).
+    content = await readConfinedText(filePath, { outsideRoot: 'allow', hardlinks: read.hardlinks ?? 'allow' });
   } catch (error) {
     if (error instanceof ConfinedReadError && error.reason !== 'not-found') {
       return { data: null, refused: { path: filePath, reason: error.reason } };
@@ -510,8 +513,14 @@ export type ExistingCoverage =
  *   - otherwise the PROJECT ROOT's report (not the cwd's, not the subfolder's)
  *     is scoped to the target;
  *   - `no-report` tells the caller it may run tooling from `projectRoot`.
+ *
+ * `read` says how the report is read (#1354): the MCP handler refuses
+ * hardlinks; the CLI keeps the default for the operator's own reports.
  */
-export async function resolveExistingCoverage(targetPath: string): Promise<ExistingCoverage> {
+export async function resolveExistingCoverage(
+  targetPath: string,
+  read: ReportReadOptions = {},
+): Promise<ExistingCoverage> {
   const target = path.resolve(targetPath);
   let stat: fs.Stats;
   try { stat = fs.statSync(target); } catch { return { status: 'target-missing', target }; }
@@ -520,7 +529,7 @@ export async function resolveExistingCoverage(targetPath: string): Promise<Exist
     const reportDir = path.dirname(target);
     const projectRoot = findCoverageProjectRoot(reportDir)
       ?? (path.basename(reportDir) === 'coverage' ? path.dirname(reportDir) : reportDir);
-    const { data: report, refused } = await readCoverageReportFile(target);
+    const { data: report, refused } = await readCoverageReportFile(target, read);
     // The report itself is the target: judged whole, but still checked for staleness.
     const evaluation: CoverageEvaluation = report
       ? evaluateCoverageForTarget(report, projectRoot, projectRoot, { reportPath: target, checkCompleteness: false })
@@ -531,7 +540,7 @@ export async function resolveExistingCoverage(targetPath: string): Promise<Exist
   }
 
   const projectRoot = findCoverageProjectRoot(target) ?? (stat.isDirectory() ? target : path.dirname(target));
-  const { report: existing, refused } = await findCoverageReport(projectRoot);
+  const { report: existing, refused } = await findCoverageReport(projectRoot, read);
   if (!existing) return { status: 'no-report', target, projectRoot, refused };
   return {
     status: 'evaluated', target, projectRoot, source: 'project-report',

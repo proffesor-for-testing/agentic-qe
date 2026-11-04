@@ -22,6 +22,7 @@ import type {
   MemoryBackend,
   HybridRouter,
   ScanStatus,
+  SastReadOptions,
 } from './scanner-types.js';
 import { DEFAULT_CONFIG } from './scanner-types.js';
 import { SASTScanner } from './sast-scanner.js';
@@ -88,8 +89,8 @@ export class SecurityScannerService implements ISecurityScannerService {
   /**
    * Scan files for security vulnerabilities using static analysis
    */
-  async scanFiles(files: FilePath[]): Promise<Result<SASTResult>> {
-    return this.sastScanner.scanFiles(files);
+  async scanFiles(files: FilePath[], read?: SastReadOptions): Promise<Result<SASTResult>> {
+    return this.sastScanner.scanFiles(files, read);
   }
 
   /**
@@ -97,9 +98,10 @@ export class SecurityScannerService implements ISecurityScannerService {
    */
   async scanWithRules(
     files: FilePath[],
-    ruleSetIds: string[]
+    ruleSetIds: string[],
+    read?: SastReadOptions,
   ): Promise<Result<SASTResult>> {
-    return this.sastScanner.scanWithRules(files, ruleSetIds);
+    return this.sastScanner.scanWithRules(files, ruleSetIds, read);
   }
 
   /**

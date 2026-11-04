@@ -28,11 +28,12 @@ import type {
   ChatResponse,
   MutableScanSummary,
   ScanStatus,
+  SastReadOptions,
 } from './scanner-types.js';
 import { ALL_SECURITY_PATTERNS, BUILT_IN_RULE_SETS } from './security-patterns.js';
 import { toError } from '@shared/error-utils.js';
 import { safeJsonParse } from '@shared/safe-json.js';
-import { readConfinedFile } from '@shared/io/confined-read.js';
+import { describeExemptHardlinks, readConfinedFile } from '@shared/io/confined-read.js';
 import { CLAUDE_TIER_MODELS, DEFAULT_OPUS_MODEL } from '@shared/llm/model-registry.js';
 import {
   isSemgrepAvailable,
@@ -75,8 +76,8 @@ export class SASTScanner {
   /**
    * Scan files for security vulnerabilities using static analysis
    */
-  async scanFiles(files: FilePath[]): Promise<Result<SASTResult>> {
-    return this.scanWithRules(files, this.config.defaultRuleSets);
+  async scanFiles(files: FilePath[], read?: SastReadOptions): Promise<Result<SASTResult>> {
+    return this.scanWithRules(files, this.config.defaultRuleSets, read);
   }
 
   /**
@@ -86,7 +87,8 @@ export class SASTScanner {
    */
   async scanWithRules(
     files: FilePath[],
-    ruleSetIds: string[]
+    ruleSetIds: string[],
+    read: SastReadOptions = {},
   ): Promise<Result<SASTResult>> {
     const scanId = uuidv4();
 
@@ -114,11 +116,13 @@ export class SASTScanner {
 
       // Deduplicate lexical absolute paths; do not follow symlinks to invent identity.
       const requestedPaths = [...new Set(files.map(file => path.resolve(file.value)))];
+      // #1350: hardlinks read under the node_modules exemption are disclosed.
+      const exemptHardlinks = new Set<string>();
       const uniqueFiles = requestedPaths.map(value => FilePath.create(value));
 
       // Run independent engines while retaining each engine's execution outcome.
       const [patternResult, semgrepResult] = await Promise.all([
-        this.runPatternScanning(uniqueFiles, ruleSets),
+        this.runPatternScanning(uniqueFiles, ruleSets, { ...read, onExemptHardlink: file => exemptHardlinks.add(file) }),
         this.runSemgrepScanning(uniqueFiles, ruleSetIds),
       ]);
 
@@ -157,7 +161,8 @@ export class SASTScanner {
         })))).digest('hex'),
         ruleCoverage: 'known',
         errors: patternResult.files.filter(file => file.status === 'unreadable').map(file => file.reason || 'File unreadable'),
-        limitations: ['Built-in pattern matching covers supported JavaScript and TypeScript inputs only.'],
+        limitations: ['Built-in pattern matching covers supported JavaScript and TypeScript inputs only.',
+          ...(exemptHardlinks.size > 0 ? [describeExemptHardlinks(exemptHardlinks.size)] : [])],
       };
       const evidence: SecurityScanEvidence = {
         schemaVersion: 1,
@@ -193,12 +198,13 @@ export class SASTScanner {
    */
   private async runPatternScanning(
     files: FilePath[],
-    ruleSets: RuleSet[]
+    ruleSets: RuleSet[],
+    read: SastReadOptions,
   ): Promise<{ vulnerabilities: Vulnerability[]; files: SecurityFileEvidence[] }> {
     const vulnerabilities: Vulnerability[] = [];
     const receipts: SecurityFileEvidence[] = [];
     for (const file of files) {
-      const result = await this.analyzeFile(file, ruleSets);
+      const result = await this.analyzeFile(file, ruleSets, read);
       vulnerabilities.push(...result.vulnerabilities);
       receipts.push(result.evidence);
     }
@@ -393,7 +399,8 @@ export class SASTScanner {
 
   private async analyzeFile(
     file: FilePath,
-    ruleSets: RuleSet[]
+    ruleSets: RuleSet[],
+    read: SastReadOptions,
   ): Promise<{ vulnerabilities: Vulnerability[]; evidence: SecurityFileEvidence }> {
     const vulnerabilities: Vulnerability[] = [];
     const filePath = file.value;
@@ -403,7 +410,10 @@ export class SASTScanner {
     try {
       // #1161: open once and validate the opened descriptor, so a file swapped
       // after the sast-scan path check cannot redirect the read.
-      const bytes = await readConfinedFile(filePath, { outsideRoot: 'allow' });
+      // #1350: a hardlink is refused when the caller asks (reported HARDLINKED).
+      const bytes = await readConfinedFile(filePath, {
+        outsideRoot: 'allow', hardlinks: read.hardlinks ?? 'allow', onExemptHardlink: read.onExemptHardlink,
+      });
       sourceDigest = createHash('sha256').update(bytes).digest('hex');
       content = bytes.toString('utf8');
     } catch (error) {

@@ -44,6 +44,13 @@ export interface QueenTask {
   readonly correlationId?: string;
   /** Trusted caller executes and reports results; Queen still tracks assignment. */
   readonly executionOwner?: 'queen' | 'caller';
+  /**
+   * #1350: how the domain reads files the task names or finds under a
+   * target it names. Set by the submitting process, never from the payload:
+   * the MCP task tools pass 'refuse-outside-node-modules'; the CLI leaves it
+   * unset, so the operator's own files are read as before ('allow').
+   */
+  readonly readHardlinks?: import('../shared/io/confined-read.js').HardlinkPolicy;
 }
 
 export type TaskType =

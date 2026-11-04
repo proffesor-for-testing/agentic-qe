@@ -16,7 +16,7 @@ import { resolveProjectRootFromPaths } from '../../domains/code-intelligence/pro
 import { nothingIndexedError } from '../../domains/code-intelligence/index-path-guard.js';
 import { createLogger } from '../../logging/logger-factory.js';
 import { requirePayloadPath } from '../../shared/io/payload-path-guard.js';
-import { readConfinedText } from '../../shared/io/confined-read.js';
+import { ConfinedReadError, describeExemptHardlinks, readConfinedText } from '../../shared/io/confined-read.js';
 
 const logger = createLogger('CodeIntelligenceHandlers');
 
@@ -236,10 +236,16 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
       }> = [];
 
       let filesSkipped = 0;
+      // #1350: files found under the target refuse a hardlink (it can point
+      // outside the project) except under node_modules, where pnpm and bun
+      // hardlink every package file; discovery skips node_modules anyway.
+      const refused: Array<{ path: string; reason: 'hardlinked' }> = [];
+      const exemptHardlinks: string[] = [];
+      const onExemptHardlink = (file: string): void => { exemptHardlinks.push(path.resolve(file)); };
       for (const filePath of sourceFiles) {
         try {
           // #1161: validate the opened descriptor, not the name listed earlier.
-          const content = await readConfinedText(filePath, { outsideRoot: 'allow' });
+          const content = await readConfinedText(filePath, { outsideRoot: 'allow', hardlinks: 'refuse-outside-node-modules', onExemptHardlink });
           const lines = content.split('\n');
           const lineCount = lines.length;
 
@@ -317,14 +323,18 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
               reason: reasons.join('; '),
             });
           }
-        } catch {
+        } catch (error) {
           filesSkipped++;
-          // Skip files that can't be read
+          // Skip files that can't be read; a refused hardlink is named.
+          if (error instanceof ConfinedReadError && error.reason === 'hardlinked') {
+            refused.push({ path: path.resolve(filePath), reason: 'hardlinked' });
+          }
         }
       }
 
       if (predictions.length === 0) {
-        return err(new Error(`Defect prediction could not read any of ${sourceFiles.length} source files`));
+        const why = refused.length > 0 ? ` (${refused.length} refused: more than one hardlink)` : '';
+        return err(new Error(`Defect prediction could not read any of ${sourceFiles.length} source files${why}`));
       }
 
       // Record the run in the schema consumed by the background worker.
@@ -372,6 +382,7 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
       if (predictedDefects.some(d => d.reason.includes('technical debt'))) {
         recommendations.push('Address TODO/FIXME comments to reduce technical debt');
       }
+      if (exemptHardlinks.length > 0) recommendations.push(describeExemptHardlinks(exemptHardlinks.length));
       if (predictedDefects.length === 0) {
         recommendations.push(filesSkipped > 0
           ? `No analyzed files exceeded the threshold; ${filesSkipped} unreadable source files remain unassessed`
@@ -384,6 +395,8 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
         recommendations,
         filesAnalyzed: predictions.length,
         filesSkipped,
+        ...(refused.length > 0 ? { refused } : {}),
+        ...(exemptHardlinks.length > 0 ? { exemptHardlinks, limitations: [describeExemptHardlinks(exemptHardlinks.length)] } : {}),
         scanStatus: filesSkipped > 0 ? 'partial' : 'complete',
         predictionMethod: 'static-code-indicators',
         estimated: true,

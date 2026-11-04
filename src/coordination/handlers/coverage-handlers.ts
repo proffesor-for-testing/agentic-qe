@@ -133,7 +133,9 @@ function fromEvaluation(
  *   3. static estimation, explicitly labelled `estimated: true`
  */
 async function collectCoverage(targetPath: string): Promise<CollectResult> {
-  const existing = await resolveExistingCoverage(targetPath);
+  // #1354: the target is named by an MCP or task caller, so a report that is
+  // a hardlink (which no path check can confine) is refused and named.
+  const existing = await resolveExistingCoverage(targetPath, { hardlinks: 'refuse' });
   if (existing.status === 'target-missing') {
     return { collected: null, ranTests: false, noData: 'target-missing', projectRoot: null };
   }

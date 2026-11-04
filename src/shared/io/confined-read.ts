@@ -30,6 +30,26 @@
  * was removed has one link and is read. The policy trusts the link count the
  * filesystem reports: one that reports 1 for every file (FAT, some network
  * shares) hides a hardlink from it. Verified on Linux only.
+ *
+ * `hardlinks: 'refuse-outside-node-modules'` (#1350) is for files found by
+ * walking a caller-named directory. pnpm, bun and yarn's pnpm linker install
+ * packages as hardlinks into a store outside the project, so every package
+ * file is a hardlink to an outside name and cannot be told apart from a
+ * planted one. This policy accepts a hardlink opened under the project
+ * root's own `node_modules` or under the `node_modules` of a workspace
+ * package (a directory in the project holding a package.json), and refuses
+ * every other file with more than one link; `src/node_modules` does not
+ * qualify. The directory walkers skip `node_modules` anyway, so the exemption
+ * only matters when a caller names a path in it, and every exempt read is
+ * reported through `onExemptHardlink` so callers can disclose it.
+ *
+ * The exemption is judged on where the opened descriptor really points
+ * (/proc/self/fd on Linux), so swapping a directory between the realpath and
+ * the open cannot move a hardlink into it. Without /proc (macOS) the location
+ * is the re-resolved realpath of the same inode, so a second name of that
+ * inode under node_modules would also qualify; creating such a name already
+ * qualifies directly, so this adds no reach. A file outside the project root
+ * is never exempt.
  */
 
 import { constants as fsConstants, type Stats } from 'node:fs';
@@ -66,9 +86,17 @@ export interface ConfinedReadOptions {
   outsideRoot?: 'refuse' | 'allow';
   /**
    * 'refuse' refuses a file with more than one hardlink, which a path check
-   * cannot confine (see the module comment). Default 'allow'.
+   * cannot confine; 'refuse-outside-node-modules' accepts one only under a
+   * `node_modules` directory in the project (see the module comment).
+   * Default 'allow'.
    */
-  hardlinks?: 'allow' | 'refuse';
+  hardlinks?: HardlinkPolicy;
+  /**
+   * #1350: called with the caller's path when a hardlink was read under the
+   * node_modules exemption of 'refuse-outside-node-modules', so the caller
+   * can say so in its result instead of reporting a silently clean read.
+   */
+  onExemptHardlink?: (filePath: string) => void;
 }
 
 /**
@@ -94,6 +122,36 @@ export class ConfinedReadError extends CallerInputError {
 /** Flags for opening a checked realpath: read-only, no final symlink, no FIFO wait. */
 export const CONFINED_OPEN_FLAGS =
   fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0) | (fsConstants.O_NONBLOCK ?? 0);
+
+/** #1350: the limitation text for hardlinks read under the node_modules exemption. */
+export function describeExemptHardlinks(count: number): string {
+  return `${count} hardlinked file(s) were read under the node_modules exemption ` +
+    '(package-manager store links cannot be told apart from planted ones).';
+}
+
+/**
+ * How a confined read treats a file with more than one hardlink (see the
+ * module comment): read it ('allow'), refuse it ('refuse'), or refuse it
+ * unless it lies under a `node_modules` directory inside the project root
+ * ('refuse-outside-node-modules', for directory walks).
+ */
+export type HardlinkPolicy = 'allow' | 'refuse' | 'refuse-outside-node-modules';
+
+/**
+ * #1350: is `real` inside `rootReal`, under the root's own `node_modules` or
+ * the `node_modules` of a workspace package (its parent directory in the
+ * project holds a package.json)? Only the part of the path below the root
+ * counts, so a project that itself sits under some `node_modules` gains
+ * nothing, and `src/node_modules/x` (no package.json in `src`) does not count.
+ */
+export function isUnderProjectNodeModules(rootReal: string, real: string): boolean {
+  if (!isWithinRoot(rootReal, real)) return false;
+  const parts = path.relative(rootReal, real).split(path.sep);
+  const at = parts.indexOf('node_modules');
+  if (at < 0 || at === parts.length - 1) return false;
+  if (at === 0) return true;
+  return fsSync.existsSync(path.join(rootReal, ...parts.slice(0, at), 'package.json'));
+}
 
 /** True when `candidate` is `root` or lies beneath it (both absolute). */
 export function isWithinRoot(root: string, candidate: string): boolean {
@@ -166,7 +224,8 @@ interface Plan {
   /** The path was spelled inside the root, so what is opened must stay there. */
   inRoot: boolean;
   limit: number;
-  hardlinks: 'allow' | 'refuse';
+  hardlinks: HardlinkPolicy;
+  onExemptHardlink?: (filePath: string) => void;
 }
 
 function plan(filePath: string, rootReal: string, options: ConfinedReadOptions): Plan {
@@ -184,14 +243,38 @@ function plan(filePath: string, rootReal: string, options: ConfinedReadOptions):
     lexical, raw, rootReal, inRoot,
     limit: options.maxBytes ?? DEFAULT_MAX_CONFINED_READ_BYTES,
     hardlinks: options.hardlinks ?? 'allow',
+    onExemptHardlink: options.onExemptHardlink,
   };
 }
 
-/** Check the opened descriptor's stat before anything is read. */
-function checkOpened(filePath: string, st: Stats, p: Plan): void {
+/**
+ * Check the opened descriptor's stat before anything is read. Returns true
+ * when the node_modules exemption must be checked against where the
+ * descriptor really points (see checkLocation).
+ */
+function checkOpened(filePath: string, st: Stats, p: Plan): boolean {
   if (!st.isFile()) throw fail(filePath, 'not-a-file');
   if (st.size > p.limit) throw fail(filePath, 'too-large');
-  if (p.hardlinks === 'refuse' && st.nlink > 1) throw fail(filePath, 'hardlinked');
+  if (st.nlink > 1 && p.hardlinks === 'refuse') throw fail(filePath, 'hardlinked');
+  return st.nlink > 1 && p.hardlinks === 'refuse-outside-node-modules';
+}
+
+/**
+ * Check where the opened descriptor really points: inside the root for a
+ * path spelled there, and under the project's node_modules for a hardlink
+ * read with 'refuse-outside-node-modules' (#1350). The opened location, not
+ * the realpath resolved before the open, so a directory swapped in between
+ * cannot move a hardlink into the exemption.
+ */
+function checkLocation(filePath: string, location: string | null, p: Plan, exemptCheck: boolean): void {
+  if (!location) throw fail(filePath, 'changed-during-read');
+  if (p.inRoot && !isWithinRoot(p.rootReal, location)) throw fail(filePath, 'outside-project-root');
+  if (exemptCheck && !isUnderProjectNodeModules(p.rootReal, location)) throw fail(filePath, 'hardlinked');
+}
+
+/** #1350: report an exempt hardlink once the read has succeeded. */
+function reportExempt(filePath: string, p: Plan, exemptCheck: boolean): void {
+  if (exemptCheck) p.onExemptHardlink?.(filePath);
 }
 
 /**
@@ -221,12 +304,8 @@ export async function readConfinedFile(filePath: string, options: ConfinedReadOp
   }
   try {
     const st = await handle.stat();
-    checkOpened(filePath, st, p);
-    if (p.inRoot) {
-      const location = await openedLocation(handle.fd, real, st);
-      if (!location) throw fail(filePath, 'changed-during-read');
-      if (!isWithinRoot(p.rootReal, location)) throw fail(filePath, 'outside-project-root');
-    }
+    const exemptCheck = checkOpened(filePath, st, p);
+    if (p.inRoot || exemptCheck) checkLocation(filePath, await openedLocation(handle.fd, real, st), p, exemptCheck);
     // Read at most limit + 1 bytes from this descriptor: a file that grew
     // after the fstat is refused rather than read without bound.
     const chunks: Buffer[] = [];
@@ -239,6 +318,7 @@ export async function readConfinedFile(filePath: string, options: ConfinedReadOp
       total += bytesRead;
       if (total > p.limit) throw fail(filePath, 'too-large');
     }
+    reportExempt(filePath, p, exemptCheck);
     return Buffer.concat(chunks, total);
   } catch (error) {
     if (error instanceof ConfinedReadError) throw error;
@@ -277,12 +357,8 @@ export function readConfinedFileSync(filePath: string, options: ConfinedReadOpti
   }
   try {
     const st = fsSync.fstatSync(fd);
-    checkOpened(filePath, st, p);
-    if (p.inRoot) {
-      const location = openedLocationSync(fd, real, st);
-      if (!location) throw fail(filePath, 'changed-during-read');
-      if (!isWithinRoot(p.rootReal, location)) throw fail(filePath, 'outside-project-root');
-    }
+    const exemptCheck = checkOpened(filePath, st, p);
+    if (p.inRoot || exemptCheck) checkLocation(filePath, openedLocationSync(fd, real, st), p, exemptCheck);
     const chunks: Buffer[] = [];
     let total = 0;
     for (;;) {
@@ -293,6 +369,7 @@ export function readConfinedFileSync(filePath: string, options: ConfinedReadOpti
       total += bytesRead;
       if (total > p.limit) throw fail(filePath, 'too-large');
     }
+    reportExempt(filePath, p, exemptCheck);
     return Buffer.concat(chunks, total);
   } catch (error) {
     if (error instanceof ConfinedReadError) throw error;
