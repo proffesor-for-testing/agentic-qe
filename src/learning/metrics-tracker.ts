@@ -15,6 +15,7 @@
 
 import { type Database as DatabaseType } from 'better-sqlite3';
 import { openDatabase } from '../shared/safe-db.js';
+import { queuedConnectionFor, writeWhenUnlockedOn } from '../shared/sqlite-write-queue.js';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
 import type { QEDomain } from './qe-patterns.js';
@@ -155,6 +156,8 @@ export interface DashboardData {
  */
 export class LearningMetricsTracker {
   private db: DatabaseType | null = null;
+  /** False when `db` is the MCP server's shared memory.db connection, which close() must not close. */
+  private ownsDb = true;
   private readonly dbPath: string;
   private initialized = false;
 
@@ -172,10 +175,17 @@ export class LearningMetricsTracker {
       throw new Error(`Database not found: ${this.dbPath}. Run "aqe init --auto" first.`);
     }
 
-    this.db = openDatabase(this.dbPath);
+    // #1356: reuse the shared memory.db connection when one is open on this
+    // file, so writes join its queue instead of waiting synchronously on a
+    // second connection (which froze the MCP server's event loop for the
+    // busy_timeout while another process held the lock).
+    const shared = queuedConnectionFor<DatabaseType>(this.dbPath);
+    this.db = shared ?? openDatabase(this.dbPath);
+    this.ownsDb = !shared;
 
     // Ensure learning_metrics table exists for snapshots
-    this.ensureMetricsTable();
+    const db = this.db;
+    await writeWhenUnlockedOn(db, () => this.ensureMetricsTable());
 
     this.initialized = true;
   }
@@ -593,8 +603,10 @@ export class LearningMetricsTracker {
 
     const metrics = await this.getCurrentMetrics();
     const today = new Date().toISOString().split('T')[0];
+    const db = this.db;
 
-    this.db.prepare(`
+    // Queued on the shared connection (#1356); on a private one it runs now.
+    await writeWhenUnlockedOn(db, () => db.prepare(`
       INSERT OR REPLACE INTO learning_daily_snapshots (
         snapshot_date,
         total_patterns,
@@ -626,7 +638,7 @@ export class LearningMetricsTracker {
       metrics.shortTermPatterns,
       metrics.longTermPatterns,
       JSON.stringify(metrics.domainCoverage)
-    );
+    ));
   }
 
   /**
@@ -689,8 +701,10 @@ export class LearningMetricsTracker {
    */
   close(): void {
     if (this.db) {
-      this.db.close();
+      // The shared connection belongs to UnifiedMemoryManager.
+      if (this.ownsDb) this.db.close();
       this.db = null;
+      this.ownsDb = true;
       this.initialized = false;
     }
   }

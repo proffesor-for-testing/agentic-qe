@@ -300,7 +300,14 @@ export class RvfPatternStore implements IPatternStore {
     // with "Pattern not found" and qe_pattern_usage stays empty).
     if (this.sqliteStore) {
       try {
-        const actualId = this.sqliteStore.storePattern(pattern, pattern.embedding, activeSpaceId);
+        // #1356: queued on the shared connection like recordUsage/promote, so a
+        // locked memory.db does not freeze the MCP server's event loop for the
+        // busy_timeout (ReasoningBank's cross-domain seeding writes here at init).
+        const store = this.sqliteStore;
+        const actualId = await writeWhenUnlockedOn(
+          store.getDatabase(),
+          () => store.storePattern(pattern, pattern.embedding, activeSpaceId),
+        );
         if (actualId && actualId !== pattern.id) {
           // QEPattern.id is `readonly` for callers, but inside the store
           // we own the lifecycle and must align it with the persisted row
@@ -602,7 +609,8 @@ export class RvfPatternStore implements IPatternStore {
     // Delete from SQLite
     if (this.sqliteStore) {
       try {
-        this.sqliteStore.deletePattern(id);
+        const store = this.sqliteStore;
+        await writeWhenUnlockedOn(store.getDatabase(), () => store.deletePattern(id));
       } catch (error) {
         return err(new Error(`SQLite delete failed: ${toErrorMessage(error)}`));
       }

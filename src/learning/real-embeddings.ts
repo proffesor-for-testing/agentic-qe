@@ -252,7 +252,11 @@ async function initializeModel(
                 `Vectors written before this change may no longer be comparable.`
             );
           }
-          saveEmbedderIdentity(endpointIdentity);
+          // Queued on the shared connection (#1356): not awaited, so a locked
+          // memory.db does not hold up embeddings init.
+          saveEmbedderIdentity(endpointIdentity).catch((persistErr: unknown) => {
+            console.warn(`[RealEmbeddings] Could not persist endpoint identity: ${toErrorMessage(persistErr)}`);
+          });
         } catch (persistErr) {
           // Persistence failure is non-fatal — we still have the in-memory identity
           // for this run. Log so operators see it.

@@ -20,6 +20,7 @@ import { createRequire } from 'node:module';
 import type { EndpointIdentity } from './embedder-endpoint-client.js';
 import { findProjectRoot } from '../kernel/project-root.js';
 import { setJournalModeWithRetry } from '../shared/sqlite-journal-mode.js';
+import { queuedConnectionFor, writeWhenUnlockedOn } from '../shared/sqlite-write-queue.js';
 
 // `require` is unavailable in pure ESM; createRequire gives us synchronous
 // access to CommonJS modules like better-sqlite3 from the ESM build output.
@@ -55,6 +56,12 @@ let openFailed = false;
  * init wizard enables). Failure to open is cached so we don't retry every call.
  */
 function openDb(): import('better-sqlite3').Database | null {
+  // #1356: in the MCP server UnifiedMemoryManager already holds memory.db
+  // open with a write queue. Use that connection (never closed here) so the
+  // identity write is queued instead of waiting synchronously for a locked
+  // database on a second connection.
+  const shared = queuedConnectionFor<import('better-sqlite3').Database>(getMemoryDbPath());
+  if (shared) return shared;
   if (cachedDb) return cachedDb;
   if (openFailed) return null;
   try {
@@ -119,19 +126,23 @@ export function loadEmbedderIdentity(endpointUrl: string): EndpointIdentity | nu
 
 /**
  * Persist the current identity. Overwrites any prior entry for the same endpoint.
+ * On the shared connection the write is queued (#1356); the promise settles
+ * once it has landed or failed. Unlocked, it lands before this returns.
  */
-export function saveEmbedderIdentity(identity: EndpointIdentity): void {
+export function saveEmbedderIdentity(identity: EndpointIdentity): Promise<void> {
   const db = openDb();
-  if (!db) return;
+  if (!db) return Promise.resolve();
   const row: StoredIdentityRow = {
     fingerprint: identity.fingerprint,
     dim: identity.dim,
     endpoint: identity.endpoint,
     updatedAt: Date.now(),
   };
-  db.prepare(
-    'INSERT OR REPLACE INTO kv_store (key, namespace, value) VALUES (?, ?, ?)'
-  ).run(KEY_PREFIX + identity.endpoint, NAMESPACE, JSON.stringify(row));
+  return writeWhenUnlockedOn(db, () => {
+    db.prepare(
+      'INSERT OR REPLACE INTO kv_store (key, namespace, value) VALUES (?, ?, ?)'
+    ).run(KEY_PREFIX + identity.endpoint, NAMESPACE, JSON.stringify(row));
+  });
 }
 
 /**

@@ -42,6 +42,7 @@ import type { MemoryBackend, EventBus } from '../kernel/interfaces.js';
 import type { Result } from '../shared/types/index.js';
 import { ok, err } from '../shared/types/index.js';
 import { toErrorMessage } from '../shared/error-utils.js';
+import { writeWhenUnlockedOn } from '../shared/sqlite-write-queue.js';
 import { safeJsonParse } from '../shared/safe-json.js';
 import {
   QEReasoningBank,
@@ -266,7 +267,12 @@ export class AQELearningEngine {
           const persistence = getUnifiedPersistence();
           if (persistence.isInitialized()) {
             const db = persistence.getDatabase();
-            const chainPersistence = createWitnessChainSQLitePersistence(db as Parameters<typeof createWitnessChainSQLitePersistence>[0]);
+            // #1356: the factory creates witness_chain_receipts (DDL). On a
+            // database without it that needs the write lock, so run it through
+            // the shared connection's write queue: a locked memory.db then no
+            // longer freezes the MCP server's event loop for the busy_timeout.
+            const chainPersistence = await writeWhenUnlockedOn(db, () =>
+              createWitnessChainSQLitePersistence(db as Parameters<typeof createWitnessChainSQLitePersistence>[0]));
             const chain = createPersistentWitnessChain(chainPersistence);
             this.experienceCapture.setWitnessChain(chain);
           }

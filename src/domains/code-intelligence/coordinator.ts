@@ -313,6 +313,8 @@ export class CodeIntelligenceCoordinator
   // V3: Hypergraph Engine for intelligent code analysis (GOAP Action 7)
   private hypergraph?: HypergraphEngine;
   private hypergraphDb?: import('better-sqlite3').Database;
+  /** False when hypergraphDb is the shared memory.db connection, which dispose() must not close. */
+  private ownsHypergraphDb = true;
 
   // V3: Product Factors Bridge for cross-domain C4 access
   private productFactorsBridge: ProductFactorsBridgeService;
@@ -414,8 +416,14 @@ export class CodeIntelligenceCoordinator
         }
       }
 
-      // Create database connection
-      this.hypergraphDb = openDatabase(dbPath);
+      // Create database connection. #1356: on the project's memory.db reuse
+      // the shared connection, so hypergraph writes join its write queue and
+      // a database locked by another process no longer freezes the event
+      // loop for the busy_timeout. A custom hypergraphDbPath keeps its own.
+      const { queuedConnectionFor } = await import('../../shared/sqlite-write-queue.js');
+      const shared = inMemory ? undefined : queuedConnectionFor<import('better-sqlite3').Database>(dbPath);
+      this.hypergraphDb = shared ?? openDatabase(dbPath);
+      this.ownsHypergraphDb = !shared;
 
       // Create hypergraph engine
       this.hypergraph = await createHypergraphEngine({
@@ -515,11 +523,13 @@ export class CodeIntelligenceCoordinator
     // V3: Clean up Hypergraph Engine (GOAP Action 7)
     if (this.hypergraphDb) {
       try {
-        this.hypergraphDb.close();
+        // The shared connection belongs to UnifiedMemoryManager.
+        if (this.ownsHypergraphDb) this.hypergraphDb.close();
       } catch (error) {
         logger.error('Error closing hypergraph database:', error instanceof Error ? error : undefined);
       }
       this.hypergraphDb = undefined;
+      this.ownsHypergraphDb = true;
     }
     this.hypergraph = undefined;
 
