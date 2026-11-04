@@ -16,6 +16,7 @@ import { toErrorMessage } from '../../../shared/error-utils.js';
 import { BEHAVIOR_EXAMPLE_ITEM_SCHEMA, validateBehaviorExamples } from '../../../domains/test-generation/services/behavior-example-validation.js';
 import { readConfinedTextSync } from '../../../shared/io/confined-read.js';
 import { MAX_PAYLOAD_FILE_BYTES } from '../../../shared/io/payload-path-guard.js';
+import { findProjectRoot } from '../../../kernel/project-root.js';
 
 // ============================================================================
 // Types
@@ -206,7 +207,7 @@ export class TestGenerateTool extends MCPToolBase<TestGenerateParams, TestGenera
 
       // Detect anti-patterns if requested
       const antiPatterns: AntiPattern[] = detectAntiPatterns
-        ? detectAntiPatternsInSource(sourceFiles)
+        ? detectAntiPatternsInSource(sourceFiles, findProjectRoot())
         : [];
 
       this.emitStream(context, {
@@ -307,7 +308,7 @@ const TEST_GENERATE_SCHEMA: MCPToolSchema = {
  * Detect anti-patterns in source files
  * Analyzes test code for common issues: magic numbers, missing assertions, test interdependence
  */
-export function detectAntiPatternsInSource(files: string[]): AntiPattern[] {
+export function detectAntiPatternsInSource(files: string[], projectRoot: string = findProjectRoot()): AntiPattern[] {
   const antiPatterns: AntiPattern[] = [];
 
   for (const file of files) {
@@ -317,7 +318,7 @@ export function detectAntiPatternsInSource(files: string[]): AntiPattern[] {
       // a hardlink (which no path check can confine).
       let content: string;
       try {
-        content = readConfinedTextSync(file, { maxBytes: MAX_PAYLOAD_FILE_BYTES, hardlinks: 'refuse' });
+        content = readConfinedTextSync(file, { projectRoot, maxBytes: MAX_PAYLOAD_FILE_BYTES, hardlinks: 'refuse' });
       } catch {
         // Missing, outside the project, a hardlink, or unreadable: skip
         continue;

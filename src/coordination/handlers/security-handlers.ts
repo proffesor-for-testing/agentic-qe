@@ -18,7 +18,7 @@ import type { SASTResult, DASTResult } from '../../domains/security-compliance/i
 import { runDependencyAdvisoryScan, type DependencyAdvisoryOutcome } from '../../domains/security-compliance/dependency-advisory-engine.js';
 import { MAX_PAYLOAD_FILE_BYTES, requirePayloadPath } from '../../shared/io/payload-path-guard.js';
 import { dropGenericEvalCoveredBySast, GENERIC_EVAL_EXEC_TITLE } from '../../domains/security-compliance/generic-finding-dedup.js';
-import { ConfinedReadError, readConfinedFile, type HardlinkPolicy } from '../../shared/io/confined-read.js';
+import { ConfinedReadError, describeExemptHardlinks, readConfinedFile, type HardlinkPolicy } from '../../shared/io/confined-read.js';
 
 /**
  * #1350: files found under the caller's target are read refusing a hardlink,
@@ -64,6 +64,9 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
       const manifestRules = new Map<string, string>();
       const limitations: string[] = [];
       const refused = new Set<string>();
+      // #1350: hardlinks read under the node_modules exemption are disclosed.
+      const exemptHardlinks = new Set<string>();
+      const onExemptHardlink = (file: string): void => { exemptHardlinks.add(file); };
 
       // Separate files by language capability
       const jstsFiles = filesToScan.filter(f => /\.(ts|tsx|js|jsx|mjs|cjs)$/i.test(f));
@@ -86,7 +89,7 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
         }
         try {
           // #1161: validate the opened descriptor, not the name checked earlier.
-          const source = await readConfinedFile(filePath, { outsideRoot: 'allow', hardlinks: WALK_HARDLINKS });
+          const source = await readConfinedFile(filePath, { outsideRoot: 'allow', hardlinks: WALK_HARDLINKS, onExemptHardlink });
           const content = source.toString('utf-8');
           const lines = content.split('\n');
           fileEvidence.push({ path: filePath, engineId: 'generic-patterns', status: 'analyzed',
@@ -199,7 +202,7 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
         const manifestPath = path.join(targetPath, manifest);
         try {
           // #1161: a manifest linked out of the project is not read.
-          const manifestSource = await readConfinedFile(manifestPath, { outsideRoot: 'allow', hardlinks: WALK_HARDLINKS });
+          const manifestSource = await readConfinedFile(manifestPath, { outsideRoot: 'allow', hardlinks: WALK_HARDLINKS, onExemptHardlink });
           const manifestContent = manifestSource.toString('utf-8');
           const manifestLines = manifestContent.split('\n').length;
           fileEvidence.push({ path: manifestPath, engineId: 'dependency-manifest-patterns', status: 'analyzed',
@@ -336,6 +339,7 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
       for (const file of fileEvidence) {
         if (file.status === 'unreadable' && file.reason === 'HARDLINKED') refused.add(file.path);
       }
+      if (exemptHardlinks.size > 0) limitations.push(describeExemptHardlinks(exemptHardlinks.size));
       if (refused.size > 0) {
         limitations.push(`${refused.size} file(s) were refused unread because they have more than one hardlink ` +
           '(a hardlink can point outside the project); they were not scanned.');
@@ -432,6 +436,7 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
         ...(dependencyScan ? { dependencyScan: dependencyScan.report } : {}),
         // #1350: files that exist but were not read, with why.
         ...(refused.size > 0 ? { refused: [...refused].sort().map(file => ({ path: file, reason: 'hardlinked' as const })) } : {}),
+        ...(exemptHardlinks.size > 0 ? { exemptHardlinks: [...exemptHardlinks].sort() } : {}),
         status: evidence.completeness === 'complete' ? 'completed' : evidence.completeness === 'partial' ? 'partial' : 'unavailable',
         evidence,
         limitations: evidence.limitations,

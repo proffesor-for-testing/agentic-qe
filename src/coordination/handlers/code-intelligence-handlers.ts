@@ -16,7 +16,7 @@ import { resolveProjectRootFromPaths } from '../../domains/code-intelligence/pro
 import { nothingIndexedError } from '../../domains/code-intelligence/index-path-guard.js';
 import { createLogger } from '../../logging/logger-factory.js';
 import { requirePayloadPath } from '../../shared/io/payload-path-guard.js';
-import { ConfinedReadError, readConfinedText } from '../../shared/io/confined-read.js';
+import { ConfinedReadError, describeExemptHardlinks, readConfinedText } from '../../shared/io/confined-read.js';
 
 const logger = createLogger('CodeIntelligenceHandlers');
 
@@ -240,10 +240,12 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
       // outside the project) except under node_modules, where pnpm and bun
       // hardlink every package file; discovery skips node_modules anyway.
       const refused: Array<{ path: string; reason: 'hardlinked' }> = [];
+      const exemptHardlinks: string[] = [];
+      const onExemptHardlink = (file: string): void => { exemptHardlinks.push(path.resolve(file)); };
       for (const filePath of sourceFiles) {
         try {
           // #1161: validate the opened descriptor, not the name listed earlier.
-          const content = await readConfinedText(filePath, { outsideRoot: 'allow', hardlinks: 'refuse-outside-node-modules' });
+          const content = await readConfinedText(filePath, { outsideRoot: 'allow', hardlinks: 'refuse-outside-node-modules', onExemptHardlink });
           const lines = content.split('\n');
           const lineCount = lines.length;
 
@@ -380,6 +382,7 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
       if (predictedDefects.some(d => d.reason.includes('technical debt'))) {
         recommendations.push('Address TODO/FIXME comments to reduce technical debt');
       }
+      if (exemptHardlinks.length > 0) recommendations.push(describeExemptHardlinks(exemptHardlinks.length));
       if (predictedDefects.length === 0) {
         recommendations.push(filesSkipped > 0
           ? `No analyzed files exceeded the threshold; ${filesSkipped} unreadable source files remain unassessed`
@@ -393,6 +396,7 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
         filesAnalyzed: predictions.length,
         filesSkipped,
         ...(refused.length > 0 ? { refused } : {}),
+        ...(exemptHardlinks.length > 0 ? { exemptHardlinks, limitations: [describeExemptHardlinks(exemptHardlinks.length)] } : {}),
         scanStatus: filesSkipped > 0 ? 'partial' : 'complete',
         predictionMethod: 'static-code-indicators',
         estimated: true,

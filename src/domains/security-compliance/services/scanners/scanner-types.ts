@@ -133,6 +133,8 @@ export interface FullScanResult {
  */
 export interface SastReadOptions {
   hardlinks?: HardlinkPolicy;
+  /** Internal: collects files read under the node_modules exemption. */
+  onExemptHardlink?: (filePath: string) => void;
 }
 
 /**

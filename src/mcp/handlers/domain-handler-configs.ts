@@ -205,6 +205,8 @@ export interface SecurityScanResult {
   dependencyScan?: DependencyScanReport;
   /** #1350: files under the target that were not read because they have more than one hardlink. */
   refused?: Array<{ path: string; reason: 'hardlinked' }>;
+  /** #1350: hardlinks that were read under the node_modules exemption. */
+  exemptHardlinks?: string[];
   note?: string;
 }
 
@@ -276,6 +278,9 @@ export interface DefectPredictResult {
   filesSkipped?: number;
   /** #1350: skipped files that were refused because they have more than one hardlink. */
   refused?: Array<{ path: string; reason: 'hardlinked' }>;
+  /** #1350: hardlinks that were read under the node_modules exemption, and why that matters. */
+  exemptHardlinks?: string[];
+  limitations?: string[];
   scanStatus?: 'partial' | 'complete';
   predictionMethod?: 'static-code-indicators';
   estimated?: boolean;
@@ -1016,6 +1021,7 @@ export const securityScanConfig: DomainHandlerConfig<SecurityScanParams, Securit
     scanTypes: data.scanTypes as SecurityScanResult['scanTypes'],
     ...(data.dependencyScan ? { dependencyScan: data.dependencyScan as DependencyScanReport } : {}),
     ...(Array.isArray(data.refused) ? { refused: data.refused as SecurityScanResult['refused'] } : {}),
+    ...(Array.isArray(data.exemptHardlinks) ? { exemptHardlinks: data.exemptHardlinks as string[] } : {}),
     note: data.note as string | undefined,
     duration,
     savedFiles,
@@ -1170,6 +1176,9 @@ export const defectPredictConfig: DomainHandlerConfig<DefectPredictParams, Defec
       filesAnalyzed: data.filesAnalyzed as number, filesSkipped: data.filesSkipped as number,
       scanStatus: data.scanStatus as 'partial' | 'complete',
       ...(Array.isArray(data.refused) ? { refused: data.refused as DefectPredictResult['refused'] } : {}),
+      ...(Array.isArray(data.exemptHardlinks) ? {
+        exemptHardlinks: data.exemptHardlinks as string[], limitations: data.limitations as string[],
+      } : {}),
     } : {}),
     ...(data.retention === 'failed' ? { retention: 'failed', retentionError: String(data.retentionError ?? '') } : {}),
     predictedDefects: (data.predictedDefects as Array<{ file: string; probability: number; reason: string }>) || [],

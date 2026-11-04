@@ -505,6 +505,8 @@ export interface SecretScanResult {
   readonly filesScanned: number;
   /** #1350: files that were not scanned because they have more than one hardlink. */
   readonly refused?: ReadonlyArray<{ readonly path: string; readonly reason: 'hardlinked' }>;
+  /** #1350: hardlinked files that were scanned under the node_modules exemption. */
+  readonly exemptHardlinks?: readonly string[];
 }
 
 export interface DetectedSecret {

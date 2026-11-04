@@ -33,7 +33,7 @@ import type {
 import { ALL_SECURITY_PATTERNS, BUILT_IN_RULE_SETS } from './security-patterns.js';
 import { toError } from '@shared/error-utils.js';
 import { safeJsonParse } from '@shared/safe-json.js';
-import { readConfinedFile } from '@shared/io/confined-read.js';
+import { describeExemptHardlinks, readConfinedFile } from '@shared/io/confined-read.js';
 import { CLAUDE_TIER_MODELS, DEFAULT_OPUS_MODEL } from '@shared/llm/model-registry.js';
 import {
   isSemgrepAvailable,
@@ -116,11 +116,13 @@ export class SASTScanner {
 
       // Deduplicate lexical absolute paths; do not follow symlinks to invent identity.
       const requestedPaths = [...new Set(files.map(file => path.resolve(file.value)))];
+      // #1350: hardlinks read under the node_modules exemption are disclosed.
+      const exemptHardlinks = new Set<string>();
       const uniqueFiles = requestedPaths.map(value => FilePath.create(value));
 
       // Run independent engines while retaining each engine's execution outcome.
       const [patternResult, semgrepResult] = await Promise.all([
-        this.runPatternScanning(uniqueFiles, ruleSets, read),
+        this.runPatternScanning(uniqueFiles, ruleSets, { ...read, onExemptHardlink: file => exemptHardlinks.add(file) }),
         this.runSemgrepScanning(uniqueFiles, ruleSetIds),
       ]);
 
@@ -159,7 +161,8 @@ export class SASTScanner {
         })))).digest('hex'),
         ruleCoverage: 'known',
         errors: patternResult.files.filter(file => file.status === 'unreadable').map(file => file.reason || 'File unreadable'),
-        limitations: ['Built-in pattern matching covers supported JavaScript and TypeScript inputs only.'],
+        limitations: ['Built-in pattern matching covers supported JavaScript and TypeScript inputs only.',
+          ...(exemptHardlinks.size > 0 ? [describeExemptHardlinks(exemptHardlinks.size)] : [])],
       };
       const evidence: SecurityScanEvidence = {
         schemaVersion: 1,
@@ -408,7 +411,9 @@ export class SASTScanner {
       // #1161: open once and validate the opened descriptor, so a file swapped
       // after the sast-scan path check cannot redirect the read.
       // #1350: a hardlink is refused when the caller asks (reported HARDLINKED).
-      const bytes = await readConfinedFile(filePath, { outsideRoot: 'allow', hardlinks: read.hardlinks ?? 'allow' });
+      const bytes = await readConfinedFile(filePath, {
+        outsideRoot: 'allow', hardlinks: read.hardlinks ?? 'allow', onExemptHardlink: read.onExemptHardlink,
+      });
       sourceDigest = createHash('sha256').update(bytes).digest('hex');
       content = bytes.toString('utf8');
     } catch (error) {

@@ -89,6 +89,34 @@ describe('walk hardlink policy (#1350)', () => {
       // A file merely named node_modules is not a directory of that name.
       expect(isUnderProjectNodeModules(root, path.join(root, 'src', 'node_modules'))).toBe(false);
     });
+
+    it('exempts only the root node_modules and a workspace package node_modules, not src/node_modules', async () => {
+      const nested = path.join(root, 'src', 'node_modules', 'evil.ts');
+      fs.mkdirSync(path.dirname(nested), { recursive: true });
+      fs.linkSync(path.join(base, 'outside', 'secret.ts'), nested);
+      await expect(readConfinedText(nested, policy)).rejects.toMatchObject({ reason: 'hardlinked' });
+      expect(isUnderProjectNodeModules(root, nested)).toBe(false);
+
+      const ws = path.join(root, 'packages', 'app');
+      const wsFile = path.join(ws, 'node_modules', '.pnpm', 'dep@1.0.0', 'node_modules', 'dep', 'index.js');
+      fs.mkdirSync(path.dirname(wsFile), { recursive: true });
+      fs.linkSync(path.join(base, 'outside', 'store-index.js'), wsFile);
+      // Without a package.json the folder is not a workspace package.
+      await expect(readConfinedText(wsFile, policy)).rejects.toMatchObject({ reason: 'hardlinked' });
+      fs.writeFileSync(path.join(ws, 'package.json'), '{"name":"app"}');
+      await expect(readConfinedText(wsFile, policy)).resolves.toContain('function pkg');
+    });
+
+    it('reports every read under the exemption, and only those', async () => {
+      const seen: string[] = [];
+      const onExemptHardlink = (file: string) => { seen.push(file); };
+      await readConfinedText(store, { ...policy, onExemptHardlink });
+      readConfinedTextSync(store, { ...policy, onExemptHardlink });
+      await readConfinedText(plain, { ...policy, onExemptHardlink });
+      await readConfinedText(store, { onExemptHardlink });
+      await expect(readConfinedText(leak, { ...policy, onExemptHardlink })).rejects.toThrow();
+      expect(seen).toEqual([store, store]);
+    });
   });
 
   describe('FileReader in-root reads', () => {
@@ -137,6 +165,39 @@ describe('walk hardlink policy (#1350)', () => {
     it('keeps reading hardlinks when the caller names no policy (CLI)', async () => {
       const result = await scanner().scanFiles([FilePath.create(leak)]);
       expect(result.success && result.value.evidence?.files[0]).toMatchObject({ path: leak, status: 'analyzed' });
+    });
+  });
+
+  describe('security audit verdict (#1350 review)', () => {
+    it('an MCP audit that refused a file is partial, never "posture is good"', async () => {
+      const cwd = vi.spyOn(process, 'cwd').mockReturnValue(root);
+      try {
+        const auditor = new SecurityAuditorService(memory());
+        const result = await auditor.runAudit({
+          includeSAST: false, includeDAST: false, includeDependencies: false, includeSecrets: true,
+          sourceHardlinks: 'refuse-outside-node-modules',
+        });
+        expect(result.success).toBe(true);
+        if (!result.success) return;
+        const report = result.value;
+        expect(report.secretScanResults?.refused).toEqual([{ path: leak, reason: 'hardlinked' }]);
+        expect(report.incompleteChecks?.join('\n')).toMatch(/Secret scan partial: 1 file\(s\) refused unread/);
+        expect(report.recommendations.join('\n')).not.toMatch(/posture is good/i);
+        expect(report.recommendations.join('\n')).toMatch(/not scanned for secrets because they have more than one hardlink/);
+        expect((report.overallRiskScore as unknown as { level: string }).level).not.toBe('low');
+        expect(JSON.stringify(report)).not.toContain(SECRET);
+      } finally { cwd.mockRestore(); }
+    });
+
+    it('the same audit with no policy (CLI workflows) reads the file and reports its secrets', async () => {
+      const cwd = vi.spyOn(process, 'cwd').mockReturnValue(root);
+      try {
+        const result = await new SecurityAuditorService(memory()).runAudit({
+          includeSAST: false, includeDAST: false, includeDependencies: false, includeSecrets: true,
+        });
+        expect(result.success && result.value.secretScanResults?.secretsFound.length).toBeGreaterThan(0);
+        expect(result.success && result.value.incompleteChecks).toBeUndefined();
+      } finally { cwd.mockRestore(); }
     });
   });
 

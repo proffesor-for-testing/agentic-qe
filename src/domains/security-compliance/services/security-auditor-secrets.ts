@@ -236,13 +236,15 @@ export function isRefusedHardlink(error: unknown): boolean {
  */
 export async function scanFileForSecrets(
   file: FilePath,
-  read: { hardlinks?: HardlinkPolicy } = {},
+  read: { hardlinks?: HardlinkPolicy; onExemptHardlink?: (filePath: string) => void } = {},
 ): Promise<DetectedSecret[]> {
   const secrets: DetectedSecret[] = [];
 
   try {
     // #1161; #1350: `read.hardlinks` refuses a hardlink.
-    const content = await readConfinedText(file.value, { outsideRoot: 'allow', hardlinks: read.hardlinks ?? 'allow' });
+    const content = await readConfinedText(file.value, {
+      outsideRoot: 'allow', hardlinks: read.hardlinks ?? 'allow', onExemptHardlink: read.onExemptHardlink,
+    });
     const lines = content.split('\n');
     const secretPatterns = getSecretPatterns();
 

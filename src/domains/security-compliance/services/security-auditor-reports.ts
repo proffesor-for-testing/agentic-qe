@@ -50,7 +50,10 @@ export function calculateOverallRisk(
   }
 
   if (secrets) {
-    const secretRisk = secrets.secretsFound.length > 0 ? 0.9 : 0.1;
+    // #1350: files refused unread (hardlinks) leave secret risk unmeasured,
+    // so a scan that found nothing in what it read is not scored as clean.
+    const unread = (secrets.refused?.length ?? 0) > 0;
+    const secretRisk = secrets.secretsFound.length > 0 ? 0.9 : unread ? 0.5 : 0.1;
     riskValue += secretRisk * 0.15;
     weights += 0.15;
   }
@@ -139,7 +142,9 @@ export function generateRecommendations(
   // #1052: an incomplete or failed check cannot support a "posture is good" verdict.
   const unmeasured = (dast !== undefined && dast.status !== 'complete') || (deps !== undefined && deps.status !== 'complete')
     // #1221: so can an outdated-package check whose registry lookups failed.
-    || (deps !== undefined && (deps.outdatedStatus === 'incomplete' || deps.outdatedStatus === 'failed'));
+    || (deps !== undefined && (deps.outdatedStatus === 'incomplete' || deps.outdatedStatus === 'failed'))
+    // #1350: and so can a secret scan that refused files unread.
+    || (secrets !== undefined && (secrets.refused?.length ?? 0) > 0);
   if (recommendations.length === 0 && !unmeasured) {
     recommendations.push('Security posture is good. Continue regular scanning.');
   }

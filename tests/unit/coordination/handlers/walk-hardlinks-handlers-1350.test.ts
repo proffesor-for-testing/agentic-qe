@@ -105,12 +105,25 @@ describe('MCP directory walks refuse hardlinks outside node_modules (#1350)', ()
       expect(value.refused).toHaveLength(1);
     });
 
-    it('still scans a pnpm store hardlink under node_modules', async () => {
+    it('still scans a pnpm store hardlink under node_modules, and says it used the exemption', async () => {
       const result = await run('scan-security', { target: pkgDir, sast: true, dast: false, compliance: [] });
       const value = result.value!;
       expect(value.refused).toBeUndefined();
       expect(value.filesScanned).toBe(1);
       expect(JSON.stringify(value.findings)).toContain('index.js');
+      expect(value.exemptHardlinks).toEqual([path.join(pkgDir, 'index.js')]);
+      expect(value.limitations.join('\n')).toMatch(/1 hardlinked file\(s\) were read under the node_modules exemption/);
+      expect(securityScanConfig.mapToResult('t', value, 1, [])).toMatchObject({ exemptHardlinks: [path.join(pkgDir, 'index.js')] });
+    });
+
+    it('refuses a hardlink in src/node_modules (not the project or a workspace package node_modules)', async () => {
+      const nested = path.join(root, 'src', 'node_modules', 'evil.ts');
+      fs.mkdirSync(path.dirname(nested), { recursive: true });
+      fs.linkSync(path.join(base, 'outside', 'secret.ts'), nested);
+      const result = await run('scan-security', { target: path.dirname(nested), sast: true, dast: false, compliance: [] });
+      expect(JSON.stringify(result)).not.toContain(SECRET);
+      expect(result.value!.refused).toEqual([{ path: nested, reason: 'hardlinked' }]);
+      expect(result.value!.evidence.completeness).toBe('none');
     });
   });
 
@@ -125,6 +138,17 @@ describe('MCP directory walks refuse hardlinks outside node_modules (#1350)', ()
       // The MCP tool result (defect_predict) keeps the list.
       expect(defectPredictConfig.mapToResult('t', result.value!, 1, [])).toMatchObject({
         scanStatus: 'partial', refused: [{ path: leak, reason: 'hardlinked' }],
+      });
+    });
+
+    it('discloses a store hardlink read under the node_modules exemption', async () => {
+      const result = await run('predict-defects', { target: pkgDir, minConfidence: 0.5 });
+      expect(result.value).toMatchObject({
+        scanStatus: 'complete', exemptHardlinks: [path.join(pkgDir, 'index.js')],
+        limitations: [expect.stringMatching(/read under the node_modules exemption/)],
+      });
+      expect(defectPredictConfig.mapToResult('t', result.value!, 1, [])).toMatchObject({
+        exemptHardlinks: [path.join(pkgDir, 'index.js')],
       });
     });
 
