@@ -224,6 +224,8 @@ export interface AgentMetricsParams {
 export interface TestGenerateParams {
   sourceCode?: string;
   filePath?: string;
+  /** #1355: project files to generate tests for (confined to the project root). */
+  sourceFiles?: string[];
   language?: 'javascript' | 'typescript' | 'python' | 'java' | 'go';
   framework?: string;
   testType?: 'unit' | 'integration' | 'e2e' | 'property-based';
@@ -624,6 +626,8 @@ export interface TestGenerateResult {
   generationMode?: string;
   /** #567: human-readable reason the LLM branch did not run. */
   note?: string;
+  /** #1355: why no tests were generated (set only when testsGenerated is 0). */
+  reason?: string;
   // V2-compatible fields (optional, flexible typing for backwards compatibility)
   tests?: unknown[];
   antiPatterns?: unknown[];

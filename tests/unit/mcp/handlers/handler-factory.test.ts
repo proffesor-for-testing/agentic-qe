@@ -22,7 +22,6 @@ import {
   generateV2LearningFeedback,
   analyzeComplexity,
   generateV2AIInsights,
-  generateV2Tests,
   detectAntiPatterns,
   resetTaskExecutor,
 } from '../../../../src/mcp/handlers/handler-factory';
@@ -541,44 +540,6 @@ describe('Handler Factory', () => {
       const insights = generateV2AIInsights(complexity, 'unit');
 
       expect(insights.estimatedTime).toBe('50 minutes');
-    });
-  });
-
-  describe('generateV2Tests', () => {
-    it('should generate tests for functions in source code', () => {
-      const code = `
-        function add(a, b) { return a + b; }
-        function subtract(a, b) { return a - b; }
-      `;
-      const tests = generateV2Tests(code, 'unit', 'javascript', 5);
-
-      expect(tests.length).toBeGreaterThan(0);
-      expect(tests[0].type).toBe('unit');
-      expect(tests[0].aiGenerated).toBe(true);
-    });
-
-    it('should add integration tests when test type is integration', () => {
-      const code = 'function test() {}';
-      const tests = generateV2Tests(code, 'integration', 'typescript', 3);
-
-      const hasIntegrationTest = tests.some(t => t.type === 'integration');
-      expect(hasIntegrationTest).toBe(true);
-    });
-
-    it('should include edge case tests', () => {
-      const code = 'function test() {}';
-      const tests = generateV2Tests(code, 'unit', 'typescript', 10);
-
-      const edgeCaseTests = tests.filter(t => t.name.includes('edge_case'));
-      expect(edgeCaseTests.length).toBeGreaterThan(0);
-    });
-
-    it('should set appropriate duration for integration tests', () => {
-      const code = 'function test() {}';
-      const tests = generateV2Tests(code, 'integration', 'typescript', 3);
-
-      const integrationTest = tests.find(t => t.type === 'integration');
-      expect(integrationTest?.estimatedDuration).toBe(2000);
     });
   });
 

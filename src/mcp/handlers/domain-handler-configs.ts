@@ -12,7 +12,6 @@ import {
   generateV2LearningFeedback,
   analyzeComplexity,
   generateV2AIInsights,
-  generateV2Tests,
   detectAntiPatterns,
   generateTestId,
 } from './handler-factory';
@@ -417,10 +416,19 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
     // submitting a task, so malformed input cannot trip the domain breaker.
     const behaviorExamples = validateBehaviorExamples(params.behaviorExamples);
 
+    // #1355: sourceFiles used to be dropped here, so the domain saw no source
+    // and the result was filled with invented tests. The executor confines
+    // each path to the project root.
+    if (params.sourceFiles !== undefined && (!Array.isArray(params.sourceFiles) || params.sourceFiles.length === 0
+      || params.sourceFiles.some((f) => typeof f !== 'string' || f.trim() === ''))) {
+      throw new CallerInputError('sourceFiles must be a non-empty array of file paths.');
+    }
+
     return {
       sourceCode: params.sourceCode,
       behaviorExamples,
       filePath: params.filePath,
+      ...(params.sourceFiles !== undefined ? { sourceFiles: params.sourceFiles } : {}),
       language,
       framework,
       testType: params.testType || 'unit',
@@ -437,10 +445,17 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
     const sourceCode = params?.sourceCode || '';
     const language = params?.language || 'typescript';
     const testType = params?.testType || 'unit';
-    const testsCount = (data.testsGenerated as number) || 6;
+
+    // #1355: only tests the domain actually generated are reported. There is
+    // no placeholder fallback: zero generated tests is reported as zero.
+    const domainTests = (Array.isArray(data.tests) ? data.tests : []) as Array<{
+      name: string; file?: string; testFile?: string; type: string;
+      sourceFile?: string; assertions?: number; testCode?: string;
+      generationMode?: string; generationLimits?: string[];
+    }>;
 
     const complexity = analyzeComplexity(sourceCode);
-    const aiInsights = params?.aiEnhancement !== false
+    const aiInsights = params?.aiEnhancement !== false && domainTests.length > 0
       ? generateV2AIInsights(complexity, testType)
       : { recommendations: [], estimatedTime: '0 minutes', confidence: 0 };
     const antiPatterns = params?.detectAntiPatterns
@@ -448,38 +463,29 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
       : [];
     const learning = generateV2LearningFeedback('test-generator');
 
-    // Use real tests from domain service when available, fall back to V2 stubs
-    const domainTests = data.tests as Array<{
-      name: string; file?: string; testFile?: string; type: string;
-      sourceFile?: string; assertions?: number; testCode?: string;
-      generationMode?: string; generationLimits?: string[];
-    }> | undefined;
-    const hasRealTests = Array.isArray(domainTests) && domainTests.length > 0
-      && domainTests[0].testCode;
-
     // #567: did the ADR-051 LLM branch actually run? Report it instead of
     // asserting `aiGenerated: true` unconditionally.
     const llmEnhanced = data.llmEnhanced === true;
 
-    const tests = hasRealTests
-      ? domainTests!.map((t, i) => ({
-          id: generateTestId(),
-          name: t.name || `test_${i}`,
-          type: t.type || testType,
-          parameters: [],
-          assertions: t.testCode
-            ? extractAssertionsFromCode(t.testCode)
-            : [`test assertion ${i}`],
-          expectedResult: null,
-          estimatedDuration: t.type === 'integration' ? 2000 : 1000,
-          aiGenerated: llmEnhanced,
-          testCode: t.testCode,
-          generationMode: t.generationMode,
-          generationLimits: t.generationLimits,
-          sourceFile: t.sourceFile,
-          testFile: t.testFile || t.file,
-        }))
-      : generateV2Tests(sourceCode, testType, language, testsCount);
+    const tests = domainTests.map((t, i) => ({
+      id: generateTestId(),
+      name: t.name || `test_${i}`,
+      type: t.type || testType,
+      parameters: [],
+      assertions: t.testCode ? extractAssertionsFromCode(t.testCode) : [],
+      expectedResult: null,
+      estimatedDuration: t.type === 'integration' ? 2000 : 1000,
+      aiGenerated: llmEnhanced,
+      testCode: t.testCode,
+      generationMode: t.generationMode,
+      generationLimits: t.generationLimits,
+      sourceFile: t.sourceFile,
+      testFile: t.testFile || t.file,
+    }));
+    const noTestsReason = tests.length === 0
+      ? (typeof data.warning === 'string' && data.warning)
+        || 'The test generator produced no tests for the given source: nothing testable was found.'
+      : undefined;
 
     return {
       // V2-compatible fields
@@ -506,7 +512,7 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
       status: 'completed',
       testsGenerated: tests.length,
       coverageEstimate: (data.coverageEstimate as number | null | undefined) ?? null,
-      patternsUsed: (data.patternsUsed as string[]) || ['assertion-patterns', 'mock-generation', 'edge-case-detection'],
+      patternsUsed: Array.isArray(data.patternsUsed) ? data.patternsUsed as string[] : [],
       duration,
       // #925: state plainly whether result files were written, with their paths.
       ...describeSavedResults(params?.saveResults !== false, savedFiles),
@@ -514,6 +520,8 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
       llmEnhanced,
       ...(data.generationMode ? { generationMode: data.generationMode as string } : {}),
       ...(data.note ? { note: data.note as string } : {}),
+      // #1355: say why nothing was generated instead of inventing tests.
+      ...(noTestsReason ? { reason: noTestsReason } : {}),
     };
   },
 };
@@ -1281,7 +1289,8 @@ function extractAssertionsFromCode(testCode: string): string[] {
     }
   }
 
-  return assertions.length > 0 ? assertions : ['test generated from source analysis'];
+  // #1355: no invented assertion text when none could be extracted.
+  return assertions;
 }
 
 // ============================================================================
