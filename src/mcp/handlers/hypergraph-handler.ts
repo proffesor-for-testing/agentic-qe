@@ -14,6 +14,7 @@ import { v4 as uuidv4 } from 'uuid';
 import type { ToolResult } from '../types.js';
 import { findProjectRoot } from '../../kernel/unified-memory.js';
 import { openDatabase } from '../../shared/safe-db.js';
+import { queuedConnectionFor } from '../../shared/sqlite-write-queue.js';
 import { createHypergraphEngine } from '../../integrations/ruvector/hypergraph-engine.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
 
@@ -81,7 +82,11 @@ export async function handleHypergraphQuery(
         `Database not found: ${dbPath}. Run "aqe init --auto" first.`);
     }
 
-    const db = openDatabase(dbPath);
+    // #1356: reuse the server's shared memory.db connection when it is open,
+    // so the engine's schema check joins its write queue instead of waiting
+    // synchronously on a second connection. That connection is not ours to close.
+    const shared = queuedConnectionFor<ReturnType<typeof openDatabase>>(dbPath);
+    const db = shared ?? openDatabase(dbPath);
     try {
       const engine = await createHypergraphEngine({
         db,
@@ -172,7 +177,9 @@ export async function handleHypergraphQuery(
             `Unknown query type: "${params.query}". Use: stats, untested, impacted, gaps`);
       }
     } finally {
-      try { db.close(); } catch { /* ignore */ }
+      if (!shared) {
+        try { db.close(); } catch { /* ignore */ }
+      }
     }
   } catch (error) {
     return makeResult(false, startTime, undefined, toErrorMessage(error));

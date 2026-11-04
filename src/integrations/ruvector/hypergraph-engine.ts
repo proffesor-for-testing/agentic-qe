@@ -26,6 +26,7 @@ import {
   generateEdgeId,
 } from './hypergraph-schema.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
+import { writeWhenUnlockedOn } from '../../shared/sqlite-write-queue.js';
 import type {
   HypergraphNode,
   HypergraphEdge,
@@ -266,8 +267,19 @@ export class HypergraphEngine {
     if (this.initialized) return;
 
     // Ensure hypergraph schema exists
-    this.schemaManager.ensureSchema(this.config.db);
+    await this.write(() => this.schemaManager.ensureSchema(this.config.db));
     this.initialized = true;
+  }
+
+  /**
+   * Run a write on the engine's connection (#1356). On the MCP server's shared
+   * memory.db connection it joins the write queue, so a database locked by
+   * another process does not freeze the event loop for the busy_timeout; on
+   * any other connection it runs now. A queued write may be retried, so `fn`
+   * must start from scratch each time it runs.
+   */
+  private write<T>(fn: () => T): Promise<T> {
+    return writeWhenUnlockedOn(this.config.db, fn);
   }
 
   /**
@@ -296,7 +308,7 @@ export class HypergraphEngine {
     const fullNode: HypergraphNode = { id, ...node };
     const row = nodeToRow(fullNode);
 
-    this.config.db.prepare(`
+    await this.write(() => this.config.db.prepare(`
       INSERT INTO hypergraph_nodes (id, type, name, file_path, line_start, line_end, complexity, coverage, metadata, embedding)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
@@ -310,7 +322,7 @@ export class HypergraphEngine {
       row.coverage,
       row.metadata,
       row.embedding
-    );
+    ));
 
     return id;
   }
@@ -330,7 +342,7 @@ export class HypergraphEngine {
     const fullEdge: HypergraphEdge = { id, ...edge };
     const row = edgeToRow(fullEdge);
 
-    this.config.db.prepare(`
+    await this.write(() => this.config.db.prepare(`
       INSERT OR REPLACE INTO hypergraph_edges (id, source_id, target_id, type, weight, properties)
       VALUES (?, ?, ?, ?, ?, ?)
     `).run(
@@ -340,7 +352,7 @@ export class HypergraphEngine {
       row.type,
       row.weight,
       row.properties
-    );
+    ));
 
     return id;
   }
@@ -397,7 +409,7 @@ export class HypergraphEngine {
     const updated: HypergraphNode = { ...existing, ...updates };
     const row = nodeToRow(updated);
 
-    this.config.db.prepare(`
+    await this.write(() => this.config.db.prepare(`
       UPDATE hypergraph_nodes
       SET type = ?, name = ?, file_path = ?, line_start = ?, line_end = ?,
           complexity = ?, coverage = ?, metadata = ?, embedding = ?,
@@ -414,7 +426,7 @@ export class HypergraphEngine {
       row.metadata,
       row.embedding,
       id
-    );
+    ));
   }
 
   /**
@@ -425,12 +437,15 @@ export class HypergraphEngine {
   async deleteNode(id: string): Promise<void> {
     this.ensureInitialized();
 
-    // Delete connected edges first (foreign key constraint)
-    this.config.db.prepare(
-      'DELETE FROM hypergraph_edges WHERE source_id = ? OR target_id = ?'
-    ).run(id, id);
+    // Delete connected edges first (foreign key constraint). Both deletes are
+    // idempotent, so a retried write is safe.
+    await this.write(() => {
+      this.config.db.prepare(
+        'DELETE FROM hypergraph_edges WHERE source_id = ? OR target_id = ?'
+      ).run(id, id);
 
-    this.config.db.prepare('DELETE FROM hypergraph_nodes WHERE id = ?').run(id);
+      this.config.db.prepare('DELETE FROM hypergraph_nodes WHERE id = ?').run(id);
+    });
   }
 
   /**
@@ -441,7 +456,7 @@ export class HypergraphEngine {
   async deleteEdge(id: string): Promise<void> {
     this.ensureInitialized();
 
-    this.config.db.prepare('DELETE FROM hypergraph_edges WHERE id = ?').run(id);
+    await this.write(() => this.config.db.prepare('DELETE FROM hypergraph_edges WHERE id = ?').run(id));
   }
 
   // ============================================================================
@@ -830,6 +845,12 @@ export class HypergraphEngine {
 
     // Use transaction for atomicity
     const transaction = this.config.db.transaction(() => {
+      // A queued write may run again after a busy attempt: count from zero.
+      nodesCreated = 0;
+      nodesUpdated = 0;
+      edgesCreated = 0;
+      errors.length = 0;
+
       // Phase 1: Create all file nodes first (to satisfy FK constraints for edges)
       for (const file of indexResult.files) {
         try {
@@ -985,7 +1006,11 @@ export class HypergraphEngine {
       }
     });
 
-    transaction();
+    // IMMEDIATE takes the write lock at BEGIN, so a locked database fails the
+    // whole transaction (and the queue retries it) instead of failing each
+    // statement into the per-entity error list. Queued on the shared
+    // connection (#1356).
+    await this.write(() => transaction.immediate());
 
     return {
       nodesCreated,
@@ -1228,6 +1253,9 @@ export class HypergraphEngine {
     `);
 
     const txn = this.config.db.transaction(() => {
+      // A queued write may run again after a busy attempt: count from zero.
+      testsTagged = 0;
+      coversCreated = 0;
       for (const testId of testFileIds) {
         // (1) Re-tag — only counts the first transition file→test.
         const taggedRows = tagStmt.run(testId).changes;
@@ -1251,7 +1279,8 @@ export class HypergraphEngine {
         }
       }
     });
-    txn();
+    // Queued on the shared connection (#1356); IMMEDIATE as in buildFromIndexResult.
+    await this.write(() => txn.immediate());
 
     return { testsTagged, coversCreated };
   }

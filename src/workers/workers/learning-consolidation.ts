@@ -315,9 +315,10 @@ export class LearningConsolidationWorker extends BaseWorker {
       // A18: learning_daily_snapshots previously only populated via the
       // manual `aqe learning dashboard --save-snapshot` flag — it never
       // advanced on its own. Piggyback on this worker's existing ~30-min
-      // cadence instead of adding a new timer. Best-effort, own DB handle
-      // closed every tick (LearningMetricsTracker opens a connection
-      // separate from the shared unified-memory one context.memory uses).
+      // cadence instead of adding a new timer. Best-effort. In the MCP server
+      // the tracker borrows the shared memory.db connection and queues its
+      // writes (#1356); close() then leaves that connection open. Without a
+      // shared connection it opens its own, closed every tick.
       const tracker = createLearningMetricsTracker(findProjectRoot());
       try {
         await tracker.initialize();
