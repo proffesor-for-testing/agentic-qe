@@ -72,6 +72,17 @@ describe('test_generate_enhanced result mapping (#1355)', () => {
     expect(result.tests[0].assertions).toEqual([]);
   });
 
+  it('returns gate-rejected scaffolds separately, never as tests', () => {
+    const scaffold = { name: 'math tests', scaffold: true, testCode: "test.skip('Scaffolding', () => {});", rejectedBecause: 'Generated test contains no executable assertions.' };
+    const warning = 'Nothing testable in src/math.ts: Generated test contains no executable assertions.';
+    const result = mapToResult({ testsGenerated: 0, tests: [], scaffolds: [scaffold], warning }) as ReturnType<typeof mapToResult> & { scaffolds?: unknown[] };
+
+    expect(result.testsGenerated).toBe(0);
+    expect(result.tests).toEqual([]);
+    expect(result.reason).toBe(warning);
+    expect(result.scaffolds).toEqual([scaffold]);
+  });
+
   it('no longer exports the placeholder test builder', () => {
     expect('generateV2Tests' in handlerFactory).toBe(false);
   });

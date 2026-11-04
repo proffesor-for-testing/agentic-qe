@@ -522,6 +522,8 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
       ...(data.note ? { note: data.note as string } : {}),
       // #1355: say why nothing was generated instead of inventing tests.
       ...(noTestsReason ? { reason: noTestsReason } : {}),
+      // #1355: gate-rejected scaffolding, never counted in tests/testsGenerated.
+      ...(Array.isArray(data.scaffolds) && data.scaffolds.length > 0 ? { scaffolds: data.scaffolds } : {}),
     };
   },
 };

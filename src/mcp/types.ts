@@ -628,6 +628,8 @@ export interface TestGenerateResult {
   note?: string;
   /** #1355: why no tests were generated (set only when testsGenerated is 0). */
   reason?: string;
+  /** #1355: output the test quality gate rejected (e.g. test.skip stubs); not counted as tests. */
+  scaffolds?: unknown[];
   // V2-compatible fields (optional, flexible typing for backwards compatibility)
   tests?: unknown[];
   antiPatterns?: unknown[];

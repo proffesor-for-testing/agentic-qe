@@ -18,6 +18,7 @@ import { createPytestJunitReport, isPythonTestFile, pytestCommand, pytestRunFrom
 import { runTestRunnerProcess } from '../../shared/test-runner-process.js';
 import { MAX_PAYLOAD_FILE_BYTES, requirePayloadFiles } from '../../shared/io/payload-path-guard.js';
 import { groupByRunnerProject, requireTestRunTargets, runnerFrameworkFor } from '../../shared/test-runner-project.js';
+import { describeGateRejection, partitionByQualityGate } from '../../domains/test-generation/gates/gate-verdict.js';
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -292,18 +293,36 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
           generationMode: t.generationMode,
           generationLimits: t.generationLimits,
           testCode: rewritten.testCode,
+          qualityGateResult: t.qualityGateResult,
+          llmEnhanced: t.llmEnhanced,
         };
       });
+
+      // #1355: the same quality-gate verdict as `aqe test generate`. A test the
+      // gate did not pass (a test.skip scaffold, no executable assertion) is
+      // not a generated test; it is returned separately, labelled scaffold.
+      const { passed, rejected } = partitionByQualityGate(tests);
+      const shownFile = (f?: string) => (f && f === tempPath ? 'the supplied sourceCode' : f || 'the source');
+      const scaffolds = rejected.map(({ qualityGateResult: _gate, llmEnhanced: _llm, ...t }) => ({
+        ...t, sourceFile: t.sourceFile === tempPath ? undefined : t.sourceFile,
+        scaffold: true as const, rejectedBecause: describeGateRejection({ qualityGateResult: _gate }),
+      }));
+      const nothingTestable = passed.length === 0 && rejected.length > 0
+        ? `Nothing testable in ${[...new Set(rejected.map(t => shownFile(t.sourceFile)))].join(', ')}: ` +
+          [...new Set(scaffolds.map(t => t.rejectedBecause))].join('; ')
+        : undefined;
 
       // #567: surface whether the LLM branch actually ran. Previously the only
       // clue that generation had silently fallen back to template scaffolding
       // was a suspiciously constant coverage estimate and a sub-20ms duration.
-      const llmEnhanced = generatedTests.tests.some(t => t.llmEnhanced === true);
+      const llmEnhanced = passed.some(t => t.llmEnhanced === true);
 
       return ok({
-        testsGenerated: tests.length,
-        coverageEstimate: generatedTests.coverageEstimate,
-        tests,
+        testsGenerated: passed.length,
+        coverageEstimate: passed.length > 0 ? generatedTests.coverageEstimate : null,
+        tests: passed.map(({ qualityGateResult: _gate, llmEnhanced: _llm, ...t }) => t),
+        ...(scaffolds.length > 0 ? { scaffolds } : {}),
+        ...(nothingTestable ? { warning: nothingTestable } : {}),
         patternsUsed: generatedTests.patternsUsed,
         llmEnhanced,
         ...(llmEnhanced ? {} : {

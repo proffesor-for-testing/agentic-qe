@@ -168,12 +168,16 @@ export class TestQualityGate {
    * @param testCode - The generated test source code
    * @param sourceFilePath - Path to the source file under test
    * @param sourceCode - Optional source code content for mirrored assertion check
+   * @param importTarget - #1355: the module path the test is meant to import,
+   *   when it differs from sourceFilePath (inline sourceCode is analysed from a
+   *   temp file but imported by its logical path). Defaults to sourceFilePath.
    * @returns Gate result with pass/fail, issues, and score
    */
   validate(
     testCode: string,
     sourceFilePath: string,
-    sourceCode?: string
+    sourceCode?: string,
+    importTarget?: string
   ): TestQualityGateResult {
     const issues: TestQualityIssue[] = getGeneratedTestSyntaxIssues(testCode, sourceFilePath);
 
@@ -187,7 +191,7 @@ export class TestQualityGate {
     }
 
     if (this.config.checkSourceImports) {
-      issues.push(...this.detectMissingSourceImports(testCode, sourceFilePath));
+      issues.push(...this.detectMissingSourceImports(testCode, importTarget ?? sourceFilePath));
     }
 
     if (this.config.checkTautologicalAssertions) {

@@ -57,9 +57,14 @@ describe('#787 behavior examples via real MCP tools/call', () => {
     const params = { sourceCode: 'export function add(a,b) { return a+b; }', framework: 'vitest', aiEnhancement: false };
     const scaffold = await call('test_generate_enhanced', params);
     expect(scaffold.success).toBe(true);
-    expect(scaffold.data.tests[0].generationMode).toBe('scaffolding');
-    expect(scaffold.data.tests[0].generationLimits.join(' ')).toContain('Inline source');
-    expect(scaffold.data.tests[0].testCode).not.toContain('new moduleUnderTest');
+    // #1355: a scaffold is not a generated test; it is returned under scaffolds.
+    expect(scaffold.data.testsGenerated).toBe(0);
+    expect(scaffold.data.tests).toEqual([]);
+    expect(scaffold.data.reason).toMatch(/^Nothing testable in the supplied sourceCode: /);
+    expect(scaffold.data.scaffolds[0].scaffold).toBe(true);
+    expect(scaffold.data.scaffolds[0].generationMode).toBe('scaffolding');
+    expect(scaffold.data.scaffolds[0].generationLimits.join(' ')).toContain('Inline source');
+    expect(scaffold.data.scaffolds[0].testCode).not.toContain('new moduleUnderTest');
     const invalid = await call('test_generate_enhanced', { ...params, behaviorExamples: [{ functionName: 'missing', args: [], expected: 1 }] });
     expect(invalid.success).toBe(false);
   }, 180000);
