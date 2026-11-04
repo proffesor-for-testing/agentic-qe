@@ -74,7 +74,8 @@ import { DEFAULT_CONFIG, httpGet } from './security-auditor-types.js';
 // Import extracted modules
 import { performSASTScan } from './security-auditor-sast.js';
 import { performDASTScan } from './security-auditor-dast.js';
-import { isRefusedHardlink, scanFileForSecrets, SECRET_SCAN_HARDLINKS } from './security-auditor-secrets.js';
+import { isRefusedHardlink, scanFileForSecrets } from './security-auditor-secrets.js';
+import type { HardlinkPolicy } from '../../../shared/io/confined-read.js';
 import {
   calculateOverallRisk,
   generateRecommendations,
@@ -268,7 +269,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
       }
 
       if (options.includeSecrets) {
-        secretScanResults = await this.performSecretScan();
+        secretScanResults = await this.performSecretScan(options.sourceHardlinks ?? 'allow');
       }
 
       const overallRiskScore = calculateOverallRisk(
@@ -330,7 +331,11 @@ export class SecurityAuditorService implements ISecurityAuditorService {
     }
   }
 
-  async scanSecrets(files: FilePath[]): Promise<Result<SecretScanResult>> {
+  /**
+   * #1350: `read.hardlinks` refuses hardlinked files (listed in `refused`);
+   * MCP callers pass 'refuse-outside-node-modules'. Default 'allow'.
+   */
+  async scanSecrets(files: FilePath[], read: { hardlinks?: HardlinkPolicy } = {}): Promise<Result<SecretScanResult>> {
     try {
       const secretsFound: DetectedSecret[] = [];
       const refused: Array<{ path: string; reason: 'hardlinked' }> = [];
@@ -340,7 +345,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
         if (this.shouldExclude(file.value)) {
           continue;
         }
-        const secrets = await this.scanOneForSecrets(file, refused);
+        const secrets = await this.scanOneForSecrets(file, refused, read.hardlinks ?? 'allow');
         if (secrets === null) continue;
         filesScanned++;
         secretsFound.push(...secrets);
@@ -779,7 +784,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
     }
   }
 
-  private async performSecretScan(): Promise<SecretScanResult> {
+  private async performSecretScan(hardlinks: HardlinkPolicy): Promise<SecretScanResult> {
     const secretsFound: DetectedSecret[] = [];
     const refused: Array<{ path: string; reason: 'hardlinked' }> = [];
     let filesScanned = 0;
@@ -792,7 +797,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
           continue;
         }
         const filePathObj = { value: filePath } as FilePath;
-        const secrets = await this.scanOneForSecrets(filePathObj, refused);
+        const secrets = await this.scanOneForSecrets(filePathObj, refused, hardlinks);
         if (secrets === null) continue;
         filesScanned++;
         secretsFound.push(...secrets);
@@ -805,16 +810,17 @@ export class SecurityAuditorService implements ISecurityAuditorService {
   }
 
   /**
-   * #1350: scan one file, or record it in `refused` and return null when it
-   * is a hardlink (which can point outside the project), so a refused file
-   * is reported and not counted as scanned clean.
+   * #1350: scan one file, or record it in `refused` and return null when the
+   * policy refuses it as a hardlink (which can point outside the project), so
+   * a refused file is reported and not counted as scanned clean.
    */
   private async scanOneForSecrets(
     file: FilePath,
     refused: Array<{ path: string; reason: 'hardlinked' }>,
+    hardlinks: HardlinkPolicy,
   ): Promise<DetectedSecret[] | null> {
     try {
-      return await scanFileForSecrets(file, { hardlinks: SECRET_SCAN_HARDLINKS });
+      return await scanFileForSecrets(file, { hardlinks });
     } catch (error) {
       if (!isRefusedHardlink(error)) throw error;
       refused.push({ path: file.value, reason: 'hardlinked' });

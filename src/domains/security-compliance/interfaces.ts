@@ -480,6 +480,11 @@ export interface SecurityAuditOptions {
   readonly includeDependencies: boolean;
   readonly includeSecrets: boolean;
   readonly targetUrl?: string;
+  /**
+   * #1350: how the secret scan reads the files it finds. MCP task callers
+   * pass 'refuse-outside-node-modules'; default 'allow' (CLI, workflows).
+   */
+  readonly sourceHardlinks?: import('../../shared/io/confined-read.js').HardlinkPolicy;
 }
 
 export interface SecurityAuditReport {

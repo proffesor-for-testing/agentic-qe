@@ -146,6 +146,15 @@ describe('Task Handlers', () => {
       expect(result.error).toBe('Fleet not initialized. Call fleet_init first.');
     });
 
+    // #1350: the hardlink policy rides on the task (trusted), never the payload.
+    it('submits with the MCP hardlink policy, which the payload cannot override', async () => {
+      const queen = getFleetState().queen as unknown as { submitTask: (...args: unknown[]) => unknown };
+      const spy = vi.spyOn(queen, 'submitTask');
+      await handleTaskSubmit({ type: 'sast-scan', payload: { files: ['src/a.ts'], readHardlinks: 'allow' } } as never);
+      expect(spy).toHaveBeenCalledWith(expect.objectContaining({ readHardlinks: 'refuse-outside-node-modules' }));
+      spy.mockRestore();
+    });
+
     it('should submit task with required type', async () => {
       const result = await handleTaskSubmit({
         type: 'generate-tests',
@@ -503,6 +512,14 @@ describe('Task Handlers', () => {
       expect(result.success).toBe(false);
       expect(result.error).toBe('Fleet not initialized. Call fleet_init first.');
     });
+
+    it('submits with the MCP hardlink policy (#1350)', async () => {
+      const queen = getFleetState().queen as unknown as { submitTask: (...args: unknown[]) => unknown };
+      const spy = vi.spyOn(queen, 'submitTask');
+      await handleTaskOrchestrate({ task: 'Generate unit tests for the authentication module', filePaths: ['src/auth.ts'] });
+      expect(spy).toHaveBeenCalledWith(expect.objectContaining({ readHardlinks: 'refuse-outside-node-modules' }));
+      spy.mockRestore();
+    }, 30000);
 
     it('should orchestrate task from description', async () => {
       const result = await handleTaskOrchestrate({

@@ -35,10 +35,11 @@ export interface FileReaderOptions {
   /**
    * #1350: how an in-root read (`projectRoot` set) treats a file with more
    * than one hardlink, which, like a symlink, can expose an outside file but
-   * cannot be seen by a path check. Default 'refuse-outside-node-modules':
-   * refused (FileReadError code HARDLINKED) unless it lies under the
-   * project's node_modules, where pnpm and bun hardlink every package file.
-   * Paths outside the root are unaffected.
+   * cannot be seen by a path check. 'refuse-outside-node-modules' refuses
+   * one (FileReadError code HARDLINKED) unless it lies under the project's
+   * node_modules, where pnpm and bun hardlink every package file; for a
+   * reader serving MCP callers. Default 'allow', as the CLI reads the
+   * operator's own files. Paths outside the root are unaffected.
    */
   hardlinks?: HardlinkPolicy;
 }
@@ -330,7 +331,7 @@ export class FileReader {
     this.basePath = options.basePath ?? process.cwd();
     this.enableCache = options.enableCache ?? true;
     this.projectRoot = options.projectRoot ? path.resolve(options.projectRoot) : undefined;
-    this.hardlinks = options.hardlinks ?? 'refuse-outside-node-modules';
+    this.hardlinks = options.hardlinks ?? 'allow';
     this.cache = new LRUCache<string>(
       options.maxCacheSize ?? 100,
       options.cacheTtlMs ?? 5 * 60 * 1000 // 5 minutes default

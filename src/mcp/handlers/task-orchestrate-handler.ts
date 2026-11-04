@@ -385,6 +385,9 @@ export async function handleTaskOrchestrate(
           : undefined,
       },
       timeout: 600000, // 10 minutes for orchestrated tasks
+      // #1350: domain plugins refuse a hardlink outside node_modules among
+      // the files this MCP caller names (set on the task, not the payload).
+      readHardlinks: 'refuse-outside-node-modules',
     });
 
     if (!result.success) {

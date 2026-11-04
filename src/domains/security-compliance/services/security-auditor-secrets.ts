@@ -224,14 +224,6 @@ export function validateSecret(type: DetectedSecret['type'], value: string): boo
   }
 }
 
-/**
- * #1350: how the secret scanners read the files they find. A hardlink can
- * point outside the project, so one is refused, except under node_modules,
- * where pnpm and bun hardlink every package file (the scanners exclude
- * node_modules by default, so this only matters if that exclusion is lifted).
- */
-export const SECRET_SCAN_HARDLINKS: HardlinkPolicy = 'refuse-outside-node-modules';
-
 /** True when a scanFileForSecrets error is a refused hardlink (#1350). */
 export function isRefusedHardlink(error: unknown): boolean {
   return error instanceof ConfinedReadError && error.reason === 'hardlinked';

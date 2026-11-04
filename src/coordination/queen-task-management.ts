@@ -297,6 +297,8 @@ export async function assignTaskToDomain(
         priority: task.priority,
         timeout: task.timeout,
         correlationId: task.correlationId,
+        // #1350: trusted read policy from the submitter (MCP), not the payload.
+        ...(task.readHardlinks ? { readHardlinks: task.readHardlinks } : {}),
       };
 
       // #1140: a plugin that throws is treated like one that returns err, so

@@ -83,6 +83,10 @@ export async function handleTaskSubmit(
       targetDomains,
       payload: params.payload || {},
       timeout: params.timeout || 300000,
+      // #1350: files an MCP caller names, or that are found under a target it
+      // names, refuse a hardlink outside node_modules. Set on the task, not
+      // the payload, so a caller cannot opt out.
+      readHardlinks: 'refuse-outside-node-modules',
     });
 
     if (!result.success) {

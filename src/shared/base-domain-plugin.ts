@@ -30,7 +30,9 @@ import { toErrorMessage } from './error-utils.js';
  * Handlers receive the task payload and return a result
  */
 export type TaskHandler = (
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
+  /** #1350: the whole request, for its trusted `readHardlinks` policy. */
+  request?: DomainTaskRequest
 ) => Promise<Result<unknown, Error>>;
 
 // ============================================================================
@@ -359,7 +361,7 @@ export abstract class BaseDomainPlugin implements DomainPlugin {
 
     try {
       // Execute the handler
-      const result = await handler(request.payload);
+      const result = await handler(request.payload, request);
       const duration = Date.now() - startTime;
 
       // Build result based on handler outcome

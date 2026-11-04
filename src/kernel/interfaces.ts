@@ -107,6 +107,13 @@ export interface DomainTaskRequest {
   readonly timeout: number;
   /** Correlation ID for tracing */
   readonly correlationId?: string;
+  /**
+   * #1350: how the domain reads files the task names or finds under a
+   * target it names. Set by the submitting process, never from the payload:
+   * the MCP task tools pass 'refuse-outside-node-modules'; the CLI leaves it
+   * unset, so the operator's own files are read as before ('allow').
+   */
+  readonly readHardlinks?: import('../shared/io/confined-read.js').HardlinkPolicy;
 }
 
 /**

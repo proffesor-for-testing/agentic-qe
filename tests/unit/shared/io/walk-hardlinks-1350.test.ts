@@ -92,22 +92,22 @@ describe('walk hardlink policy (#1350)', () => {
   });
 
   describe('FileReader in-root reads', () => {
-    it('refuses a hardlink outside node_modules as HARDLINKED by default', async () => {
-      const result = await new FileReader({ projectRoot: root }).readFile(leak);
+    it("refuses a hardlink outside node_modules as HARDLINKED with 'refuse-outside-node-modules'", async () => {
+      const result = await new FileReader({ projectRoot: root, hardlinks: 'refuse-outside-node-modules' }).readFile(leak);
       expect(result.success).toBe(false);
       if (result.success) return;
       expect(result.error).toMatchObject({ code: 'HARDLINKED' });
       expect(result.error.message).not.toContain(SECRET);
     });
 
-    it('reads a pnpm store hardlink and plain files by default', async () => {
-      const reader = new FileReader({ projectRoot: root });
+    it('reads a pnpm store hardlink and plain files with that policy', async () => {
+      const reader = new FileReader({ projectRoot: root, hardlinks: 'refuse-outside-node-modules' });
       expect(await reader.readFile(store)).toMatchObject({ success: true });
       expect(await reader.readFile(plain)).toMatchObject({ success: true, value: 'export const plain = 1;\n' });
     });
 
-    it("reads the hardlink when the caller opts into 'allow'", async () => {
-      const result = await new FileReader({ projectRoot: root, hardlinks: 'allow' }).readFile(leak);
+    it('reads the hardlink by default, as the CLI does', async () => {
+      const result = await new FileReader({ projectRoot: root }).readFile(leak);
       expect(result).toMatchObject({ success: true });
     });
   });
@@ -143,12 +143,20 @@ describe('walk hardlink policy (#1350)', () => {
   describe('secrets scanner', () => {
     it('lists a refused hardlink instead of counting it as scanned clean', async () => {
       const auditor = new SecurityAuditorService(memory());
-      const result = await auditor.scanSecrets([FilePath.create(leak), FilePath.create(plain)]);
+      const result = await auditor.scanSecrets([FilePath.create(leak), FilePath.create(plain)],
+        { hardlinks: 'refuse-outside-node-modules' });
       expect(result.success).toBe(true);
       if (!result.success) return;
       expect(result.value.filesScanned).toBe(1);
       expect(result.value.refused).toEqual([{ path: leak, reason: 'hardlinked' }]);
       expect(JSON.stringify(result.value)).not.toContain(SECRET);
+    });
+
+    it('reads the hardlink by default, as the CLI does', async () => {
+      const result = await new SecurityAuditorService(memory()).scanSecrets([FilePath.create(leak)]);
+      expect(result.success && result.value).toMatchObject({ filesScanned: 1 });
+      expect(result.success && result.value.refused).toBeUndefined();
+      expect(result.success && result.value.secretsFound.length).toBeGreaterThan(0);
     });
   });
 
