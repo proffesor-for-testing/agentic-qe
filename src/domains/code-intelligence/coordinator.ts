@@ -420,10 +420,13 @@ export class CodeIntelligenceCoordinator
       // the shared connection, so hypergraph writes join its write queue and
       // a database locked by another process no longer freezes the event
       // loop for the busy_timeout. A custom hypergraphDbPath keeps its own.
-      const { queuedConnectionFor } = await import('../../shared/sqlite-write-queue.js');
+      const { isUnqueuedFallback, queuedConnectionFor } = await import('../../shared/sqlite-write-queue.js');
       const shared = inMemory ? undefined : queuedConnectionFor<import('better-sqlite3').Database>(dbPath);
       this.hypergraphDb = shared ?? openDatabase(dbPath);
       this.ownsHypergraphDb = !shared;
+      if (!shared && !inMemory && isUnqueuedFallback(dbPath)) {
+        logger.debug('memory.db shared connection not registered yet; hypergraph uses a private, unqueued connection', { dbPath });
+      }
 
       // Create hypergraph engine
       this.hypergraph = await createHypergraphEngine({

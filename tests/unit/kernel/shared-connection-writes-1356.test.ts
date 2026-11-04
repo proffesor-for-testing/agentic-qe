@@ -20,7 +20,7 @@ import Database, { type Database as DatabaseType } from 'better-sqlite3';
 import { getUnifiedMemory, resetUnifiedMemory, type UnifiedMemoryManager } from '../../../src/kernel/unified-memory.js';
 import { resetUnifiedPersistence } from '../../../src/kernel/unified-persistence.js';
 import { setLockWaitCap } from '../../../src/shared/sqlite-lock-wait.js';
-import { queuedConnectionFor } from '../../../src/shared/sqlite-write-queue.js';
+import { isUnqueuedFallback, queuedConnectionFor } from '../../../src/shared/sqlite-write-queue.js';
 import { LearningMetricsTracker } from '../../../src/learning/metrics-tracker.js';
 import {
   loadEmbedderIdentity,
@@ -125,6 +125,18 @@ describe('queuedConnectionFor (#1356)', () => {
     expect(queuedConnectionFor(':memory:')).toBeUndefined();
     resetUnifiedMemory();
     expect(queuedConnectionFor(dbPath)).toBeUndefined();
+  });
+});
+
+describe('isUnqueuedFallback (#1356)', () => {
+  it('flags memory.db without a registered connection only under the MCP lock cap', async () => {
+    expect(isUnqueuedFallback(dbPath)).toBe(true); // cap set, manager not initialized yet
+    expect(isUnqueuedFallback(':memory:')).toBe(false);
+    setLockWaitCap(null);
+    expect(isUnqueuedFallback(dbPath)).toBe(false); // CLI: no cap, nothing to report
+    setLockWaitCap(CAP_MS);
+    await openMemory();
+    expect(isUnqueuedFallback(dbPath)).toBe(false);
   });
 });
 

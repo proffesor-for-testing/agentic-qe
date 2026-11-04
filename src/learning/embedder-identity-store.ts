@@ -59,7 +59,8 @@ function openDb(): import('better-sqlite3').Database | null {
   // #1356: in the MCP server UnifiedMemoryManager already holds memory.db
   // open with a write queue. Use that connection (never closed here) so the
   // identity write is queued instead of waiting synchronously for a locked
-  // database on a second connection.
+  // database on a second connection. Looked up on every call, so once the
+  // manager has registered its connection it wins over an earlier cachedDb.
   const shared = queuedConnectionFor<import('better-sqlite3').Database>(getMemoryDbPath());
   if (shared) return shared;
   if (cachedDb) return cachedDb;

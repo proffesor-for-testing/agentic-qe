@@ -15,7 +15,7 @@
 
 import { type Database as DatabaseType } from 'better-sqlite3';
 import { openDatabase } from '../shared/safe-db.js';
-import { queuedConnectionFor, writeWhenUnlockedOn } from '../shared/sqlite-write-queue.js';
+import { isUnqueuedFallback, queuedConnectionFor, writeWhenUnlockedOn } from '../shared/sqlite-write-queue.js';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
 import type { QEDomain } from './qe-patterns.js';
@@ -182,6 +182,9 @@ export class LearningMetricsTracker {
     const shared = queuedConnectionFor<DatabaseType>(this.dbPath);
     this.db = shared ?? openDatabase(this.dbPath);
     this.ownsDb = !shared;
+    if (!shared && isUnqueuedFallback(this.dbPath)) {
+      logger.debug('memory.db shared connection not registered yet; using a private, unqueued connection', { dbPath: this.dbPath });
+    }
 
     // Ensure learning_metrics table exists for snapshots
     const db = this.db;

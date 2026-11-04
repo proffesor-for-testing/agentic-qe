@@ -13,11 +13,13 @@
  * file with `queuedConnectionFor` (#1356), so their writes join the same
  * queue instead of waiting synchronously on a second connection.
  *
- * Dependency-free (Node built-ins only) so any module can import it.
+ * Dependency-free (Node built-ins and sqlite-lock-wait only) so any module can
+ * import it.
  */
 
 import { realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { getLockWaitCap } from './sqlite-lock-wait.js';
 
 /** A connection's FIFO write queue: runs `fn` when the database is unlocked. */
 export type WriteQueue = <T>(fn: () => T) => Promise<T>;
@@ -64,12 +66,35 @@ export function unregisterWriteQueue(db: object): void {
  * one instead, must not close it, and routes its writes through
  * `writeWhenUnlockedOn`. Undefined for any other file, so a custom path keeps
  * its own connection.
+ *
+ * Only a connection that UnifiedMemoryManager.initialize() has already
+ * registered can be borrowed (it registers at the end of init): a module that
+ * looks it up earlier gets undefined, opens its own connection, and its writes
+ * are not queued, as before #1356. So borrow at first use, not at
+ * construction, and report a fallback with `isUnqueuedFallback`.
+ *
+ * The borrower holds the shared handle, not a copy. Once the manager closes
+ * it (UnifiedMemoryManager.close(), resetUnifiedMemory/resetUnifiedPersistence,
+ * test-only outside shutdown today) the handle is dead and every call on it
+ * throws. A long-lived borrower, such as DreamScheduler's metricsTracker or
+ * the code-intelligence coordinator's hypergraph engine, must not outlive
+ * the manager.
  */
 export function queuedConnectionFor<T extends object = object>(dbPath: string): T | undefined {
   if (!dbPath || dbPath === ':memory:') return undefined;
   const db = byFile.get(fileKey(dbPath));
   if (!db || (db as { open?: unknown }).open === false) return undefined;
   return db as T;
+}
+
+/**
+ * True when a module that looked up `dbPath` and got nothing is running in
+ * the MCP server (the lock wait cap is set): its private connection's writes
+ * then wait synchronously for a locked database. Callers log it at debug
+ * level so a startup-order gap is visible.
+ */
+export function isUnqueuedFallback(dbPath: string): boolean {
+  return getLockWaitCap() !== null && dbPath !== ':memory:' && queuedConnectionFor(dbPath) === undefined;
 }
 
 /** True when writes on `db` are queued. */
