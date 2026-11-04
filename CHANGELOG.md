@@ -23,6 +23,18 @@ Changes queued for 3.15.19.
 - **`contract_validate` says why a contract is invalid** ([#1349]): the
   result now carries an `error` field, for example `hardlinked` or
   `invalid JSON`, instead of only `valid: false`.
+- **More MCP reads refuse hardlinked files** ([#1350], [#1358]): test
+  generation (`test_generate_enhanced`) refuses a hardlinked source file,
+  and a request that names one fails instead of generating tests from the
+  other file. `qe/coverage/analyze` and `qe/coverage/gaps` refuse a
+  hardlinked coverage report, and quality-criteria analysis reads epic
+  files the same way. An invalid coverage report now fails with "Coverage
+  report is not valid JSON" instead of quoting the file's contents. The
+  `aqe test generate` CLI still reads hardlinked source files.
+- **`aqe sync` exit codes** ([#1345], [#1357]): `aqe sync` and
+  `aqe sync pull` now exit 1 when the sync fails and 2 when it only partly
+  completes, so scripts and CI can detect a sync that did not finish.
+  Before, they always exited 0. A dry run still exits 0.
 
 ### Fixed
 
@@ -30,10 +42,40 @@ Changes queued for 3.15.19.
   run no longer opens the gcloud IAP tunnel or the database connection, so
   it works on a machine without cloud configuration. The report is marked
   as a dry run and shows "Records That Would Sync".
+- **Coverage summaries outside the project are ignored** ([#1337],
+  [#1359]): the context builder, `aqe prove`, the post-command hook,
+  `aqe init`'s project analysis, the planning world state and the claim
+  verifier read `coverage-summary.json` through the confined reader. A
+  report that is a symlink to a file outside the project, or a FIFO, is
+  skipped instead of read. The context source now looks for the report at
+  the project root, so running from a monorepo subdirectory still finds it.
+- **MCP database writes wait out a lock** ([#1283], [#1360]): the remaining
+  `memory.db` writes the MCP server makes (pattern usage, trajectories,
+  metrics, audit and witness entries, retention cleanup) now wait for
+  another process's lock instead of failing with "database is locked". On
+  shutdown the server waits up to about 2 s for queued writes before it
+  closes the database, so a slow shutdown under a lock can take up to
+  about 2.7 s.
+
+### Dependencies
+
+- In-range security updates to locked dependency versions ([#1353]).
+- `glob` 14 (a development dependency), so the dev tooling no longer pulls
+  the vulnerable `minimatch` 10 ([#1362]).
 
 [#1331]: https://github.com/proffesor-for-testing/agentic-qe/issues/1331
 [#1348]: https://github.com/proffesor-for-testing/agentic-qe/pull/1348
 [#1349]: https://github.com/proffesor-for-testing/agentic-qe/pull/1349
+[#1283]: https://github.com/proffesor-for-testing/agentic-qe/issues/1283
+[#1337]: https://github.com/proffesor-for-testing/agentic-qe/issues/1337
+[#1345]: https://github.com/proffesor-for-testing/agentic-qe/issues/1345
+[#1350]: https://github.com/proffesor-for-testing/agentic-qe/issues/1350
+[#1353]: https://github.com/proffesor-for-testing/agentic-qe/pull/1353
+[#1357]: https://github.com/proffesor-for-testing/agentic-qe/pull/1357
+[#1358]: https://github.com/proffesor-for-testing/agentic-qe/pull/1358
+[#1359]: https://github.com/proffesor-for-testing/agentic-qe/pull/1359
+[#1360]: https://github.com/proffesor-for-testing/agentic-qe/pull/1360
+[#1362]: https://github.com/proffesor-for-testing/agentic-qe/pull/1362
 
 ## [3.15.18] - 2026-11-01
 
