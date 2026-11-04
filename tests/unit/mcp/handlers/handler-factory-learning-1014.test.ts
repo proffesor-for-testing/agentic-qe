@@ -68,6 +68,31 @@ describe('#1014 — handler-factory learning gates', () => {
     expect(loop.recordCoverageSession).not.toHaveBeenCalled();
   });
 
+  // #1369: generation is not execution, even when a generated object
+  // happens to carry a pass/fail-shaped field.
+  it.each([
+    ['tests', undefined], ['tests', true], ['tests', false],
+    ['generatedTests', undefined], ['generatedTests', true], ['generatedTests', false],
+  ] as const)('does not insert execution outcomes for generated %s with passed=%s', async (field, passed) => {
+    const generated = { id: 'generated-1', name: 'adds numbers', code: 'expect(add(2, 3)).toBe(5)',
+      ...(passed === undefined ? {} : { passed }) };
+    const data = { [field]: [generated], testsGenerated: 1 };
+    executor.execute.mockResolvedValueOnce({ success: true, data, duration: 10 });
+    const handler = createDomainHandler<{ target: string }, CovResult>({
+      domain: 'test-generation',
+      taskType: 'generate-tests',
+      buildTaskDescription: p => `Generate tests for ${p.target}`,
+      mapToPayload: p => ({ target: p.target }),
+      mapToResult: (taskId, d, duration) => ({ taskId, status: 'completed', duration, data: d }),
+    });
+
+    const result = await handler({ target: 'src' });
+    expect(result.success).toBe(true);
+    expect(result.data?.data).toEqual(data);
+    expect(loop.recordTestOutcome).not.toHaveBeenCalled();
+    expect(loop.recordCoverageSession).not.toHaveBeenCalled();
+  });
+
   it('records a measured run, stamped with its provenance in the session context', async () => {
     await runCoverage({ lineCoverage: 57.1, branchCoverage: null, functionCoverage: 40, measured: true, estimated: false,
       coverageMethod: 'instrumented-report', gaps: [] });
