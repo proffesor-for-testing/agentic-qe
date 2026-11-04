@@ -2,16 +2,16 @@
  * #1355: one verdict for "is this generated test real?", shared by the CLI
  * (`aqe test generate`) and the MCP tool (`test_generate_enhanced`).
  *
- * A generated test counts only when the test quality gate passed it. A test
- * the gate did not pass (or never ran on) is scaffolding: a `test.skip` stub,
- * a file with no executable assertion, or one that never imports the source.
+ * `aqe test generate` keeps only tests the full quality gate passed
+ * (partitionByQualityGate). test_generate_enhanced counts by the narrower
+ * isUnexecutableScaffold, because the full gate misjudges non-JS tests.
  */
-import type { TestQualityGateResult } from './test-quality-gate.js';
+import { isJavaScriptFamily, type TestQualityGateResult } from './test-quality-gate.js';
 
 export interface GateCheckedTest {
   sourceFile?: string;
   qualityGateResult?: Pick<TestQualityGateResult, 'passed'> & {
-    issues?: Array<{ description?: string }>;
+    issues?: Array<{ type?: string; description?: string }>;
   };
 }
 
@@ -37,4 +37,27 @@ export function describeGateRejection(test: GateCheckedTest): string {
     ?.map(issue => issue.description)
     .filter(Boolean)
     .join('; ') || 'missing passing quality evidence';
+}
+
+/**
+ * #1355: the narrower verdict test_generate_enhanced counts by. The full gate
+ * cannot judge every language: its assertion check for non-JS code is a regex
+ * and its import check reads only quoted ES/CJS specifiers, so valid pytest,
+ * Go and JUnit tests, and TS tests importing a path alias or a directory index,
+ * fail it. A test is treated as scaffolding only when the generator labelled it
+ * so, or when the TypeScript parser found it unexecutable (a syntax error, or
+ * no executable assertion) in JavaScript/TypeScript code.
+ *
+ * @param analysedFile - the source file the test was generated from, with its
+ *   real extension (the temp file for inline sourceCode).
+ */
+export function isUnexecutableScaffold(
+  test: GateCheckedTest & { generationMode?: string },
+  analysedFile: string | undefined,
+): boolean {
+  if (test.generationMode === 'scaffolding') return true;
+  if (!analysedFile || !isJavaScriptFamily(analysedFile)) return false;
+  return (test.qualityGateResult?.issues ?? []).some(
+    issue => issue.type === 'syntax-error' || issue.type === 'no-assertions',
+  );
 }

@@ -7,6 +7,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs/promises';
+import * as path from 'path';
 import { ok, err, type Result } from '../../shared/types';
 import { toError } from '../../shared/error-utils.js';
 import type { TaskHandlerContext } from './handler-types';
@@ -18,7 +19,7 @@ import { createPytestJunitReport, isPythonTestFile, pytestCommand, pytestRunFrom
 import { runTestRunnerProcess } from '../../shared/test-runner-process.js';
 import { MAX_PAYLOAD_FILE_BYTES, requirePayloadFiles } from '../../shared/io/payload-path-guard.js';
 import { groupByRunnerProject, requireTestRunTargets, runnerFrameworkFor } from '../../shared/test-runner-project.js';
-import { describeGateRejection, partitionByQualityGate } from '../../domains/test-generation/gates/gate-verdict.js';
+import { describeGateRejection, isUnexecutableScaffold } from '../../domains/test-generation/gates/gate-verdict.js';
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -212,7 +213,14 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
         const field = payload.sourceFiles?.length ? 'sourceFiles' : 'filePath';
         const confined = await requirePayloadFiles('generate-tests', field, sourceFiles, { maxBytes: MAX_PAYLOAD_FILE_BYTES });
         if (!confined.success) return confined;
-        sourceFiles = confined.value;
+        // #1355: one test per file, however often or however the path was named
+        // (relative or absolute); the generator reads relative paths from cwd.
+        const seen = new Set<string>();
+        sourceFiles = [];
+        for (const file of confined.value) {
+          const key = await fs.realpath(file).catch(() => path.resolve(file));
+          if (!seen.has(key)) { seen.add(key); sourceFiles.push(file); }
+        }
       } else if (payload.sourceCode) {
         // Write temporary file for analysis if only source code provided
         // Use correct file extension based on language parameter
@@ -278,6 +286,7 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
       // that reference a real source path (or a clear placeholder) rather than
       // a /tmp/aqe-temp-* path that never existed in their codebase.
       const tests = generatedTests.tests.map(t => {
+        const analysedFile = t.sourceFile;
         const rewritten = rewriteTempPathsInGeneratedTest(
           t.testCode,
           t.sourceFile,
@@ -294,18 +303,24 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
           generationLimits: t.generationLimits,
           testCode: rewritten.testCode,
           qualityGateResult: t.qualityGateResult,
-          llmEnhanced: t.llmEnhanced,
+          unexecutable: isUnexecutableScaffold(t, analysedFile),
         };
       });
 
-      // #1355: the same quality-gate verdict as `aqe test generate`. A test the
-      // gate did not pass (a test.skip scaffold, no executable assertion) is
-      // not a generated test; it is returned separately, labelled scaffold.
-      const { passed, rejected } = partitionByQualityGate(tests);
+      // #1355: a scaffold (labelled so by the generator, or JS/TS the parser
+      // found unexecutable) is not a generated test; it is returned separately.
+      // Other gate findings stay on the test as qualityGateResult: the gate
+      // cannot judge non-JS assertions or alias/index imports (see
+      // isUnexecutableScaffold), so they do not drop a test.
+      const passed = tests.filter(t => !t.unexecutable).map(({ unexecutable: _u, ...t }) => t);
+      const rejected = tests.filter(t => t.unexecutable);
       const shownFile = (f?: string) => (f && f === tempPath ? 'the supplied sourceCode' : f || 'the source');
-      const scaffolds = rejected.map(({ qualityGateResult: _gate, llmEnhanced: _llm, ...t }) => ({
+      const scaffolds = rejected.map(({ qualityGateResult: _gate, unexecutable: _u, ...t }) => ({
         ...t, sourceFile: t.sourceFile === tempPath ? undefined : t.sourceFile,
-        scaffold: true as const, rejectedBecause: describeGateRejection({ qualityGateResult: _gate }),
+        scaffold: true as const,
+        rejectedBecause: t.generationMode === 'scaffolding' && !_gate?.issues?.length
+          ? 'The generator produced scaffolding only.'
+          : describeGateRejection({ qualityGateResult: _gate }),
       }));
       const nothingTestable = passed.length === 0 && rejected.length > 0
         ? `Nothing testable in ${[...new Set(rejected.map(t => shownFile(t.sourceFile)))].join(', ')}: ` +
@@ -315,12 +330,13 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
       // #567: surface whether the LLM branch actually ran. Previously the only
       // clue that generation had silently fallen back to template scaffolding
       // was a suspiciously constant coverage estimate and a sub-20ms duration.
-      const llmEnhanced = passed.some(t => t.llmEnhanced === true);
+      // Computed over all generated output, kept or not (#1355 review).
+      const llmEnhanced = generatedTests.tests.some(t => t.llmEnhanced === true);
 
       return ok({
         testsGenerated: passed.length,
         coverageEstimate: passed.length > 0 ? generatedTests.coverageEstimate : null,
-        tests: passed.map(({ qualityGateResult: _gate, llmEnhanced: _llm, ...t }) => t),
+        tests: passed,
         ...(scaffolds.length > 0 ? { scaffolds } : {}),
         ...(nothingTestable ? { warning: nothingTestable } : {}),
         patternsUsed: generatedTests.patternsUsed,

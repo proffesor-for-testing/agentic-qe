@@ -7,6 +7,7 @@ import {
   describeGateRejection,
   partitionByQualityGate,
   passedQualityGate,
+  isUnexecutableScaffold,
   TestQualityGate,
 } from '../../../../src/domains/test-generation/gates/index';
 
@@ -37,5 +38,25 @@ describe('quality-gate verdict (#1355)', () => {
 
     expect(gate.validate(testCode, temp).issues.map(i => i.type)).toContain('no-source-import');
     expect(gate.validate(testCode, temp, undefined, './module-under-test').passed).toBe(true);
+  });
+
+  describe('isUnexecutableScaffold (what test_generate_enhanced counts by)', () => {
+    const failed = (...types: string[]) => ({ qualityGateResult: { passed: false, issues: types.map(type => ({ type })) } });
+
+    it('holds back generator-labelled scaffolding in any language', () => {
+      expect(isUnexecutableScaffold({ generationMode: 'scaffolding' }, 'calc.py')).toBe(true);
+    });
+
+    it('holds back JS/TS the parser found unexecutable', () => {
+      expect(isUnexecutableScaffold(failed('no-assertions'), 'src/math.ts')).toBe(true);
+      expect(isUnexecutableScaffold(failed('syntax-error'), 'src/math.mjs')).toBe(true);
+    });
+
+    it('keeps tests whose only gate findings it cannot judge', () => {
+      expect(isUnexecutableScaffold(failed('no-source-import'), 'src/math.ts')).toBe(false);
+      expect(isUnexecutableScaffold(failed('no-assertions', 'no-source-import'), 'src/calc.py')).toBe(false);
+      expect(isUnexecutableScaffold(failed('no-assertions'), 'pkg/calc.go')).toBe(false);
+      expect(isUnexecutableScaffold(failed('no-assertions'), undefined)).toBe(false);
+    });
   });
 });

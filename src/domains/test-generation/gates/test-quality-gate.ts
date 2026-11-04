@@ -59,7 +59,8 @@ function scriptKindFor(filePath: string): ts.ScriptKind {
   return ts.ScriptKind.TS;
 }
 
-function isJavaScriptFamily(filePath: string): boolean {
+/** #1355: the files whose generated tests the gate parses (TypeScript AST). */
+export function isJavaScriptFamily(filePath: string): boolean {
   return /\.(?:tsx?|jsx?|mjs|cjs|mts|cts)$/i.test(filePath);
 }
 

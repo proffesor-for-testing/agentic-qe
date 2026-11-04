@@ -8,6 +8,7 @@ export {
 export {
   passedQualityGate,
   partitionByQualityGate,
+  isUnexecutableScaffold,
   describeGateRejection,
   type GateCheckedTest,
 } from './gate-verdict.js';

@@ -452,6 +452,7 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
       name: string; file?: string; testFile?: string; type: string;
       sourceFile?: string; assertions?: number; testCode?: string;
       generationMode?: string; generationLimits?: string[];
+      qualityGateResult?: { passed: boolean; issues?: Array<{ type?: string; description?: string }> };
     }>;
 
     const complexity = analyzeComplexity(sourceCode);
@@ -481,6 +482,9 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
       generationLimits: t.generationLimits,
       sourceFile: t.sourceFile,
       testFile: t.testFile || t.file,
+      // #1355: the gate's findings, shown but not used to drop the test (the
+      // gate cannot judge non-JS assertions or alias/index imports).
+      ...(t.qualityGateResult ? { qualityGate: t.qualityGateResult } : {}),
     }));
     const noTestsReason = tests.length === 0
       ? (typeof data.warning === 'string' && data.warning)
