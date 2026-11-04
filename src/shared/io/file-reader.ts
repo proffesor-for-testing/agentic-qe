@@ -8,7 +8,7 @@ import * as path from 'node:path';
 import { Result, ok, err } from '../types';
 import { validatePath } from '../security/path-traversal-validator.js';
 import { safeJsonParse } from '../safe-json.js';
-import { ConfinedReadError, readConfinedText } from './confined-read.js';
+import { ConfinedReadError, readConfinedText, type HardlinkPolicy } from './confined-read.js';
 
 // ============================================================================
 // Types
@@ -32,6 +32,15 @@ export interface FileReaderOptions {
    * outside the root keep every legacy check. Omit to keep legacy behaviour.
    */
   projectRoot?: string;
+  /**
+   * #1350: how an in-root read (`projectRoot` set) treats a file with more
+   * than one hardlink, which, like a symlink, can expose an outside file but
+   * cannot be seen by a path check. Default 'refuse-outside-node-modules':
+   * refused (FileReadError code HARDLINKED) unless it lies under the
+   * project's node_modules, where pnpm and bun hardlink every package file.
+   * Paths outside the root are unaffected.
+   */
+  hardlinks?: HardlinkPolicy;
 }
 
 /** Extensions never read, inside or outside the project root. */
@@ -307,6 +316,7 @@ export class FileReader {
   private readonly cache: LRUCache<string>;
   private readonly enableCache: boolean;
   private readonly projectRoot?: string;
+  private readonly hardlinks: HardlinkPolicy;
   private projectRootReal?: Promise<string | null>;
   private stats: FileReaderStats = {
     cacheHits: 0,
@@ -320,6 +330,7 @@ export class FileReader {
     this.basePath = options.basePath ?? process.cwd();
     this.enableCache = options.enableCache ?? true;
     this.projectRoot = options.projectRoot ? path.resolve(options.projectRoot) : undefined;
+    this.hardlinks = options.hardlinks ?? 'refuse-outside-node-modules';
     this.cache = new LRUCache<string>(
       options.maxCacheSize ?? 100,
       options.cacheTtlMs ?? 5 * 60 * 1000 // 5 minutes default
@@ -421,11 +432,14 @@ export class FileReader {
       // #1186: the caller's spelling, not `lexical`, so `link/../x` resolves
       // through the link the way the kernel and the payload guard resolve it.
       const raw = path.isAbsolute(filePath) ? filePath : `${path.resolve(this.basePath)}${path.sep}${filePath}`;
-      return ok(await readConfinedText(raw, { projectRoot: this.projectRoot ?? rootReal }));
+      return ok(await readConfinedText(raw, { projectRoot: this.projectRoot ?? rootReal, hardlinks: this.hardlinks }));
     } catch (error) {
       if (!(error instanceof ConfinedReadError)) return err(readError(error, lexical));
       if (error.reason === 'outside-project-root') {
         return err(new PathTraversalError(filePath, ['Path resolves outside the project root'], 'critical'));
+      }
+      if (error.reason === 'hardlinked') {
+        return err(new FileReadError('Refused a file with more than one hardlink: ' + lexical, lexical, 'HARDLINKED'));
       }
       if (error.reason === 'not-a-file') {
         return err(new FileReadError('Not a regular file: ' + lexical, lexical, error.code === 'NOT_A_FILE' ? 'EISDIR' : error.code));

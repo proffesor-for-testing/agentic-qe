@@ -1244,7 +1244,8 @@ export async function parseCoverage(
  */
 export async function findAndParseCoverage(
   searchDir: string,
-  projectRoot?: string
+  projectRoot?: string,
+  read?: CoverageReadOptions,
 ): Promise<CoverageReport | null> {
   const root = projectRoot || searchDir;
 
@@ -1275,7 +1276,10 @@ export async function findAndParseCoverage(
   for (const candidate of candidates) {
     try {
       await fs.access(candidate);
-      return parseCoverage(candidate, root);
+      // #1354: `read` reaches the discovered report too, so an MCP caller's
+      // target cannot have a hardlinked report read. A refusal is thrown,
+      // like a parse failure, never taken for a missing report.
+      return parseCoverage(candidate, root, undefined, undefined, read);
     } catch {
       // File doesn't exist, try next
     }

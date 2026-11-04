@@ -74,7 +74,7 @@ import { DEFAULT_CONFIG, httpGet } from './security-auditor-types.js';
 // Import extracted modules
 import { performSASTScan } from './security-auditor-sast.js';
 import { performDASTScan } from './security-auditor-dast.js';
-import { scanFileForSecrets } from './security-auditor-secrets.js';
+import { isRefusedHardlink, scanFileForSecrets, SECRET_SCAN_HARDLINKS } from './security-auditor-secrets.js';
 import {
   calculateOverallRisk,
   generateRecommendations,
@@ -333,18 +333,20 @@ export class SecurityAuditorService implements ISecurityAuditorService {
   async scanSecrets(files: FilePath[]): Promise<Result<SecretScanResult>> {
     try {
       const secretsFound: DetectedSecret[] = [];
+      const refused: Array<{ path: string; reason: 'hardlinked' }> = [];
       let filesScanned = 0;
 
       for (const file of files) {
         if (this.shouldExclude(file.value)) {
           continue;
         }
+        const secrets = await this.scanOneForSecrets(file, refused);
+        if (secrets === null) continue;
         filesScanned++;
-        const secrets = await scanFileForSecrets(file);
         secretsFound.push(...secrets);
       }
 
-      return ok({ secretsFound, filesScanned });
+      return ok({ secretsFound, filesScanned, ...(refused.length > 0 ? { refused } : {}) });
     } catch (error) {
       return err(toError(error));
     }
@@ -779,6 +781,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
 
   private async performSecretScan(): Promise<SecretScanResult> {
     const secretsFound: DetectedSecret[] = [];
+    const refused: Array<{ path: string; reason: 'hardlinked' }> = [];
     let filesScanned = 0;
 
     try {
@@ -788,16 +791,35 @@ export class SecurityAuditorService implements ISecurityAuditorService {
         if (this.shouldExclude(filePath)) {
           continue;
         }
-        filesScanned++;
         const filePathObj = { value: filePath } as FilePath;
-        const secrets = await scanFileForSecrets(filePathObj);
+        const secrets = await this.scanOneForSecrets(filePathObj, refused);
+        if (secrets === null) continue;
+        filesScanned++;
         secretsFound.push(...secrets);
       }
     } catch (error) {
       logger.error('Secret scan failed:', error instanceof Error ? error : undefined);
     }
 
-    return { secretsFound, filesScanned };
+    return { secretsFound, filesScanned, ...(refused.length > 0 ? { refused } : {}) };
+  }
+
+  /**
+   * #1350: scan one file, or record it in `refused` and return null when it
+   * is a hardlink (which can point outside the project), so a refused file
+   * is reported and not counted as scanned clean.
+   */
+  private async scanOneForSecrets(
+    file: FilePath,
+    refused: Array<{ path: string; reason: 'hardlinked' }>,
+  ): Promise<DetectedSecret[] | null> {
+    try {
+      return await scanFileForSecrets(file, { hardlinks: SECRET_SCAN_HARDLINKS });
+    } catch (error) {
+      if (!isRefusedHardlink(error)) throw error;
+      refused.push({ path: file.value, reason: 'hardlinked' });
+      return null;
+    }
   }
 
   private async findSourceFiles(dir: string, files: string[] = []): Promise<string[]> {

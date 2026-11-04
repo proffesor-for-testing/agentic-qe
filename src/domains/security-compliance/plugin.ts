@@ -224,7 +224,11 @@ export class SecurityCompliancePlugin extends BaseDomainPlugin {
             `Pass regular files inside the project, at most ${MAX_SAST_FILE_BYTES / (1024 * 1024)} MB each.`,
           ));
         }
-        return this.securityScanner.scanFiles(accepted.map(f => FilePath.create(f)));
+        // #1350: task callers (MCP task_submit, `aqe fleet run scan`) name these
+        // files, so a hardlink outside node_modules is refused and reported
+        // as an unreadable file (HARDLINKED), not scanned.
+        return this.securityScanner.scanFiles(accepted.map(f => FilePath.create(f)),
+          { hardlinks: 'refuse-outside-node-modules' });
       }],
 
       ['dast-scan', async (payload): Promise<Result<unknown, Error>> => {

@@ -30,6 +30,15 @@
  * was removed has one link and is read. The policy trusts the link count the
  * filesystem reports: one that reports 1 for every file (FAT, some network
  * shares) hides a hardlink from it. Verified on Linux only.
+ *
+ * `hardlinks: 'refuse-outside-node-modules'` (#1350) is for files found by
+ * walking a caller-named directory. pnpm, bun and yarn's pnpm linker install
+ * packages as hardlinks into a store outside the project, so every package
+ * file is a hardlink to an outside name and cannot be told apart from a
+ * planted one. This policy accepts a hardlink whose real path lies under a
+ * `node_modules` directory inside the project root, and refuses every other
+ * file with more than one link. The directory walkers skip `node_modules`
+ * anyway, so the exemption only matters when a caller names a path in it.
  */
 
 import { constants as fsConstants, type Stats } from 'node:fs';
@@ -66,9 +75,11 @@ export interface ConfinedReadOptions {
   outsideRoot?: 'refuse' | 'allow';
   /**
    * 'refuse' refuses a file with more than one hardlink, which a path check
-   * cannot confine (see the module comment). Default 'allow'.
+   * cannot confine; 'refuse-outside-node-modules' accepts one only under a
+   * `node_modules` directory in the project (see the module comment).
+   * Default 'allow'.
    */
-  hardlinks?: 'allow' | 'refuse';
+  hardlinks?: HardlinkPolicy;
 }
 
 /**
@@ -94,6 +105,24 @@ export class ConfinedReadError extends CallerInputError {
 /** Flags for opening a checked realpath: read-only, no final symlink, no FIFO wait. */
 export const CONFINED_OPEN_FLAGS =
   fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0) | (fsConstants.O_NONBLOCK ?? 0);
+
+/**
+ * How a confined read treats a file with more than one hardlink (see the
+ * module comment): read it ('allow'), refuse it ('refuse'), or refuse it
+ * unless it lies under a `node_modules` directory inside the project root
+ * ('refuse-outside-node-modules', for directory walks).
+ */
+export type HardlinkPolicy = 'allow' | 'refuse' | 'refuse-outside-node-modules';
+
+/**
+ * #1350: is `real` (a realpath) inside `rootReal` and under a `node_modules`
+ * directory there? Only the part of the path below the root counts, so a
+ * project that itself sits under some `node_modules` gains nothing.
+ */
+export function isUnderProjectNodeModules(rootReal: string, real: string): boolean {
+  if (!isWithinRoot(rootReal, real)) return false;
+  return path.relative(rootReal, real).split(path.sep).slice(0, -1).includes('node_modules');
+}
 
 /** True when `candidate` is `root` or lies beneath it (both absolute). */
 export function isWithinRoot(root: string, candidate: string): boolean {
@@ -166,7 +195,7 @@ interface Plan {
   /** The path was spelled inside the root, so what is opened must stay there. */
   inRoot: boolean;
   limit: number;
-  hardlinks: 'allow' | 'refuse';
+  hardlinks: HardlinkPolicy;
 }
 
 function plan(filePath: string, rootReal: string, options: ConfinedReadOptions): Plan {
@@ -187,11 +216,29 @@ function plan(filePath: string, rootReal: string, options: ConfinedReadOptions):
   };
 }
 
-/** Check the opened descriptor's stat before anything is read. */
-function checkOpened(filePath: string, st: Stats, p: Plan): void {
+/**
+ * Check the opened descriptor's stat before anything is read. Returns true
+ * when the node_modules exemption must be checked against where the
+ * descriptor really points (see checkLocation).
+ */
+function checkOpened(filePath: string, st: Stats, p: Plan): boolean {
   if (!st.isFile()) throw fail(filePath, 'not-a-file');
   if (st.size > p.limit) throw fail(filePath, 'too-large');
-  if (p.hardlinks === 'refuse' && st.nlink > 1) throw fail(filePath, 'hardlinked');
+  if (st.nlink > 1 && p.hardlinks === 'refuse') throw fail(filePath, 'hardlinked');
+  return st.nlink > 1 && p.hardlinks === 'refuse-outside-node-modules';
+}
+
+/**
+ * Check where the opened descriptor really points: inside the root for a
+ * path spelled there, and under the project's node_modules for a hardlink
+ * read with 'refuse-outside-node-modules' (#1350). The opened location, not
+ * the realpath resolved before the open, so a directory swapped in between
+ * cannot move a hardlink into the exemption.
+ */
+function checkLocation(filePath: string, location: string | null, p: Plan, exemptCheck: boolean): void {
+  if (!location) throw fail(filePath, 'changed-during-read');
+  if (p.inRoot && !isWithinRoot(p.rootReal, location)) throw fail(filePath, 'outside-project-root');
+  if (exemptCheck && !isUnderProjectNodeModules(p.rootReal, location)) throw fail(filePath, 'hardlinked');
 }
 
 /**
@@ -221,12 +268,8 @@ export async function readConfinedFile(filePath: string, options: ConfinedReadOp
   }
   try {
     const st = await handle.stat();
-    checkOpened(filePath, st, p);
-    if (p.inRoot) {
-      const location = await openedLocation(handle.fd, real, st);
-      if (!location) throw fail(filePath, 'changed-during-read');
-      if (!isWithinRoot(p.rootReal, location)) throw fail(filePath, 'outside-project-root');
-    }
+    const exemptCheck = checkOpened(filePath, st, p);
+    if (p.inRoot || exemptCheck) checkLocation(filePath, await openedLocation(handle.fd, real, st), p, exemptCheck);
     // Read at most limit + 1 bytes from this descriptor: a file that grew
     // after the fstat is refused rather than read without bound.
     const chunks: Buffer[] = [];
@@ -277,12 +320,8 @@ export function readConfinedFileSync(filePath: string, options: ConfinedReadOpti
   }
   try {
     const st = fsSync.fstatSync(fd);
-    checkOpened(filePath, st, p);
-    if (p.inRoot) {
-      const location = openedLocationSync(fd, real, st);
-      if (!location) throw fail(filePath, 'changed-during-read');
-      if (!isWithinRoot(p.rootReal, location)) throw fail(filePath, 'outside-project-root');
-    }
+    const exemptCheck = checkOpened(filePath, st, p);
+    if (p.inRoot || exemptCheck) checkLocation(filePath, openedLocationSync(fd, real, st), p, exemptCheck);
     const chunks: Buffer[] = [];
     let total = 0;
     for (;;) {

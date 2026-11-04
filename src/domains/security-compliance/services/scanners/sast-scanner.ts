@@ -28,6 +28,7 @@ import type {
   ChatResponse,
   MutableScanSummary,
   ScanStatus,
+  SastReadOptions,
 } from './scanner-types.js';
 import { ALL_SECURITY_PATTERNS, BUILT_IN_RULE_SETS } from './security-patterns.js';
 import { toError } from '@shared/error-utils.js';
@@ -75,8 +76,8 @@ export class SASTScanner {
   /**
    * Scan files for security vulnerabilities using static analysis
    */
-  async scanFiles(files: FilePath[]): Promise<Result<SASTResult>> {
-    return this.scanWithRules(files, this.config.defaultRuleSets);
+  async scanFiles(files: FilePath[], read?: SastReadOptions): Promise<Result<SASTResult>> {
+    return this.scanWithRules(files, this.config.defaultRuleSets, read);
   }
 
   /**
@@ -86,7 +87,8 @@ export class SASTScanner {
    */
   async scanWithRules(
     files: FilePath[],
-    ruleSetIds: string[]
+    ruleSetIds: string[],
+    read: SastReadOptions = {},
   ): Promise<Result<SASTResult>> {
     const scanId = uuidv4();
 
@@ -118,7 +120,7 @@ export class SASTScanner {
 
       // Run independent engines while retaining each engine's execution outcome.
       const [patternResult, semgrepResult] = await Promise.all([
-        this.runPatternScanning(uniqueFiles, ruleSets),
+        this.runPatternScanning(uniqueFiles, ruleSets, read),
         this.runSemgrepScanning(uniqueFiles, ruleSetIds),
       ]);
 
@@ -193,12 +195,13 @@ export class SASTScanner {
    */
   private async runPatternScanning(
     files: FilePath[],
-    ruleSets: RuleSet[]
+    ruleSets: RuleSet[],
+    read: SastReadOptions,
   ): Promise<{ vulnerabilities: Vulnerability[]; files: SecurityFileEvidence[] }> {
     const vulnerabilities: Vulnerability[] = [];
     const receipts: SecurityFileEvidence[] = [];
     for (const file of files) {
-      const result = await this.analyzeFile(file, ruleSets);
+      const result = await this.analyzeFile(file, ruleSets, read);
       vulnerabilities.push(...result.vulnerabilities);
       receipts.push(result.evidence);
     }
@@ -393,7 +396,8 @@ export class SASTScanner {
 
   private async analyzeFile(
     file: FilePath,
-    ruleSets: RuleSet[]
+    ruleSets: RuleSet[],
+    read: SastReadOptions,
   ): Promise<{ vulnerabilities: Vulnerability[]; evidence: SecurityFileEvidence }> {
     const vulnerabilities: Vulnerability[] = [];
     const filePath = file.value;
@@ -403,7 +407,8 @@ export class SASTScanner {
     try {
       // #1161: open once and validate the opened descriptor, so a file swapped
       // after the sast-scan path check cannot redirect the read.
-      const bytes = await readConfinedFile(filePath, { outsideRoot: 'allow' });
+      // #1350: a hardlink is refused when the caller asks (reported HARDLINKED).
+      const bytes = await readConfinedFile(filePath, { outsideRoot: 'allow', hardlinks: read.hardlinks ?? 'allow' });
       sourceDigest = createHash('sha256').update(bytes).digest('hex');
       content = bytes.toString('utf8');
     } catch (error) {

@@ -203,6 +203,8 @@ export interface SecurityScanResult {
   scanTypes?: { sast: boolean; dast: boolean; dependencies?: boolean };
   /** #1049: OSV dependency advisory scan; status other than 'complete' is not a clean result. */
   dependencyScan?: DependencyScanReport;
+  /** #1350: files under the target that were not read because they have more than one hardlink. */
+  refused?: Array<{ path: string; reason: 'hardlinked' }>;
   note?: string;
 }
 
@@ -272,6 +274,8 @@ export interface DefectPredictParams {
 export interface DefectPredictResult {
   filesAnalyzed?: number;
   filesSkipped?: number;
+  /** #1350: skipped files that were refused because they have more than one hardlink. */
+  refused?: Array<{ path: string; reason: 'hardlinked' }>;
   scanStatus?: 'partial' | 'complete';
   predictionMethod?: 'static-code-indicators';
   estimated?: boolean;
@@ -1011,6 +1015,7 @@ export const securityScanConfig: DomainHandlerConfig<SecurityScanParams, Securit
     analysisDepth: data.analysisDepth as string | undefined,
     scanTypes: data.scanTypes as SecurityScanResult['scanTypes'],
     ...(data.dependencyScan ? { dependencyScan: data.dependencyScan as DependencyScanReport } : {}),
+    ...(Array.isArray(data.refused) ? { refused: data.refused as SecurityScanResult['refused'] } : {}),
     note: data.note as string | undefined,
     duration,
     savedFiles,
@@ -1164,6 +1169,7 @@ export const defectPredictConfig: DomainHandlerConfig<DefectPredictParams, Defec
       predictionMethod: 'static-code-indicators', estimated: true,
       filesAnalyzed: data.filesAnalyzed as number, filesSkipped: data.filesSkipped as number,
       scanStatus: data.scanStatus as 'partial' | 'complete',
+      ...(Array.isArray(data.refused) ? { refused: data.refused as DefectPredictResult['refused'] } : {}),
     } : {}),
     ...(data.retention === 'failed' ? { retention: 'failed', retentionError: String(data.retentionError ?? '') } : {}),
     predictedDefects: (data.predictedDefects as Array<{ file: string; probability: number; reason: string }>) || [],

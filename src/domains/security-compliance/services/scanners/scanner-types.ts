@@ -26,6 +26,7 @@ import type {
 
 // ADR-051: LLM Router for AI-enhanced security analysis
 import type { HybridRouter, ChatResponse } from '@shared/llm/index.js';
+import type { HardlinkPolicy } from '@shared/io/confined-read.js';
 
 // ============================================================================
 // Configuration
@@ -125,12 +126,22 @@ export interface FullScanResult {
 }
 
 /**
+ * How the SAST scanner reads its files (#1350). A caller that walked a
+ * directory it was given passes `hardlinks: 'refuse-outside-node-modules'`;
+ * a refused file is reported as unreadable (HARDLINKED), never scanned.
+ * Default 'allow', for the CLI's reads of the operator's own files.
+ */
+export interface SastReadOptions {
+  hardlinks?: HardlinkPolicy;
+}
+
+/**
  * Combined security scanner service interface
  */
 export interface ISecurityScannerService {
   // SAST Methods
-  scanFiles(files: import('../../../../shared/value-objects/index.js').FilePath[]): Promise<import('../../../../shared/types/index.js').Result<SASTResult>>;
-  scanWithRules(files: import('../../../../shared/value-objects/index.js').FilePath[], ruleSetIds: string[]): Promise<import('../../../../shared/types/index.js').Result<SASTResult>>;
+  scanFiles(files: import('../../../../shared/value-objects/index.js').FilePath[], read?: SastReadOptions): Promise<import('../../../../shared/types/index.js').Result<SASTResult>>;
+  scanWithRules(files: import('../../../../shared/value-objects/index.js').FilePath[], ruleSetIds: string[], read?: SastReadOptions): Promise<import('../../../../shared/types/index.js').Result<SASTResult>>;
   getAvailableRuleSets(): Promise<RuleSet[]>;
   checkFalsePositive(vulnerability: Vulnerability): Promise<import('../../../../shared/types/index.js').Result<FalsePositiveCheck>>;
 
