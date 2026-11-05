@@ -55,15 +55,16 @@ export class JSONReader implements DataReader<JSONRecord> {
    * Initialize the reader
    */
   async initialize(): Promise<void> {
-    // Just verify the file exists
-    if (!fs.existsSync(this.filePath)) {
+    // Just verify the file exists (#1378: a file that cannot be stat'ed for
+    // another reason, e.g. a parent without search permission, throws)
+    const stats = this.statFile();
+    if (!stats) {
       console.warn(`[JSONReader:${this.name}] File not found: ${this.filePath}`);
       this.data = [];
       return;
     }
 
     // Store file modification time
-    const stats = fs.statSync(this.filePath);
     this.fileModTime = stats.mtime;
 
     console.log(`[JSONReader:${this.name}] Initialized: ${this.filePath}`);
@@ -74,7 +75,23 @@ export class JSONReader implements DataReader<JSONRecord> {
    * source (nothing read) from one that was read and is empty.
    */
   exists(): boolean {
-    return fs.existsSync(this.filePath);
+    return this.statFile() !== null;
+  }
+
+  /**
+   * #1378: the file's stats, or null when it does not exist (ENOENT, or a
+   * path component that is not a directory). Any other error, such as EACCES
+   * on a parent directory, throws "could not be read": existsSync() reported
+   * those as "missing", so an unreadable store passed as "Not read".
+   */
+  private statFile(): fs.Stats | null {
+    try {
+      return fs.statSync(this.filePath);
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === 'ENOENT' || code === 'ENOTDIR') return null;
+      throw new Error(`JSON source ${this.name} could not be read: ${this.filePath}: ${code ?? toErrorMessage(error)}`);
+    }
   }
 
   /**
@@ -85,7 +102,7 @@ export class JSONReader implements DataReader<JSONRecord> {
    * a corrupt store is a failed source, never an empty successful one.
    */
   async readAll(): Promise<JSONRecord[]> {
-    if (!fs.existsSync(this.filePath)) {
+    if (!this.statFile()) {
       return [];
     }
 
@@ -93,7 +110,8 @@ export class JSONReader implements DataReader<JSONRecord> {
     try {
       content = fs.readFileSync(this.filePath, 'utf-8');
     } catch (error) {
-      throw new Error(`JSON source ${this.name} could not be read: ${this.filePath}: ${toErrorMessage(error)}`);
+      const code = (error as NodeJS.ErrnoException).code;
+      throw new Error(`JSON source ${this.name} could not be read: ${this.filePath}: ${code ?? toErrorMessage(error)}`);
     }
 
     let parsed: unknown;
@@ -102,6 +120,15 @@ export class JSONReader implements DataReader<JSONRecord> {
     } catch (error) {
       const why = content.trim() === '' ? 'the file is empty' : describeParseError(error);
       throw new Error(`JSON source ${this.name} could not be parsed: ${this.filePath}: ${why}`);
+    }
+
+    // #1378: the claude-flow, intelligence and daemon stores (and any source
+    // with a jsonPath) are JSON objects. Another root (an array, a number,
+    // null) is a corrupt store, not an empty one. Other sources keep the
+    // default: an array root is a list of records.
+    if (this.requiresObjectRoot() && (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))) {
+      const got = parsed === null ? 'null' : Array.isArray(parsed) ? 'an array' : `a ${typeof parsed}`;
+      throw new Error(`JSON source ${this.name} could not be parsed: ${this.filePath}: not a JSON object (got ${got})`);
     }
 
     // Extract data based on JSON path if specified
@@ -116,11 +143,11 @@ export class JSONReader implements DataReader<JSONRecord> {
    * For JSON files, we compare file modification time
    */
   async readChanged(since: Date): Promise<JSONRecord[]> {
-    if (!fs.existsSync(this.filePath)) {
+    const stats = this.statFile();
+    if (!stats) {
       return [];
     }
 
-    const stats = fs.statSync(this.filePath);
     if (stats.mtime <= since) {
       // File hasn't changed
       return [];
@@ -145,6 +172,12 @@ export class JSONReader implements DataReader<JSONRecord> {
     this.data = null;
     this.fileModTime = null;
     console.log(`[JSONReader:${this.name}] Closed`);
+  }
+
+  /** #1378: sources whose store must be a JSON object (see readAll). */
+  private requiresObjectRoot(): boolean {
+    return Boolean(this.config.source.jsonPath) || this.name.includes('claude-flow-memory') ||
+      this.name.includes('intelligence') || this.name.includes('qlearning') || this.name.includes('daemon');
   }
 
   /**
@@ -371,17 +404,9 @@ export class JSONReader implements DataReader<JSONRecord> {
    * Get file info for debugging
    */
   getInfo(): { path: string; exists: boolean; modTime: Date | null; size: number } {
-    const exists = fs.existsSync(this.filePath);
-    let size = 0;
-    let modTime: Date | null = null;
-
-    if (exists) {
-      const stats = fs.statSync(this.filePath);
-      size = stats.size;
-      modTime = stats.mtime;
-    }
-
-    return { path: this.filePath, exists, modTime, size };
+    // #1378: same existence rule as readAll (only ENOENT/ENOTDIR is missing).
+    const stats = this.statFile();
+    return { path: this.filePath, exists: stats !== null, modTime: stats?.mtime ?? null, size: stats?.size ?? 0 };
   }
 }
 
@@ -393,6 +418,8 @@ export class JSONReader implements DataReader<JSONRecord> {
  */
 function describeParseError(error: unknown): string {
   const message = toErrorMessage(error);
+  // secure-json-parse rejects prototype-poisoning keys with a SyntaxError.
+  if (/forbidden prototype property/i.test(message)) return 'contains a forbidden __proto__/constructor key';
   if (!(error instanceof SyntaxError)) return message;
   const where = message.match(/position \d+(?: \(line \d+ column \d+\))?/);
   return `not valid JSON${where ? ` at ${where[0]}` : ''}`;

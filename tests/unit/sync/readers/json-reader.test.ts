@@ -120,7 +120,7 @@ describe('JSONReader', () => {
     });
 
     it('should handle missing file gracefully', async () => {
-      mockFs.existsSync = vi.fn().mockReturnValue(false);
+      mockFs.statSync = vi.fn(() => { throw Object.assign(new Error('ENOENT: no such file'), { code: 'ENOENT' }); });
 
       reader = new JSONReader(defaultConfig);
       await reader.initialize();
@@ -131,7 +131,7 @@ describe('JSONReader', () => {
     });
 
     it('should set empty data for missing file', async () => {
-      mockFs.existsSync = vi.fn().mockReturnValue(false);
+      mockFs.statSync = vi.fn(() => { throw Object.assign(new Error('ENOENT: no such file'), { code: 'ENOENT' }); });
 
       reader = new JSONReader(defaultConfig);
       await reader.initialize();
@@ -148,7 +148,7 @@ describe('JSONReader', () => {
     });
 
     it('should return empty array if file not found', async () => {
-      mockFs.existsSync = vi.fn().mockReturnValue(false);
+      mockFs.statSync = vi.fn(() => { throw Object.assign(new Error('ENOENT: no such file'), { code: 'ENOENT' }); });
 
       const records = await reader.readAll();
 
@@ -222,7 +222,7 @@ describe('JSONReader', () => {
     });
 
     it('should return empty array if file not found', async () => {
-      mockFs.existsSync = vi.fn().mockReturnValue(false);
+      mockFs.statSync = vi.fn(() => { throw Object.assign(new Error('ENOENT: no such file'), { code: 'ENOENT' }); });
 
       const records = await reader.readChanged(new Date());
 
@@ -308,7 +308,7 @@ describe('JSONReader', () => {
     });
 
     it('should handle missing file', () => {
-      mockFs.existsSync = vi.fn().mockReturnValue(false);
+      mockFs.statSync = vi.fn(() => { throw Object.assign(new Error('ENOENT: no such file'), { code: 'ENOENT' }); });
 
       reader = new JSONReader(defaultConfig);
       const info = reader.getInfo();

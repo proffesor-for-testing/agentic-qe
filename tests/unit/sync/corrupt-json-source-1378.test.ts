@@ -67,6 +67,53 @@ describe('JSONReader on a file that exists but does not parse (#1378)', () => {
   it('a valid file still reads', async () => {
     await expect(reader('good.json').readAll()).resolves.toHaveLength(2);
   });
+
+  // Root cannot chmod its way out of a directory, so this needs a normal user.
+  it.skipIf(process.getuid?.() === 0)('a file under a parent without search permission is unreadable, not missing', async () => {
+    fs.mkdirSync(path.join(dir, 'locked'));
+    fs.writeFileSync(path.join(dir, 'locked', 'store.json'), '{}');
+    fs.chmodSync(path.join(dir, 'locked'), 0o000);
+    try {
+      const r = reader('locked/store.json');
+      await expect(r.initialize()).rejects.toThrow(/could not be read: .*locked\/store\.json: EACCES/);
+      await expect(r.readAll()).rejects.toThrow(/could not be read: .*EACCES/);
+      expect(() => r.exists()).toThrow(/EACCES/);
+      await expect(r.readChanged(new Date(0))).rejects.toThrow(/EACCES/);
+    } finally {
+      fs.chmodSync(path.join(dir, 'locked'), 0o755);
+    }
+  });
+
+  it('a path through a regular file (ENOTDIR) is missing, as before', async () => {
+    const r = reader('good.json/store.json');
+    expect(r.exists()).toBe(false);
+    await expect(r.readAll()).resolves.toEqual([]);
+  });
+
+  it.each([
+    ['an array', '[1, 2]'],
+    ['null', 'null'],
+    ['a number', '42'],
+    ['a string', '"x"'],
+  ])('a claude-flow or intelligence store whose root is %s is corrupt, not empty', async (got, content) => {
+    fs.writeFileSync(path.join(dir, 'root.json'), content);
+    await expect(reader('root.json').readAll()).rejects.toThrow(new RegExp(`could not be parsed: .*not a JSON object \\(got ${got}\\)`));
+    const intel = createJSONReader({
+      source: { ...source('intelligence-qlearning', 'root.json'), jsonPath: '$.qvalues' }, baseDir: dir, environment: 'test',
+    });
+    await expect(intel.readAll()).rejects.toThrow(/not a JSON object/);
+  });
+
+  it('another JSON source keeps the default: an array root is a list of records', async () => {
+    fs.writeFileSync(path.join(dir, 'list.json'), '[{"id": "a"}, {"id": "b"}]');
+    const list = createJSONReader({ source: source('custom-list', 'list.json'), baseDir: dir, environment: 'test' });
+    await expect(list.readAll()).resolves.toHaveLength(2);
+  });
+
+  it('a store with a __proto__ key is reported as such, not as invalid JSON', async () => {
+    fs.writeFileSync(path.join(dir, 'proto.json'), '{"__proto__": {"x": 1}}');
+    await expect(reader('proto.json').readAll()).rejects.toThrow(/could not be parsed: .*contains a forbidden __proto__\/constructor key/);
+  });
 });
 
 describe('sync, verify and status on a corrupt JSON source (#1378)', () => {
@@ -115,6 +162,23 @@ describe('sync, verify and status on a corrupt JSON source (#1378)', () => {
     expect(result.results[0]).toMatchObject({
       localCount: -1, status: 'unverified', error: expect.stringMatching(/Local count failed: .*could not be parsed/),
     });
+  });
+
+  it.skipIf(process.getuid?.() === 0)('sync and status: a store under an unsearchable directory is a failed source with EACCES, not "Not read"', async () => {
+    fs.mkdirSync(path.join(dir, 'locked'));
+    fs.writeFileSync(path.join(dir, 'locked', 'store.json'), '{}');
+    fs.chmodSync(path.join(dir, 'locked'), 0o000);
+    try {
+      const a = await agent([source('claude-flow-memory', 'locked/store.json'), source('intelligence-qlearning', 'good.json')]);
+      const report = await a.syncAll();
+      expect(report.status).toBe('partial');
+      expect(report.results.find(r => r.source === 'claude-flow-memory')).toMatchObject({
+        success: false, error: expect.stringMatching(/could not be read: .*EACCES/),
+      });
+      expect((await a.getStatus()).sources.find(s => s.name === 'claude-flow-memory')?.error).toMatch(/EACCES/);
+    } finally {
+      fs.chmodSync(path.join(dir, 'locked'), 0o755);
+    }
   });
 
   it('status: the corrupt source carries its error instead of failing the whole status', async () => {

@@ -431,7 +431,8 @@ function printSyncStatus(status: { sources: SyncSource[]; lastSync?: Date }): vo
     console.log(`${icon} ${chalk.bold(source.name)}`);
     console.log(`   Type: ${source.type}`);
     console.log(`   Target: ${source.targetTable}`);
-    console.log(`   Records: ${chalk.cyan(source.recordCount)}`);
+    // #1378: a source that could not be counted has no count, not 0.
+    console.log(`   Records: ${source.error ? chalk.gray('N/A') : chalk.cyan(source.recordCount)}`);
     console.log(`   Priority: ${priorityColor(source.priority)}`);
     if (source.error) {
       console.log(`   Error: ${chalk.red(source.error)}`);

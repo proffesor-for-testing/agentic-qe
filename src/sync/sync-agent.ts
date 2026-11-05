@@ -338,7 +338,8 @@ export class CloudSyncAgent {
           recordCount: 0,
           enabled: source.enabled !== false,
           priority: source.priority,
-          error: 'Reader not initialized',
+          // #1378: say why the reader could not be opened (e.g. EACCES).
+          error: this.readerErrors.get(source.name) ?? 'Reader not initialized',
         });
       }
     }
