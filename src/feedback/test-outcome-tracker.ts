@@ -18,6 +18,7 @@ import type { RealQEReasoningBank } from '../learning/real-qe-reasoning-bank.js'
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
 import { toErrorMessage } from '../shared/error-utils.js';
 import { safeJsonParse } from '../shared/safe-json.js';
+import { EXECUTED_TEST_OUTCOME_SQL, isExecutedTestOutcome } from './test-outcome-provenance.js';
 
 // ============================================================================
 // Database Row Types
@@ -160,8 +161,9 @@ export class TestOutcomeTracker {
   private async loadFromDb(): Promise<void> {
     if (!this.db) return;
     const database = this.db.getDatabase();
+    // #1374: never-run generation rows are not outcomes; they stay in the DB.
     const rows = database.prepare(`
-      SELECT * FROM test_outcomes ORDER BY created_at DESC LIMIT ?
+      SELECT * FROM test_outcomes WHERE ${EXECUTED_TEST_OUTCOME_SQL} ORDER BY created_at DESC LIMIT ?
     `).all(this.config.maxOutcomesInMemory) as TestOutcomeRow[];
 
     // Load in chronological order (oldest first)
@@ -267,6 +269,15 @@ export class TestOutcomeTracker {
    * Track a test outcome
    */
   async track(outcome: TestOutcome): Promise<void> {
+    // #1374: a never-run generation outcome is kept out of memory and metrics,
+    // so memory matches what loadFromDb restores. It is still persisted on
+    // purpose: the tracker records what it is given and readers decide what
+    // counts, as for the legacy rows (no caller passes one today).
+    if (!isExecutedTestOutcome(outcome)) {
+      await this.persistOutcome(outcome);
+      return;
+    }
+
     // 1. Store outcome
     this.store.add(outcome);
     await this.persistOutcome(outcome);
@@ -548,6 +559,7 @@ export class TestOutcomeTracker {
    */
   importOutcomes(outcomes: TestOutcome[]): void {
     for (const outcome of outcomes) {
+      if (!isExecutedTestOutcome(outcome)) continue; // #1374, as loadFromDb
       this.store.add(outcome);
       if (outcome.patternId) {
         this.updatePatternMetrics(outcome);

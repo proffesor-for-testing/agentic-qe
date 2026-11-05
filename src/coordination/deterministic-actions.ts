@@ -13,6 +13,8 @@
 import { Result, ok, DomainName } from '../shared/types/index.js';
 import type { WorkflowContext } from './workflow-types.js';
 import { MEASURED_COVERAGE_SESSION_SQL } from '../feedback/coverage-session-provenance.js';
+import { EXECUTED_TEST_OUTCOME_SQL } from '../feedback/test-outcome-provenance.js';
+import { getUnifiedMemory } from '../kernel/unified-memory.js';
 
 // ============================================================================
 // Types
@@ -45,9 +47,9 @@ interface DbAccessor {
 
 function tryGetDb(): DbAccessor | null {
   try {
-    // Dynamic import to avoid hard dependency — the module may not be initialised
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { getUnifiedMemory } = require('../kernel/unified-memory.js');
+    // #1374: a static import. The package is ESM, so `require` only worked in
+    // the esbuild bundles; under tsc output and vitest it threw, and every
+    // DB read here silently fell back to "no DB".
     const um = getUnifiedMemory();
     if (!um.isInitialized()) return null;
     return um.getDatabase() as DbAccessor;
@@ -88,61 +90,69 @@ const qualityGateCheck: DeterministicAction = {
             currentCoverage = typeof row?.after_lines === 'number' ? row.after_lines : null;
           }
 
-          // Test pass rate from recent test_outcomes
-          if (currentTestsPassingRate === null) {
+          // Pass rate and bug count from the last 7 days of EXECUTED tests.
+          // #1374: never-run generation rows are not evidence, and no executed
+          // row leaves both unmeasured (null), never 0% or "0 bugs".
+          if (currentTestsPassingRate === null || currentBugs === null) {
             const row = db.prepare(
               `SELECT COUNT(*) as total,
-                      SUM(CASE WHEN passed = 1 THEN 1 ELSE 0 END) as passed
+                      SUM(CASE WHEN passed = 1 THEN 1 ELSE 0 END) as passed,
+                      SUM(CASE WHEN passed = 0 AND flaky = 0 THEN 1 ELSE 0 END) as bugs
                FROM test_outcomes
-               WHERE created_at > datetime('now', '-7 days')`,
-            ).get() as { total: number; passed: number } | undefined;
-            currentTestsPassingRate =
-              row && row.total > 0 ? (row.passed / row.total) * 100 : 0;
-          }
-
-          // Bug count: failed non-flaky tests in the last 7 days
-          if (currentBugs === null) {
-            const row = db.prepare(
-              `SELECT COUNT(*) as bugs FROM test_outcomes
-               WHERE passed = 0 AND flaky = 0
-               AND created_at > datetime('now', '-7 days')`,
-            ).get() as { bugs: number } | undefined;
-            currentBugs = row?.bugs ?? 0;
+               WHERE created_at > datetime('now', '-7 days') AND ${EXECUTED_TEST_OUTCOME_SQL}`,
+            ).get() as { total: number; passed: number | null; bugs: number | null } | undefined;
+            if (row && row.total > 0) {
+              if (currentTestsPassingRate === null) currentTestsPassingRate = ((row.passed ?? 0) / row.total) * 100;
+              if (currentBugs === null) currentBugs = row.bugs ?? 0;
+            }
           }
         } catch {
-          // Graceful degradation — fall through to defaults
+          // Graceful degradation — anything not read stays unmeasured
         }
       }
     }
 
-    // Apply defaults for anything still null — except coverage (#1027 N6):
-    // unmeasured coverage stays null and fails its check (no evidence ≠ 0%).
-    const coverageMeasured = currentCoverage !== null;
-    currentTestsPassingRate = currentTestsPassingRate ?? 0;
-    currentBugs = currentBugs ?? 0;
+    // #1027 N6, #1374: an input with no evidence stays null (unmeasured). It
+    // is not compared with its threshold, it fails its check, and it makes
+    // the gate fail: no evidence is never a pass, and never "0% < 90%".
+    const unmeasured = [
+      ...(currentCoverage === null ? ['coverage'] : []),
+      ...(currentTestsPassingRate === null ? ['testsPassing'] : []),
+      ...(currentBugs === null ? ['bugs'] : []),
+    ];
 
     const coveragePassed = currentCoverage !== null && currentCoverage >= coverageMin;
-    const testsPassed = currentTestsPassingRate >= testsPassingMin;
-    const bugsPassed = currentBugs <= maxBugs;
+    const testsPassed = currentTestsPassingRate !== null && currentTestsPassingRate >= testsPassingMin;
+    const bugsPassed = currentBugs !== null && currentBugs <= maxBugs;
     const passed = coveragePassed && testsPassed && bugsPassed;
 
-    // Score is a normalized 0-1 value
+    // Score is a normalized 0-1 value; an unmeasured input scores 0.
     const coverageScore = currentCoverage === null ? 0 : Math.min(currentCoverage / coverageMin, 1);
-    const testsScore = Math.min(currentTestsPassingRate / testsPassingMin, 1);
-    const bugsScore = maxBugs > 0 ? Math.max(0, 1 - currentBugs / maxBugs) : (currentBugs === 0 ? 1 : 0);
+    const testsScore = currentTestsPassingRate === null ? 0 : Math.min(currentTestsPassingRate / testsPassingMin, 1);
+    const bugsScore = currentBugs === null ? 0
+      : maxBugs > 0 ? Math.max(0, 1 - currentBugs / maxBugs) : (currentBugs === 0 ? 1 : 0);
     const score = (coverageScore + testsScore + bugsScore) / 3;
+
+    const check = (current: number | null, threshold: number, checkPassed: boolean) => ({
+      current, threshold, passed: checkPassed, ...(current === null ? { unmeasured: true } : {}),
+    });
 
     return ok({
       passed,
       score: Math.round(score * 100) / 100,
       source: typeof input.currentCoverage === 'number' ? 'input' : 'database',
+      ...(unmeasured.length > 0 ? {
+        unmeasured,
+        // #1374: testsPassing and bugs both come from executed test_outcomes
+        // rows of the last 7 days; coverage from measured coverage_sessions.
+        reason: `No execution evidence for ${unmeasured.join(', ')} ` +
+          '(testsPassing and bugs come from executed test_outcomes rows of the last 7 days, ' +
+          'coverage from measured coverage_sessions): unmeasured inputs fail the gate',
+      } : {}),
       details: {
-        coverage: {
-          current: currentCoverage, threshold: coverageMin, passed: coveragePassed,
-          ...(coverageMeasured ? {} : { unmeasured: true }),
-        },
-        testsPassing: { current: currentTestsPassingRate, threshold: testsPassingMin, passed: testsPassed },
-        bugs: { current: currentBugs, threshold: maxBugs, passed: bugsPassed },
+        coverage: check(currentCoverage, coverageMin, coveragePassed),
+        testsPassing: check(currentTestsPassingRate, testsPassingMin, testsPassed),
+        bugs: check(currentBugs, maxBugs, bugsPassed),
       },
     });
   },

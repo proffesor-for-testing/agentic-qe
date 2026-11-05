@@ -290,8 +290,12 @@ async function recordDomainFeedback(
   }
   if (!loop) return;
 
-  // #1369: generated tests have not run. Keep generation experience capture
-  // separate; only executed tests can supply a pass/fail test_outcomes row.
+  // #1369: generated tests have not run, so this function writes no
+  // test_outcomes row for them (generation experience is captured separately).
+  // #1374: no MCP path writes test_outcomes at all; FeedbackLoop.recordTestOutcome
+  // has no production caller. Executed outcomes come only from the CLI
+  // post-command hook (`cli-hook-post-command`), so over MCP alone the gate's
+  // pass rate is unmeasured.
 
   // #1014: only MEASURED coverage becomes a coverage_sessions row. An
   // estimate or an UNMEASURED target wrote after_lines = the estimate / 0.0,

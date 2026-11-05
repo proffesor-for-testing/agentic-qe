@@ -30,6 +30,10 @@ steps:
     action: health-check
     timeout: 30000
 
+  # gate-check reads testsPassing and bugs from executed test_outcomes rows
+  # (last 7 days). Without that evidence they are unmeasured (current: null,
+  # unmeasured: true) and the gate's passed is false; see
+  # docs/guides/workflow-approvals.md.
   - id: quality-gate
     name: Quality Gate
     domain: quality-assessment
