@@ -105,9 +105,15 @@ describe.skipIf(!existsSync(bundle) && !process.env.CI)('MCP test_generate_enhan
   }, 120000);
 
   it('the default writes generated test code alongside the manifest and report', async () => {
-    const result = await call('test_generate_enhanced', { sourceCode: SOURCE, filePath: 'math.ts' });
+    // #1355: a scaffold is not a generated test and is not saved as one, so the
+    // call supplies a specification example to get a real test.
+    const result = await call('test_generate_enhanced', {
+      sourceCode: SOURCE, filePath: 'math.ts',
+      behaviorExamples: [{ functionName: 'add', args: [2, 3], expected: 5 }],
+    });
 
     expect(result.success, JSON.stringify(result)).toBe(true);
+    expect(result.data.testsGenerated).toBe(1);
     expect(result.data.resultsSaved).toBe(true);
     const saved: string[] = result.data.savedFiles;
     expect(saved.some(f => f.endsWith('_manifest.json'))).toBe(true);

@@ -7,6 +7,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs/promises';
+import * as path from 'path';
 import { ok, err, type Result } from '../../shared/types';
 import { toError } from '../../shared/error-utils.js';
 import type { TaskHandlerContext } from './handler-types';
@@ -18,6 +19,7 @@ import { createPytestJunitReport, isPythonTestFile, pytestCommand, pytestRunFrom
 import { runTestRunnerProcess } from '../../shared/test-runner-process.js';
 import { MAX_PAYLOAD_FILE_BYTES, requirePayloadFiles } from '../../shared/io/payload-path-guard.js';
 import { groupByRunnerProject, requireTestRunTargets, runnerFrameworkFor } from '../../shared/test-runner-project.js';
+import { unexecutableReason } from '../../domains/test-generation/gates/gate-verdict.js';
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -211,7 +213,14 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
         const field = payload.sourceFiles?.length ? 'sourceFiles' : 'filePath';
         const confined = await requirePayloadFiles('generate-tests', field, sourceFiles, { maxBytes: MAX_PAYLOAD_FILE_BYTES });
         if (!confined.success) return confined;
-        sourceFiles = confined.value;
+        // #1355: one test per file, however often or however the path was named
+        // (relative or absolute); the generator reads relative paths from cwd.
+        const seen = new Set<string>();
+        sourceFiles = [];
+        for (const file of confined.value) {
+          const key = await fs.realpath(file).catch(() => path.resolve(file));
+          if (!seen.has(key)) { seen.add(key); sourceFiles.push(file); }
+        }
       } else if (payload.sourceCode) {
         // Write temporary file for analysis if only source code provided
         // Use correct file extension based on language parameter
@@ -277,6 +286,7 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
       // that reference a real source path (or a clear placeholder) rather than
       // a /tmp/aqe-temp-* path that never existed in their codebase.
       const tests = generatedTests.tests.map(t => {
+        const analysedFile = t.sourceFile;
         const rewritten = rewriteTempPathsInGeneratedTest(
           t.testCode,
           t.sourceFile,
@@ -292,18 +302,41 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
           generationMode: t.generationMode,
           generationLimits: t.generationLimits,
           testCode: rewritten.testCode,
+          qualityGateResult: t.qualityGateResult,
+          unexecutable: unexecutableReason(t, analysedFile),
         };
       });
+
+      // #1355: output with no test that can fail (see unexecutableReason) is
+      // not a generated test; it is returned separately as a scaffold. Other
+      // gate findings stay on the test as qualityGateResult: the full gate
+      // cannot judge non-JS assertions or alias/index imports, so they do not
+      // drop a test.
+      const passed = tests.filter(t => !t.unexecutable).map(({ unexecutable: _u, ...t }) => t);
+      const rejected = tests.filter(t => t.unexecutable);
+      const shownFile = (f?: string) => (f && f === tempPath ? 'the supplied sourceCode' : f || 'the source');
+      const scaffolds = rejected.map(({ qualityGateResult: _gate, unexecutable: _u, ...t }) => ({
+        ...t, sourceFile: t.sourceFile === tempPath ? undefined : t.sourceFile,
+        scaffold: true as const,
+        rejectedBecause: _u as string,
+      }));
+      const nothingTestable = passed.length === 0 && rejected.length > 0
+        ? `Nothing testable in ${[...new Set(rejected.map(t => shownFile(t.sourceFile)))].join(', ')}: ` +
+          [...new Set(scaffolds.map(t => t.rejectedBecause))].join('; ')
+        : undefined;
 
       // #567: surface whether the LLM branch actually ran. Previously the only
       // clue that generation had silently fallen back to template scaffolding
       // was a suspiciously constant coverage estimate and a sub-20ms duration.
+      // Computed over all generated output, kept or not (#1355 review).
       const llmEnhanced = generatedTests.tests.some(t => t.llmEnhanced === true);
 
       return ok({
-        testsGenerated: tests.length,
-        coverageEstimate: generatedTests.coverageEstimate,
-        tests,
+        testsGenerated: passed.length,
+        coverageEstimate: passed.length > 0 ? generatedTests.coverageEstimate : null,
+        tests: passed,
+        ...(scaffolds.length > 0 ? { scaffolds } : {}),
+        ...(nothingTestable ? { warning: nothingTestable } : {}),
         patternsUsed: generatedTests.patternsUsed,
         llmEnhanced,
         ...(llmEnhanced ? {} : {

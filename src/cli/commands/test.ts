@@ -11,6 +11,7 @@ import { filterTestFilesForFramework, walkSourceFiles } from '../utils/file-disc
 import { type OutputFormat, writeOutput, toJSON, toJUnit, testRunToMarkdown, type TestRunSummary } from '../utils/ci-output.js';
 import { writeTestRunEvidence } from '../../domains/quality-assessment/quality-evidence.js';
 import { validateBehaviorExamples } from '../../domains/test-generation/services/behavior-example-validation.js';
+import { describeGateRejection, partitionByQualityGate } from '../../domains/test-generation/gates/gate-verdict.js';
 import { findProjectRoot } from '../../kernel/project-root.js';
 import { writeGeneratedTestFile } from '../utils/generated-test-writer.js';
 import { DEFAULT_TEST_RETRY_COUNT } from '../../domains/test-execution/services/retry-outcome.js';
@@ -88,17 +89,12 @@ export function createTestCommand(
           if (result.success && result.value) {
             const generated = result.value as { tests: Array<{ name: string; sourceFile: string; testFile: string; testCode?: string; assertions: number; qualityGateResult?: { passed: boolean; score: number; issues?: Array<{ description?: string }> } }>; coverageEstimate: number | null; patternsUsed: string[] };
             const format = options.format as OutputFormat;
-            const rejected = generated.tests.filter(
-              test => test.qualityGateResult?.passed !== true
-            );
+            // Full quality gate, unchanged from before #1355. It rejects valid
+            // pytest/Go/JUnit tests and TS alias/index imports (open CLI bug);
+            // test_generate_enhanced counts by the narrower isUnexecutableScaffold.
+            const { rejected } = partitionByQualityGate(generated.tests);
             if (rejected.length > 0) {
-              const details = rejected.map(test => {
-                const issues = test.qualityGateResult?.issues
-                  ?.map(issue => issue.description)
-                  .filter(Boolean)
-                  .join('; ') || 'missing passing quality evidence';
-                return `${test.sourceFile}: ${issues}`;
-              });
+              const details = rejected.map(test => `${test.sourceFile}: ${describeGateRejection(test)}`);
               console.error(chalk.red(`Generation rejected ${rejected.length} invalid or unvalidated test artifact(s):`));
               for (const detail of details) console.error(chalk.red(`  - ${detail}`));
               await cleanupAndExit(1);

@@ -1100,6 +1100,7 @@ export class MCPProtocolServer {
         parameters: [
           { name: 'sourceCode', type: 'string', description: 'Source code to generate tests for' },
           { name: 'filePath', type: 'string', description: 'Original source file path (used as the import target in generated tests; if omitted, generated tests reference the temp source)' },
+          { name: 'sourceFiles', type: 'array', description: 'Source files inside the project to generate tests for; used instead of sourceCode/filePath.', items: { type: 'string' } },
           { name: 'language', type: 'string', description: 'Programming language (one of: typescript, javascript, python, java, csharp, go, rust, swift, kotlin, dart). Issue #474.', enum: ['typescript', 'javascript', 'python', 'java', 'csharp', 'go', 'rust', 'swift', 'kotlin', 'dart'] },
           { name: 'testType', type: 'string', description: 'Type of tests', enum: ['unit', 'integration', 'e2e'] },
           { name: 'framework', type: 'string', description: 'Test framework to use. If omitted, derived from `language`.', enum: ['jest', 'vitest', 'mocha', 'pytest', 'node-test', 'junit5', 'testng', 'xunit', 'nunit', 'go-test', 'rust-test', 'swift-testing', 'xctest', 'kotlin-junit', 'flutter-test', 'jest-rn'] },

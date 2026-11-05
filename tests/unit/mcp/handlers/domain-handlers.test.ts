@@ -75,6 +75,10 @@ const defaultMockResponse = {
     qualityScore: 88,
     riskScore: 15,
     testsGenerated: 3,
+    // #1355: the handler reports only tests the domain returned.
+    tests: [
+      { name: 'add returns the sum', type: 'unit', testCode: "it('adds', () => { expect(add(1, 2)).toBe(3); });" },
+    ],
     lineCoverage: 85,
     branchCoverage: 78,
     functionCoverage: 92,

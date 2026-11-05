@@ -263,11 +263,24 @@ describe('DomainTaskExecutor', () => {
       expect(result.domain).toBe('test-generation');
       expect(result.data).toBeDefined();
 
-      const data = result.data as { testsGenerated: number; coverageEstimate: number | null; tests: Array<{generationMode: string; assertions: number; testCode: string}> };
-      expect(data.testsGenerated).toBeGreaterThan(0);
+      // #1355: without behaviorExamples or an LLM the generator emits a
+      // test.skip scaffold. That is not a generated test: it is returned
+      // under scaffolds, with the reason, and nothing is counted.
+      const data = result.data as {
+        testsGenerated: number; coverageEstimate: number | null; tests: unknown[]; warning?: string;
+        scaffolds?: Array<{ scaffold: boolean; generationMode: string; assertions: number; testCode: string; sourceFile?: string; rejectedBecause: string }>;
+      };
+      expect(data.testsGenerated).toBe(0);
+      expect(data.tests).toEqual([]);
       expect(data.coverageEstimate).toBeNull();
-      expect(data.tests[0]).toMatchObject({ generationMode: 'scaffolding', assertions: 0 });
-      expect(data.tests[0].testCode).toContain('test.skip');
+      expect(data.warning).toBe('Nothing testable in the supplied sourceCode: Generated test contains no executable assertions.');
+      expect(data.scaffolds).toHaveLength(1);
+      expect(data.scaffolds![0]).toMatchObject({
+        scaffold: true, generationMode: 'scaffolding', assertions: 0,
+        rejectedBecause: 'Generated test contains no executable assertions.',
+      });
+      expect(data.scaffolds![0].sourceFile).toBeUndefined();
+      expect(data.scaffolds![0].testCode).toContain('test.skip(');
     });
 
     it('should save test generation results to files', async () => {
