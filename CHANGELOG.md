@@ -35,6 +35,26 @@ Changes queued for 3.15.19.
   `aqe sync pull` now exit 1 when the sync fails and 2 when it only partly
   completes, so scripts and CI can detect a sync that did not finish.
   Before, they always exited 0. A dry run still exits 0.
+- **MCP scans and coverage tools refuse hardlinked files** ([#1350],
+  [#1354], [#1367]): over MCP, `coverage_analyze_sublinear` and
+  `qe/coverage/analyze|gaps` refuse a hardlinked coverage report, and
+  `security_scan_comprehensive`, `defect_predict` and the `sast-scan` and
+  `security-audit` tasks skip hardlinked files. Skipped files are listed in
+  a new `refused` field and the scan is reported as `partial`. A security
+  audit that skipped files no longer says "Security posture is good".
+  Files under the project's `node_modules` (and a workspace package's) are
+  still read, because pnpm, bun and yarn hardlink them to their store; those
+  reads are listed in `exemptHardlinks`. The CLI is unchanged, and
+  `aqe fleet run test` reads hardlinked source files again, as it did
+  before [#1358].
+- **`test_generate_enhanced` returns only real tests** ([#1355], [#1366]):
+  it no longer reports invented tests (the `ComponentA` and
+  `edge_case_high-complexity_*` entries, or a fallback count of 6).
+  Placeholders that cannot fail, such as a `test.skip` scaffold or a test
+  with no assertions, are returned under a new `scaffolds` field and are
+  not counted. A `reason` field says why nothing was generated. Without an
+  LLM provider and without `behaviorExamples`, the tool now usually
+  returns 0 tests. Pass `sourceFiles` to name several files.
 
 ### Fixed
 
@@ -56,6 +76,15 @@ Changes queued for 3.15.19.
   shutdown the server waits up to about 2 s for queued writes before it
   closes the database, so a slow shutdown under a lock can take up to
   about 2.7 s.
+- **No stall on the first MCP tool call under a lock** ([#1356],
+  [#1368]): a cold MCP server no longer blocks other tool calls for 1–3 s
+  when another process holds the `memory.db` lock. Pattern stores, the
+  witness-chain table, the hypergraph index, the learning metrics and the
+  embedder identity now write through the shared write queue.
+- **Generated tests are not recorded as passed** ([#1369], [#1372]):
+  `test_generate_enhanced` no longer writes the tests it generates to
+  `test_outcomes` as passed results. Tests that never ran are no longer
+  counted as passed in the learning data. Thanks to @rudycelekli.
 
 ### Dependencies
 
@@ -76,6 +105,14 @@ Changes queued for 3.15.19.
 [#1359]: https://github.com/proffesor-for-testing/agentic-qe/pull/1359
 [#1360]: https://github.com/proffesor-for-testing/agentic-qe/pull/1360
 [#1362]: https://github.com/proffesor-for-testing/agentic-qe/pull/1362
+[#1354]: https://github.com/proffesor-for-testing/agentic-qe/issues/1354
+[#1355]: https://github.com/proffesor-for-testing/agentic-qe/issues/1355
+[#1356]: https://github.com/proffesor-for-testing/agentic-qe/issues/1356
+[#1366]: https://github.com/proffesor-for-testing/agentic-qe/pull/1366
+[#1367]: https://github.com/proffesor-for-testing/agentic-qe/pull/1367
+[#1368]: https://github.com/proffesor-for-testing/agentic-qe/pull/1368
+[#1369]: https://github.com/proffesor-for-testing/agentic-qe/issues/1369
+[#1372]: https://github.com/proffesor-for-testing/agentic-qe/pull/1372
 
 ## [3.15.18] - 2026-11-01
 
