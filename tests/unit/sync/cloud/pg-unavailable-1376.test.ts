@@ -12,7 +12,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
 
-const pgState = vi.hoisted(() => ({ mode: 'throw' as 'throw' | 'no-client' }));
+const pgState = vi.hoisted(() => ({ mode: 'throw' as 'throw' | 'no-client' | 'end-rejects' }));
 vi.mock('module', async (importOriginal) => {
   const original = await importOriginal<typeof import('module')>();
   return {
@@ -22,6 +22,16 @@ vi.mock('module', async (importOriginal) => {
       return (id: string) => {
         if (id !== 'pg') return realRequire(id);
         if (pgState.mode === 'throw') throw new Error("Cannot find module 'pg'");
+        if (pgState.mode === 'end-rejects') {
+          // A working driver whose client.end() rejects, for the close() case.
+          return {
+            Client: class {
+              async connect(): Promise<void> {}
+              async query(): Promise<{ rows: unknown[]; rowCount: number }> { return { rows: [], rowCount: 2 }; }
+              async end(): Promise<void> { throw new Error('end failed'); }
+            },
+          };
+        }
         return { types: {} }; // a pg module without a Client export
       };
     },
@@ -142,6 +152,108 @@ describe('the writer owns the tunnel it starts (#1376)', () => {
     await writer.close();
     expect(tunnel.stop).toHaveBeenCalledOnce();
     expect(tunnel.active).toBe(false);
+  });
+
+  it('the ESM namespace shape (default.Client) is used when there is no top-level Client', async () => {
+    const writer = new PostgresWriter({ cloud, tunnelManager: createConnectionManager(cloud), pgModule: { default: { Client } } });
+    await writer.connect();
+    await expect(writer.query('SELECT 1')).resolves.toEqual([]);
+  });
+
+  it('an injected module without a Client gives the driver error, not "new undefined"', async () => {
+    const writer = new PostgresWriter({ cloud, tunnelManager: createConnectionManager(cloud), pgModule: {} });
+    await expect(writer.connect()).rejects.toThrow(/PostgreSQL driver \(pg\) could not be loaded: the pg module has no Client export/);
+    expect(tunnel.start).not.toHaveBeenCalled();
+  });
+
+  it('concurrent connect() calls share one connection attempt (one client, one tunnel start)', async () => {
+    let made = 0;
+    let release!: () => void;
+    const gate = new Promise<void>(r => { release = r; });
+    class SlowClient extends Client {
+      constructor() { super(); made++; }
+      async connect(): Promise<void> { await gate; }
+    }
+    const writer = new PostgresWriter({ cloud, tunnelManager: createConnectionManager(cloud), pgModule: { Client: SlowClient } });
+    const first = writer.connect();
+    const second = writer.connect();
+    release();
+    await Promise.all([first, second]);
+    expect(made).toBe(1);
+    expect(tunnel.start).toHaveBeenCalledOnce();
+    await writer.close();
+    expect(tunnel.stop).toHaveBeenCalledOnce();
+  });
+
+  describe('close() always releases the connection and the tunnel', () => {
+    function tracked(failOn: { rollback?: boolean; end?: boolean }) {
+      const calls = { rollback: 0, end: 0 };
+      class FlakyClient extends Client {
+        async query(sql?: string): Promise<{ rows: unknown[]; rowCount: number }> {
+          if (sql === 'ROLLBACK') {
+            calls.rollback++;
+            if (failOn.rollback) throw new Error('Connection terminated unexpectedly');
+          }
+          return { rows: [], rowCount: 0 };
+        }
+        async end(): Promise<void> {
+          calls.end++;
+          if (failOn.end) throw new Error('end failed');
+        }
+      }
+      return { calls, writer: new PostgresWriter({ cloud, tunnelManager: createConnectionManager(cloud), pgModule: { Client: FlakyClient } }) };
+    }
+
+    it('A: the rollback throws (the connection dropped mid-transaction): end is still attempted and the tunnel stopped', async () => {
+      const { calls, writer } = tracked({ rollback: true });
+      await writer.connect();
+      await writer.beginTransaction();
+      await expect(writer.close()).resolves.toBeUndefined();
+      expect(calls).toEqual({ rollback: 1, end: 1 });
+      expect(tunnel.stop).toHaveBeenCalledOnce();
+      expect(console.warn).toHaveBeenCalledWith(expect.stringMatching(/closing was not clean: rollback: Connection terminated unexpectedly/));
+      await expect(writer.query('SELECT 1')).rejects.toThrow('Not connected');
+      await writer.close(); // a second close is a no-op
+      expect(tunnel.stop).toHaveBeenCalledOnce();
+    });
+
+    it('B: client.end() rejects: the tunnel is still stopped and the writer is released', async () => {
+      const { calls, writer } = tracked({ end: true });
+      await writer.connect();
+      await expect(writer.close()).resolves.toBeUndefined();
+      expect(calls.end).toBe(1);
+      expect(tunnel.stop).toHaveBeenCalledOnce();
+      expect(console.warn).toHaveBeenCalledWith(expect.stringMatching(/closing was not clean: end: end failed/));
+      await expect(writer.query('SELECT 1')).rejects.toThrow('Not connected');
+    });
+
+    it('a failing tunnel stop is logged, not thrown', async () => {
+      const { writer } = tracked({});
+      await writer.connect();
+      tunnel.stop.mockRejectedValueOnce(new Error('kill failed'));
+      await expect(writer.close()).resolves.toBeUndefined();
+      expect(console.warn).toHaveBeenCalledWith(expect.stringMatching(/tunnel stop: kill failed/));
+    });
+
+    it('a close failure inside sync does not mask the sync result', async () => {
+      // syncAll closes the writer in its finally: a failing end() must not
+      // turn the report into a thrown error, and the tunnel is still stopped.
+      pgState.mode = 'end-rejects';
+      try {
+        const agent = new CloudSyncAgent({
+          environment: 'test', cloud,
+          sync: { mode: 'full', interval: '1h', batchSize: 1000, conflictResolution: 'newer-wins', sourcePriority: {}, sources },
+        });
+        await agent.initialize();
+        const report = await agent.syncAll();
+        expect(report.status).toBe('completed');
+        expect(report.totalRecordsSynced).toBe(2);
+        expect(tunnel.stop).toHaveBeenCalledOnce();
+        expect(console.warn).toHaveBeenCalledWith(expect.stringMatching(/closing was not clean: end: end failed/));
+      } finally {
+        pgState.mode = 'throw';
+      }
+    });
   });
 
   it('close() leaves an already-running tunnel alone', async () => {

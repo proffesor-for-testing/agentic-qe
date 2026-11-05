@@ -42,8 +42,11 @@ export interface PostgresWriterConfig {
   connectionTimeout?: number;
 
   /**
-   * #1376: the PostgreSQL driver to use instead of `require('pg')`. For
-   * tests only; production loads the real `pg` module.
+   * #1376: the PostgreSQL driver module to use instead of `require('pg')`.
+   * It goes through the same shape checks as the real module (`Client`, or
+   * `default.Client` for an ESM namespace), so one without a Client fails
+   * with the same driver error.
+   * @internal For tests only; production loads the real `pg` module.
    */
   pgModule?: PgModule;
 }
@@ -55,9 +58,16 @@ export interface PgClient {
   end(): Promise<void>;
 }
 
-/** The part of the `pg` module the writer uses: its Client constructor. */
+/** A pg Client constructor. */
+export type PgClientConstructor = new (config: Record<string, unknown>) => PgClient;
+
+/**
+ * The part of the `pg` module the writer uses: its Client constructor, as a
+ * CommonJS export or, for an ESM namespace, under `default`.
+ */
 export interface PgModule {
-  Client: new (config: Record<string, unknown>) => PgClient;
+  Client?: PgClientConstructor;
+  default?: { Client?: PgClientConstructor };
 }
 
 const PG_REINSTALL_HINT = 'Reinstall agentic-qe (or run `npm install` in the project that provides it).';
@@ -72,6 +82,8 @@ export class PostgresWriter implements CloudWriter {
   private connected = false;
   /** #1376: this writer started the tunnel, so it stops it on failure and close. */
   private startedTunnel = false;
+  /** #1376: an in-flight connect(), so a concurrent call waits for it instead of opening a second client. */
+  private connecting: Promise<void> | null = null;
 
   constructor(config: PostgresWriterConfig) {
     this.config = config;
@@ -82,7 +94,16 @@ export class PostgresWriter implements CloudWriter {
    */
   async connect(): Promise<void> {
     if (this.connected) return;
+    if (this.connecting) return this.connecting;
+    this.connecting = this.openConnection();
+    try {
+      await this.connecting;
+    } finally {
+      this.connecting = null;
+    }
+  }
 
+  private async openConnection(): Promise<void> {
     // #1376: load the driver first, so a missing driver fails before a
     // tunnel is started (nothing to clean up) and never falls back to a mock.
     const Client = this.loadPgClient();
@@ -130,23 +151,24 @@ export class PostgresWriter implements CloudWriter {
    * #1376: the pg Client constructor, or a clear error. The driver is a
    * dependency, so a failure here is a broken install, not "no cloud".
    */
-  private loadPgClient(): PgModule['Client'] {
-    if (this.config.pgModule) return this.config.pgModule.Client;
-
+  private loadPgClient(): PgClientConstructor {
     // Load pg via createRequire (works in esbuild bundles unlike dynamic import)
-    let pg: Record<string, unknown>;
-    try {
-      pg = requirePg('pg');
-    } catch (e) {
-      throw new Error(`PostgreSQL driver (pg) could not be loaded: ${toErrorMessage(e)}. ${PG_REINSTALL_HINT}`);
+    let pg: PgModule;
+    if (this.config.pgModule) {
+      pg = this.config.pgModule;
+    } else {
+      try {
+        pg = requirePg('pg') as PgModule;
+      } catch (e) {
+        throw new Error(`PostgreSQL driver (pg) could not be loaded: ${toErrorMessage(e)}. ${PG_REINSTALL_HINT}`);
+      }
     }
 
-    const pgDefault = pg.default as Record<string, unknown> | undefined;
-    const Client = pg.Client || pgDefault?.Client;
+    const Client = pg.Client || pg.default?.Client;
     if (typeof Client !== 'function') {
       throw new Error(`PostgreSQL driver (pg) could not be loaded: the pg module has no Client export. ${PG_REINSTALL_HINT}`);
     }
-    return Client as PgModule['Client'];
+    return Client;
   }
 
   /**
@@ -328,22 +350,39 @@ export class PostgresWriter implements CloudWriter {
    * Close connection
    */
   async close(): Promise<void> {
-    if (this.inTransaction) {
-      await this.rollback();
-    }
+    // #1376: always release everything, even when a step fails. The state is
+    // cleared first, then each step is tried in turn; a failure is logged,
+    // not thrown, so a close in a caller's `finally` never masks the error
+    // that caller is reporting (sync and verify close the writer there).
+    const client = this.client;
+    const rollback = this.inTransaction;
+    const stopTunnel = this.startedTunnel;
+    this.client = null;
+    this.connected = false;
+    this.inTransaction = false;
+    this.startedTunnel = false;
 
-    if (this.client) {
-      await this.client.end();
-      this.client = null;
-      this.connected = false;
-      console.log('[PostgresWriter] Connection closed');
-    }
-
-    // #1376: a tunnel this writer started does not outlive it.
-    if (this.startedTunnel) {
-      this.startedTunnel = false;
-      await this.config.tunnelManager.stop().catch((e: unknown) =>
-        logger.debug('Tunnel stop on close failed', { error: toErrorMessage(e) }));
+    const failures: string[] = [];
+    try {
+      if (client && rollback) {
+        try { await client.query('ROLLBACK'); } catch (e) { failures.push(`rollback: ${toErrorMessage(e)}`); }
+      }
+      if (client) {
+        try {
+          await client.end();
+          console.log('[PostgresWriter] Connection closed');
+        } catch (e) {
+          failures.push(`end: ${toErrorMessage(e)}`);
+        }
+      }
+    } finally {
+      // A tunnel this writer started does not outlive it.
+      if (stopTunnel) {
+        try { await this.config.tunnelManager.stop(); } catch (e) { failures.push(`tunnel stop: ${toErrorMessage(e)}`); }
+      }
+      if (failures.length > 0) {
+        console.warn(`[PostgresWriter] Connection released, but closing was not clean: ${failures.join('; ')}`);
+      }
     }
   }
 

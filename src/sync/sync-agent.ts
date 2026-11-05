@@ -528,9 +528,16 @@ export class CloudSyncAgent {
   }
 
   private async disconnect(): Promise<void> {
-    if (this.writer) {
-      await this.writer.close();
-      this.writer = null;
+    // #1376: drop the writer first, so a close that rejects (a CloudWriter
+    // other than PostgresWriter, whose close() does not) leaves no stale
+    // writer behind and is logged rather than masking the caller's result.
+    const writer = this.writer;
+    this.writer = null;
+    if (!writer) return;
+    try {
+      await writer.close();
+    } catch (error) {
+      this.log(`Warning: closing the cloud connection failed: ${toErrorMessage(error)}`, 'warn');
     }
   }
 
