@@ -110,6 +110,7 @@ export {
   pullFromCloud,
   pullIncrementalFromCloud,
   unknownPullTables,
+  pullTablesProblem,
   type PullAgentConfig,
   type PullVerifyResult,
   type PullVerifyTableResult,

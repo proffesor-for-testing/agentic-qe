@@ -290,7 +290,7 @@ For each command/tool:
 | 1 | Sync status | `aqe sync status` | Local/cloud status | PASS |
 | 2 | Dry run sync | `aqe sync --dry-run` | Preview without action | PASS |
 | 3 | Pull | `aqe sync pull --dry-run` | Preview pull | PASS |
-| 4 | Verify | `aqe sync verify` | Integrity check | PASS |
+| 4 | Verify | `aqe sync verify` | Integrity check: connects to the cloud and compares counts. Without a cloud connection: `Status: UNVERIFIED` with the reason, exit 1 (#1361). Exit codes: 0 VERIFIED, 1 MISMATCH or UNVERIFIED, 2 PARTIAL | PASS |
 
 ### Other Commands
 

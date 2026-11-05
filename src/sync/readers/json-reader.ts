@@ -70,6 +70,14 @@ export class JSONReader implements DataReader<JSONRecord> {
   }
 
   /**
+   * #1361: whether the source file exists, so a sync can tell a missing
+   * source (nothing read) from one that was read and is empty.
+   */
+  exists(): boolean {
+    return fs.existsSync(this.filePath);
+  }
+
+  /**
    * Read all records
    */
   async readAll(): Promise<JSONRecord[]> {

@@ -175,6 +175,13 @@ export interface SyncResult {
   /** Number of records skipped */
   recordsSkipped: number;
 
+  /**
+   * #1361: the source's file does not exist, so nothing was read. Not a
+   * failure (optional sources such as a claude-flow store are often absent),
+   * but a sync where every source is missing or failed read nothing and fails.
+   */
+  sourceMissing?: boolean;
+
   /** Duration in milliseconds */
   durationMs: number;
 

@@ -337,11 +337,10 @@ export class PullSyncAgent {
 
     // Filter by specific tables if requested
     if (this.config.tables && this.config.tables.length > 0) {
-      // #1361: a name that matches no table is an error, not a silent no-op.
-      const unknown = unknownPullTables(this.config.tables, sources);
-      if (unknown.length > 0) {
-        throw new Error(`Unknown table(s): ${unknown.join(', ')}. Known: ${sources.map(s => s.localTable).join(', ')}`);
-      }
+      // #1361: a name that matches no table, or only a disabled one, is an
+      // error, not a silent no-op.
+      const problem = pullTablesProblem(this.config.tables, this.config.sources);
+      if (problem) throw new Error(problem);
       const tableSet = new Set(this.config.tables);
       sources = sources.filter(s => tableSet.has(s.localTable) || tableSet.has(s.name));
     }
@@ -431,6 +430,26 @@ export function unknownPullTables(
 ): string[] {
   const known = new Set(sources.flatMap(s => [s.name, s.localTable]));
   return tables.filter(t => !known.has(t));
+}
+
+/**
+ * #1361: why a `--tables` selection cannot be pulled, or null when it can.
+ * `sources` is every configured source, enabled or not, so a name that only
+ * matches a disabled source is reported as disabled, not unknown.
+ */
+export function pullTablesProblem(
+  tables: readonly string[],
+  sources: readonly Pick<PullSource, 'name' | 'localTable' | 'enabled'>[],
+): string | null {
+  if (tables.length === 0) return 'No tables given to --tables';
+  const enabled = sources.filter(s => s.enabled);
+  const unknown = unknownPullTables(tables, sources);
+  const disabled = unknownPullTables(tables, enabled).filter(t => !unknown.includes(t));
+  const problems: string[] = [];
+  if (unknown.length > 0) problems.push(`Unknown table(s): ${unknown.join(', ')}`);
+  if (disabled.length > 0) problems.push(`Table(s) disabled in the pull configuration: ${disabled.join(', ')}`);
+  if (problems.length === 0) return null;
+  return `${problems.join('. ')}. Enabled tables: ${[...new Set(enabled.map(s => s.localTable))].join(', ') || '(none)'}`;
 }
 
 /** #1361: every table pulled is completed, none is failed, otherwise partial. */

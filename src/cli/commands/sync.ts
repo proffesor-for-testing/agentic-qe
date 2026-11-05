@@ -29,7 +29,7 @@ import {
   type VerifyResult,
   pullFromCloud,
   pullIncrementalFromCloud,
-  unknownPullTables,
+  pullTablesProblem,
   type PullAgentConfig,
 } from '../../sync/index.js';
 import * as fs from 'fs';
@@ -157,12 +157,11 @@ export function createSyncCommands(): Command {
       // Filter tables if specified
       if (options.tables) {
         pullConfig.tables = options.tables.split(',').map((t: string) => t.trim()).filter(Boolean);
-        // #1361: refuse a typo before connecting, not after an empty "completed" pull.
-        const sources = DEFAULT_PULL_CONFIG.sources.filter(s => s.enabled);
-        const unknown = unknownPullTables(pullConfig.tables!, sources);
-        if (unknown.length > 0 || pullConfig.tables!.length === 0) {
-          console.error(chalk.red(`Unknown table(s): ${unknown.join(', ') || '(none given)'}`));
-          console.error(`Known tables: ${sources.map(s => s.localTable).join(', ')}`);
+        // #1361: refuse a typo, or a disabled table, before connecting, not
+        // after an empty "completed" pull.
+        const problem = pullTablesProblem(pullConfig.tables!, DEFAULT_PULL_CONFIG.sources);
+        if (problem) {
+          console.error(chalk.red(problem));
           process.exitCode = 1;
           return;
         }
@@ -375,10 +374,12 @@ function printSyncReport(report: SyncReport): void {
   if (report.results.length > 0) {
     console.log(chalk.bold('Results by Source:'));
     for (const result of report.results) {
-      const icon = result.success ? chalk.green('✓') : chalk.red('✗');
+      // #1361: a source whose file does not exist was not read.
+      const icon = !result.success ? chalk.red('✗') : result.sourceMissing ? chalk.gray('-') : chalk.green('✓');
       console.log(`   ${icon} ${result.source}`);
       console.log(`      Table: ${result.table}`);
       console.log(`      Records: ${result.recordsSynced}`);
+      if (result.sourceMissing) console.log(`      ${chalk.gray('Not read: the source file does not exist')}`);
       console.log(`      Duration: ${result.durationMs}ms`);
       if (result.error) {
         console.log(`      Error: ${chalk.red(result.error)}`);

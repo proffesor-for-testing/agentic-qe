@@ -4,9 +4,11 @@
  * <typo>` completed with nothing to do. The sync layer is mocked here; the
  * agent behaviour is in tests/unit/sync/sync-false-success-1361.test.ts.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const verify = vi.fn();
+// The real check, without loading the pull agent's cloud modules.
+let pullTablesProblem: typeof import('../../../src/sync/pull-agent.js').pullTablesProblem;
 const syncIncrementalToCloud = vi.fn();
 const pullIncrementalFromCloud = vi.fn();
 
@@ -16,12 +18,12 @@ vi.mock('../../../src/sync/index.js', () => ({
   syncIncrementalToCloud: (...a: unknown[]) => syncIncrementalToCloud(...a),
   pullFromCloud: vi.fn(),
   pullIncrementalFromCloud: (...a: unknown[]) => pullIncrementalFromCloud(...a),
-  unknownPullTables: (tables: string[], sources: Array<{ name: string; localTable: string }>) => {
-    const known = new Set(sources.flatMap(s => [s.name, s.localTable]));
-    return tables.filter(t => !known.has(t));
-  },
+  pullTablesProblem: (...a: unknown[]) => pullTablesProblem(...(a as Parameters<typeof pullTablesProblem>)),
   DEFAULT_SYNC_CONFIG: { sync: { sources: [{ name: 'root-qe-patterns' }, { name: 'root-kv-store' }] } },
-  DEFAULT_PULL_CONFIG: { sources: [{ name: 'qe-patterns', localTable: 'qe_patterns', enabled: true }] },
+  DEFAULT_PULL_CONFIG: { sources: [
+    { name: 'qe-patterns', localTable: 'qe_patterns', enabled: true },
+    { name: 'dream-insights', localTable: 'dream_insights', enabled: false },
+  ] },
 }));
 vi.mock('ora', () => ({
   default: () => {
@@ -31,6 +33,10 @@ vi.mock('ora', () => ({
 }));
 
 import { createSyncCommands, verifyExitCode } from '../../../src/cli/commands/sync.js';
+
+beforeAll(async () => {
+  pullTablesProblem = (await vi.importActual<typeof import('../../../src/sync/pull-agent.js')>('../../../src/sync/pull-agent.js')).pullTablesProblem;
+});
 
 describe('aqe sync verify and filters (#1361)', () => {
   const run = (...args: string[]) => createSyncCommands().parseAsync(['node', 'sync', ...args]);
@@ -86,6 +92,14 @@ describe('aqe sync verify and filters (#1361)', () => {
     await run('--dry-run', '--sources', 'root-kv-store');
     expect(syncIncrementalToCloud).toHaveBeenCalledOnce();
     expect(process.exitCode).toBe(0);
+  });
+
+  it('pull --tables naming a disabled table says it is disabled, and exits 1', async () => {
+    await run('pull', '--tables', 'dream_insights', '--dry-run');
+    expect(pullIncrementalFromCloud).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+    expect(out.join('\n')).toMatch(/disabled in the pull configuration: dream_insights/);
+    expect(out.join('\n')).not.toMatch(/Unknown/);
   });
 
   it('pull --tables with an unknown name exits 1 before connecting', async () => {

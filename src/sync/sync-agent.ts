@@ -30,6 +30,8 @@ interface DataReader<T = unknown> {
   readChanged(since: Date): Promise<T[]>;
   count(): Promise<number>;
   close(): Promise<void>;
+  /** #1361: false when the source file is absent (JSON sources). */
+  exists?(): boolean;
 }
 import { DEFAULT_SYNC_CONFIG } from './interfaces.js';
 import { LoggerFactory } from '../logging/index.js';
@@ -127,6 +129,7 @@ export class CloudSyncAgent {
       }
 
       this.report.status = reportStatus(this.report.results);
+      if (nothingRead(this.report.results)) this.report.errors.push(NOTHING_READ);
     } catch (error) {
       this.report.status = 'failed';
       this.report.errors.push(toErrorMessage(error));
@@ -167,6 +170,7 @@ export class CloudSyncAgent {
       }
 
       this.report.status = reportStatus(this.report.results);
+      if (nothingRead(this.report.results)) this.report.errors.push(NOTHING_READ);
     } catch (error) {
       this.report.status = 'failed';
       this.report.errors.push(toErrorMessage(error));
@@ -208,6 +212,8 @@ export class CloudSyncAgent {
 
       if (records.length === 0) {
         result.success = true;
+        // #1361: an absent file was not read; it must not make a sync "completed".
+        if (reader.exists?.() === false) result.sourceMissing = true;
         result.durationMs = Date.now() - startTime;
         return result;
       }
@@ -268,6 +274,7 @@ export class CloudSyncAgent {
 
       if (records.length === 0) {
         result.success = true;
+        if (reader.exists?.() === false) result.sourceMissing = true;
         result.durationMs = Date.now() - startTime;
         return result;
       }
@@ -401,9 +408,14 @@ export class CloudSyncAgent {
         [this.config.environment]
       );
       await this.writer.commit();
-      // node-postgres returns COUNT(*) (bigint) as a string.
-      cloudCount = Number(rows[0]?.count ?? 0);
-      if (!Number.isFinite(cloudCount)) throw new Error(`Unexpected count: ${String(rows[0]?.count)}`);
+      // node-postgres returns COUNT(*) (bigint) as a string. No row, a null
+      // or an empty count is an error, never a count of 0 (#1361).
+      const raw = rows[0]?.count;
+      if (raw === null || raw === undefined || (typeof raw === 'string' && raw.trim() === '')) {
+        throw new Error(`COUNT(*) returned no value (${rows.length === 0 ? 'no row' : JSON.stringify(raw)})`);
+      }
+      cloudCount = Number(raw);
+      if (!Number.isInteger(cloudCount) || cloudCount < 0) throw new Error(`Unexpected count: ${String(raw)}`);
     } catch (e) {
       try { await this.writer.rollback(); } catch { /* ignore */ }
       logger.debug('Cloud count query failed', { source: source.name, error: e instanceof Error ? e.message : String(e) });
@@ -488,12 +500,20 @@ export class CloudSyncAgent {
 
     const tunnelManager = createConnectionManager(this.config.cloud);
 
-    this.writer = createPostgresWriter({
+    const writer = createPostgresWriter({
       cloud: this.config.cloud,
       tunnelManager,
     });
 
-    await this.writer.connect();
+    // #1361: keep the writer only once connected, so a failed connect leaves
+    // no half-open writer behind and a later call connects again.
+    try {
+      await writer.connect();
+    } catch (error) {
+      try { await writer.close(); } catch { /* not connected */ }
+      throw error;
+    }
+    this.writer = writer;
     this.log('Connected to cloud database');
   }
 
@@ -543,13 +563,21 @@ export class CloudSyncAgent {
 }
 
 /**
- * #1361: overall status from per-source results: every source succeeded is
- * completed, none succeeded is failed, otherwise partial.
+ * #1361: overall status from per-source results. A source counts as read
+ * when it succeeded and its file existed; a missing optional source is
+ * neither a failure nor a read. Nothing read is failed; every source read or
+ * missing (and at least one read) is completed; otherwise partial.
  */
 function reportStatus(results: SyncResult[]): SyncReport['status'] {
-  if (results.length > 0 && results.every(r => r.success)) return 'completed';
-  if (results.some(r => r.success)) return 'partial';
-  return 'failed';
+  if (nothingRead(results)) return 'failed';
+  return results.every(r => r.success) ? 'completed' : 'partial';
+}
+
+const NOTHING_READ = 'No source could be read: every selected source failed or its file does not exist';
+
+/** #1361: no selected source was actually read. */
+function nothingRead(results: SyncResult[]): boolean {
+  return !results.some(r => r.success && !r.sourceMissing);
 }
 
 /**

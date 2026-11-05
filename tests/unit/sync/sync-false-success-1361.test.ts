@@ -26,8 +26,9 @@ vi.mock('../../../src/sync/cloud/postgres-writer.js', async (importOriginal) => 
 }));
 
 import { CloudSyncAgent } from '../../../src/sync/sync-agent.js';
-import { PullSyncAgent, unknownPullTables } from '../../../src/sync/pull-agent.js';
+import { PullSyncAgent, pullTablesProblem, unknownPullTables } from '../../../src/sync/pull-agent.js';
 import { createSQLiteReader } from '../../../src/sync/readers/sqlite-reader.js';
+import { createJSONReader } from '../../../src/sync/readers/json-reader.js';
 import { createPostgresWriter, PostgresWriter } from '../../../src/sync/cloud/postgres-writer.js';
 import { createSQLiteWriter } from '../../../src/sync/writers/sqlite-writer.js';
 import type { CloudWriter, SyncSource } from '../../../src/sync/interfaces.js';
@@ -78,12 +79,22 @@ beforeEach(() => {
 });
 afterEach(() => vi.restoreAllMocks());
 
-async function agentWith(sources: SyncSource[], opts: { dryRun?: boolean; readerFails?: string[] } = {}) {
-  (createSQLiteReader as Mock).mockImplementation(({ source: s }: { source: SyncSource }) => {
-    const r = reader();
+async function agentWith(
+  sources: SyncSource[], opts: { dryRun?: boolean; readerFails?: string[]; missing?: string[] } = {},
+) {
+  const make = ({ source: s }: { source: SyncSource }) => {
+    const r: ReturnType<typeof reader> & { exists?: () => boolean } = reader();
     if (opts.readerFails?.includes(s.name)) r.initialize.mockRejectedValue(new Error(`SQLite database not found: ${s.path}`));
+    // A JSON source whose file is absent: the reader opens, reads nothing, exists() is false.
+    if (opts.missing?.includes(s.name)) {
+      r.readAll.mockResolvedValue([]);
+      r.readChanged.mockResolvedValue([]);
+      r.exists = () => false;
+    }
     return r;
-  });
+  };
+  (createSQLiteReader as Mock).mockImplementation(make);
+  (createJSONReader as Mock).mockImplementation(make);
   const agent = new CloudSyncAgent(syncConfig(sources, opts.dryRun));
   await agent.initialize();
   return agent;
@@ -135,6 +146,34 @@ describe('verify connects and never claims a match it did not count (#1361 item 
     });
   });
 
+  it.each([
+    ['no row', []],
+    ['a null count', [{ count: null }]],
+    ['an empty-string count', [{ count: '' }]],
+    ['a missing count', [{}]],
+  ])('%s from COUNT(*) is unverified, not 0', async (_label, rows) => {
+    (createPostgresWriter as Mock).mockReturnValue(writer({ query: vi.fn().mockResolvedValue(rows) }));
+    // An empty local source would "match" a cloud count of 0.
+    (createSQLiteReader as Mock).mockImplementation(() => reader([], 0));
+    const agent = new CloudSyncAgent(syncConfig([source('qe')]));
+    await agent.initialize();
+    const result = await agent.verify();
+    expect(result.status).toBe('unverified');
+    expect(result.results[0]).toMatchObject({ status: 'unverified', cloudCount: -1, error: expect.stringMatching(/COUNT\(\*\) returned no value/) });
+  });
+
+  it('a failed connect leaves no writer behind, so the next call connects again', async () => {
+    const failing = writer({ connect: vi.fn().mockRejectedValue(new Error('tunnel failed')) });
+    const working = writer();
+    (createPostgresWriter as Mock).mockReturnValueOnce(failing).mockReturnValueOnce(working);
+    const agent = await agentWith([source('qe')]);
+    expect((await agent.verify()).status).toBe('unverified');
+    expect(failing.close).toHaveBeenCalled();
+    const second = await agent.verify();
+    expect(working.connect).toHaveBeenCalledOnce();
+    expect(second.status).toBe('verified');
+  });
+
   it('nothing to verify is unverified', async () => {
     const result = await (await agentWith([])).verify();
     expect(result).toMatchObject({ verified: false, status: 'unverified', error: 'No sources selected to verify' });
@@ -168,6 +207,29 @@ describe('an empty or unreadable selection is not COMPLETED (#1361 item 3)', () 
     expect(report.results.find(r => r.source === 'gone')).toMatchObject({
       success: false, error: expect.stringMatching(/Source could not be read: SQLite database not found/),
     });
+  });
+
+  it('--full with every SQLite source unreadable and the JSON files missing reads nothing and fails', async () => {
+    const sources = [source('db-a', { mode: 'full' }), source('db-b'), source('cf-json', { type: 'json', mode: 'full' })];
+    const report = await (await agentWith(sources, { dryRun: true, readerFails: ['db-a', 'db-b'], missing: ['cf-json'] })).syncAll();
+    expect(report.status).toBe('failed');
+    expect(report.errors).toContain('No source could be read: every selected source failed or its file does not exist');
+    expect(report.results.find(r => r.source === 'cf-json')).toMatchObject({ success: true, sourceMissing: true });
+  });
+
+  it('every source file missing reads nothing and fails', async () => {
+    const report = await (await agentWith([source('j1', { type: 'json' }), source('j2', { type: 'json' })],
+      { dryRun: true, missing: ['j1', 'j2'] })).syncIncremental();
+    expect(report.status).toBe('failed');
+  });
+
+  it('a missing optional JSON source next to a read one still completes, marked not read', async () => {
+    const report = await (await agentWith([source('db'), source('cf-json', { type: 'json' })],
+      { dryRun: true, missing: ['cf-json'] })).syncAll();
+    expect(report.status).toBe('completed');
+    expect(report.errors).toEqual([]);
+    expect(report.results.find(r => r.source === 'cf-json')).toMatchObject({ sourceMissing: true });
+    expect(report.results.find(r => r.source === 'db')?.sourceMissing).toBeUndefined();
   });
 
   it('every source unreadable (no memory.db) fails the sync', async () => {
@@ -241,6 +303,14 @@ describe('pull: a --tables filter that matches nothing fails (#1361 item 3)', ()
 
   it('names the unknown tables', () => {
     expect(unknownPullTables(['qe_patterns', 'typo', 'kv'], sources)).toEqual(['typo']);
+  });
+
+  it('says a table is disabled rather than unknown', () => {
+    const all = [...sources.map(s => ({ ...s, enabled: true })), { name: 'dream', localTable: 'dream_insights', enabled: false }];
+    expect(pullTablesProblem(['dream_insights'], all)).toMatch(/^Table\(s\) disabled in the pull configuration: dream_insights/);
+    expect(pullTablesProblem(['typo', 'dream'], all)).toMatch(/Unknown table\(s\): typo\. Table\(s\) disabled in the pull configuration: dream/);
+    expect(pullTablesProblem(['kv_store'], all)).toBeNull();
+    expect(pullTablesProblem([], all)).toMatch(/No tables given/);
   });
 
   it('a pull whose --tables match nothing is failed, not completed', async () => {
