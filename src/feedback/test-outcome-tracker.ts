@@ -18,6 +18,7 @@ import type { RealQEReasoningBank } from '../learning/real-qe-reasoning-bank.js'
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
 import { toErrorMessage } from '../shared/error-utils.js';
 import { safeJsonParse } from '../shared/safe-json.js';
+import { EXECUTED_TEST_OUTCOME_SQL } from './test-outcome-provenance.js';
 
 // ============================================================================
 // Database Row Types
@@ -160,8 +161,9 @@ export class TestOutcomeTracker {
   private async loadFromDb(): Promise<void> {
     if (!this.db) return;
     const database = this.db.getDatabase();
+    // #1374: never-run generation rows are not outcomes; they stay in the DB.
     const rows = database.prepare(`
-      SELECT * FROM test_outcomes ORDER BY created_at DESC LIMIT ?
+      SELECT * FROM test_outcomes WHERE ${EXECUTED_TEST_OUTCOME_SQL} ORDER BY created_at DESC LIMIT ?
     `).all(this.config.maxOutcomesInMemory) as TestOutcomeRow[];
 
     // Load in chronological order (oldest first)
