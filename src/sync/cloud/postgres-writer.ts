@@ -4,9 +4,10 @@
  * Writes data to cloud PostgreSQL database.
  * Handles upserts, transactions, and batch operations.
  *
- * Note: Uses pg module for PostgreSQL connections.
- * Since pg is not in dependencies, this provides a mock implementation
- * that can be replaced with actual pg operations when needed.
+ * Uses the `pg` driver (a dependency of agentic-qe). #1376: when it cannot
+ * be loaded, connect() fails; there is no mock fallback, which used to make
+ * every query return no rows and a sync report COMPLETED with nothing sent.
+ * Tests inject a driver through `PostgresWriterConfig.pgModule`.
  */
 
 import { createRequire } from 'module';
@@ -23,7 +24,6 @@ const logger = LoggerFactory.create('postgres-writer');
 // at runtime. createRequire works because it uses Node's native require().
 const requirePg = createRequire(import.meta.url);
 
-// Note: pg module is optional - will use mock if not available
 
 /**
  * PostgreSQL writer configuration
@@ -40,17 +40,27 @@ export interface PostgresWriterConfig {
 
   /** Connection timeout in ms */
   connectionTimeout?: number;
+
+  /**
+   * #1376: the PostgreSQL driver to use instead of `require('pg')`. For
+   * tests only; production loads the real `pg` module.
+   */
+  pgModule?: PgModule;
 }
 
-/**
- * Mock PostgreSQL client interface
- * Replace with actual pg.Client when pg is installed
- */
-interface PgClient {
+/** The part of a `pg` client the writer uses. */
+export interface PgClient {
   connect(): Promise<void>;
-  query(sql: string, params?: unknown[]): Promise<{ rows: unknown[]; rowCount: number }>;
+  query(sql: string, params?: unknown[]): Promise<{ rows: unknown[]; rowCount: number | null }>;
   end(): Promise<void>;
 }
+
+/** The part of the `pg` module the writer uses: its Client constructor. */
+export interface PgModule {
+  Client: new (config: Record<string, unknown>) => PgClient;
+}
+
+const PG_REINSTALL_HINT = 'Reinstall agentic-qe (or run `npm install` in the project that provides it).';
 
 /**
  * PostgreSQL writer implementation
@@ -60,6 +70,8 @@ export class PostgresWriter implements CloudWriter {
   private readonly config: PostgresWriterConfig;
   private inTransaction = false;
   private connected = false;
+  /** #1376: this writer started the tunnel, so it stops it on failure and close. */
+  private startedTunnel = false;
 
   constructor(config: PostgresWriterConfig) {
     this.config = config;
@@ -71,50 +83,70 @@ export class PostgresWriter implements CloudWriter {
   async connect(): Promise<void> {
     if (this.connected) return;
 
+    // #1376: load the driver first, so a missing driver fails before a
+    // tunnel is started (nothing to clean up) and never falls back to a mock.
+    const Client = this.loadPgClient();
+
     // Ensure tunnel is active
-    if (!this.config.tunnelManager.isActive()) {
+    const startedTunnel = !this.config.tunnelManager.isActive();
+    if (startedTunnel) {
       await this.config.tunnelManager.start();
     }
 
-    const connection = this.config.tunnelManager.getConnection();
-    if (!connection) {
-      throw new Error('No tunnel connection available');
+    try {
+      const connection = this.config.tunnelManager.getConnection();
+      if (!connection) {
+        throw new Error('No tunnel connection available');
+      }
+
+      const connectionConfig = {
+        host: connection.host,
+        port: connection.port,
+        database: this.config.cloud.database,
+        user: this.config.cloud.user,
+        password: process.env.PGPASSWORD || '',
+        connectionTimeoutMillis: this.config.connectionTimeout || 10000,
+      };
+
+      const client = new Client(connectionConfig);
+      await client.connect();
+      this.client = client;
+      this.connected = true;
+      this.startedTunnel = startedTunnel;
+      console.log(`[PostgresWriter] Connected to ${connection.host}:${connection.port}/${this.config.cloud.database}`);
+    } catch (error) {
+      // #1376: no half-open state, and no tunnel left running behind a failure.
+      this.client = null;
+      this.connected = false;
+      if (startedTunnel) {
+        await this.config.tunnelManager.stop().catch((e: unknown) =>
+          logger.debug('Tunnel stop after a failed connect failed', { error: toErrorMessage(e) }));
+      }
+      throw error;
     }
+  }
+
+  /**
+   * #1376: the pg Client constructor, or a clear error. The driver is a
+   * dependency, so a failure here is a broken install, not "no cloud".
+   */
+  private loadPgClient(): PgModule['Client'] {
+    if (this.config.pgModule) return this.config.pgModule.Client;
 
     // Load pg via createRequire (works in esbuild bundles unlike dynamic import)
     let pg: Record<string, unknown>;
     try {
       pg = requirePg('pg');
     } catch (e) {
-      logger.debug('pg module not installed, using mock mode', { error: e instanceof Error ? e.message : String(e) });
-      console.warn('[PostgresWriter] pg module not installed, running in mock mode');
-      this.client = this.createMockClient();
-      this.connected = true;
-      return;
+      throw new Error(`PostgreSQL driver (pg) could not be loaded: ${toErrorMessage(e)}. ${PG_REINSTALL_HINT}`);
     }
 
     const pgDefault = pg.default as Record<string, unknown> | undefined;
-    const Client = (pg.Client || pgDefault?.Client) as (new (config: Record<string, unknown>) => PgClient) | undefined;
-    if (!Client) {
-      console.warn('[PostgresWriter] pg.Client not found in module, running in mock mode');
-      this.client = this.createMockClient();
-      this.connected = true;
-      return;
+    const Client = pg.Client || pgDefault?.Client;
+    if (typeof Client !== 'function') {
+      throw new Error(`PostgreSQL driver (pg) could not be loaded: the pg module has no Client export. ${PG_REINSTALL_HINT}`);
     }
-
-    const connectionConfig = {
-      host: connection.host,
-      port: connection.port,
-      database: this.config.cloud.database,
-      user: this.config.cloud.user,
-      password: process.env.PGPASSWORD || '',
-      connectionTimeoutMillis: this.config.connectionTimeout || 10000,
-    };
-
-    this.client = new Client(connectionConfig) as PgClient;
-    await this.client.connect();
-    this.connected = true;
-    console.log(`[PostgresWriter] Connected to ${connection.host}:${connection.port}/${this.config.cloud.database}`);
+    return Client as PgModule['Client'];
   }
 
   /**
@@ -306,6 +338,13 @@ export class PostgresWriter implements CloudWriter {
       this.connected = false;
       console.log('[PostgresWriter] Connection closed');
     }
+
+    // #1376: a tunnel this writer started does not outlive it.
+    if (this.startedTunnel) {
+      this.startedTunnel = false;
+      await this.config.tunnelManager.stop().catch((e: unknown) =>
+        logger.debug('Tunnel stop on close failed', { error: toErrorMessage(e) }));
+    }
   }
 
   /**
@@ -459,25 +498,6 @@ export class PostgresWriter implements CloudWriter {
 
     // No conflict columns → plain INSERT (no ON CONFLICT clause)
     return [];
-  }
-
-  /**
-   * Create mock client for testing without pg installed
-   */
-  private createMockClient(): PgClient {
-    const mockRows: unknown[] = [];
-    return {
-      async connect() {
-        console.log('[MockPgClient] Connected (mock mode)');
-      },
-      async query(sql: string, params?: unknown[]) {
-        console.log(`[MockPgClient] Query: ${sql.slice(0, 100)}... (${params?.length || 0} params)`);
-        return { rows: mockRows, rowCount: 0 };
-      },
-      async end() {
-        console.log('[MockPgClient] Disconnected (mock mode)');
-      },
-    };
   }
 }
 
