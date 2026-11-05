@@ -269,8 +269,10 @@ export class TestOutcomeTracker {
    * Track a test outcome
    */
   async track(outcome: TestOutcome): Promise<void> {
-    // #1374: a never-run generation outcome is persisted as before but kept
-    // out of memory and metrics, so memory matches what loadFromDb restores.
+    // #1374: a never-run generation outcome is kept out of memory and metrics,
+    // so memory matches what loadFromDb restores. It is still persisted on
+    // purpose: the tracker records what it is given and readers decide what
+    // counts, as for the legacy rows (no caller passes one today).
     if (!isExecutedTestOutcome(outcome)) {
       await this.persistOutcome(outcome);
       return;
