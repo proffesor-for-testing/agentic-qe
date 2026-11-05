@@ -21,6 +21,7 @@ vi.mock('../../../src/kernel/unified-memory.js', () => ({
     isInitialized: () => true,
     initialize: async () => undefined,
     getDatabase: () => db,
+    writeWhenUnlocked: async <T>(fn: () => T) => fn(),
   }),
 }));
 
@@ -32,13 +33,16 @@ const context = (): WorkflowContext => ({
 });
 
 let n = 0;
-function row(generatedBy: string, passed: 0 | 1, opts: { flaky?: 0 | 1; age?: string } = {}) {
+function row(generatedBy: string, passed: 0 | 1, opts: { flaky?: 0 | 1; age?: string; domain?: string } = {}) {
   db.prepare(`INSERT INTO test_outcomes (id, test_id, test_name, generated_by, framework, language, domain,
       passed, flaky, execution_time_ms, maintainability_score, created_at)
-    VALUES (?, ?, ?, ?, 'vitest', 'typescript', 'test-execution', ?, ?, 5, 0.5, datetime('now', ?))`)
-    .run(`r${++n}`, `t${n}`, `test ${n}`, generatedBy, passed, opts.flaky ?? 0, opts.age ?? '-1 minutes');
+    VALUES (?, ?, ?, ?, 'vitest', 'typescript', ?, ?, ?, 5, 0.5, datetime('now', ?))`)
+    .run(`r${++n}`, `t${n}`, `test ${n}`, generatedBy, opts.domain ?? 'test-execution', passed, opts.flaky ?? 0, opts.age ?? '-1 minutes');
 }
-const generated = (count: number) => { for (let i = 0; i < count; i++) row('qe-test-generation', 1); };
+/** The never-run rows exactly as the pre-#1372 handler factory wrote them (domain 'test-generation'). */
+const generated = (count: number) => {
+  for (let i = 0; i < count; i++) row('qe-test-generation', 1, { domain: 'test-generation' });
+};
 const executed = (...passed: Array<0 | 1>) => passed.forEach(p => row('cli-hook-post-command', p));
 
 /** Coverage is supplied, so only the test_outcomes inputs are read from the DB. */
@@ -84,6 +88,18 @@ describe('quality-gate-check without execution evidence (#1374)', () => {
     expect(g.unmeasured).toBeUndefined();
   });
 
+  it('a real executed run of an AQE-generated test is evidence (only the never-run pair is ignored)', async () => {
+    row('qe-test-generation', 0, { domain: 'test-execution' });
+    row('qe-test-generation', 1, { domain: 'test-execution' });
+    const g = await gate();
+    expect(g.details.testsPassing).toMatchObject({ current: 50 });
+    expect(g.details.bugs).toMatchObject({ current: 1 });
+  });
+
+  it('the reason says where testsPassing and bugs come from', async () => {
+    expect((await gate()).reason).toMatch(/testsPassing and bugs come from executed test_outcomes rows of the last 7 days/);
+  });
+
   it('a measured, healthy project passes', async () => {
     executed(1, 1, 1, 1);
     const g = await gate();
@@ -119,14 +135,38 @@ describe('quality-gate-check without execution evidence (#1374)', () => {
   });
 });
 
-describe('TestOutcomeTracker.loadFromDb skips never-run generation rows (#1374)', () => {
-  it('loads executed rows only and deletes nothing', async () => {
+describe('TestOutcomeTracker skips never-run generation rows (#1374)', () => {
+  const count = () => (db.prepare('SELECT COUNT(*) as c FROM test_outcomes').get() as { c: number }).c;
+
+  it('loadFromDb loads executed rows only and deletes nothing', async () => {
     generated(3);
     executed(1, 0);
+    row('qe-test-generation', 1, { domain: 'test-execution' });
     const tracker = new TestOutcomeTracker();
     await tracker.initialize();
     const loaded = tracker.exportOutcomes();
-    expect(loaded.map(o => o.generatedBy)).toEqual(['cli-hook-post-command', 'cli-hook-post-command']);
-    expect((db.prepare('SELECT COUNT(*) as c FROM test_outcomes').get() as { c: number }).c).toBe(5);
+    expect(loaded.map(o => `${o.generatedBy}/${o.domain}`).sort()).toEqual([
+      'cli-hook-post-command/test-execution', 'cli-hook-post-command/test-execution', 'qe-test-generation/test-execution',
+    ]);
+    expect(count()).toBe(6);
+  });
+
+  it('memory matches the DB after a restart: a never-run outcome is persisted but not held in memory', async () => {
+    const tracker = new TestOutcomeTracker();
+    await tracker.initialize();
+    const base = {
+      testName: 'x', framework: 'vitest', language: 'typescript', passed: true,
+      coverage: { lines: 0, branches: 0, functions: 0 }, executionTimeMs: 1, flaky: false,
+      maintainabilityScore: 0.5, timestamp: new Date(),
+    } as const;
+    await tracker.track({ ...base, id: 'gen-1', testId: 'gen-1', generatedBy: 'qe-test-generation', domain: 'test-generation' } as never);
+    await tracker.track({ ...base, id: 'run-1', testId: 'run-1', generatedBy: 'qe-test-generation', domain: 'test-execution' } as never);
+    tracker.importOutcomes([{ ...base, id: 'gen-2', testId: 'gen-2', generatedBy: 'qe-test-generation', domain: 'test-generation' } as never]);
+    expect(tracker.exportOutcomes().map(o => o.id)).toEqual(['run-1']);
+    expect(count()).toBe(2); // both tracked rows were persisted
+
+    const restarted = new TestOutcomeTracker();
+    await restarted.initialize();
+    expect(restarted.exportOutcomes().map(o => o.id)).toEqual(['run-1']);
   });
 });

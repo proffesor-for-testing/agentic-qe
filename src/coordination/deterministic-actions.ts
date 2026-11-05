@@ -143,7 +143,11 @@ const qualityGateCheck: DeterministicAction = {
       source: typeof input.currentCoverage === 'number' ? 'input' : 'database',
       ...(unmeasured.length > 0 ? {
         unmeasured,
-        reason: `No execution evidence for ${unmeasured.join(', ')}: unmeasured inputs fail the gate`,
+        // #1374: testsPassing and bugs both come from executed test_outcomes
+        // rows of the last 7 days; coverage from measured coverage_sessions.
+        reason: `No execution evidence for ${unmeasured.join(', ')} ` +
+          '(testsPassing and bugs come from executed test_outcomes rows of the last 7 days, ' +
+          'coverage from measured coverage_sessions): unmeasured inputs fail the gate',
       } : {}),
       details: {
         coverage: check(currentCoverage, coverageMin, coveragePassed),

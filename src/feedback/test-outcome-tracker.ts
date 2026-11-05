@@ -18,7 +18,7 @@ import type { RealQEReasoningBank } from '../learning/real-qe-reasoning-bank.js'
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
 import { toErrorMessage } from '../shared/error-utils.js';
 import { safeJsonParse } from '../shared/safe-json.js';
-import { EXECUTED_TEST_OUTCOME_SQL } from './test-outcome-provenance.js';
+import { EXECUTED_TEST_OUTCOME_SQL, isExecutedTestOutcome } from './test-outcome-provenance.js';
 
 // ============================================================================
 // Database Row Types
@@ -269,6 +269,13 @@ export class TestOutcomeTracker {
    * Track a test outcome
    */
   async track(outcome: TestOutcome): Promise<void> {
+    // #1374: a never-run generation outcome is persisted as before but kept
+    // out of memory and metrics, so memory matches what loadFromDb restores.
+    if (!isExecutedTestOutcome(outcome)) {
+      await this.persistOutcome(outcome);
+      return;
+    }
+
     // 1. Store outcome
     this.store.add(outcome);
     await this.persistOutcome(outcome);
@@ -550,6 +557,7 @@ export class TestOutcomeTracker {
    */
   importOutcomes(outcomes: TestOutcome[]): void {
     for (const outcome of outcomes) {
+      if (!isExecutedTestOutcome(outcome)) continue; // #1374, as loadFromDb
       this.store.add(outcome);
       if (outcome.patternId) {
         this.updatePatternMetrics(outcome);

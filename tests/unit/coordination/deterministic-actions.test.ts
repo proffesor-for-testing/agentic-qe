@@ -8,10 +8,18 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import {
-  findDeterministicAction,
-  getAllDeterministicActions,
-} from '../../../src/coordination/deterministic-actions.js';
+
+// #1374 review: the actions import getUnifiedMemory statically, so the mock
+// must be in place before the module loads (vi.mock is hoisted; the module is
+// imported dynamically below). By default the DB is unavailable; a test that
+// wants one installs it with mockUnifiedMemory().
+const dbState = vi.hoisted(() => ({ manager: null as null | Record<string, unknown> }));
+vi.mock('../../../src/kernel/unified-memory.js', () => ({
+  getUnifiedMemory: () => dbState.manager ?? { isInitialized: () => false, getDatabase: () => null },
+}));
+
+const { findDeterministicAction, getAllDeterministicActions } =
+  await import('../../../src/coordination/deterministic-actions.js');
 import type { WorkflowContext } from '../../../src/coordination/workflow-types.js';
 
 // ============================================================================
@@ -36,16 +44,19 @@ function makeContext(overrides?: Partial<WorkflowContext>): WorkflowContext {
 // ============================================================================
 
 /**
- * Mock the unified memory module so deterministic actions see a fake DB.
- * Call restore() in afterEach.
+ * Give the deterministic actions a fake DB. Reset by the afterEach below.
  */
 function mockUnifiedMemory(rows: Record<string, unknown>) {
   const mockPrepare = vi.fn().mockImplementation((sql: string) => ({
     get: vi.fn().mockImplementation(() => {
       // Return different rows based on the table being queried
       if (sql.includes('coverage_sessions')) return rows.coverage ?? undefined;
-      if (sql.includes('test_outcomes') && sql.includes('SUM')) return rows.testOutcomes ?? undefined;
-      if (sql.includes('test_outcomes') && sql.includes('bugs')) return rows.bugs ?? undefined;
+      // #1374: one query returns the executed-test total, passes and bugs.
+      if (sql.includes('test_outcomes')) {
+        return rows.testOutcomes || rows.bugs
+          ? { ...(rows.testOutcomes as object), ...(rows.bugs as object) }
+          : undefined;
+      }
       if (sql.includes('qe_patterns')) return rows.patterns ?? undefined;
       if (sql.includes('routing_outcomes')) return rows.routing ?? undefined;
       return undefined;
@@ -59,13 +70,12 @@ function mockUnifiedMemory(rows: Record<string, unknown>) {
     getDatabase: vi.fn().mockReturnValue(mockDb),
   };
 
-  // Mock the require() call inside tryGetDb
-  vi.doMock('../../../src/kernel/unified-memory.js', () => ({
-    getUnifiedMemory: () => mockManager,
-  }));
+  dbState.manager = mockManager;
 
   return { mockDb, mockPrepare, mockManager };
 }
+
+afterEach(() => { dbState.manager = null; });
 
 // ============================================================================
 // Registry Tests
@@ -148,8 +158,9 @@ describe('quality-gate-check action', () => {
 
     expect(result.success).toBe(true);
     const data = result.value;
-    // With no DB available and no inputs, defaults to 0 → fails
+    // With no DB available and no inputs, every input is unmeasured (null) → fails
     expect(data.passed).toBe(false);
+    expect(data.unmeasured).toEqual(['coverage', 'testsPassing', 'bugs']);
     expect(typeof data.score).toBe('number');
     expect(data.source).toBe('database');
   });
@@ -221,12 +232,20 @@ describe('coverage-threshold action', () => {
   });
 
   it('#1027 N6: no measured coverage_sessions row → unmeasured, not 0%', async () => {
-    mockUnifiedMemory({ coverage: undefined });
+    const { mockPrepare } = mockUnifiedMemory({ coverage: undefined });
     const action = findDeterministicAction('coverage-analysis', 'threshold-check')!;
     const result = await action.execute({}, makeContext());
     expect(result.success).toBe(true);
     expect(result.value).toMatchObject({ currentCoverage: null, unmeasured: true, passed: false, source: 'database' });
-    vi.doUnmock('../../../src/kernel/unified-memory.js');
+    // The mocked DB was queried (before #1374 the require() never reached it).
+    expect(mockPrepare).toHaveBeenCalledWith(expect.stringContaining('coverage_sessions'));
+  });
+
+  it('reads a measured coverage_sessions row from the DB', async () => {
+    mockUnifiedMemory({ coverage: { after_lines: 85 } });
+    const action = findDeterministicAction('coverage-analysis', 'threshold-check')!;
+    const result = await action.execute({ minCoverage: 80 }, makeContext());
+    expect(result.value).toMatchObject({ currentCoverage: 85, passed: true, gap: 0, source: 'database' });
   });
 
   it('#1027 N6: gate-check reports unmeasured coverage as null and fails that check', async () => {
@@ -236,7 +255,10 @@ describe('coverage-threshold action', () => {
     expect(result.success).toBe(true);
     expect(result.value.details.coverage).toMatchObject({ current: null, passed: false, unmeasured: true });
     expect(result.value.passed).toBe(false);
-    vi.doUnmock('../../../src/kernel/unified-memory.js');
+    // The other inputs came from the mocked DB, so only coverage is unmeasured.
+    expect(result.value.details.testsPassing).toMatchObject({ current: 100, passed: true });
+    expect(result.value.details.bugs).toMatchObject({ current: 0, passed: true });
+    expect(result.value.unmeasured).toEqual(['coverage']);
   });
 });
 
@@ -259,6 +281,13 @@ describe('pattern-health action', () => {
     expect(data.totalPatterns).toBe(100);
     expect(data.activePatterns).toBe(80);
     expect(data.source).toBe('input');
+  });
+
+  it('reads pattern stats from the DB', async () => {
+    mockUnifiedMemory({ patterns: { total: 50, active: 40, avg_conf: 0.5 } });
+    const action = findDeterministicAction('learning-optimization', 'health-check')!;
+    const result = await action.execute({}, makeContext());
+    expect(result.value).toMatchObject({ totalPatterns: 50, activePatterns: 40, avgConfidence: 0.5, source: 'database' });
   });
 
   it('should return zero health for empty state and database source', async () => {
@@ -291,6 +320,13 @@ describe('routing-accuracy action', () => {
     expect(data.totalOutcomes).toBe(200);
     expect(data.confidenceCorrelation).toBe(0.85);
     expect(data.source).toBe('input');
+  });
+
+  it('reads routing outcomes from the DB', async () => {
+    mockUnifiedMemory({ routing: { total: 4, successful: 3 } });
+    const action = findDeterministicAction('learning-optimization', 'routing-check')!;
+    const result = await action.execute({}, makeContext());
+    expect(result.value).toMatchObject({ successRate: 75, totalOutcomes: 4, successfulOutcomes: 3, source: 'database' });
   });
 
   it('should handle zero outcomes gracefully and report database source', async () => {
