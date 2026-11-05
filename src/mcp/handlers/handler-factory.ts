@@ -21,7 +21,7 @@ import type { QEDomain as LearningDomain } from '../../learning/qe-patterns.js';
 import { isCallerInputError, toErrorMessage } from '../../shared/error-utils.js';
 import { describeSavedResults, readSaveResultsOption } from './save-results-option';
 import { createInitializedFeedbackLoop, getQualityFeedbackLoop } from '../../feedback/feedback-loop.js';
-import type { TestOutcome as FeedbackTestOutcome, CoverageSession } from '../../feedback/types.js';
+import type { CoverageSession } from '../../feedback/types.js';
 import { isLearnableResult } from '../../learning/learnable-result.js';
 import {
   measureToolOutcome,
@@ -290,33 +290,8 @@ async function recordDomainFeedback(
   }
   if (!loop) return;
 
-  if (domain === 'test-generation' && data) {
-    // Extract test results from generation output and record as outcomes
-    const tests = (data.tests || data.generatedTests || []) as Array<Record<string, unknown>>;
-    for (const test of tests.slice(0, 20)) { // Cap at 20 per invocation
-      const outcome: FeedbackTestOutcome = {
-        id: String(test.id || randomUUID()),
-        testId: String(test.id || test.name || randomUUID()),
-        testName: String(test.name || test.testName || 'generated-test'),
-        generatedBy: 'qe-test-generation',
-        patternId: test.patternId as string | undefined,
-        framework: (test.framework || params.framework || 'vitest') as import('../../routing/types.js').TestFramework,
-        language: (test.language || params.language || 'typescript') as import('../../routing/types.js').ProgrammingLanguage,
-        domain: 'test-generation',
-        passed: test.passed !== false, // Default to true for generated (not yet executed)
-        coverage: {
-          lines: Number(test.coverageLines || 0),
-          branches: Number(test.coverageBranches || 0),
-          functions: Number(test.coverageFunctions || 0),
-        },
-        executionTimeMs: Number(test.executionTimeMs || durationMs / Math.max(tests.length, 1)),
-        flaky: Boolean(test.flaky),
-        maintainabilityScore: Number(test.qualityScore || test.maintainability || 0.7),
-        timestamp: new Date(),
-      };
-      await loop.recordTestOutcome(outcome);
-    }
-  }
+  // #1369: generated tests have not run. Keep generation experience capture
+  // separate; only executed tests can supply a pass/fail test_outcomes row.
 
   // #1014: only MEASURED coverage becomes a coverage_sessions row. An
   // estimate or an UNMEASURED target wrote after_lines = the estimate / 0.0,

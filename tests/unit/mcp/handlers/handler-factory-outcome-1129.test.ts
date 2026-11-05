@@ -110,7 +110,7 @@ describe('#1129 handler factory records the outcome, not the completed call', ()
   it.each([
     ['an index of existing files', 'index-code', { filesIndexed: 1 }, 'code-intelligence'],
     ['an index of a missing target (filesIndexed 0)', 'index-code', { filesIndexed: 0 }, 'code-intelligence'],
-    ['a tool without an outcome measure', 'generate-tests', { tests: [] }, 'test-generation'],
+    ['generated tests without execution evidence', 'generate-tests', { tests: [{ id: 'generated-1', code: 'expect(add(2, 3)).toBe(5)' }], testsGenerated: 1 }, 'test-generation'],
   ])('%s records no pattern success or failure', async (_label, taskType, data, domain) => {
     await run(taskType, { success: true, data }, domain);
 
