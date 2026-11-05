@@ -187,16 +187,16 @@ describe('JSONReader', () => {
       expect(typeof records[0].created_at).toBe('string');
     });
 
-    it('should handle parse errors gracefully', async () => {
+    // #1378: a file that exists but does not parse is a failed source, not
+    // an empty one (it used to return [] and sync as COMPLETED).
+    it('should throw "could not be parsed" on a parse error', async () => {
       mockFs.readFileSync = vi.fn().mockReturnValue('invalid json');
       (secureJsonParse.parse as ReturnType<typeof vi.fn>).mockImplementation(() => {
         throw new Error('Parse error');
       });
 
-      const records = await reader.readAll();
-
-      expect(records).toEqual([]);
-      expect(consoleErrorSpy).toHaveBeenCalled();
+      await expect(reader.readAll()).rejects.toThrow(/could not be parsed: .*: Parse error/);
+      await expect(reader.count()).rejects.toThrow(/could not be parsed/);
     });
 
     it('should convert object to key-value array', async () => {

@@ -422,7 +422,8 @@ function printSyncStatus(status: { sources: SyncSource[]; lastSync?: Date }): vo
 
   let totalRecords = 0;
   for (const source of status.sources) {
-    const icon = source.enabled ? chalk.green('✓') : chalk.gray('○');
+    // #1378: a source that could not be read or counted is not a ✓.
+    const icon = source.error ? chalk.red('✗') : source.enabled ? chalk.green('✓') : chalk.gray('○');
     const priorityColor = source.priority === 'high' ? chalk.red :
                           source.priority === 'medium' ? chalk.yellow :
                           chalk.gray;

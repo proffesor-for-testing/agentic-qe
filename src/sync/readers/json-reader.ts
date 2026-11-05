@@ -78,28 +78,37 @@ export class JSONReader implements DataReader<JSONRecord> {
   }
 
   /**
-   * Read all records
+   * Read all records.
+   *
+   * A missing file has no records (see exists(); the sync reports it as not
+   * read). #1378: a file that exists but cannot be read or parsed throws, so
+   * a corrupt store is a failed source, never an empty successful one.
    */
   async readAll(): Promise<JSONRecord[]> {
     if (!fs.existsSync(this.filePath)) {
       return [];
     }
 
+    let content: string;
     try {
-      const content = fs.readFileSync(this.filePath, 'utf-8');
-      const parsed = secureJsonParse.parse(content);
-
-      // Extract data based on JSON path if specified
-      const records = this.extractRecords(parsed);
-
-      // Transform records
-      return records.map(record => this.transformRecord(record));
+      content = fs.readFileSync(this.filePath, 'utf-8');
     } catch (error) {
-      console.error(
-        `[JSONReader:${this.name}] Failed to read: ${toErrorMessage(error)}`
-      );
-      return [];
+      throw new Error(`JSON source ${this.name} could not be read: ${this.filePath}: ${toErrorMessage(error)}`);
     }
+
+    let parsed: unknown;
+    try {
+      parsed = secureJsonParse.parse(content);
+    } catch (error) {
+      const why = content.trim() === '' ? 'the file is empty' : describeParseError(error);
+      throw new Error(`JSON source ${this.name} could not be parsed: ${this.filePath}: ${why}`);
+    }
+
+    // Extract data based on JSON path if specified
+    const records = this.extractRecords(parsed);
+
+    // Transform records
+    return records.map(record => this.transformRecord(record));
   }
 
   /**
@@ -374,6 +383,19 @@ export class JSONReader implements DataReader<JSONRecord> {
 
     return { path: this.filePath, exists, modTime, size };
   }
+}
+
+/**
+ * #1378: a parse error without the file's content. Node's JSON.parse message
+ * can quote the start of the input (`Unexpected token 'S', "SECRET=..." is
+ * not valid JSON`), and the message is printed in sync reports, so only the
+ * position is kept.
+ */
+function describeParseError(error: unknown): string {
+  const message = toErrorMessage(error);
+  if (!(error instanceof SyntaxError)) return message;
+  const where = message.match(/position \d+(?: \(line \d+ column \d+\))?/);
+  return `not valid JSON${where ? ` at ${where[0]}` : ''}`;
 }
 
 /**

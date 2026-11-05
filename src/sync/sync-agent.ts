@@ -312,7 +312,15 @@ export class CloudSyncAgent {
     for (const source of this.config.sync.sources) {
       const reader = this.readers.get(source.name);
       if (reader) {
-        const count = await reader.count();
+        // #1378: a source that cannot be counted (e.g. a corrupt JSON file)
+        // is reported with its error instead of failing the whole status.
+        let count = 0;
+        let error: string | undefined;
+        try {
+          count = await reader.count();
+        } catch (e) {
+          error = toErrorMessage(e);
+        }
         sources.push({
           name: source.name,
           type: source.type,
@@ -320,6 +328,7 @@ export class CloudSyncAgent {
           recordCount: count,
           enabled: source.enabled !== false,
           priority: source.priority,
+          ...(error ? { error } : {}),
         });
       } else {
         sources.push({
