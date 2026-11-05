@@ -185,16 +185,21 @@ export class PostgresWriter implements CloudWriter {
         const totalBatches = Math.ceil(records.length / batchSize);
         logger.debug(`Batch ${batchNum}/${totalBatches} failed for ${table}, retrying individually`, { error: toErrorMessage(error) });
         let recovered = 0;
+        let failed = 0;
+        let firstReason = '';
         for (const record of batch) {
           try {
             const inserted = await this.upsertBatch(table, [record], columns, conflictColumns, updateColumns, options?.skipIfExists);
             recovered += inserted;
           } catch (retryError) {
-            // Skip this individual record
+            // Skip this individual record, and report it (#1361)
+            failed++;
+            firstReason ||= toErrorMessage(retryError);
             const recordId = (record as Record<string, unknown>)['id'] || (record as Record<string, unknown>)['key'] || '?';
             logger.debug(`Skipped record ${String(recordId).slice(0, 50)} in ${table}`, { error: toErrorMessage(retryError) });
           }
         }
+        if (failed > 0) options?.onSkipped?.(failed, firstReason);
         totalInserted += recovered;
         if (recovered < batch.length) {
           console.warn(`[PostgresWriter] Batch ${batchNum}/${totalBatches} for ${table}: ${recovered}/${batch.length} recovered (${batch.length - recovered} skipped)`);

@@ -293,6 +293,13 @@ export interface UpsertOptions {
 
   /** Skip if exists (no update) */
   skipIfExists?: boolean;
+
+  /**
+   * #1361: called with the number of records that could not be written and
+   * the first reason, so the caller can fail the source instead of reporting
+   * a successful sync of fewer records (the writer still skips them).
+   */
+  onSkipped?: (count: number, reason: string) => void;
 }
 
 /**

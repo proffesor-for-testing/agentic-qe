@@ -62,7 +62,11 @@ export class SQLiteWriter {
    * Upsert records into a local table using INSERT OR REPLACE.
    * Returns the number of records written.
    */
-  async upsert(table: string, records: Record<string, unknown>[]): Promise<number> {
+  async upsert(
+    table: string,
+    records: Record<string, unknown>[],
+    options: { onSkipped?: (count: number, reason: string) => void } = {},
+  ): Promise<number> {
     if (!this.db) throw new Error('Not connected');
     if (records.length === 0) return 0;
 
@@ -71,6 +75,7 @@ export class SQLiteWriter {
     // Verify table exists — warn loudly so callers know data was dropped
     if (!this.tableExists(table)) {
       console.warn(`[SQLiteWriter] Table '${table}' does not exist in local database — ${records.length} records skipped. Run 'aqe init' to create schema.`);
+      options.onSkipped?.(records.length, `table ${table} does not exist in the local database (run 'aqe init')`);
       return 0;
     }
 
@@ -78,6 +83,7 @@ export class SQLiteWriter {
     const localColumns = this.getTableColumns(table);
     if (localColumns.length === 0) {
       logger.debug(`No columns found for table ${table}`);
+      options.onSkipped?.(records.length, `no columns found for local table ${table}`);
       return 0;
     }
 
@@ -98,10 +104,14 @@ export class SQLiteWriter {
           error: toErrorMessage(error),
         });
         let recovered = 0;
+        let failed = 0;
+        let firstReason = '';
         for (const record of batch) {
           try {
             recovered += this.upsertBatch(safeTable, [record], localColumnSet);
           } catch (retryError) {
+            failed++;
+            firstReason ||= toErrorMessage(retryError);
             const recordId = record['id'] || record['key'] || '?';
             logger.debug(`Skipped record ${String(recordId).slice(0, 50)} in ${table}`, {
               error: toErrorMessage(retryError),
@@ -109,6 +119,8 @@ export class SQLiteWriter {
           }
         }
         totalWritten += recovered;
+        // #1361: report records that could not be written.
+        if (failed > 0) options.onSkipped?.(failed, firstReason);
       }
     }
 

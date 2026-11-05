@@ -62,6 +62,8 @@ export interface SyncAgentConfig extends SyncConfig {
 export class CloudSyncAgent {
   private readonly config: SyncAgentConfig;
   private readonly readers: Map<string, DataReader> = new Map();
+  /** #1361: why a source has no reader, so a sync can report it instead of dropping it. */
+  private readonly readerErrors: Map<string, string> = new Map();
   private writer: CloudWriter | null = null;
   private report: SyncReport | null = null;
 
@@ -92,8 +94,11 @@ export class CloudSyncAgent {
           this.readers.set(source.name, reader);
           this.log(`Initialized reader: ${source.name}`);
         } catch (error) {
+          this.readerErrors.set(source.name, toErrorMessage(error));
           this.log(`Warning: Failed to initialize reader ${source.name}: ${error}`, 'warn');
         }
+      } else {
+        this.readerErrors.set(source.name, `Unsupported source type: ${source.type}`);
       }
     }
 
@@ -107,27 +112,21 @@ export class CloudSyncAgent {
     this.report = this.createReport('full');
 
     try {
+      // #1361: nothing selected is a failed sync, not an empty "completed" one.
+      const selected = this.selectSources(this.config.sync.sources.filter(s => s.enabled !== false));
       await this.connectToCloud();
 
-      // Sort sources by priority
-      const sources = this.config.sync.sources
-        .filter(s => s.enabled !== false && this.readers.has(s.name))
-        .sort((a, b) => {
-          const priorityOrder = { high: 0, medium: 1, low: 2 };
-          return priorityOrder[a.priority] - priorityOrder[b.priority];
-        });
-
       let completed = 0;
-      const total = sources.length;
+      const total = selected.length;
 
-      for (const source of sources) {
+      for (const source of selected) {
         this.progress(`Syncing ${source.name}...`, completed / total);
-        const result = await this.syncSource(source);
+        const result = this.readers.has(source.name) ? await this.syncSource(source) : this.unreadSource(source);
         this.report.results.push(result);
         completed++;
       }
 
-      this.report.status = this.report.results.every(r => r.success) ? 'completed' : 'partial';
+      this.report.status = reportStatus(this.report.results);
     } catch (error) {
       this.report.status = 'failed';
       this.report.errors.push(toErrorMessage(error));
@@ -152,22 +151,22 @@ export class CloudSyncAgent {
     const sinceDate = since || new Date(Date.now() - 24 * 60 * 60 * 1000);
 
     try {
+      // #1361: full-mode sources are left to `--full`; nothing left is a failure.
+      const selected = this.selectSources(
+        this.config.sync.sources.filter(s => s.enabled !== false && s.mode !== 'full'),
+        ' for an incremental sync (full-mode sources need --full)',
+      );
       await this.connectToCloud();
 
-      const sources = this.config.sync.sources
-        .filter(s => s.enabled !== false && this.readers.has(s.name) && s.mode !== 'full')
-        .sort((a, b) => {
-          const priorityOrder = { high: 0, medium: 1, low: 2 };
-          return priorityOrder[a.priority] - priorityOrder[b.priority];
-        });
-
-      for (const source of sources) {
+      for (const source of selected) {
         this.progress(`Incremental sync ${source.name}...`, 0);
-        const result = await this.syncSourceIncremental(source, sinceDate);
+        const result = this.readers.has(source.name)
+          ? await this.syncSourceIncremental(source, sinceDate)
+          : this.unreadSource(source);
         this.report.results.push(result);
       }
 
-      this.report.status = this.report.results.every(r => r.success) ? 'completed' : 'partial';
+      this.report.status = reportStatus(this.report.results);
     } catch (error) {
       this.report.status = 'failed';
       this.report.errors.push(toErrorMessage(error));
@@ -215,10 +214,17 @@ export class CloudSyncAgent {
 
       // Write to cloud (no wrapping transaction — postgres-writer handles per-batch recovery)
       if (this.writer && !this.config.sync.dryRun) {
+        const skipped = { count: 0, reason: '' };
         const written = await this.writer.upsert(source.targetTable, records, {
           skipIfExists: source.mode === 'append',
+          onSkipped: (count, reason) => { skipped.count += count; skipped.reason ||= reason; },
         });
         result.recordsSynced = written;
+        // #1361: records the cloud rejected fail the source, never a silent 0.
+        if (rejectSkipped(result, skipped, records.length, source.targetTable)) {
+          result.durationMs = Date.now() - startTime;
+          return result;
+        }
       } else {
         // Dry run - just count
         result.recordsSynced = records.length;
@@ -268,8 +274,15 @@ export class CloudSyncAgent {
 
       // Write to cloud (no wrapping transaction — postgres-writer handles per-batch recovery)
       if (this.writer && !this.config.sync.dryRun) {
-        const written = await this.writer.upsert(source.targetTable, records);
+        const skipped = { count: 0, reason: '' };
+        const written = await this.writer.upsert(source.targetTable, records, {
+          onSkipped: (count, reason) => { skipped.count += count; skipped.reason ||= reason; },
+        });
         result.recordsSynced = written;
+        if (rejectSkipped(result, skipped, records.length, source.targetTable)) {
+          result.durationMs = Date.now() - startTime;
+          return result;
+        }
       } else {
         result.recordsSynced = records.length;
       }
@@ -318,51 +331,87 @@ export class CloudSyncAgent {
   }
 
   /**
-   * Verify sync by comparing counts
+   * Verify sync by comparing local and cloud counts.
+   *
+   * #1361: verify connects to the cloud itself; before, it never did, so every
+   * cloud count was 0 and an empty source "matched". A count that could not be
+   * read (no connection, a failed query, a local source that could not be
+   * opened) is `unverified`, never a match, and `verified` is true only when
+   * every source was counted on both sides and matched.
    */
   async verify(): Promise<VerifyResult> {
-    const results: VerifyTableResult[] = [];
-
-    for (const source of this.config.sync.sources.filter(s => s.enabled !== false)) {
-      const reader = this.readers.get(source.name);
-      if (!reader) continue;
-
-      const localCount = await reader.count();
-      let cloudCount = 0;
-
-      if (this.writer) {
-        try {
-          // Use SET LOCAL to avoid HNSW index-only scan bug (ruvector HNSW
-          // indexes return 0 rows for COUNT(*) when chosen by the planner)
-          await this.writer.beginTransaction();
-          await this.writer.execute('SET LOCAL enable_indexonlyscan = off');
-          const rows = await this.writer.query<{ count: number }>(
-            `SELECT COUNT(*) as count FROM ${source.targetTable} WHERE source_env = $1`,
-            [this.config.environment]
-          );
-          await this.writer.commit();
-          cloudCount = rows[0]?.count || 0;
-        } catch (e) {
-          try { await this.writer.rollback(); } catch { /* ignore */ }
-          logger.debug('Cloud count query failed', { source: source.name, error: e instanceof Error ? e.message : String(e) });
-          cloudCount = -1; // Error
-        }
-      }
-
-      results.push({
-        source: source.name,
-        table: source.targetTable,
-        localCount,
-        cloudCount,
-        match: localCount === cloudCount,
-        diff: localCount - cloudCount,
-      });
+    const sources = this.config.sync.sources.filter(s => s.enabled !== false);
+    if (sources.length === 0) {
+      return { verified: false, status: 'unverified', results: [], error: 'No sources selected to verify' };
     }
 
+    let connectError: string | undefined;
+    try {
+      if (this.config.sync.dryRun) throw new Error('verify needs a cloud connection; it cannot run as a dry run');
+      await this.connectToCloud();
+      if (!this.writer) throw new Error('No cloud connection was opened');
+    } catch (error) {
+      connectError = `Could not connect to the cloud database: ${toErrorMessage(error)}`;
+    }
+
+    const results: VerifyTableResult[] = [];
+    try {
+      for (const source of sources) {
+        results.push(await this.verifySource(source, connectError));
+      }
+    } finally {
+      await this.disconnect();
+    }
+
+    const status = verifyStatus(results);
     return {
-      verified: results.every(r => r.match || r.cloudCount === -1),
+      verified: status === 'verified',
+      status,
       results,
+      ...(connectError ? { error: connectError } : {}),
     };
+  }
+
+  /** #1361: count one source on both sides; any count that cannot be read is unverified. */
+  private async verifySource(source: SyncSource, connectError?: string): Promise<VerifyTableResult> {
+    const base = { source: source.name, table: source.targetTable };
+    const unverified = (localCount: number, error: string): VerifyTableResult =>
+      ({ ...base, localCount, cloudCount: -1, match: false, diff: 0, status: 'unverified', error });
+
+    const reader = this.readers.get(source.name);
+    if (!reader) {
+      return unverified(-1, `Local source could not be read: ${this.readerErrors.get(source.name) ?? 'reader not initialized'}`);
+    }
+    let localCount: number;
+    try {
+      localCount = await reader.count();
+    } catch (error) {
+      return unverified(-1, `Local count failed: ${toErrorMessage(error)}`);
+    }
+    if (connectError || !this.writer) return unverified(localCount, connectError ?? 'No cloud connection');
+
+    let cloudCount: number;
+    try {
+      // Use SET LOCAL to avoid HNSW index-only scan bug (ruvector HNSW
+      // indexes return 0 rows for COUNT(*) when chosen by the planner)
+      await this.writer.beginTransaction();
+      await this.writer.execute('SET LOCAL enable_indexonlyscan = off');
+      const rows = await this.writer.query<{ count: number | string }>(
+        `SELECT COUNT(*) as count FROM ${source.targetTable} WHERE source_env = $1`,
+        [this.config.environment]
+      );
+      await this.writer.commit();
+      // node-postgres returns COUNT(*) (bigint) as a string.
+      cloudCount = Number(rows[0]?.count ?? 0);
+      if (!Number.isFinite(cloudCount)) throw new Error(`Unexpected count: ${String(rows[0]?.count)}`);
+    } catch (e) {
+      try { await this.writer.rollback(); } catch { /* ignore */ }
+      logger.debug('Cloud count query failed', { source: source.name, error: e instanceof Error ? e.message : String(e) });
+      return unverified(localCount, `Cloud count failed: ${toErrorMessage(e)}`);
+    }
+
+    const match = localCount === cloudCount;
+    return { ...base, localCount, cloudCount, match, diff: localCount - cloudCount, status: match ? 'match' : 'mismatch' };
   }
 
   /**
@@ -385,6 +434,33 @@ export class CloudSyncAgent {
   }
 
   // Private helper methods
+
+  /**
+   * #1361: the sources a sync will report on, by priority. An empty selection
+   * (a `--sources` filter that matched nothing, everything disabled) throws,
+   * so the sync fails instead of completing with nothing to do.
+   */
+  private selectSources(candidates: SyncSource[], why = ''): SyncSource[] {
+    if (candidates.length === 0) {
+      throw new Error(`No sources selected to sync${why}`);
+    }
+    const priorityOrder = { high: 0, medium: 1, low: 2 };
+    return [...candidates].sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
+  }
+
+  /** #1361: a selected source whose reader could not be opened is a failed result. */
+  private unreadSource(source: SyncSource): SyncResult {
+    return {
+      success: false,
+      table: source.targetTable,
+      source: source.name,
+      recordsSynced: 0,
+      conflictsResolved: 0,
+      recordsSkipped: 0,
+      durationMs: 0,
+      error: `Source could not be read: ${this.readerErrors.get(source.name) ?? 'reader not initialized'}`,
+    };
+  }
 
   private createReader(source: SyncSource): DataReader | null {
     const baseDir = process.cwd();
@@ -467,6 +543,40 @@ export class CloudSyncAgent {
 }
 
 /**
+ * #1361: overall status from per-source results: every source succeeded is
+ * completed, none succeeded is failed, otherwise partial.
+ */
+function reportStatus(results: SyncResult[]): SyncReport['status'] {
+  if (results.length > 0 && results.every(r => r.success)) return 'completed';
+  if (results.some(r => r.success)) return 'partial';
+  return 'failed';
+}
+
+/**
+ * #1361: records a writer reported as not written fail the source. Returns
+ * true when it did, with `result.error` saying how many and why.
+ */
+function rejectSkipped(
+  result: SyncResult, skipped: { count: number; reason: string }, total: number, table: string,
+): boolean {
+  if (skipped.count === 0) return false;
+  result.recordsSkipped = skipped.count;
+  result.success = false;
+  result.error = `${skipped.count} of ${total} records were not written to ${table}` +
+    (skipped.reason ? `: ${skipped.reason.slice(0, 300)}` : '');
+  return true;
+}
+
+/** #1361: overall verify status from per-source comparisons. */
+function verifyStatus(results: VerifyTableResult[]): VerifyStatus {
+  if (results.length === 0) return 'unverified';
+  if (results.some(r => r.status === 'mismatch')) return 'mismatch';
+  const matched = results.filter(r => r.status === 'match').length;
+  if (matched === results.length) return 'verified';
+  return matched > 0 ? 'partial' : 'unverified';
+}
+
+/**
  * Source status information
  */
 export interface SourceStatus {
@@ -482,18 +592,33 @@ export interface SourceStatus {
 /**
  * Verify result
  */
+/**
+ * #1361: `verified` every source counted on both sides and matched;
+ * `mismatch` some source differs; `partial` the counted sources matched but
+ * others could not be counted; `unverified` nothing could be compared (no
+ * cloud connection, no sources).
+ */
+export type VerifyStatus = 'verified' | 'mismatch' | 'partial' | 'unverified';
+
 export interface VerifyResult {
   verified: boolean;
+  status: VerifyStatus;
   results: VerifyTableResult[];
+  /** Why the comparison could not run (e.g. the cloud connection failed). */
+  error?: string;
 }
 
 export interface VerifyTableResult {
   source: string;
   table: string;
+  /** -1 when the local source could not be counted. */
   localCount: number;
+  /** -1 when the cloud count could not be read. */
   cloudCount: number;
   match: boolean;
   diff: number;
+  status: 'match' | 'mismatch' | 'unverified';
+  error?: string;
 }
 
 /**

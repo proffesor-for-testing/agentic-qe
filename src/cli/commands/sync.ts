@@ -11,6 +11,8 @@
  *   aqe sync init               # Initialize cloud schema
  *
  * Exit codes for sync and pull: 0 completed, 2 partial, 1 failed.
+ * Exit codes for verify: 0 verified, 2 partial (some sources could not be
+ * counted, the rest matched), 1 mismatch or not verified.
  */
 
 import { Command } from 'commander';
@@ -21,10 +23,13 @@ import {
   syncToCloud,
   syncIncrementalToCloud,
   DEFAULT_SYNC_CONFIG,
+  DEFAULT_PULL_CONFIG,
   type SyncReport,
   type SyncAgentConfig,
+  type VerifyResult,
   pullFromCloud,
   pullIncrementalFromCloud,
+  unknownPullTables,
   type PullAgentConfig,
 } from '../../sync/index.js';
 import * as fs from 'fs';
@@ -44,6 +49,24 @@ export function syncReportExitCode(report: Pick<SyncReport, 'status'>): number {
   if (report.status === 'completed') return 0;
   if (report.status === 'partial') return 2;
   return 1;
+}
+
+/**
+ * Exit code for `aqe sync verify` (#1361), in the #1345 convention: 0 when
+ * every source was counted on both sides and matched, 2 when the sources that
+ * could be counted matched but others could not be, 1 on a mismatch or when
+ * nothing could be verified (no cloud connection).
+ */
+export function verifyExitCode(result: Pick<VerifyResult, 'status'>): number {
+  if (result.status === 'verified') return 0;
+  if (result.status === 'partial') return 2;
+  return 1;
+}
+
+/** #1361: names given to a filter option that match nothing it filters. */
+function unknownNames(given: string[], known: string[]): string[] {
+  const set = new Set(known);
+  return given.filter(name => !set.has(name));
 }
 
 /**
@@ -73,7 +96,16 @@ export function createSyncCommands(): Command {
 
       // Filter sources if specified
       if (options.sources) {
-        const sourceNames = options.sources.split(',').map((s: string) => s.trim());
+        const sourceNames: string[] = options.sources.split(',').map((s: string) => s.trim()).filter(Boolean);
+        // #1361: a name that matches no source is an error, not an empty "completed" sync.
+        const known = DEFAULT_SYNC_CONFIG.sync.sources.map(s => s.name);
+        const unknown = unknownNames(sourceNames, known);
+        if (unknown.length > 0 || sourceNames.length === 0) {
+          console.error(chalk.red(`Unknown source(s): ${unknown.join(', ') || '(none given)'}`));
+          console.error(`Known sources: ${known.join(', ')} (see \`aqe sync config --sources\`)`);
+          process.exitCode = 1;
+          return;
+        }
         config.sync!.sources = DEFAULT_SYNC_CONFIG.sync.sources.filter(
           s => sourceNames.includes(s.name)
         );
@@ -124,7 +156,16 @@ export function createSyncCommands(): Command {
 
       // Filter tables if specified
       if (options.tables) {
-        pullConfig.tables = options.tables.split(',').map((t: string) => t.trim());
+        pullConfig.tables = options.tables.split(',').map((t: string) => t.trim()).filter(Boolean);
+        // #1361: refuse a typo before connecting, not after an empty "completed" pull.
+        const sources = DEFAULT_PULL_CONFIG.sources.filter(s => s.enabled);
+        const unknown = unknownPullTables(pullConfig.tables!, sources);
+        if (unknown.length > 0 || pullConfig.tables!.length === 0) {
+          console.error(chalk.red(`Unknown table(s): ${unknown.join(', ') || '(none given)'}`));
+          console.error(`Known tables: ${sources.map(s => s.localTable).join(', ')}`);
+          process.exitCode = 1;
+          return;
+        }
       }
 
       const spinner = ora('Initializing pull sync agent...').start();
@@ -184,13 +225,15 @@ export function createSyncCommands(): Command {
         const agent = createSyncAgent({ environment: options.env, verbose: false });
         await agent.initialize();
 
-        // Note: Verify requires cloud connection
+        // #1361: verify connects to the cloud itself; without a connection it
+        // reports UNVERIFIED and exits 1, never VERIFIED against a count of 0.
         spinner.text = 'Connecting to cloud...';
         const verifyResult = await agent.verify();
         await agent.close();
 
         spinner.stop();
         printVerifyResult(verifyResult);
+        process.exitCode = verifyExitCode(verifyResult);
       } catch (error) {
         spinner.fail(`Verification failed: ${toErrorMessage(error)}`);
         process.exit(1);
@@ -402,38 +445,33 @@ function printSyncStatus(status: { sources: SyncSource[]; lastSync?: Date }): vo
 /**
  * Print verify result
  */
-interface VerifyTableResult {
-  source: string;
-  match: boolean;
-  localCount: number;
-  cloudCount: number;
-  diff: number;
-}
-
-interface VerifyResult {
-  verified: boolean;
-  results: VerifyTableResult[];
-}
-
 function printVerifyResult(result: VerifyResult): void {
-  const statusColor = result.verified ? chalk.green : chalk.red;
+  const statusColor = result.status === 'verified' ? chalk.green :
+                      result.status === 'mismatch' ? chalk.red :
+                      chalk.yellow;
 
   console.log(chalk.cyan('\n=== Verification Result ===\n'));
-  console.log(chalk.bold('Status:'), statusColor(result.verified ? 'VERIFIED' : 'MISMATCH'));
+  console.log(chalk.bold('Status:'), statusColor(result.status.toUpperCase()));
+  if (result.error) console.log(chalk.bold('Reason:'), chalk.yellow(result.error));
+  if (result.status === 'unverified' || result.status === 'partial') {
+    console.log(chalk.yellow('Counts marked ? could not be read, so they were not compared.'));
+  }
   console.log();
 
   console.log(chalk.bold('Table Comparison:'));
   for (const table of result.results) {
-    const icon = table.match ? chalk.green('✓') :
-                 table.cloudCount === -1 ? chalk.yellow('?') :
+    const icon = table.status === 'match' ? chalk.green('✓') :
+                 table.status === 'unverified' ? chalk.yellow('?') :
                  chalk.red('✗');
     console.log(`${icon} ${table.source}`);
-    console.log(`   Local: ${table.localCount}`);
+    console.log(`   Local: ${table.localCount === -1 ? 'N/A' : table.localCount}`);
     console.log(`   Cloud: ${table.cloudCount === -1 ? 'N/A' : table.cloudCount}`);
-    if (!table.match && table.cloudCount !== -1) {
+    if (table.status === 'mismatch') {
       const diffColor = table.diff > 0 ? chalk.green : chalk.red;
       console.log(`   Diff: ${diffColor(table.diff > 0 ? '+' + table.diff : table.diff)}`);
     }
+    // The connection failure is printed once above, not per table.
+    if (table.error && table.error !== result.error) console.log(`   Error: ${chalk.yellow(table.error)}`);
     console.log();
   }
 }

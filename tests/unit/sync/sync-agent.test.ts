@@ -943,12 +943,27 @@ describe('Factory Functions', () => {
           batchSize: 1000,
           conflictResolution: 'newer-wins',
           sourcePriority: {},
-          sources: [],
+          sources: [{
+            name: 'test', type: 'sqlite', path: 'test.db', targetTable: 'test_table',
+            priority: 'high', mode: 'full', enabled: true,
+          }],
         },
       });
 
       expect(report).toBeDefined();
       expect(report.status).toBe('completed');
+    });
+
+    // #1361: an empty selection used to report "completed".
+    it('fails when no source is selected', async () => {
+      const report = await syncToCloud({
+        sync: {
+          mode: 'full', interval: '1h', batchSize: 1000, conflictResolution: 'newer-wins',
+          sourcePriority: {}, sources: [],
+        },
+      });
+      expect(report.status).toBe('failed');
+      expect(report.errors.join('\n')).toMatch(/No sources selected to sync/);
     });
   });
 
