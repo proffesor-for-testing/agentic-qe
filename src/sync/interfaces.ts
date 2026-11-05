@@ -175,6 +175,13 @@ export interface SyncResult {
   /** Number of records skipped */
   recordsSkipped: number;
 
+  /**
+   * #1361: the source's file does not exist, so nothing was read. Not a
+   * failure (optional sources such as a claude-flow store are often absent),
+   * but a sync where every source is missing or failed read nothing and fails.
+   */
+  sourceMissing?: boolean;
+
   /** Duration in milliseconds */
   durationMs: number;
 
@@ -293,6 +300,13 @@ export interface UpsertOptions {
 
   /** Skip if exists (no update) */
   skipIfExists?: boolean;
+
+  /**
+   * #1361: called with the number of records that could not be written and
+   * the first reason, so the caller can fail the source instead of reporting
+   * a successful sync of fewer records (the writer still skips them).
+   */
+  onSkipped?: (count: number, reason: string) => void;
 }
 
 /**

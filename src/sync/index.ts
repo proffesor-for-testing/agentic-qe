@@ -99,6 +99,7 @@ export {
   type SyncAgentConfig,
   type SourceStatus,
   type VerifyResult,
+  type VerifyStatus,
   type VerifyTableResult,
 } from './sync-agent.js';
 
@@ -108,6 +109,8 @@ export {
   createPullSyncAgent,
   pullFromCloud,
   pullIncrementalFromCloud,
+  unknownPullTables,
+  pullTablesProblem,
   type PullAgentConfig,
   type PullVerifyResult,
   type PullVerifyTableResult,

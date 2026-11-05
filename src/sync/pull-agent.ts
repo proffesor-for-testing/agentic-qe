@@ -127,7 +127,7 @@ export class PullSyncAgent {
         completed++;
       }
 
-      this.report.status = this.report.results.every(r => r.success) ? 'completed' : 'partial';
+      this.report.status = pullStatus(this.report.results);
     } catch (error) {
       this.report.status = 'failed';
       this.report.errors.push(toErrorMessage(error));
@@ -150,6 +150,10 @@ export class PullSyncAgent {
       this.backupLocalDb();
 
       const sources = this.getEnabledSources().filter(s => s.mode !== 'full');
+      // #1361: nothing to pull is a failed pull, not an empty "completed" one.
+      if (sources.length === 0) {
+        throw new Error('No tables selected for an incremental pull (full-mode tables need --full)');
+      }
 
       for (const source of sources) {
         this.progress(`Incremental pull ${source.name}...`, 0);
@@ -157,7 +161,7 @@ export class PullSyncAgent {
         this.report.results.push(result);
       }
 
-      this.report.status = this.report.results.every(r => r.success) ? 'completed' : 'partial';
+      this.report.status = pullStatus(this.report.results);
     } catch (error) {
       this.report.status = 'failed';
       this.report.errors.push(toErrorMessage(error));
@@ -199,9 +203,16 @@ export class PullSyncAgent {
 
       // Write to local
       if (!this.config.dryRun) {
-        const written = await this.writer!.upsert(source.localTable, records);
+        const skipped = { count: 0, reason: '' };
+        const written = await this.writer!.upsert(source.localTable, records, {
+          onSkipped: (count, reason) => { skipped.count += count; skipped.reason ||= reason; },
+        });
         result.recordsSynced = written;
         result.recordsSkipped = records.length - written;
+        if (failSkipped(result, skipped, records.length, source.localTable)) {
+          result.durationMs = Date.now() - startTime;
+          return result;
+        }
       } else {
         result.recordsSynced = records.length;
         this.log(`[DRY RUN] Would write ${records.length} records to local ${source.localTable}`);
@@ -245,8 +256,15 @@ export class PullSyncAgent {
       }
 
       if (!this.config.dryRun) {
-        const written = await this.writer!.upsert(source.localTable, records);
+        const skipped = { count: 0, reason: '' };
+        const written = await this.writer!.upsert(source.localTable, records, {
+          onSkipped: (count, reason) => { skipped.count += count; skipped.reason ||= reason; },
+        });
         result.recordsSynced = written;
+        if (failSkipped(result, skipped, records.length, source.localTable)) {
+          result.durationMs = Date.now() - startTime;
+          return result;
+        }
       } else {
         result.recordsSynced = records.length;
       }
@@ -278,13 +296,14 @@ export class PullSyncAgent {
         localTable: source.localTable,
         cloudCount,
         localCount,
-        match: cloudCount === localCount || cloudCount === -1,
+        // #1361: a cloud count that could not be read (-1) is not a match.
+        match: cloudCount !== -1 && cloudCount === localCount,
         diff: localCount - cloudCount,
       });
     }
 
     return {
-      verified: results.every(r => r.match),
+      verified: results.length > 0 && results.every(r => r.match),
       results,
     };
   }
@@ -318,9 +337,14 @@ export class PullSyncAgent {
 
     // Filter by specific tables if requested
     if (this.config.tables && this.config.tables.length > 0) {
+      // #1361: a name that matches no table, or only a disabled one, is an
+      // error, not a silent no-op.
+      const problem = pullTablesProblem(this.config.tables, this.config.sources);
+      if (problem) throw new Error(problem);
       const tableSet = new Set(this.config.tables);
       sources = sources.filter(s => tableSet.has(s.localTable) || tableSet.has(s.name));
     }
+    if (sources.length === 0) throw new Error('No tables selected to pull');
 
     // Sort by priority
     const priorityOrder = { high: 0, medium: 1, low: 2 };
@@ -394,6 +418,56 @@ export class PullSyncAgent {
     this.config.onProgress?.(message, progress);
     this.log(message);
   }
+}
+
+/**
+ * #1361: the `--tables` names that match no pull source (by local table or
+ * source name), so a typo fails before anything is pulled.
+ */
+export function unknownPullTables(
+  tables: readonly string[],
+  sources: readonly Pick<PullSource, 'name' | 'localTable'>[],
+): string[] {
+  const known = new Set(sources.flatMap(s => [s.name, s.localTable]));
+  return tables.filter(t => !known.has(t));
+}
+
+/**
+ * #1361: why a `--tables` selection cannot be pulled, or null when it can.
+ * `sources` is every configured source, enabled or not, so a name that only
+ * matches a disabled source is reported as disabled, not unknown.
+ */
+export function pullTablesProblem(
+  tables: readonly string[],
+  sources: readonly Pick<PullSource, 'name' | 'localTable' | 'enabled'>[],
+): string | null {
+  if (tables.length === 0) return 'No tables given to --tables';
+  const enabled = sources.filter(s => s.enabled);
+  const unknown = unknownPullTables(tables, sources);
+  const disabled = unknownPullTables(tables, enabled).filter(t => !unknown.includes(t));
+  const problems: string[] = [];
+  if (unknown.length > 0) problems.push(`Unknown table(s): ${unknown.join(', ')}`);
+  if (disabled.length > 0) problems.push(`Table(s) disabled in the pull configuration: ${disabled.join(', ')}`);
+  if (problems.length === 0) return null;
+  return `${problems.join('. ')}. Enabled tables: ${[...new Set(enabled.map(s => s.localTable))].join(', ') || '(none)'}`;
+}
+
+/** #1361: every table pulled is completed, none is failed, otherwise partial. */
+function pullStatus(results: SyncResult[]): SyncReport['status'] {
+  if (results.length > 0 && results.every(r => r.success)) return 'completed';
+  return results.some(r => r.success) ? 'partial' : 'failed';
+}
+
+/** #1361: records the local writer could not write fail the table. */
+function failSkipped(
+  result: SyncResult, skipped: { count: number; reason: string }, total: number, table: string,
+): boolean {
+  if (skipped.count === 0) return false;
+  result.recordsSkipped = skipped.count;
+  result.success = false;
+  result.error = `${skipped.count} of ${total} records were not written to local ${table}` +
+    (skipped.reason ? `: ${skipped.reason.slice(0, 300)}` : '');
+  return true;
 }
 
 /**

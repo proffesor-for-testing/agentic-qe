@@ -33,8 +33,10 @@ const CONFIG: WorkerConfig = {
 interface SyncResultData {
   recordsSynced: number;
   tablesProcessed: number;
+  /** Report-level errors plus each failed source's error (#1361). */
   errors: string[];
   durationMs: number;
+  status: 'running' | 'completed' | 'failed' | 'partial';
 }
 
 /**
@@ -123,11 +125,17 @@ export class CloudSyncWorker extends BaseWorker {
         verbose: false,
       });
 
+      // #1361: a source that failed reports in results[].error, not
+      // report.errors, so both are errors and the status decides success.
       const syncResult: SyncResultData = {
         recordsSynced: report.totalRecordsSynced,
         tablesProcessed: report.results.length,
-        errors: report.errors,
+        errors: [
+          ...report.errors,
+          ...report.results.filter(r => !r.success).map(r => `${r.source}: ${r.error ?? 'sync failed'}`),
+        ],
         durationMs: report.totalDurationMs,
+        status: report.status,
       };
 
       // Log results
@@ -167,7 +175,10 @@ export class CloudSyncWorker extends BaseWorker {
 
       return {
         workerId: this.config.id,
-        success: syncResult.errors.length === 0,
+        success: syncResult.status === 'completed',
+        ...(syncResult.status !== 'completed'
+          ? { error: `Cloud sync ${syncResult.status}: ${syncResult.errors[0] ?? 'no source synced'}` }
+          : {}),
         durationMs: Date.now() - startTime,
         findings,
         recommendations,
