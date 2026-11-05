@@ -7,7 +7,10 @@
  * - Upsert operations with batch processing
  * - Value serialization for PostgreSQL types
  * - Conflict column inference
- * - Mock mode when pg module unavailable
+ *
+ * #1376: the writer has no implicit mock any more. These tests inject a fake
+ * pg driver (PostgresWriterConfig.pgModule); the unloadable-driver cases are
+ * in pg-unavailable-1376.test.ts.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -30,24 +33,17 @@ const mockTunnelManager = {
   }),
 };
 
-// Mock the 'module' built-in so that createRequire returns a function
-// that throws for 'pg'. This intercepts the production code's
-//   const requirePg = createRequire(import.meta.url);
-//   pg = requirePg('pg');
-// because vi.mock('pg') cannot intercept Node's native createRequire().
-vi.mock('module', async (importOriginal) => {
-  const original = await importOriginal() as typeof import('module');
-  return {
-    ...original,
-    createRequire: (...args: Parameters<typeof original.createRequire>) => {
-      const realRequire = original.createRequire(...args);
-      return (id: string) => {
-        if (id === 'pg') throw new Error('pg module not available (mocked)');
-        return realRequire(id);
-      };
-    },
-  };
-});
+// A fake pg driver: records what the writer sends, returns no rows.
+const pgCalls = vi.hoisted(() => ({ configs: [] as Record<string, unknown>[], queries: [] as string[] }));
+class FakePgClient {
+  constructor(config: Record<string, unknown>) { pgCalls.configs.push(config); }
+  async connect(): Promise<void> {}
+  async query(sql: string): Promise<{ rows: unknown[]; rowCount: number }> {
+    pgCalls.queries.push(sql);
+    return { rows: [], rowCount: 0 };
+  }
+  async end(): Promise<void> {}
+}
 
 import {
   PostgresWriter,
@@ -71,6 +67,7 @@ describe('PostgresWriter', () => {
     tunnelManager: mockTunnelManager,
     poolSize: 5,
     connectionTimeout: 10000,
+    pgModule: { Client: FakePgClient },
   };
 
   let writer: PostgresWriter;
@@ -134,14 +131,16 @@ describe('PostgresWriter', () => {
       await expect(writer.connect()).rejects.toThrow('No tunnel connection available');
     });
 
-    it('should use mock client when pg module not available', async () => {
+    it('should connect through the injected pg driver with the tunnel endpoint', async () => {
+      pgCalls.configs.length = 0;
       writer = new PostgresWriter(defaultConfig);
       await writer.connect();
 
-      // Should warn about mock mode
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('mock mode')
-      );
+      expect(pgCalls.configs).toEqual([expect.objectContaining({
+        host: 'localhost', port: 15432, database: 'test_db', user: 'test_user', connectionTimeoutMillis: 10000,
+      })]);
+      // #1376: no mock-mode warning; a real (here injected) driver is used.
+      expect(consoleWarnSpy).not.toHaveBeenCalled();
     });
 
     it('should not reconnect if already connected', async () => {
@@ -219,7 +218,7 @@ describe('PostgresWriter', () => {
 
       const result = await writer.upsert('test_table', records);
 
-      // Mock returns 0 rowCount
+      // The fake driver returns rowCount 0
       expect(result).toBe(0);
     });
 
