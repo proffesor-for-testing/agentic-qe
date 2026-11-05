@@ -6,8 +6,8 @@
  * `test-generation` and `passed = 1`, although the test had never run.
  * Those rows are not execution evidence.
  *
- * Readers ignore them; the rows are NOT deleted (data protection). They age
- * out of the readers' 7-day windows and the tracker's existing retention.
+ * Readers ignore them; this change deletes no rows (data protection). They
+ * drop out of the gate's 7-day window by age and stay in the table.
  * Only that exact pair is ignored: a row with generated_by
  * `qe-test-generation` in another domain (a real run of an AQE-generated
  * test, recorded by a writer that keeps the generator as its author) is
