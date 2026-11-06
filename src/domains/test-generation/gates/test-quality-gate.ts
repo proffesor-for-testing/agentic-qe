@@ -12,7 +12,7 @@
  */
 
 import ts from 'typescript';
-import { hasLanguageAssertion, isJavaScriptFamily } from './test-substance.js';
+import { hasLanguageAssertion, isJavaScriptFamily, unexecutableTestReason } from './test-substance.js';
 import { sourceImportVerdict } from './source-import-check.js';
 
 export { isJavaScriptFamily };
@@ -27,7 +27,8 @@ export type TestQualityIssueType =
   | 'no-source-import'
   | 'tautological-assertion'
   | 'empty-test-body'
-  | 'mirrored-assertion';
+  | 'mirrored-assertion'
+  | 'no-testable-assertion';
 
 export interface TestQualityIssue {
   type: TestQualityIssueType;
@@ -192,6 +193,22 @@ export class TestQualityGate {
       });
     }
 
+    // #1371: the same substance rule test_generate_enhanced uses (#1355). A test
+    // whose every assertion is a tautology (`assert True`, `assertTrue(true)`,
+    // `assert.True(t, true)`) or whose every test is skipped cannot fail, in any
+    // language, so the CLI and MCP agree that it is not a test.
+    const substance = issues.some(issue => issue.type === 'no-assertions')
+      ? undefined
+      : unexecutableTestReason(testCode, sourceFilePath);
+    if (substance) {
+      issues.push({
+        type: 'no-testable-assertion',
+        severity: 'error',
+        description: substance,
+        suggestion: 'Assert on a value computed by the source under test, in a test that is not skipped.',
+      });
+    }
+
     if (this.config.checkSourceImports) {
       issues.push(...this.detectMissingSourceImports(testCode, sourceFilePath, importTarget, sourceCode));
     }
@@ -209,7 +226,7 @@ export class TestQualityGate {
     }
 
     const mechanicallyInvalid = issues.some(
-      issue => issue.type === 'syntax-error' || issue.type === 'no-assertions',
+      issue => issue.type === 'syntax-error' || issue.type === 'no-assertions' || issue.type === 'no-testable-assertion',
     );
     const hasError = issues.some(issue => issue.severity === 'error');
     const score = mechanicallyInvalid ? 0 : this.calculateScore(issues);

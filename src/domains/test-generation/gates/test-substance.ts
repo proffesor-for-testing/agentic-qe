@@ -12,6 +12,7 @@
  *   skipped. Unknown languages are always kept.
  */
 import ts from 'typescript';
+import { stripCode } from './code-text.js';
 
 /** #1355: the files whose generated tests the gate parses (TypeScript AST). */
 export function isJavaScriptFamily(filePath: string): boolean {
@@ -156,8 +157,6 @@ interface LanguageRule {
   allSkipped?: (code: string) => boolean;
 }
 
-const stripHashComments = (code: string) =>
-  code.replace(/"""[\s\S]*?"""|'''[\s\S]*?'''/g, '').replace(/#[^\n]*/g, '');
 const stripSlashComments = (code: string) => code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
 
 function countAll(code: string, re: RegExp): number {
@@ -186,7 +185,8 @@ function annotatedTestsAllSkipped(code: string): boolean {
 const RULES: Array<[RegExp, LanguageRule]> = [
   [/\.py$/i, {
     name: 'Python', example: 'assert*, self.assert*, pytest.raises',
-    comments: stripHashComments,
+    // #1371: strings too, so `print("assert x")` is not an assertion.
+    comments: code => stripCode(code, 'python'),
     assertion: /\bassert\w*|\bself\.fail\s*\(|\bpytest\.(?:raises|warns|fail)\b/g,
     tautology: /\bassert\s+(?:True|1)\s*(?=$|[#,;)])|\bassertTrue\s*\(\s*True\s*\)|\bassertEqual\s*\(\s*([\w.'"]+)\s*,\s*\1\s*\)/gm,
     allSkipped: code => {
@@ -198,7 +198,7 @@ const RULES: Array<[RegExp, LanguageRule]> = [
   }],
   [/\.go$/i, {
     name: 'Go', example: '<t>.Error/Fatal/Fail, require., assert., Expect(',
-    comments: stripSlashComments,
+    comments: code => stripCode(code, 'go'),
     assertion: /\b\w+\.(?:Error|Errorf|Fatal|Fatalf|Fail|FailNow)\s*\(|\b(?:require|assert)\.\w|\.(?:Assert|Require)\(\)\.\w|\bExpect\s*\(/g,
     tautology: /\b(?:assert|require)\.True\s*\(\s*\w+\s*,\s*true\s*[,)]/g,
     allSkipped: code => {
@@ -209,7 +209,7 @@ const RULES: Array<[RegExp, LanguageRule]> = [
   }],
   [/\.(?:java|kt|kts)$/i, {
     name: 'Java/Kotlin', example: 'assert*, assertThat, verify(, should*',
-    comments: stripSlashComments,
+    comments: code => stripCode(code, 'jvm'),
     assertion: /\bassert\w*|\bverify\s*\(|\bfail\s*\(|\bshould\w*|\bexpect\w*\s*\(/g,
     tautology: /\bassertTrue\s*\(\s*true\s*\)|\bassertThat\s*\(\s*true\s*\)\s*\.\s*isTrue\s*\(\s*\)|\bassertEquals\s*\(\s*([\w.'"]+)\s*,\s*\1\s*\)|\bassert\s+true\b/g,
     allSkipped: annotatedTestsAllSkipped,
