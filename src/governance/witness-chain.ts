@@ -548,18 +548,12 @@ export class PersistentWitnessChain extends WitnessChain {
 }
 
 /**
- * Create a SQLite persistence backend using better-sqlite3.
- *
- * Creates the `witness_chain_receipts` table if it doesn't exist
- * and provides insert/load methods.
- *
- * @param db - better-sqlite3 Database instance (from unified persistence)
- * @returns IWitnessChainPersistence implementation
+ * Schema for the persistent governance witness chain: witness_chain_receipts
+ * (#1356). Idempotent: the MCP server runs it once at startup on the shared
+ * connection (kernel/startup-schema.ts); createWitnessChainSQLitePersistence
+ * still runs it, where it is then a no-op.
  */
-export function createWitnessChainSQLitePersistence(
-  db: { prepare: (sql: string) => { run: (...args: unknown[]) => unknown; all: (...args: unknown[]) => unknown[]; get: (...args: unknown[]) => unknown }; exec: (sql: string) => void },
-): IWitnessChainPersistence {
-  // Create table if not exists
+export function ensureWitnessReceiptsSchema(db: { exec: (sql: string) => void }): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS witness_chain_receipts (
       id TEXT PRIMARY KEY,
@@ -578,6 +572,22 @@ export function createWitnessChainSQLitePersistence(
     CREATE INDEX IF NOT EXISTS idx_witness_chain_index
     ON witness_chain_receipts(chain_index)
   `);
+}
+
+/**
+ * Create a SQLite persistence backend using better-sqlite3.
+ *
+ * Creates the `witness_chain_receipts` table if it doesn't exist
+ * and provides insert/load methods.
+ *
+ * @param db - better-sqlite3 Database instance (from unified persistence)
+ * @returns IWitnessChainPersistence implementation
+ */
+export function createWitnessChainSQLitePersistence(
+  db: { prepare: (sql: string) => { run: (...args: unknown[]) => unknown; all: (...args: unknown[]) => unknown[]; get: (...args: unknown[]) => unknown }; exec: (sql: string) => void },
+): IWitnessChainPersistence {
+  // Create table if not exists
+  ensureWitnessReceiptsSchema(db);
 
   const insertStmt = db.prepare(`
     INSERT OR REPLACE INTO witness_chain_receipts

@@ -51,6 +51,31 @@ export interface CoExecutionStats {
 /** Number of successes needed for full behavioral confidence */
 const CONFIDENCE_RAMP_THRESHOLD = 20;
 
+/**
+ * Schema for agent co-execution tracking: qe_agent_co_execution (#1356).
+ * Idempotent: the MCP server runs it once at startup on the shared connection
+ * (kernel/startup-schema.ts); CoExecutionRepository.initialize() still runs
+ * it, where it is then a no-op.
+ */
+export function ensureCoExecutionSchema(db: DatabaseType): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS qe_agent_co_execution (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      agent_a TEXT NOT NULL,
+      agent_b TEXT NOT NULL,
+      domain TEXT NOT NULL,
+      success INTEGER NOT NULL DEFAULT 0,
+      task_description TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_co_exec_agents
+      ON qe_agent_co_execution(agent_a, agent_b);
+    CREATE INDEX IF NOT EXISTS idx_co_exec_domain
+      ON qe_agent_co_execution(domain);
+  `);
+}
+
 // ============================================================================
 // Repository
 // ============================================================================
@@ -68,22 +93,7 @@ export class CoExecutionRepository {
     this.db = db;
 
     try {
-      this.db.exec(`
-        CREATE TABLE IF NOT EXISTS qe_agent_co_execution (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          agent_a TEXT NOT NULL,
-          agent_b TEXT NOT NULL,
-          domain TEXT NOT NULL,
-          success INTEGER NOT NULL DEFAULT 0,
-          task_description TEXT,
-          created_at TEXT DEFAULT (datetime('now'))
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_co_exec_agents
-          ON qe_agent_co_execution(agent_a, agent_b);
-        CREATE INDEX IF NOT EXISTS idx_co_exec_domain
-          ON qe_agent_co_execution(domain);
-      `);
+      ensureCoExecutionSchema(this.db);
       this.initialized = true;
     } catch (error) {
       console.error(`[CoExecutionRepository] Init error: ${toErrorMessage(error)}`);

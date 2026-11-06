@@ -195,6 +195,94 @@ export async function initializeExperienceCapture(): Promise<void> {
   return initPromise;
 }
 
+/**
+ * Schema for experience capture: captured_experiences (renaming a v2 table
+ * aside), its indexes and consolidation columns (#1356). Idempotent: the MCP
+ * server runs it once at startup on the shared connection
+ * (kernel/startup-schema.ts) before ExperienceReplay's schema; the middleware
+ * still runs it on initialize, where it is then a no-op.
+ */
+export function ensureCapturedExperiencesSchema(db: ReturnType<UnifiedMemoryManager['getDatabase']>): void {
+  let needsCreate = false;
+
+  const tableExists = (db.prepare(
+    "SELECT COUNT(*) as cnt FROM sqlite_master WHERE type='table' AND name='captured_experiences'"
+  ).get() as { cnt: number }).cnt > 0;
+
+  if (tableExists) {
+    const columns = db.prepare('PRAGMA table_info(captured_experiences)').all() as Array<{ name: string }>;
+    const colNames = new Set(columns.map(c => c.name));
+
+    if (!colNames.has('success') || !colNames.has('task')) {
+      // v2 schema — rename old table and recreate with v3 schema
+      db.exec('ALTER TABLE captured_experiences RENAME TO captured_experiences_v2_backup');
+      needsCreate = true;
+    } else {
+      // v3 schema — add any missing columns
+      if (!colNames.has('domain')) {
+        db.exec("ALTER TABLE captured_experiences ADD COLUMN domain TEXT NOT NULL DEFAULT ''");
+      }
+      if (!colNames.has('source')) {
+        db.exec("ALTER TABLE captured_experiences ADD COLUMN source TEXT DEFAULT 'middleware'");
+      }
+    }
+  } else {
+    needsCreate = true;
+  }
+
+  if (needsCreate) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS captured_experiences (
+        id TEXT PRIMARY KEY,
+        task TEXT NOT NULL,
+        agent TEXT NOT NULL,
+        domain TEXT NOT NULL DEFAULT '',
+        success INTEGER NOT NULL DEFAULT 0,
+        quality REAL NOT NULL DEFAULT 0.5,
+        duration_ms INTEGER NOT NULL DEFAULT 0,
+        model_tier INTEGER,
+        routing_json TEXT,
+        steps_json TEXT,
+        result_json TEXT,
+        error TEXT,
+        started_at TEXT NOT NULL DEFAULT (datetime('now')),
+        completed_at TEXT NOT NULL DEFAULT (datetime('now')),
+        source TEXT DEFAULT 'middleware'
+      );
+    `);
+  }
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_captured_exp_domain ON captured_experiences(domain);
+    CREATE INDEX IF NOT EXISTS idx_captured_exp_success ON captured_experiences(success);
+    CREATE INDEX IF NOT EXISTS idx_captured_exp_agent ON captured_experiences(agent);
+    CREATE INDEX IF NOT EXISTS idx_captured_exp_completed ON captured_experiences(completed_at DESC);
+  `);
+
+  // Add consolidation columns if missing (needed by ExperienceConsolidator)
+  const colNames = new Set(
+    (db.prepare('PRAGMA table_info(captured_experiences)').all() as Array<{ name: string }>).map(c => c.name)
+  );
+  const consolidationCols: Array<[string, string]> = [
+    ['application_count', 'INTEGER DEFAULT 0'],
+    ['avg_token_savings', 'REAL DEFAULT 0'],
+    ['embedding', 'BLOB'],
+    ['embedding_dimension', 'INTEGER'],
+    ['tags', 'TEXT'],
+    ['last_applied_at', 'TEXT'],
+    ['consolidated_into', 'TEXT DEFAULT NULL'],
+    ['consolidation_count', 'INTEGER DEFAULT 1'],
+    ['quality_updated_at', 'TEXT DEFAULT NULL'],
+    ['reuse_success_count', 'INTEGER DEFAULT 0'],
+    ['reuse_failure_count', 'INTEGER DEFAULT 0'],
+  ];
+  for (const [col, def] of consolidationCols) {
+    if (!colNames.has(col)) {
+      db.exec(`ALTER TABLE captured_experiences ADD COLUMN ${col} ${def}`);
+    }
+  }
+}
+
 async function doInitialize(): Promise<void> {
   try {
     memoryManager = getUnifiedMemory();
@@ -203,84 +291,7 @@ async function doInitialize(): Promise<void> {
     // Ensure experience tables exist with v3 schema
     const db = memoryManager.getDatabase();
     if (db) {
-      let needsCreate = false;
-
-      const tableExists = (db.prepare(
-        "SELECT COUNT(*) as cnt FROM sqlite_master WHERE type='table' AND name='captured_experiences'"
-      ).get() as { cnt: number }).cnt > 0;
-
-      if (tableExists) {
-        const columns = db.prepare('PRAGMA table_info(captured_experiences)').all() as Array<{ name: string }>;
-        const colNames = new Set(columns.map(c => c.name));
-
-        if (!colNames.has('success') || !colNames.has('task')) {
-          // v2 schema — rename old table and recreate with v3 schema
-          db.exec('ALTER TABLE captured_experiences RENAME TO captured_experiences_v2_backup');
-          needsCreate = true;
-        } else {
-          // v3 schema — add any missing columns
-          if (!colNames.has('domain')) {
-            db.exec("ALTER TABLE captured_experiences ADD COLUMN domain TEXT NOT NULL DEFAULT ''");
-          }
-          if (!colNames.has('source')) {
-            db.exec("ALTER TABLE captured_experiences ADD COLUMN source TEXT DEFAULT 'middleware'");
-          }
-        }
-      } else {
-        needsCreate = true;
-      }
-
-      if (needsCreate) {
-        db.exec(`
-          CREATE TABLE IF NOT EXISTS captured_experiences (
-            id TEXT PRIMARY KEY,
-            task TEXT NOT NULL,
-            agent TEXT NOT NULL,
-            domain TEXT NOT NULL DEFAULT '',
-            success INTEGER NOT NULL DEFAULT 0,
-            quality REAL NOT NULL DEFAULT 0.5,
-            duration_ms INTEGER NOT NULL DEFAULT 0,
-            model_tier INTEGER,
-            routing_json TEXT,
-            steps_json TEXT,
-            result_json TEXT,
-            error TEXT,
-            started_at TEXT NOT NULL DEFAULT (datetime('now')),
-            completed_at TEXT NOT NULL DEFAULT (datetime('now')),
-            source TEXT DEFAULT 'middleware'
-          );
-        `);
-      }
-
-      db.exec(`
-        CREATE INDEX IF NOT EXISTS idx_captured_exp_domain ON captured_experiences(domain);
-        CREATE INDEX IF NOT EXISTS idx_captured_exp_success ON captured_experiences(success);
-        CREATE INDEX IF NOT EXISTS idx_captured_exp_agent ON captured_experiences(agent);
-        CREATE INDEX IF NOT EXISTS idx_captured_exp_completed ON captured_experiences(completed_at DESC);
-      `);
-
-      // Add consolidation columns if missing (needed by ExperienceConsolidator)
-      const colNames = new Set(
-        (db.prepare('PRAGMA table_info(captured_experiences)').all() as Array<{ name: string }>).map(c => c.name)
-      );
-      const consolidationCols: Array<[string, string]> = [
-        ['application_count', 'INTEGER DEFAULT 0'],
-        ['avg_token_savings', 'REAL DEFAULT 0'],
-        ['embedding', 'BLOB'],
-        ['embedding_dimension', 'INTEGER'],
-        ['tags', 'TEXT'],
-        ['last_applied_at', 'TEXT'],
-        ['consolidated_into', 'TEXT DEFAULT NULL'],
-        ['consolidation_count', 'INTEGER DEFAULT 1'],
-        ['quality_updated_at', 'TEXT DEFAULT NULL'],
-        ['reuse_success_count', 'INTEGER DEFAULT 0'],
-        ['reuse_failure_count', 'INTEGER DEFAULT 0'],
-      ];
-      for (const [col, def] of consolidationCols) {
-        if (!colNames.has(col)) {
-          db.exec(`ALTER TABLE captured_experiences ADD COLUMN ${col} ${def}`);
-        }
-      }
+      ensureCapturedExperiencesSchema(db);
     }
 
     // Start periodic cleanup of stale experiences

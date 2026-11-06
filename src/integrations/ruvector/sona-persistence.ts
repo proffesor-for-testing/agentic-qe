@@ -364,26 +364,7 @@ export class PersistentSONAEngine {
    */
   private ensureSchema(): void {
     if (!this.db) throw new Error('Database not initialized');
-
-    // Check if table exists
-    const tableExists = this.db.prepare(
-      `SELECT name FROM sqlite_master WHERE type='table' AND name='sona_patterns'`
-    ).get();
-
-    if (!tableExists) {
-      console.log('[PersistentSONAEngine] Creating sona_patterns table');
-      this.db.exec(SONA_PATTERNS_SCHEMA);
-    }
-
-    // Check if Fisher matrices table exists
-    const fisherTableExists = this.db.prepare(
-      `SELECT name FROM sqlite_master WHERE type='table' AND name='sona_fisher_matrices'`
-    ).get();
-
-    if (!fisherTableExists) {
-      console.log('[PersistentSONAEngine] Creating sona_fisher_matrices table');
-      this.db.exec(SONA_FISHER_SCHEMA);
-    }
+    ensureSonaSchema(this.db);
   }
 
   /**
@@ -1718,4 +1699,31 @@ export function createPersistentSONAEngineSync(
   config: PersistentSONAConfig
 ): PersistentSONAEngine {
   return new PersistentSONAEngine(config);
+}
+
+/**
+ * Schema for PersistentSONAEngine: sona_patterns and sona_fisher_matrices (#1356). Idempotent: the MCP server runs it once at
+ * startup on the shared connection (kernel/startup-schema.ts) and the class
+ * still runs it on initialize, where it is then a no-op.
+ */
+export function ensureSonaSchema(db: DatabaseType): void {
+  // Check if table exists
+  const tableExists = db.prepare(
+    `SELECT name FROM sqlite_master WHERE type='table' AND name='sona_patterns'`
+  ).get();
+
+  if (!tableExists) {
+    console.log('[PersistentSONAEngine] Creating sona_patterns table');
+    db.exec(SONA_PATTERNS_SCHEMA);
+  }
+
+  // Check if Fisher matrices table exists
+  const fisherTableExists = db.prepare(
+    `SELECT name FROM sqlite_master WHERE type='table' AND name='sona_fisher_matrices'`
+  ).get();
+
+  if (!fisherTableExists) {
+    console.log('[PersistentSONAEngine] Creating sona_fisher_matrices table');
+    db.exec(SONA_FISHER_SCHEMA);
+  }
 }

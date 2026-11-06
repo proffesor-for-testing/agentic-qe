@@ -317,50 +317,7 @@ export class TrajectoryTracker {
    */
   private ensureSchema(): void {
     if (!this.db) throw new Error('Database not initialized');
-
-    // The qe_trajectories table is created by UnifiedMemoryManager migration
-    // We add additional columns if needed for enhanced tracking
-
-    // Check if enhanced columns exist, add if not
-    const tableInfo = this.db.prepare("PRAGMA table_info(qe_trajectories)").all() as Array<{ name: string }>;
-    const existingColumns = new Set(tableInfo.map(c => c.name));
-
-    // Add embedding column if missing
-    if (!existingColumns.has('embedding')) {
-      this.db.exec(`ALTER TABLE qe_trajectories ADD COLUMN embedding BLOB`);
-    }
-
-    // Add feedback column if missing
-    if (!existingColumns.has('feedback')) {
-      this.db.exec(`ALTER TABLE qe_trajectories ADD COLUMN feedback TEXT`);
-    }
-
-    // Add related_patterns column if missing
-    if (!existingColumns.has('related_patterns')) {
-      this.db.exec(`ALTER TABLE qe_trajectories ADD COLUMN related_patterns TEXT`);
-    }
-
-    // Create trajectory_steps table for detailed step tracking
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS trajectory_steps (
-        id TEXT PRIMARY KEY,
-        trajectory_id TEXT NOT NULL,
-        step_order INTEGER NOT NULL,
-        action TEXT NOT NULL,
-        outcome TEXT NOT NULL,
-        quality REAL DEFAULT 0.5,
-        duration_ms INTEGER DEFAULT 0,
-        tokens_used INTEGER,
-        result_data TEXT,
-        error_message TEXT,
-        metrics_json TEXT,
-        context_json TEXT,
-        timestamp TEXT DEFAULT (datetime('now')),
-        FOREIGN KEY (trajectory_id) REFERENCES qe_trajectories(id) ON DELETE CASCADE
-      );
-      CREATE INDEX IF NOT EXISTS idx_trajectory_steps_traj ON trajectory_steps(trajectory_id);
-      CREATE INDEX IF NOT EXISTS idx_trajectory_steps_action ON trajectory_steps(action);
-    `);
+    ensureTrajectoryTrackerSchema(this.db);
   }
 
   /**
@@ -928,4 +885,55 @@ export function createTrajectoryTracker(
   config: Partial<TrajectoryTrackerConfig> = {}
 ): TrajectoryTracker {
   return new TrajectoryTracker(config);
+}
+
+/**
+ * Schema for TrajectoryTracker: qe_trajectories columns and trajectory_steps (#1356). Idempotent: the MCP server runs it once at
+ * startup on the shared connection (kernel/startup-schema.ts) and the class
+ * still runs it on initialize, where it is then a no-op.
+ */
+export function ensureTrajectoryTrackerSchema(db: DatabaseType): void {
+  // The qe_trajectories table is created by UnifiedMemoryManager migration
+  // We add additional columns if needed for enhanced tracking
+
+  // Check if enhanced columns exist, add if not
+  const tableInfo = db.prepare("PRAGMA table_info(qe_trajectories)").all() as Array<{ name: string }>;
+  const existingColumns = new Set(tableInfo.map(c => c.name));
+
+  // Add embedding column if missing
+  if (!existingColumns.has('embedding')) {
+    db.exec(`ALTER TABLE qe_trajectories ADD COLUMN embedding BLOB`);
+  }
+
+  // Add feedback column if missing
+  if (!existingColumns.has('feedback')) {
+    db.exec(`ALTER TABLE qe_trajectories ADD COLUMN feedback TEXT`);
+  }
+
+  // Add related_patterns column if missing
+  if (!existingColumns.has('related_patterns')) {
+    db.exec(`ALTER TABLE qe_trajectories ADD COLUMN related_patterns TEXT`);
+  }
+
+  // Create trajectory_steps table for detailed step tracking
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS trajectory_steps (
+      id TEXT PRIMARY KEY,
+      trajectory_id TEXT NOT NULL,
+      step_order INTEGER NOT NULL,
+      action TEXT NOT NULL,
+      outcome TEXT NOT NULL,
+      quality REAL DEFAULT 0.5,
+      duration_ms INTEGER DEFAULT 0,
+      tokens_used INTEGER,
+      result_data TEXT,
+      error_message TEXT,
+      metrics_json TEXT,
+      context_json TEXT,
+      timestamp TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (trajectory_id) REFERENCES qe_trajectories(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_trajectory_steps_traj ON trajectory_steps(trajectory_id);
+    CREATE INDEX IF NOT EXISTS idx_trajectory_steps_action ON trajectory_steps(action);
+  `);
 }
