@@ -17,7 +17,7 @@ import { getUnifiedMemory, resetUnifiedMemory, type UnifiedMemoryManager } from 
 import { resetUnifiedPersistence } from '../../../src/kernel/unified-persistence.js';
 import { isLockedMessage, retryOnceWhenLocked, setLockWaitCap } from '../../../src/shared/sqlite-lock-wait.js';
 import { retryWhileBusy } from '../../../src/learning/dream/dream-lock-retry.js';
-import { applyStartupSchema, STARTUP_SCHEMA_RETRY, STARTUP_SCHEMA_STEPS, type StartupSchemaStep } from '../../../src/kernel/startup-schema.js';
+import { applyStartupSchema, startupSchemaPending, STARTUP_SCHEMA_RETRY, STARTUP_SCHEMA_STEPS, type StartupSchemaStep } from '../../../src/kernel/startup-schema.js';
 import { QE_PATTERNS_FTS_TRIGGERS } from '../../../src/kernel/pattern-fts-self-heal.js';
 import { ensureTrajectoryTrackerSchema } from '../../../src/integrations/agentic-flow/reasoning-bank/trajectory-tracker.js';
 import { ensureExperienceReplaySchema } from '../../../src/integrations/agentic-flow/reasoning-bank/experience-replay.js';
@@ -302,6 +302,20 @@ describe('up-to-date database (#1356)', () => {
       expect(columnsOf(db, 'qe_trajectories')).toContain('related_patterns');
       resetUnifiedMemory();
     }
+  });
+
+  it('many duplicate patterns: dedup keeps every row, the step stays pending (as main retries on every open)', async () => {
+    const um = await openMemory();
+    const db = um.getDatabase();
+    db.exec('DROP INDEX idx_patterns_unique_name_domain_type');
+    const insert = db.prepare("INSERT INTO qe_patterns (id, pattern_type, qe_domain, domain, name) VALUES (?, 't', 'd', 'd', 'same')");
+    for (const id of ['a', 'b', 'c']) insert.run(id); // 2 of 3 rows would go: over the 10% safety limit
+
+    const report = await applyStartupSchema(db, (fn) => um.writeWhenUnlocked(fn));
+
+    expect((db.prepare('SELECT count(*) AS n FROM qe_patterns').get() as { n: number }).n).toBe(3);
+    expect(report.failed.map((f) => f.step)).toContain('sqlite-pattern-store');
+    expect(startupSchemaPending(db, [deduplicateQePatterns])).toBe(true);
   });
 
   it('the write takes the lock at BEGIN (IMMEDIATE): no step runs on the real database while it is locked', async () => {
