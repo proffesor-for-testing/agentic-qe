@@ -232,32 +232,32 @@ export function ensureCapturedExperiencesSchema(db: ReturnType<UnifiedMemoryMana
 
   if (needsCreate) {
     db.exec(`
-      CREATE TABLE IF NOT EXISTS captured_experiences (
-        id TEXT PRIMARY KEY,
-        task TEXT NOT NULL,
-        agent TEXT NOT NULL,
-        domain TEXT NOT NULL DEFAULT '',
-        success INTEGER NOT NULL DEFAULT 0,
-        quality REAL NOT NULL DEFAULT 0.5,
-        duration_ms INTEGER NOT NULL DEFAULT 0,
-        model_tier INTEGER,
-        routing_json TEXT,
-        steps_json TEXT,
-        result_json TEXT,
-        error TEXT,
-        started_at TEXT NOT NULL DEFAULT (datetime('now')),
-        completed_at TEXT NOT NULL DEFAULT (datetime('now')),
-        source TEXT DEFAULT 'middleware'
-      );
-    `);
+          CREATE TABLE IF NOT EXISTS captured_experiences (
+            id TEXT PRIMARY KEY,
+            task TEXT NOT NULL,
+            agent TEXT NOT NULL,
+            domain TEXT NOT NULL DEFAULT '',
+            success INTEGER NOT NULL DEFAULT 0,
+            quality REAL NOT NULL DEFAULT 0.5,
+            duration_ms INTEGER NOT NULL DEFAULT 0,
+            model_tier INTEGER,
+            routing_json TEXT,
+            steps_json TEXT,
+            result_json TEXT,
+            error TEXT,
+            started_at TEXT NOT NULL DEFAULT (datetime('now')),
+            completed_at TEXT NOT NULL DEFAULT (datetime('now')),
+            source TEXT DEFAULT 'middleware'
+          );
+        `);
   }
 
   db.exec(`
-    CREATE INDEX IF NOT EXISTS idx_captured_exp_domain ON captured_experiences(domain);
-    CREATE INDEX IF NOT EXISTS idx_captured_exp_success ON captured_experiences(success);
-    CREATE INDEX IF NOT EXISTS idx_captured_exp_agent ON captured_experiences(agent);
-    CREATE INDEX IF NOT EXISTS idx_captured_exp_completed ON captured_experiences(completed_at DESC);
-  `);
+        CREATE INDEX IF NOT EXISTS idx_captured_exp_domain ON captured_experiences(domain);
+        CREATE INDEX IF NOT EXISTS idx_captured_exp_success ON captured_experiences(success);
+        CREATE INDEX IF NOT EXISTS idx_captured_exp_agent ON captured_experiences(agent);
+        CREATE INDEX IF NOT EXISTS idx_captured_exp_completed ON captured_experiences(completed_at DESC);
+      `);
 
   // Add consolidation columns if missing (needed by ExperienceConsolidator)
   const colNames = new Set(

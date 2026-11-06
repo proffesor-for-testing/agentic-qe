@@ -16,15 +16,23 @@
  * function, which is then a no-op: `CREATE ... IF NOT EXISTS` on an existing
  * table and a column check take no write lock.
  *
+ * Before taking the write lock it checks, read-only, whether any step has
+ * work to do (startupSchemaPending): on an up-to-date database, which is the
+ * common case, no write is attempted at all, so a lock held by another
+ * process is not waited for.
+ *
  * Every step is idempotent. A step that fails is reported and skipped; its
- * module creates the schema itself later, as before. Modules are imported
- * lazily so the kernel does not depend on them at load time.
+ * module creates the schema itself later, as before. If the write is deferred
+ * because the database stayed locked, UnifiedMemoryManager retries it in the
+ * background a few times (STARTUP_SCHEMA_RETRY); until one succeeds, a module
+ * reached first runs its own (blocking) DDL, as before this step existed.
+ * Modules are imported lazily so the kernel does not depend on them at load
+ * time.
  */
 
-import type { Database as DatabaseType } from 'better-sqlite3';
-import { isBusyError } from '../learning/dream/dream-lock-retry.js';
+import Database, { type Database as DatabaseType } from 'better-sqlite3';
 import { toErrorMessage } from '../shared/error-utils.js';
-import { ensurePatternFtsInSync } from './pattern-fts-self-heal.js';
+import { ensurePatternFtsInSync, patternFtsNeedsRepair } from './pattern-fts-self-heal.js';
 
 /** One module's schema function, loaded on demand. */
 export interface StartupSchemaStep {
@@ -37,7 +45,15 @@ export interface StartupSchemaStep {
 export interface StartupSchemaReport {
   applied: string[];
   failed: Array<{ step: string; error: string }>;
+  /** True when the read-only check found nothing to do and no write was attempted. */
+  upToDate?: boolean;
 }
+
+/**
+ * Background retries after a deferred startup write: one per delay, until one
+ * succeeds or the manager is closed. Mutable for tests.
+ */
+export const STARTUP_SCHEMA_RETRY = { delaysMs: [15_000, 60_000] as number[] };
 
 /** Runs `fn` as a queued write on the connection (UnifiedMemoryManager.writeWhenUnlocked). */
 export type QueuedWrite = <T>(fn: () => T) => Promise<T>;
@@ -53,14 +69,19 @@ export type QueuedWrite = <T>(fn: () => T) => Promise<T>;
 export const STARTUP_SCHEMA_STEPS: readonly StartupSchemaStep[] = [
   {
     name: 'pattern-fts-self-heal',
-    load: async () => (db) => ensurePatternFtsInSync(db, { logPrefix: '[UnifiedMemory]' }),
+    load: async () => (db) => {
+      // The self-heal never throws; surface its failure in the report.
+      const result = ensurePatternFtsInSync(db, { logPrefix: '[UnifiedMemory]' });
+      if (result.status === 'failed') throw new Error(result.error ?? 'FTS self-heal failed');
+    },
   },
   {
     name: 'sqlite-pattern-store',
     load: async () => {
       const m = await import('../learning/sqlite-persistence.js');
       return (db) => {
-        m.deduplicateQePatterns(db);
+        // Dedup logs and swallows its own errors; report them instead of "applied".
+        if (!m.deduplicateQePatterns(db)) throw new Error('qe_patterns deduplication failed (see debug log)');
         m.ensurePatternEmbeddingSpaceSchema(db);
         m.ensurePatternReuseSchema(db);
       };
@@ -108,7 +129,13 @@ export const STARTUP_SCHEMA_STEPS: readonly StartupSchemaStep[] = [
   },
   {
     name: 'spend-ledger',
-    load: async () => (await import('../shared/llm/spend-ledger.js')).ensureSpendLedgerSchema,
+    load: async () => {
+      const { ensureSpendLedgerSchema } = await import('../shared/llm/spend-ledger.js');
+      return (db) => {
+        // The agent_type migration is best-effort and swallows its error.
+        if (!ensureSpendLedgerSchema(db)) throw new Error('llm_spend agent_type column migration failed');
+      };
+    },
   },
   {
     // PatternNullStore's constructor DDL. The v10 migration normally creates
@@ -130,8 +157,60 @@ export const STARTUP_SCHEMA_STEPS: readonly StartupSchemaStep[] = [
   },
 ];
 
+/** Shadow tables SQLite creates itself for an FTS5 virtual table. */
+const FTS5_SHADOW_SUFFIXES = ['_data', '_idx', '_content', '_docsize', '_config'];
+
+/** Every schema object, in a stable order: equal signatures mean equal schemas. */
+function schemaSignature(db: DatabaseType): string {
+  return JSON.stringify(db.prepare(
+    "SELECT type, name, tbl_name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name",
+  ).all());
+}
+
+/** Recreate `source`'s schema (no rows) in `target`. Reads `source` only. */
+function copySchema(source: DatabaseType, target: DatabaseType): void {
+  const objects = source.prepare(
+    "SELECT type, name, sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' ORDER BY rowid",
+  ).all() as Array<{ type: string; name: string; sql: string }>;
+  const virtual = objects.filter((o) => o.type === 'table' && /^CREATE\s+VIRTUAL\s+TABLE/i.test(o.sql)).map((o) => o.name);
+  const isShadow = (name: string) => virtual.some((v) => FTS5_SHADOW_SUFFIXES.some((s) => name === v + s));
+  for (const type of ['table', 'index', 'view', 'trigger']) {
+    for (const o of objects) {
+      if (o.type === type && !isShadow(o.name)) target.exec(o.sql);
+    }
+  }
+}
+
 /**
- * Run every step's DDL on `db` as one queued write (see the file comment).
+ * Read-only check (#1356): would any step change the schema of `db`? Each
+ * step runs against an in-memory copy of `db`'s schema; a changed copy means
+ * the real database needs the write. The FTS index drift the self-heal also
+ * repairs depends on rows, which the copy lacks, so it is checked directly.
+ * Any doubt (a step or the copy throws) counts as pending, so the step runs
+ * and reports it, as it would without this check.
+ */
+export function startupSchemaPending(
+  db: DatabaseType,
+  fns: ReadonlyArray<(db: DatabaseType) => unknown>,
+): boolean {
+  if (patternFtsNeedsRepair(db)) return true;
+  let scratch: DatabaseType | null = null;
+  try {
+    scratch = new Database(':memory:');
+    copySchema(db, scratch);
+    const before = schemaSignature(scratch);
+    for (const fn of fns) fn(scratch);
+    return schemaSignature(scratch) !== before;
+  } catch {
+    return true;
+  } finally {
+    scratch?.close();
+  }
+}
+
+/**
+ * Run every step's DDL on `db` as one queued write (see the file comment),
+ * or nothing at all when the read-only check finds no step with work to do.
  * Never throws for a failing step; it throws only when the write itself fails,
  * i.e. the database stayed locked for the whole retry budget, in which case
  * nothing was applied and the modules fall back to their own DDL.
@@ -149,22 +228,27 @@ export async function applyStartupSchema(
       return { name: step.name, fn: null, error: toErrorMessage(error) };
     }
   }));
+  const notLoaded = loaded
+    .filter((l) => !l.fn)
+    .map((l) => ({ step: l.name, error: l.error ?? 'not loaded' }));
+  const runnable = loaded.filter((l): l is typeof l & { fn: (db: DatabaseType) => unknown } => l.fn !== null);
+
+  if (!startupSchemaPending(db, runnable.map((l) => l.fn))) {
+    return { applied: [], failed: notLoaded, upToDate: true };
+  }
 
   return queuedWrite(() => {
     // Built afresh per attempt: the queue may run this again after a busy BEGIN.
-    const report: StartupSchemaReport = { applied: [], failed: [] };
+    const report: StartupSchemaReport = { applied: [], failed: [...notLoaded] };
     const all = db.transaction(() => {
-      for (const { name, fn, error } of loaded) {
-        if (!fn) {
-          report.failed.push({ step: name, error: error ?? 'not loaded' });
-          continue;
-        }
+      for (const { name, fn } of runnable) {
         try {
           // A savepoint per step: one failing module rolls back only its own DDL.
+          // The write lock is held since BEGIN IMMEDIATE, so a step cannot
+          // meet SQLITE_BUSY here; any error is that step's own failure.
           db.transaction(() => { fn(db); })();
           report.applied.push(name);
         } catch (stepError) {
-          if (isBusyError(stepError)) throw stepError; // retry the whole write
           report.failed.push({ step: name, error: toErrorMessage(stepError) });
         }
       }

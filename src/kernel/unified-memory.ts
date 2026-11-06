@@ -75,7 +75,7 @@ import {
   STATS_TABLES,
 } from './unified-memory-schemas.js';
 import { ensurePatternFtsInSync } from './pattern-fts-self-heal.js';
-import { applyStartupSchema } from './startup-schema.js';
+import { applyStartupSchema, STARTUP_SCHEMA_RETRY } from './startup-schema.js';
 import { applyMigration as applyLearningEvidenceMigration } from '../migrations/20260830_add_learning_evidence_tables.js';
 
 // CRDT imports for distributed state synchronization
@@ -190,6 +190,8 @@ export class UnifiedMemoryManager {
   private initPromise: Promise<void> | null = null;
   /** Tail of the FIFO write queue and how many writes are in it (#1263). */
   private writeQueue: Promise<void> = Promise.resolve();
+  /** Pending background retry of a deferred startup schema write (#1356). */
+  private schemaRetryTimer: ReturnType<typeof setTimeout> | null = null;
   private queuedWrites = 0;
   private preparedStatements: Map<string, Statement> = new Map();
   // ADR-071 Phase 2C: Always use UnifiedHnswIndex (old implementations decommissioned)
@@ -559,14 +561,27 @@ export class UnifiedMemoryManager {
    * (kernel/startup-schema.ts). Never throws: if the database stays locked
    * for the whole retry budget, each module creates its schema itself later.
    */
-  private async applyModuleSchemas(): Promise<void> {
+  private async applyModuleSchemas(attempt = 0): Promise<void> {
+    const db = this.db;
+    if (!db) return;
     try {
-      const report = await applyStartupSchema(this.db!, (fn) => this.writeWhenUnlocked(fn));
+      const report = await applyStartupSchema(db, (fn) => this.writeWhenUnlocked(fn));
       for (const { step, error } of report.failed) {
         logger.warn(`startup schema step ${step} skipped: ${error}`);
       }
     } catch (error) {
-      logger.warn(`startup schema deferred to the modules: ${toErrorMessage(error)}`);
+      const delay = STARTUP_SCHEMA_RETRY.delaysMs[attempt];
+      if (delay === undefined) {
+        logger.warn(`startup schema deferred to the modules: ${toErrorMessage(error)}`);
+        return;
+      }
+      // Until a retry succeeds, a module reached first runs its own DDL.
+      logger.warn(`startup schema deferred, retrying in ${delay} ms: ${toErrorMessage(error)}`);
+      this.schemaRetryTimer = setTimeout(() => {
+        this.schemaRetryTimer = null;
+        if (this.db === db) void this.applyModuleSchemas(attempt + 1);
+      }, delay);
+      this.schemaRetryTimer.unref?.();
     }
   }
 
@@ -1321,6 +1336,10 @@ export class UnifiedMemoryManager {
       // hnswlib-node has none of those constraints; multiple instances
       // coexist freely.
       this.vectorIndex.clear();
+      if (this.schemaRetryTimer) {
+        clearTimeout(this.schemaRetryTimer);
+        this.schemaRetryTimer = null;
+      }
       unregisterWriteQueue(this.db);
       this.db.close();
       this.db = null;

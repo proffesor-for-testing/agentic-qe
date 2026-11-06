@@ -15,9 +15,10 @@ import * as path from 'path';
 import Database, { type Database as DatabaseType } from 'better-sqlite3';
 import { getUnifiedMemory, resetUnifiedMemory, type UnifiedMemoryManager } from '../../../src/kernel/unified-memory.js';
 import { resetUnifiedPersistence } from '../../../src/kernel/unified-persistence.js';
-import { setLockWaitCap } from '../../../src/shared/sqlite-lock-wait.js';
+import { isLockedMessage, retryOnceWhenLocked, setLockWaitCap } from '../../../src/shared/sqlite-lock-wait.js';
 import { retryWhileBusy } from '../../../src/learning/dream/dream-lock-retry.js';
-import { applyStartupSchema, STARTUP_SCHEMA_STEPS } from '../../../src/kernel/startup-schema.js';
+import { applyStartupSchema, STARTUP_SCHEMA_RETRY, STARTUP_SCHEMA_STEPS, type StartupSchemaStep } from '../../../src/kernel/startup-schema.js';
+import { QE_PATTERNS_FTS_TRIGGERS } from '../../../src/kernel/pattern-fts-self-heal.js';
 import { ensureTrajectoryTrackerSchema } from '../../../src/integrations/agentic-flow/reasoning-bank/trajectory-tracker.js';
 import { ensureExperienceReplaySchema } from '../../../src/integrations/agentic-flow/reasoning-bank/experience-replay.js';
 import { ensurePatternEvolutionSchema } from '../../../src/integrations/agentic-flow/reasoning-bank/pattern-evolution.js';
@@ -139,7 +140,10 @@ beforeEach(() => {
   setLockWaitCap(CAP_MS);
 });
 
+const RETRY_DELAYS = [...STARTUP_SCHEMA_RETRY.delaysMs];
+
 afterEach(() => {
+  STARTUP_SCHEMA_RETRY.delaysMs = [...RETRY_DELAYS];
   unlock();
   resetUnifiedPersistence();
   resetUnifiedMemory();
@@ -160,16 +164,19 @@ describe('startup schema step (#1356)', () => {
     expect(columnsOf(um.getDatabase(), 'qe_pattern_embeddings')).toContain('space_id');
   });
 
-  it('every step applies, and a second run changes nothing', async () => {
+  it('every step applies when there is work, and a second run finds nothing to do', async () => {
     const um = await openMemory();
     const db = um.getDatabase();
     const before = schemaSnapshot(db);
+    db.exec('DROP TABLE pattern_deltas'); // one step has work again
 
     const report = await applyStartupSchema(db, (fn) => um.writeWhenUnlocked(fn));
+    const again = await applyStartupSchema(db, (fn) => um.writeWhenUnlocked(fn));
 
     expect(report.failed).toEqual([]);
     expect(report.applied).toEqual(STARTUP_SCHEMA_STEPS.map((s) => s.name));
     expect(schemaSnapshot(db)).toBe(before);
+    expect(again).toEqual({ applied: [], failed: [], upToDate: true });
   });
 
   it("after it, each module's own schema function is a no-op", async () => {
@@ -202,8 +209,119 @@ describe('startup schema step (#1356)', () => {
     const report = await applyStartupSchema(db, (fn) => um.writeWhenUnlocked(fn), steps);
 
     expect(report.applied).toEqual(['ok']);
-    expect(report.failed.map((f) => f.step)).toEqual(['broken', 'not-loadable']);
+    expect(report.failed.map((f) => f.step).sort()).toEqual(['broken', 'not-loadable']);
     expect(tables(db).has('startup_probe')).toBe(true);
+  });
+
+  it("a step that fails after its own DDL loses only that DDL (savepoint), and no transaction is left open", async () => {
+    const um = await openMemory();
+    const db = um.getDatabase();
+    const ddl = (table: string): StartupSchemaStep['load'] => async () => (d) => d.exec(`CREATE TABLE IF NOT EXISTS ${table} (id INTEGER)`);
+    const steps: StartupSchemaStep[] = [
+      { name: 'first', load: ddl('sp_first') },
+      { name: 'half-done', load: async () => (d) => { d.exec('CREATE TABLE sp_half (id INTEGER)'); throw new Error('after DDL'); } },
+      { name: 'last', load: ddl('sp_last') },
+    ];
+
+    const report = await applyStartupSchema(db, (fn) => um.writeWhenUnlocked(fn), steps);
+
+    expect(report.applied).toEqual(['first', 'last']);
+    expect(report.failed.map((f) => f.step)).toEqual(['half-done']);
+    expect(tables(db).has('sp_half')).toBe(false);
+    expect(tables(db).has('sp_first')).toBe(true);
+    expect(tables(db).has('sp_last')).toBe(true);
+    expect(db.inTransaction).toBe(false);
+  });
+
+  it('a capped initialize() restores a dropped qe_patterns_fts trigger', async () => {
+    const um = await openMemory();
+    const trigger = QE_PATTERNS_FTS_TRIGGERS[0];
+    um.getDatabase().exec(`DROP TRIGGER ${trigger}`);
+    resetUnifiedMemory();
+
+    const db = (await openMemory()).getDatabase();
+
+    expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name = ?").get(trigger)).toBeDefined();
+  });
+
+  it('a capped initialize() rebuilds a drifted qe_patterns_fts index (rows, not schema)', async () => {
+    const um = await openMemory();
+    const db0 = um.getDatabase();
+    db0.prepare("INSERT INTO qe_patterns (id, pattern_type, qe_domain, domain, name) VALUES ('p1', 't', 'test-generation', 'test-generation', 'drift probe')").run();
+    db0.exec("INSERT INTO qe_patterns_fts(qe_patterns_fts) VALUES('delete-all')"); // the index lost its rows
+    const indexed = (d: DatabaseType) => (d.prepare('SELECT count(*) AS n FROM qe_patterns_fts_docsize').get() as { n: number }).n;
+    expect(indexed(db0)).toBe(0);
+    resetUnifiedMemory();
+
+    const db = (await openMemory()).getDatabase();
+
+    expect(indexed(db)).toBe(1);
+  });
+});
+
+describe('up-to-date database (#1356)', () => {
+  it('a warm database needs no write: under a held lock the startup step takes no lock and does not wait', async () => {
+    const um = await openMemory();
+    const db = um.getDatabase();
+    lockFor(3000);
+    const queuedWrite = vi.fn((fn: () => unknown) => um.writeWhenUnlocked(fn));
+
+    const started = Date.now();
+    const report = await applyStartupSchema(db, queuedWrite as never);
+
+    expect(queuedWrite).not.toHaveBeenCalled();
+    expect(report.upToDate).toBe(true);
+    expect(Date.now() - started).toBeLessThan(500);
+  });
+
+  it('a warm database under a held lock: initialize() answers at once', async () => {
+    await openMemory();
+    resetUnifiedMemory();
+    lockFor(3000);
+
+    const started = Date.now();
+    const { gap, result } = await measure(() => openMemory());
+
+    expect(result.status).toBe('fulfilled');
+    expect(Date.now() - started).toBeLessThan(800);
+    expect(gap).toBeLessThan(MAX_GAP_MS);
+  });
+
+  it('a database missing one table or one column does take the write', async () => {
+    for (const damage of ['DROP TABLE trajectory_steps', 'ALTER TABLE qe_trajectories DROP COLUMN related_patterns']) {
+      const um = await openMemory();
+      const db = um.getDatabase();
+      db.exec(damage);
+      const queuedWrite = vi.fn((fn: () => unknown) => um.writeWhenUnlocked(fn));
+
+      const report = await applyStartupSchema(db, queuedWrite as never);
+
+      expect(queuedWrite).toHaveBeenCalledTimes(1);
+      expect(report.upToDate).toBeUndefined();
+      expect(tables(db).has('trajectory_steps')).toBe(true);
+      expect(columnsOf(db, 'qe_trajectories')).toContain('related_patterns');
+      resetUnifiedMemory();
+    }
+  });
+
+  it('the write takes the lock at BEGIN (IMMEDIATE): no step runs on the real database while it is locked', async () => {
+    const um = await openMemory();
+    const db = um.getDatabase();
+    let realCalls = 0;
+    const steps: StartupSchemaStep[] = [{
+      name: 'probe',
+      load: async () => (d) => {
+        if (d === db) realCalls++;
+        d.exec('CREATE TABLE IF NOT EXISTS immediate_probe (id INTEGER)');
+      },
+    }];
+    lockFor(HOLD_MS);
+
+    const report = await applyStartupSchema(db, (fn) => um.writeWhenUnlocked(fn), steps);
+
+    expect(report.applied).toEqual(['probe']);
+    expect(realCalls).toBe(1); // only the attempt that got the lock
+    expect(tables(db).has('immediate_probe')).toBe(true);
   });
 });
 
@@ -246,6 +364,7 @@ describe('first use under a held lock (#1356)', () => {
 
 describe('locked for the whole retry budget (#1356)', () => {
   it('initialize() still succeeds without blocking, and the modules create their tables later', async () => {
+    STARTUP_SCHEMA_RETRY.delaysMs = []; // no background retry: the modules' own DDL is the fallback
     setLockWaitCap(null);
     await openMemory(); // an existing, migrated database without module tables
     resetUnifiedMemory();
@@ -260,6 +379,24 @@ describe('locked for the whole retry budget (#1356)', () => {
     expect(tables(db).has('trajectory_steps')).toBe(false); // the step was deferred
     unlock();
     ensureTrajectoryTrackerSchema(db); // the module's own fallback
+    expect(tables(db).has('trajectory_steps')).toBe(true);
+  }, 15_000);
+
+  it('a deferred startup write is retried in the background once the lock is free', async () => {
+    STARTUP_SCHEMA_RETRY.delaysMs = [300];
+    setLockWaitCap(null);
+    await openMemory();
+    resetUnifiedMemory();
+    setLockWaitCap(CAP_MS);
+    lockFor(BUSY_TIMEOUT_MS + 1000);
+
+    await openMemory();
+    const db = getUnifiedMemory().getDatabase();
+    expect(tables(db).has('trajectory_steps')).toBe(false);
+    unlock();
+
+    const deadline = Date.now() + 5000;
+    while (!tables(db).has('trajectory_steps') && Date.now() < deadline) await new Promise((r) => setTimeout(r, 50));
     expect(tables(db).has('trajectory_steps')).toBe(true);
   }, 15_000);
 });
@@ -304,6 +441,39 @@ describe('migration patience (#1356)', () => {
 
     expect(result.status).toBe('fulfilled');
     expect(gap).toBeLessThan(MAX_GAP_MS);
+  }, 15_000);
+});
+
+describe('lock held past the busy_timeout at startup (#1356)', () => {
+  it('retryOnceWhenLocked retries only a locked failure, and only once', async () => {
+    const results = [{ ok: false, error: 'database is locked' }, { ok: true, error: '' }];
+    let calls = 0;
+    const locked = (r: { ok: boolean; error: string }) => !r.ok && isLockedMessage(r.error);
+
+    expect(await retryOnceWhenLocked(async () => results[calls++], locked)).toEqual({ ok: true, error: '' });
+    expect(calls).toBe(2);
+
+    calls = 0;
+    const other = await retryOnceWhenLocked(async () => { calls++; return { ok: false, error: 'boom' }; }, locked);
+    expect(other.error).toBe('boom');
+    expect(calls).toBe(1);
+
+    calls = 0;
+    await retryOnceWhenLocked(async () => { calls++; return { ok: false, error: 'SQLITE_BUSY' }; }, locked);
+    expect(calls).toBe(2);
+  });
+
+  it('the first initialize() fails without stalling; the retry waits the rest of the lock out', async () => {
+    freshDatabaseLockedFor(BUSY_TIMEOUT_MS + 1000);
+
+    const first = await measure(() => openMemory());
+    const second = await measure(() => openMemory());
+
+    expect(first.result.status).toBe('rejected');
+    expect(String((first.result as PromiseRejectedResult).reason)).toMatch(/database is locked/);
+    expect(first.gap).toBeLessThan(MAX_GAP_MS);
+    expect(second.result.status).toBe('fulfilled');
+    expect(second.gap).toBeLessThan(MAX_GAP_MS);
   }, 15_000);
 });
 

@@ -1447,16 +1447,17 @@ export function createSQLitePatternStore(
  * Deduplicate qe_patterns and add its unique (name, qe_domain, pattern_type)
  * index (#1356: exported so the MCP server runs it once at startup on the shared
  * connection, kernel/startup-schema.ts). One-time and idempotent: returns at once
- * when the index exists.
+ * when the index exists. Returns false when it failed (the error is logged at
+ * debug level, as before), true otherwise.
  */
-export function deduplicateQePatterns(db: DatabaseType): void {
+export function deduplicateQePatterns(db: DatabaseType): boolean {
   try {
     // Check if unique index already exists (migration already done)
     const indexExists = db.prepare(
       `SELECT name FROM sqlite_master WHERE type='index' AND name='idx_patterns_unique_name_domain_type'`
     ).get();
 
-    if (indexExists) return; // Already deduplicated
+    if (indexExists) return true; // Already deduplicated
 
     const dupeCount = (db.prepare(`
       SELECT COUNT(*) as cnt FROM (
@@ -1491,11 +1492,13 @@ export function deduplicateQePatterns(db: DatabaseType): void {
 
     // Create unique index to prevent future duplicates
     db.exec(`
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_patterns_unique_name_domain_type
-        ON qe_patterns(name, qe_domain, pattern_type)
-    `);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_patterns_unique_name_domain_type
+          ON qe_patterns(name, qe_domain, pattern_type)
+      `);
+    return true;
   } catch (e) {
     console.debug('[SQLitePatternStore] Deduplication migration:', toErrorMessage(e));
+    return false;
   }
 }
 
@@ -1523,17 +1526,17 @@ export function ensurePatternEmbeddingSpaceSchema(db: DatabaseType): void {
  */
 export function ensurePatternReuseSchema(db: DatabaseType): void {
   db.exec(`
-    CREATE TABLE IF NOT EXISTS qe_pattern_reuse (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      pattern_id TEXT NOT NULL,
-      task_description TEXT NOT NULL,
-      similarity_score REAL NOT NULL,
-      was_reused INTEGER DEFAULT 0,
-      tokens_saved INTEGER DEFAULT 0,
-      routing_context_json TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-    CREATE INDEX IF NOT EXISTS idx_pattern_reuse_pattern ON qe_pattern_reuse(pattern_id);
-    CREATE INDEX IF NOT EXISTS idx_pattern_reuse_created ON qe_pattern_reuse(created_at);
-  `);
+        CREATE TABLE IF NOT EXISTS qe_pattern_reuse (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          pattern_id TEXT NOT NULL,
+          task_description TEXT NOT NULL,
+          similarity_score REAL NOT NULL,
+          was_reused INTEGER DEFAULT 0,
+          tokens_saved INTEGER DEFAULT 0,
+          routing_context_json TEXT,
+          created_at TEXT DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_pattern_reuse_pattern ON qe_pattern_reuse(pattern_id);
+        CREATE INDEX IF NOT EXISTS idx_pattern_reuse_created ON qe_pattern_reuse(created_at);
+      `);
 }

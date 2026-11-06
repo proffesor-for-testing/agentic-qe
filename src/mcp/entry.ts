@@ -30,7 +30,7 @@ import { initFeatureFlagsFromEnv } from '../integrations/ruvector/feature-flags.
 import { resetSharedRvfAdapter } from '../integrations/ruvector/shared-rvf-adapter.js';
 import { resetSharedRvfDualWriter } from '../integrations/ruvector/shared-rvf-dual-writer.js';
 import { claimProcessLifecycle, closeRegisteredStores } from '../kernel/process-lifecycle.js';
-import { INTERACTIVE_LOCK_WAIT_MS, setLockWaitCap } from '../shared/sqlite-lock-wait.js';
+import { INTERACTIVE_LOCK_WAIT_MS, isLockedMessage, retryOnceWhenLocked, setLockWaitCap } from '../shared/sqlite-lock-wait.js';
 import { getBackgroundWorkersState, startBackgroundWorkers } from './background-workers.js';
 import {
   DAEMON_HEARTBEAT_ENV, DAEMON_LOG_MAX_SIZE_ENV, DAEMON_LOG_PATH_ENV, DAEMON_MODE_ENV,
@@ -321,14 +321,21 @@ async function main(): Promise<void> {
         // fleet boots normally without touching .agentic-qe/.
         name: 'fleet-init',
         fn: async () => {
-          const fleetResult = await handleFleetInit({
-            topology: 'hierarchical',
-            maxAgents: 15,
-            // handleFleetInit forces the in-memory kernel backend when
-            // AQE_MEMORY_BACKEND=memory, so 'hybrid' here is self-correcting.
-            memoryBackend: 'hybrid',
-            lazyLoading: true,
-          });
+          // #1356: a memory.db locked past the busy_timeout fails the
+          // (queued, non-blocking) startup migrations; try once more so the
+          // fleet still comes up once the other process lets go.
+          const fleetResult = await retryOnceWhenLocked(
+            () => handleFleetInit({
+              topology: 'hierarchical',
+              maxAgents: 15,
+              // handleFleetInit forces the in-memory kernel backend when
+              // AQE_MEMORY_BACKEND=memory, so 'hybrid' here is self-correcting.
+              memoryBackend: 'hybrid',
+              lazyLoading: true,
+            }),
+            (result) => !result.success && isLockedMessage(result.error),
+            () => originalStderrWrite('[MCP] Fleet auto-init found memory.db locked; retrying once\n'),
+          );
           if (fleetResult.success) {
             originalStderrWrite(`[MCP] Fleet ready: ${fleetResult.data?.fleetId}\n`);
           } else {

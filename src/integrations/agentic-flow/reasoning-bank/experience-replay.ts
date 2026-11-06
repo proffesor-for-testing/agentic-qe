@@ -1148,34 +1148,34 @@ export function ensureExperienceReplaySchema(db: DatabaseType): void {
   // Ensure captured_experiences table exists (middleware normally creates it,
   // but ExperienceReplay may initialize first)
   db.exec(`
-    CREATE TABLE IF NOT EXISTS captured_experiences (
-      id TEXT PRIMARY KEY,
-      task TEXT NOT NULL,
-      agent TEXT NOT NULL,
-      domain TEXT NOT NULL DEFAULT '',
-      success INTEGER NOT NULL DEFAULT 0,
-      quality REAL NOT NULL DEFAULT 0.5,
-      duration_ms INTEGER NOT NULL DEFAULT 0,
-      model_tier INTEGER,
-      routing_json TEXT,
-      steps_json TEXT,
-      result_json TEXT,
-      error TEXT,
-      started_at TEXT NOT NULL DEFAULT (datetime('now')),
-      completed_at TEXT NOT NULL DEFAULT (datetime('now')),
-      source TEXT DEFAULT 'middleware',
-      application_count INTEGER DEFAULT 0,
-      avg_token_savings REAL DEFAULT 0,
-      embedding BLOB,
-      embedding_dimension INTEGER,
-      embedding_space_id TEXT,
-      tags TEXT,
-      last_applied_at TEXT
-    );
-    CREATE INDEX IF NOT EXISTS idx_captured_exp_domain ON captured_experiences(domain);
-    CREATE INDEX IF NOT EXISTS idx_captured_exp_quality ON captured_experiences(quality DESC);
-    CREATE INDEX IF NOT EXISTS idx_captured_exp_task ON captured_experiences(task);
-  `);
+      CREATE TABLE IF NOT EXISTS captured_experiences (
+        id TEXT PRIMARY KEY,
+        task TEXT NOT NULL,
+        agent TEXT NOT NULL,
+        domain TEXT NOT NULL DEFAULT '',
+        success INTEGER NOT NULL DEFAULT 0,
+        quality REAL NOT NULL DEFAULT 0.5,
+        duration_ms INTEGER NOT NULL DEFAULT 0,
+        model_tier INTEGER,
+        routing_json TEXT,
+        steps_json TEXT,
+        result_json TEXT,
+        error TEXT,
+        started_at TEXT NOT NULL DEFAULT (datetime('now')),
+        completed_at TEXT NOT NULL DEFAULT (datetime('now')),
+        source TEXT DEFAULT 'middleware',
+        application_count INTEGER DEFAULT 0,
+        avg_token_savings REAL DEFAULT 0,
+        embedding BLOB,
+        embedding_dimension INTEGER,
+        embedding_space_id TEXT,
+        tags TEXT,
+        last_applied_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_captured_exp_domain ON captured_experiences(domain);
+      CREATE INDEX IF NOT EXISTS idx_captured_exp_quality ON captured_experiences(quality DESC);
+      CREATE INDEX IF NOT EXISTS idx_captured_exp_task ON captured_experiences(task);
+    `);
 
   // Add ExperienceReplay-specific columns if missing (for pre-existing tables)
   const columns = db.prepare('PRAGMA table_info(captured_experiences)').all() as Array<{ name: string }>;
@@ -1204,30 +1204,30 @@ export function ensureExperienceReplaySchema(db: DatabaseType): void {
 
   // Create experience_applications table for tracking reuse
   db.exec(`
-    CREATE TABLE IF NOT EXISTS experience_applications (
-      id TEXT PRIMARY KEY,
-      experience_id TEXT NOT NULL,
-      task TEXT NOT NULL,
-      success INTEGER NOT NULL,
-      tokens_saved INTEGER DEFAULT 0,
-      feedback TEXT,
-      applied_at TEXT DEFAULT (datetime('now')),
-      FOREIGN KEY (experience_id) REFERENCES captured_experiences(id) ON DELETE CASCADE
-    );
-    CREATE INDEX IF NOT EXISTS idx_exp_apps_experience ON experience_applications(experience_id);
-  `);
+      CREATE TABLE IF NOT EXISTS experience_applications (
+        id TEXT PRIMARY KEY,
+        experience_id TEXT NOT NULL,
+        task TEXT NOT NULL,
+        success INTEGER NOT NULL,
+        tokens_saved INTEGER DEFAULT 0,
+        feedback TEXT,
+        applied_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (experience_id) REFERENCES captured_experiences(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_exp_apps_experience ON experience_applications(experience_id);
+    `);
 
   // Create consolidation audit log
   db.exec(`
-    CREATE TABLE IF NOT EXISTS experience_consolidation_log (
-      id TEXT PRIMARY KEY,
-      domain TEXT NOT NULL,
-      action TEXT NOT NULL,
-      source_ids TEXT NOT NULL,
-      target_id TEXT,
-      details TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-    CREATE INDEX IF NOT EXISTS idx_consolidation_log_domain ON experience_consolidation_log(domain);
-  `);
+      CREATE TABLE IF NOT EXISTS experience_consolidation_log (
+        id TEXT PRIMARY KEY,
+        domain TEXT NOT NULL,
+        action TEXT NOT NULL,
+        source_ids TEXT NOT NULL,
+        target_id TEXT,
+        details TEXT,
+        created_at TEXT DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_consolidation_log_domain ON experience_consolidation_log(domain);
+    `);
 }

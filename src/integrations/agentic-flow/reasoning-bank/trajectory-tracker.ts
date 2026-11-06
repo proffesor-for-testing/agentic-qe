@@ -917,23 +917,23 @@ export function ensureTrajectoryTrackerSchema(db: DatabaseType): void {
 
   // Create trajectory_steps table for detailed step tracking
   db.exec(`
-    CREATE TABLE IF NOT EXISTS trajectory_steps (
-      id TEXT PRIMARY KEY,
-      trajectory_id TEXT NOT NULL,
-      step_order INTEGER NOT NULL,
-      action TEXT NOT NULL,
-      outcome TEXT NOT NULL,
-      quality REAL DEFAULT 0.5,
-      duration_ms INTEGER DEFAULT 0,
-      tokens_used INTEGER,
-      result_data TEXT,
-      error_message TEXT,
-      metrics_json TEXT,
-      context_json TEXT,
-      timestamp TEXT DEFAULT (datetime('now')),
-      FOREIGN KEY (trajectory_id) REFERENCES qe_trajectories(id) ON DELETE CASCADE
-    );
-    CREATE INDEX IF NOT EXISTS idx_trajectory_steps_traj ON trajectory_steps(trajectory_id);
-    CREATE INDEX IF NOT EXISTS idx_trajectory_steps_action ON trajectory_steps(action);
-  `);
+      CREATE TABLE IF NOT EXISTS trajectory_steps (
+        id TEXT PRIMARY KEY,
+        trajectory_id TEXT NOT NULL,
+        step_order INTEGER NOT NULL,
+        action TEXT NOT NULL,
+        outcome TEXT NOT NULL,
+        quality REAL DEFAULT 0.5,
+        duration_ms INTEGER DEFAULT 0,
+        tokens_used INTEGER,
+        result_data TEXT,
+        error_message TEXT,
+        metrics_json TEXT,
+        context_json TEXT,
+        timestamp TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (trajectory_id) REFERENCES qe_trajectories(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_trajectory_steps_traj ON trajectory_steps(trajectory_id);
+      CREATE INDEX IF NOT EXISTS idx_trajectory_steps_action ON trajectory_steps(action);
+    `);
 }

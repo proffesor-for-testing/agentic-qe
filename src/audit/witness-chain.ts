@@ -255,28 +255,28 @@ export function ensureWitnessChainSchema(db: DatabaseType): void {
   // migrate the schema; readers treat missing tables as empty instead.
   if (db.readonly) return;
   db.exec(`
-    CREATE TABLE IF NOT EXISTS witness_chain (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      prev_hash TEXT NOT NULL, action_hash TEXT NOT NULL, action_type TEXT NOT NULL,
-      action_data TEXT, timestamp TEXT NOT NULL, actor TEXT NOT NULL,
-      hash_algo TEXT DEFAULT 'sha256', signature TEXT, signer_key_id TEXT
-    );
-    CREATE INDEX IF NOT EXISTS idx_witness_action_type ON witness_chain(action_type);
-    CREATE INDEX IF NOT EXISTS idx_witness_timestamp ON witness_chain(timestamp);
-    CREATE INDEX IF NOT EXISTS idx_witness_actor ON witness_chain(actor);
-  `);
+      CREATE TABLE IF NOT EXISTS witness_chain (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        prev_hash TEXT NOT NULL, action_hash TEXT NOT NULL, action_type TEXT NOT NULL,
+        action_data TEXT, timestamp TEXT NOT NULL, actor TEXT NOT NULL,
+        hash_algo TEXT DEFAULT 'sha256', signature TEXT, signer_key_id TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_witness_action_type ON witness_chain(action_type);
+      CREATE INDEX IF NOT EXISTS idx_witness_timestamp ON witness_chain(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_witness_actor ON witness_chain(actor);
+    `);
   addWitnessColumnIfMissing(db, 'hash_algo', "TEXT DEFAULT 'sha256'");
   addWitnessColumnIfMissing(db, 'signature', 'TEXT');
   addWitnessColumnIfMissing(db, 'signer_key_id', 'TEXT');
   db.exec(`
-    CREATE TABLE IF NOT EXISTS witness_chain_archive (
-      id INTEGER PRIMARY KEY,
-      prev_hash TEXT NOT NULL, action_hash TEXT NOT NULL, action_type TEXT NOT NULL,
-      action_data TEXT, timestamp TEXT NOT NULL, actor TEXT NOT NULL,
-      hash_algo TEXT DEFAULT 'sha256', signature TEXT, signer_key_id TEXT,
-      archived_at TEXT NOT NULL
-    );
-  `);
+      CREATE TABLE IF NOT EXISTS witness_chain_archive (
+        id INTEGER PRIMARY KEY,
+        prev_hash TEXT NOT NULL, action_hash TEXT NOT NULL, action_type TEXT NOT NULL,
+        action_data TEXT, timestamp TEXT NOT NULL, actor TEXT NOT NULL,
+        hash_algo TEXT DEFAULT 'sha256', signature TEXT, signer_key_id TEXT,
+        archived_at TEXT NOT NULL
+      );
+    `);
 }
 
 function addWitnessColumnIfMissing(db: DatabaseType, column: string, definition: string): void {

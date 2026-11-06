@@ -59,21 +59,21 @@ const CONFIDENCE_RAMP_THRESHOLD = 20;
  */
 export function ensureCoExecutionSchema(db: DatabaseType): void {
   db.exec(`
-    CREATE TABLE IF NOT EXISTS qe_agent_co_execution (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      agent_a TEXT NOT NULL,
-      agent_b TEXT NOT NULL,
-      domain TEXT NOT NULL,
-      success INTEGER NOT NULL DEFAULT 0,
-      task_description TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
+        CREATE TABLE IF NOT EXISTS qe_agent_co_execution (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          agent_a TEXT NOT NULL,
+          agent_b TEXT NOT NULL,
+          domain TEXT NOT NULL,
+          success INTEGER NOT NULL DEFAULT 0,
+          task_description TEXT,
+          created_at TEXT DEFAULT (datetime('now'))
+        );
 
-    CREATE INDEX IF NOT EXISTS idx_co_exec_agents
-      ON qe_agent_co_execution(agent_a, agent_b);
-    CREATE INDEX IF NOT EXISTS idx_co_exec_domain
-      ON qe_agent_co_execution(domain);
-  `);
+        CREATE INDEX IF NOT EXISTS idx_co_exec_agents
+          ON qe_agent_co_execution(agent_a, agent_b);
+        CREATE INDEX IF NOT EXISTS idx_co_exec_domain
+          ON qe_agent_co_execution(domain);
+      `);
 }
 
 // ============================================================================
