@@ -234,7 +234,8 @@ describe('Domain Handlers', { timeout: 30000 }, () => {
       expect(result.success).toBe(true);
       expect(result.data!.aiInsights).toBeDefined();
       expect(result.data!.aiInsights!.recommendations).toBeDefined();
-      expect(result.data!.aiInsights!.confidence).toBeGreaterThan(0);
+      // #1369: the constant 0.85 confidence is gone; nothing derives one.
+      expect(result.data!.aiInsights).not.toHaveProperty('confidence');
     }, 30000);
 
     it('should detect anti-patterns when requested', async () => {

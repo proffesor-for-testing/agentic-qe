@@ -9,6 +9,7 @@
 
 import { Result, ok, err } from '../../../shared/types/index.js';
 import type { ITestGenerationService } from '../services/test-generator.js';
+import { isUnexecutableScaffold } from '../gates/gate-verdict.js';
 import type {
   IGenerateTestsRequest,
   IGeneratedTest,
@@ -225,9 +226,10 @@ export class BlindReviewOrchestrator {
           .then((result): ReviewerOutput => {
             const durationMs = Date.now() - start;
             if (result.success) {
+              // #1370: a reviewer's scaffolds (template output) are not tests.
               return {
                 reviewerId,
-                tests: result.value.tests,
+                tests: result.value.tests.filter((t) => !isUnexecutableScaffold(t, t.sourceFile)),
                 durationMs,
               };
             }
@@ -258,7 +260,7 @@ export class BlindReviewOrchestrator {
     const allTests = outputs.flatMap((o) => o.tests);
 
     if (allTests.length === 0) {
-      return err(new Error('All reviewers failed to generate tests'));
+      return err(new Error('All reviewers failed to generate tests (scaffolding is not counted)'));
     }
 
     // Deduplicate

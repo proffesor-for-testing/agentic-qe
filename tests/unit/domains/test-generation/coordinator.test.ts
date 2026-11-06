@@ -444,6 +444,39 @@ describe('TestGenerationCoordinator', () => {
     });
   });
 
+  // #1370: pattern usage records a success only when a real test came back.
+  describe('pattern learning skips scaffold-only generation (#1370)', () => {
+    const scaffold = { id: 's1', name: 'calc tests', sourceFile: 'src/calc.py', testFile: 'tests/test_calc.py',
+      testCode: 'def test_add():\n    assert add(None, None) is not None\n', type: 'unit' as const, assertions: 1,
+      generationMode: 'scaffolding' as const, generationLimits: ['Template scaffolding: placeholders.'] };
+    const realTest = { ...scaffold, id: 'r1', generationMode: undefined, generationLimits: undefined,
+      testCode: 'def test_add():\n    assert add(2, 3) == 5\n' };
+
+    async function generateWith(tests: unknown[]) {
+      const learning = new TestGenerationCoordinator(ctx.eventBus, ctx.memory, ctx.agentCoordinator,
+        { ...defaultConfig, enablePatternLearning: true });
+      await learning.initialize();
+      const generator = (learning as unknown as { testGenerator: { generateTests: (...a: unknown[]) => unknown } }).testGenerator;
+      vi.spyOn(generator, 'generateTests').mockResolvedValue({ success: true,
+        value: { tests, coverageEstimate: null, patternsUsed: ['p'], patternIds: ['pattern-uuid-1'] } } as never);
+      recordPatternUsageMock.mockClear();
+      const result = await learning.generateTests({ sourceFiles: ['src/calc.py'], testType: 'unit', framework: 'pytest' as 'vitest' });
+      await learning.dispose();
+      return result;
+    }
+
+    it('records no pattern usage when only scaffolds were generated', async () => {
+      expect((await generateWith([scaffold])).success).toBe(true);
+      expect(recordPatternUsageMock).not.toHaveBeenCalled();
+    });
+
+    it('records pattern usage when a real test was generated', async () => {
+      await generateWith([scaffold, realTest]);
+      expect(recordPatternUsageMock).toHaveBeenCalledWith(expect.anything(),
+        expect.objectContaining({ patternId: 'pattern-uuid-1', success: true }));
+    });
+  });
+
   describe('learnFromGeneration (A7 pattern usage tracking)', () => {
     beforeEach(() => {
       recordPatternUsageMock.mockClear();

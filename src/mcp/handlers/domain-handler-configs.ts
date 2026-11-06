@@ -467,7 +467,7 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
     const complexity = analyzeComplexity(sourceCode);
     const aiInsights = params?.aiEnhancement !== false && domainTests.length > 0
       ? generateV2AIInsights(complexity, testType)
-      : { recommendations: [], estimatedTime: '0 minutes', confidence: 0 };
+      : { recommendations: [], estimatedTime: '0 minutes' };
     const antiPatterns = params?.detectAntiPatterns
       ? detectAntiPatterns(sourceCode, language)
       : [];
@@ -509,8 +509,9 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
       coverage: {
         predicted: (data.coverageEstimate as number | null | undefined) ?? null,
         // #567: a template scaffold's coverage prediction is a guess, not a
-        // 0.9-confidence estimate. Don't dress it up as one.
-        confidence: data.coverageEstimate == null ? 0 : llmEnhanced ? 0.9 : 0,
+        // 0.9-confidence estimate. #1369: nor is an LLM's; generation runs
+        // nothing, so no prediction carries confidence.
+        confidence: 0,
         achievable: data.coverageEstimate == null ? null : true,
       },
       properties: tests.filter(t => t.type === 'property').map(t => ({

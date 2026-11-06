@@ -20,6 +20,7 @@ import { runTestRunnerProcess } from '../../shared/test-runner-process.js';
 import { MAX_PAYLOAD_FILE_BYTES, requirePayloadFiles } from '../../shared/io/payload-path-guard.js';
 import { groupByRunnerProject, requireTestRunTargets, runnerFrameworkFor } from '../../shared/test-runner-project.js';
 import { unexecutableReason } from '../../domains/test-generation/gates/gate-verdict.js';
+import { templateImportPath } from '../../domains/test-generation/services/template-import-path.js';
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -253,9 +254,13 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
       // of the throwaway temp path. If the user supplied filePath, use that;
       // otherwise use a placeholder the user can edit.
       const framework = (payload.framework || 'vitest') as 'jest' | 'vitest' | 'mocha' | 'pytest' | 'node-test';
+      // #1370: a non-JS filePath is imported in that language's form
+      // (`from src.calc import`, not `from src.calc.py import`).
       const importPathOverrides: Record<string, string> | undefined = tempPath
         ? { [tempPath]: payload.filePath
-            ? payload.filePath.replace(/\.(ts|tsx|js|jsx|mjs|cjs)$/i, '')
+            ? (/\.(ts|tsx|js|jsx|mjs|cjs)$/i.test(payload.filePath) || !path.extname(payload.filePath)
+              ? payload.filePath.replace(/\.(ts|tsx|js|jsx|mjs|cjs)$/i, '')
+              : templateImportPath(payload.filePath, payload.sourceCode ?? ''))
             : './module-under-test' }
         : undefined;
       const result = await generator.generateTests({

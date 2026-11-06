@@ -377,7 +377,8 @@ export function analyzeComplexity(sourceCode: string): V2Complexity {
 export interface V2AIInsights {
   recommendations: string[];
   estimatedTime: string;
-  confidence: number;
+  // #1369: no `confidence`. It was a constant 0.85, not derived from anything;
+  // these recommendations are fixed advice, not a model's judgement.
   [key: string]: unknown;
 }
 
@@ -402,7 +403,6 @@ export function generateV2AIInsights(complexity: V2Complexity, testType: string)
   return {
     recommendations,
     estimatedTime: `${Math.round(complexity.score * 0.5)} minutes`,
-    confidence: 0.85
   };
 }
 

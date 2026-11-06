@@ -127,7 +127,7 @@ export class JUnit5Generator extends BaseTestGenerator {
     const packagePath = this.extractPackage(importPath);
     const patternComment = this.generateJavaPatternComment(patterns);
 
-    let code = `${patternComment}package ${packagePath};\n\n`;
+    let code = `${patternComment}${packagePath ? `package ${packagePath};\n\n` : ''}`;
     code += this.generateImports(analysis);
 
     // Generate tests for exported classes
@@ -257,9 +257,7 @@ export class JUnit5Generator extends BaseTestGenerator {
     const packagePath = this.extractPackage(importPath);
     const patternComment = this.generateJavaPatternComment(patterns);
 
-    return `${patternComment}package ${packagePath};
-
-import org.junit.jupiter.api.Test;
+    return `${patternComment}${packagePath ? `package ${packagePath};\n\n` : ''}import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.BeforeEach;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -310,9 +308,7 @@ class ${moduleName}Test {
     const packagePath = this.extractPackage(importPath);
 
     return `// Coverage test for ${lineRange} in ${moduleName}
-package ${packagePath};
-
-import org.junit.jupiter.api.Test;
+${packagePath ? `package ${packagePath};\n\n` : ''}import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

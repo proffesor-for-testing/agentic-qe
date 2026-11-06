@@ -17,6 +17,7 @@ import { BEHAVIOR_EXAMPLE_ITEM_SCHEMA, validateBehaviorExamples } from '../../..
 import { readConfinedTextSync } from '../../../shared/io/confined-read.js';
 import { MAX_PAYLOAD_FILE_BYTES } from '../../../shared/io/payload-path-guard.js';
 import { findProjectRoot } from '../../../kernel/project-root.js';
+import { unexecutableReason } from '../../../domains/test-generation/gates/gate-verdict.js';
 
 // ============================================================================
 // Types
@@ -42,6 +43,10 @@ export interface TestGenerateResult {
   patternsUsed: string[];
   suggestions: string[];
   antiPatterns?: AntiPattern[];
+  /** #1370: output with no test that can fail (template scaffolding), never counted in tests. */
+  scaffolds?: Array<GeneratedTest & { scaffold: true; rejectedBecause: string }>;
+  /** #1370: why no tests were generated, when only scaffolds came back. */
+  warning?: string;
 }
 
 export interface GeneratedTest {
@@ -187,7 +192,7 @@ export class TestGenerateTool extends MCPToolBase<TestGenerateParams, TestGenera
 
       // Map domain result to MCP result
       const domainTests = result.value;
-      const tests: GeneratedTest[] = domainTests.tests.map((test) => ({
+      const mapped = domainTests.tests.map((test) => ({
         id: test.id,
         name: test.name,
         sourceFile: test.sourceFile,
@@ -197,11 +202,19 @@ export class TestGenerateTool extends MCPToolBase<TestGenerateParams, TestGenera
         assertions: test.assertions,
         generationMode: test.generationMode,
         generationLimits: test.generationLimits,
+        unexecutable: unexecutableReason(test, test.sourceFile),
       }));
+      // #1370: scaffolds (template output with guessed values) are not tests.
+      const tests: GeneratedTest[] = mapped.filter(t => !t.unexecutable).map(({ unexecutable: _u, ...t }) => t);
+      const scaffolds = mapped.filter(t => t.unexecutable)
+        .map(({ unexecutable, ...t }) => ({ ...t, scaffold: true as const, rejectedBecause: unexecutable as string }));
+      const warning = tests.length === 0 && scaffolds.length > 0
+        ? `No tests generated, only ${scaffolds.length} scaffold(s): ${[...new Set(scaffolds.map(t => t.rejectedBecause))].join('; ')}`
+        : undefined;
 
       this.emitStream(context, {
         status: 'generating',
-        message: `Generated ${tests.length} test files`,
+        message: `Generated ${tests.length} test files` + (scaffolds.length > 0 ? ` and ${scaffolds.length} scaffold(s)` : ''),
         progress: 50,
       });
 
@@ -224,6 +237,8 @@ export class TestGenerateTool extends MCPToolBase<TestGenerateParams, TestGenera
           patternsUsed: domainTests.patternsUsed,
           suggestions: generateSuggestions(tests, aiEnhancement),
           antiPatterns: antiPatterns.length > 0 ? antiPatterns : undefined,
+          ...(scaffolds.length > 0 ? { scaffolds } : {}),
+          ...(warning ? { warning } : {}),
         },
       };
     } catch (error) {
