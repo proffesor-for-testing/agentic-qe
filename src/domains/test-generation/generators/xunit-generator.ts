@@ -123,8 +123,7 @@ export class XUnitGenerator extends BaseTestGenerator {
     let code = `${patternComment}using Xunit;
 using Moq;
 using FluentAssertions;
-using ${importPath};
-
+${importPath ? `using ${importPath};\n` : ''}
 namespace Tests.${className}
 {
 `;
@@ -291,8 +290,7 @@ namespace Tests.${className}
     return `${patternComment}using Xunit;
 using Moq;
 using FluentAssertions;
-using ${importPath};
-
+${importPath ? `using ${importPath};\n` : ''}
 namespace Tests.${className}
 {
     /// <summary>
@@ -349,8 +347,7 @@ namespace Tests.${className}
     return `// Coverage test for ${lineRange} in ${moduleName}
 using Xunit;
 using FluentAssertions;
-using ${importPath};
-
+${importPath ? `using ${importPath};\n` : ''}
 namespace Tests.${className}.Coverage
 {
     /// <summary>

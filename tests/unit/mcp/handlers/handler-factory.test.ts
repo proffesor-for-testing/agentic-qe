@@ -524,7 +524,8 @@ describe('Handler Factory', () => {
 
       expect(insights.recommendations).toContain('Consider refactoring complex functions');
       expect(insights.recommendations).toContain('Add unit tests for each branch');
-      expect(insights.confidence).toBe(0.85);
+      // #1369: the constant 0.85 confidence is gone; nothing derives one.
+      expect(insights).not.toHaveProperty('confidence');
     });
 
     it('should add integration-specific recommendations', () => {

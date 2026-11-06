@@ -12,6 +12,9 @@ import { validateBehaviorExamples } from './behavior-example-validation.js';
 import { LoggerFactory } from '../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { ConfinedReadError, readConfinedTextSync } from '../../../shared/io/confined-read.js';
+import { templateImportPath } from './template-import-path.js';
+import { isUnexecutableScaffold } from '../gates/gate-verdict.js';
+
 import * as path from 'path';
 import ts from 'typescript';
 import { Result, ok, err } from '../../../shared/types';
@@ -158,6 +161,16 @@ export interface TestGeneratorDependencies {
   /** ADR-051: Optional LLM router for AI-enhanced test generation */
   llmRouter?: HybridRouter;
 }
+
+/**
+ * #1370: why framework-template output is scaffolding. Without an LLM or
+ * caller-supplied examples, every template guesses inputs and expected values
+ * (add(None, None), want: 0 for Add(66, 62), typeof checks on add(29, 20)).
+ */
+const TEMPLATE_SCAFFOLD_LIMITS = [
+  'Template scaffolding: inputs and expected values are placeholders, not derived from the source.',
+  'Configure an LLM provider for source-aware tests. No behavior or coverage has been verified.',
+];
 
 /**
  * Test Generation Service Implementation
@@ -636,7 +649,7 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
     // (used by MCP handler when sourceCode is written to a temp file but the
     // generated tests should reference the original logical path).
     const importPath = originalRequest?.importPathOverrides?.[sourceFile]
-      ?? this.getImportPath(sourceFile);
+      ?? templateImportPath(sourceFile, sourceContent);
 
     const context: TestGenerationContext = {
       moduleName,
@@ -705,6 +718,10 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
       type: testType,
       assertions: deterministic && !llmEnhanced ? deterministic.assertions : this.countAssertions(testCode),
       ...(!llmEnhanced && deterministic ? { generationMode: deterministic.mode, generationLimits: deterministic.limits } : {}),
+      // #1370: without an LLM, any framework template (pytest, Go, JUnit,
+      // xUnit, mocha, jest-rn, ...) guesses inputs and expected values. It is
+      // scaffolding, not a generated test, like the TS scaffold (#1355).
+      ...(!llmEnhanced && !deterministic ? { generationMode: 'scaffolding' as const, generationLimits: [...TEMPLATE_SCAFFOLD_LIMITS] } : {}),
       // ADR-078: Include detected language and framework
       language: effectiveLanguage as SupportedLanguage | undefined,
       framework: framework,
@@ -753,7 +770,7 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
     const testId = uuidv4();
     const testFile = this.getTestFilePath(file, framework);
     const moduleName = this.extractModuleName(file);
-    const importPath = this.getImportPath(file);
+    const importPath = templateImportPath(file);
 
     const generator = this.generatorFactory.create(framework);
     const testCode = generator.generateCoverageTests(moduleName, importPath, lines);
@@ -766,6 +783,11 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
       testCode,
       type: 'unit',
       assertions: this.countAssertions(testCode),
+      // #1370: coverage-gap templates call the code with guessed inputs and
+      // assert only toBeDefined/not.toThrow. No LLM is involved here.
+      generationMode: 'scaffolding',
+      generationLimits: [...TEMPLATE_SCAFFOLD_LIMITS],
+      llmEnhanced: false,
     };
   }
 
@@ -1305,10 +1327,6 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
     return filename.replace(/\.(ts|tsx|js|jsx|py|java|cs|go|rs|swift|kt|kts|dart)$/, '');
   }
 
-  private getImportPath(sourceFile: string): string {
-    return sourceFile.replace(/\.(ts|js|tsx|jsx)$/, '');
-  }
-
   private countAssertions(testCode: string): number {
     const assertPatterns = [
       /expect\(/g,
@@ -1332,11 +1350,17 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
     tests: GeneratedTest[],
     patterns: string[]
   ): Promise<void> {
+    // #1369: count only tests that can fail; held-back scaffolds (the same
+    // verdict test_generate_enhanced reports) are recorded separately.
+    const scaffolds = tests.filter((t) => isUnexecutableScaffold(t, t.sourceFile));
+    const real = tests.filter((t) => !scaffolds.includes(t));
     const metadata = {
       generatedAt: new Date().toISOString(),
-      testCount: tests.length,
+      testCount: real.length,
       patterns,
-      testIds: tests.map((t) => t.id),
+      testIds: real.map((t) => t.id),
+      scaffoldCount: scaffolds.length,
+      scaffoldIds: scaffolds.map((t) => t.id),
     };
 
     await this.memory.set(

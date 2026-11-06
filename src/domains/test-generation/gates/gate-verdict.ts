@@ -11,6 +11,9 @@ import { unexecutableTestReason } from './test-substance.js';
 
 export interface GateCheckedTest {
   sourceFile?: string;
+  /** #1370: 'scaffolding' marks template or stub output that is not a test. */
+  generationMode?: string;
+  generationLimits?: string[];
   qualityGateResult?: Pick<TestQualityGateResult, 'passed'> & {
     issues?: Array<{ type?: string; description?: string }>;
   };
@@ -21,15 +24,27 @@ export function passedQualityGate(test: GateCheckedTest): boolean {
   return test.qualityGateResult?.passed === true;
 }
 
-/** Split generated tests into gate-passed tests and rejected scaffolding. */
+/**
+ * Split generated tests into gate-passed tests and rejected scaffolding.
+ * #1370: output the generator labelled scaffolding is rejected even when the
+ * gate passed it (e.g. the Dart template's expect(true, isTrue)).
+ */
 export function partitionByQualityGate<T extends GateCheckedTest>(tests: readonly T[]): {
   passed: T[];
   rejected: T[];
 } {
   const passed: T[] = [];
   const rejected: T[] = [];
-  for (const test of tests) (passedQualityGate(test) ? passed : rejected).push(test);
+  for (const test of tests) {
+    (passedQualityGate(test) && test.generationMode !== 'scaffolding' ? passed : rejected).push(test);
+  }
   return { passed, rejected };
+}
+
+/** The scaffolding label's explanation, when the generator gave one. */
+function scaffoldingNote(test: GateCheckedTest): string | undefined {
+  if (test.generationMode !== 'scaffolding') return undefined;
+  return test.generationLimits?.length ? test.generationLimits.join(' ') : 'The generator produced scaffolding only.';
 }
 
 /** The gate's reasons for rejecting a test, joined for display. */
@@ -37,7 +52,7 @@ export function describeGateRejection(test: GateCheckedTest): string {
   return test.qualityGateResult?.issues
     ?.map(issue => issue.description)
     .filter(Boolean)
-    .join('; ') || 'missing passing quality evidence';
+    .join('; ') || scaffoldingNote(test) || 'missing passing quality evidence';
 }
 
 /**
@@ -57,7 +72,7 @@ export function describeGateRejection(test: GateCheckedTest): string {
  *   real extension (the temp file for inline sourceCode).
  */
 export function unexecutableReason(
-  test: GateCheckedTest & { generationMode?: string; testCode?: string },
+  test: GateCheckedTest & { testCode?: string },
   analysedFile: string | undefined,
 ): string | undefined {
   const parserIssues = analysedFile && isJavaScriptFamily(analysedFile)
@@ -69,13 +84,12 @@ export function unexecutableReason(
   if (parserIssues.length > 0) return describeGateRejection({ qualityGateResult: { passed: false, issues: parserIssues } });
   const reason = unexecutableTestReason(test.testCode, analysedFile);
   if (reason) return reason;
-  if (test.generationMode === 'scaffolding') return 'The generator produced scaffolding only.';
-  return undefined;
+  return scaffoldingNote(test);
 }
 
 /** True when unexecutableReason finds no test that can fail. */
 export function isUnexecutableScaffold(
-  test: GateCheckedTest & { generationMode?: string; testCode?: string },
+  test: GateCheckedTest & { testCode?: string },
   analysedFile: string | undefined,
 ): boolean {
   return unexecutableReason(test, analysedFile) !== undefined;

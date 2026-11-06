@@ -137,6 +137,7 @@ import {
 import type { ICoherenceService } from '../../integrations/coherence/coherence-service.js';
 import { isMeasuredGapPayload } from '../../shared/events/domain-events.js';
 import { writeWhenUnlockedOn } from '../../shared/sqlite-write-queue.js';
+import { isUnexecutableScaffold } from './gates/gate-verdict.js';
 
 /**
  * Interface for the test generation coordinator
@@ -582,9 +583,12 @@ export class TestGenerationCoordinator
 
         // Publish events
         if (this.config.publishEvents) {
-          await this.publishTestSuiteCreated(result.value, request);
+          // #1370: scaffolds (template output with guessed values) are not
+          // announced as generated tests or counted in the suite.
+          const realTests = result.value.tests.filter(t => !isUnexecutableScaffold(t, t.sourceFile));
+          await this.publishTestSuiteCreated({ ...result.value, tests: realTests }, request);
 
-          for (const test of result.value.tests) {
+          for (const test of realTests) {
             await this.publishTestGenerated(test, request.framework ?? 'vitest', result.value.patternsUsed);
           }
         }
@@ -617,7 +621,9 @@ export class TestGenerationCoordinator
         }
 
         // Learn from successful generation
-        if (this.config.enablePatternLearning) {
+        // #1370: a pattern only scored success when it produced a real test.
+        if (this.config.enablePatternLearning
+          && result.value.tests.some(t => !isUnexecutableScaffold(t, t.sourceFile))) {
           await this.learnFromGeneration(result.value);
         }
       } else {
@@ -1285,7 +1291,8 @@ export class TestGenerationCoordinator
     );
 
     if (result.success && result.value.length > 0) {
-      for (const test of result.value) {
+      // #1370: coverage-gap templates are scaffolding; none is announced as a test.
+      for (const test of result.value.filter(t => !isUnexecutableScaffold(t, t.sourceFile))) {
         await this.publishTestGenerated(test, 'jest');
       }
     }

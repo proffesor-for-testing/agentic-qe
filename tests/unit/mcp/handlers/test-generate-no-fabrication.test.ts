@@ -16,7 +16,8 @@ const mapToResult = (data: Record<string, unknown>, params: Record<string, unkno
     testsGenerated: number;
     reason?: string;
     patternsUsed: string[];
-    aiInsights: { recommendations: string[]; confidence: number };
+    aiInsights: { recommendations: string[]; confidence?: number };
+    coverage: { confidence: number };
   };
 const mapToPayload = (params: Record<string, unknown>) =>
   testGenerateConfig.mapToPayload(params as never, undefined) as Record<string, unknown>;
@@ -31,7 +32,7 @@ describe('test_generate_enhanced result mapping (#1355)', () => {
     expect(result.testsGenerated).toBe(0);
     expect(result.tests).toEqual([]);
     expect(result.reason).toBe(warning);
-    expect(result.aiInsights.confidence).toBe(0);
+    expect(result.aiInsights).not.toHaveProperty('confidence');
     expect(result.aiInsights.recommendations).toEqual([]);
   });
 
@@ -65,6 +66,16 @@ describe('test_generate_enhanced result mapping (#1355)', () => {
     expect(result.reason).toBeUndefined();
     expect(result.tests[0]).toMatchObject({ name: 'math tests', aiGenerated: false, testCode });
     expect(result.tests[0].assertions).toContain('expect(add(1, 2)).toBe(3)');
+  });
+
+  it('reports no invented confidence for LLM output (#1369)', () => {
+    const testCode = "it('adds', () => {\n  expect(add(1, 2)).toBe(3);\n});";
+    const result = mapToResult({ tests: [{ name: 'math tests', type: 'unit', testCode }], llmEnhanced: true, coverageEstimate: 80 },
+      { sourceCode: 'export const add = (a, b) => a + b;' });
+
+    expect(result.aiInsights.recommendations.length).toBeGreaterThan(0);
+    expect(result.aiInsights).not.toHaveProperty('confidence');
+    expect(result.coverage.confidence).toBe(0);
   });
 
   it('does not invent assertion text when none can be extracted', () => {
