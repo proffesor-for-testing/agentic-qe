@@ -310,3 +310,27 @@ describe('#1371 review: imports the first version mishandled', () => {
     expect(issueTypes(testCode, 'src/lib/math.ts')).toEqual([]);
   });
 });
+
+describe('#1371 CodeQL: hostile input', () => {
+  it('a path of many slashes is handled in linear time (js/polynomial-redos)', () => {
+    const slashes = '/'.repeat(200_000);
+    const start = performance.now();
+    // Dart takes the import target unresolved, the path the old `/\/+$/` scanned.
+    sourceImportVerdict("import 'package:app/calc.dart';\n", { sourceFilePath: 'lib/calc.dart', importTarget: `lib${slashes}x` });
+    sourceImportVerdict(`import { a } from 'x${'/'.repeat(4000)}!';\n`, { sourceFilePath: join(root, 'src/math.ts') });
+    expect(performance.now() - start).toBeLessThan(500);
+  });
+
+  it('ignores tsconfig paths entries with more than one * (tsc rejects them)', () => {
+    writeFileSync(join(root, 'tsconfig.json'),
+      '{ "compilerOptions": { "baseUrl": ".", "paths": { "@*/*": ["src/lib/math.ts"], "#m/*": ["src/*/*"], "#ok/*": ["src/lib/*"] } } }');
+    const vitest = (spec: string) => `import { it, expect } from 'vitest';\nimport { fn } from '${spec}';\nit('x', () => { expect(fn(2)).toBe(4); });\n`;
+    // A two-star pattern and a two-star substitution never match.
+    expect(issueTypes(vitest('@a/b'), 'src/lib/math.ts')).toContain('no-source-import');
+    // The old first-'*' handling matched '@*/*' against a specifier ending in a literal '/*'.
+    expect(issueTypes(vitest('@a/*'), 'src/lib/math.ts')).toContain('no-source-import');
+    expect(issueTypes(vitest('#m/lib'), 'src/lib/math.ts')).toContain('no-source-import');
+    // A valid single-star entry still resolves.
+    expect(issueTypes(vitest('#ok/math'), 'src/lib/math.ts')).toEqual([]);
+  });
+});

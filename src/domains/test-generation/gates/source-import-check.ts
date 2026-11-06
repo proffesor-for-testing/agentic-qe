@@ -37,8 +37,16 @@ const JS_EXT = /\.(?:d\.)?(?:tsx?|jsx?|mjs|cjs|mts|cts)$/i;
 
 const stripSlashComments = (code: string) => code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
 
+/** Longest specifier or path the checks look at; longer input is not a real module path. */
+const MAX_PATH_LENGTH = 4096;
+
+/** The last `/`-separated segment, ignoring trailing slashes. String operations only (no backtracking regex). */
 function lastSegment(p: string): string {
-  return p.replace(/\\/g, '/').replace(/\/+$/, '').split('/').pop() ?? '';
+  const s = p.slice(0, MAX_PATH_LENGTH).split('\\').join('/');
+  let end = s.length;
+  while (end > 0 && s[end - 1] === '/') end--;
+  const trimmed = s.slice(0, end);
+  return trimmed.slice(trimmed.lastIndexOf('/') + 1);
 }
 
 // ---------------------------------------------------------------------------
@@ -54,7 +62,7 @@ function jsSpecifiers(testCode: string): string[] {
     /\b(?:import|require)\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
   ];
   for (const re of patterns) for (const m of testCode.matchAll(re)) specs.push(m[1]);
-  return specs;
+  return specs.filter(spec => spec.length <= MAX_PATH_LENGTH);
 }
 
 interface TsPaths { baseDir: string; paths: Record<string, string[]> }
@@ -85,6 +93,8 @@ function readTsPaths(root: string): TsPaths | undefined {
 function aliasTargets(spec: string, tsPaths: TsPaths): string[] {
   const out: string[] = [];
   for (const [pattern, targets] of Object.entries(tsPaths.paths)) {
+    // tsc allows at most one '*' in a pattern and in each substitution; it rejects others.
+    if (pattern.split('*').length > 2) continue;
     const star = pattern.indexOf('*');
     let captured: string | undefined;
     if (star < 0) captured = pattern === spec ? '' : undefined;
@@ -94,7 +104,10 @@ function aliasTargets(spec: string, tsPaths: TsPaths): string[] {
     }
     if (captured === undefined) continue;
     for (const target of targets) {
-      out.push(path.resolve(tsPaths.baseDir, target.replace('*', captured)).replace(JS_EXT, ''));
+      const parts = target.split('*');
+      if (parts.length > 2) continue;
+      const substituted = parts.length === 2 ? parts[0] + captured + parts[1] : target;
+      out.push(path.resolve(tsPaths.baseDir, substituted).replace(JS_EXT, ''));
     }
   }
   return out;
