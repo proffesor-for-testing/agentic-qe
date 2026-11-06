@@ -12,7 +12,11 @@
  *   skipped. Unknown languages are always kept.
  */
 import ts from 'typescript';
-import { isJavaScriptFamily } from './test-quality-gate.js';
+
+/** #1355: the files whose generated tests the gate parses (TypeScript AST). */
+export function isJavaScriptFamily(filePath: string): boolean {
+  return /\.(?:tsx?|jsx?|mjs|cjs|mts|cts)$/i.test(filePath);
+}
 
 const TEST_FNS = new Set(['it', 'test', 'xit', 'xtest', 'fit']);
 const SUITE_FNS = new Set(['describe', 'xdescribe', 'fdescribe', 'suite', 'context']);
@@ -231,6 +235,16 @@ const RULES: Array<[RegExp, LanguageRule]> = [
     tautology: /\bexpect\s*\(\s*true\s*,\s*(?:true|isTrue)\s*\)/g,
   }],
 ];
+
+/**
+ * #1371: whether non-JS test code has an assertion in its language's forms
+ * (Python `assert x == y`, Go `t.Fatal`, JUnit `assertEquals`), or undefined
+ * for a language without a rule here.
+ */
+export function hasLanguageAssertion(testCode: string, analysedFile: string): boolean | undefined {
+  const rule = RULES.find(([ext]) => ext.test(analysedFile))?.[1];
+  return rule ? countAll(rule.comments(testCode), rule.assertion) > 0 : undefined;
+}
 
 /**
  * Why a generated test file has no test that can fail, or undefined when it

@@ -89,9 +89,10 @@ export function createTestCommand(
           if (result.success && result.value) {
             const generated = result.value as { tests: Array<{ name: string; sourceFile: string; testFile: string; testCode?: string; assertions: number; qualityGateResult?: { passed: boolean; score: number; issues?: Array<{ description?: string }> } }>; coverageEstimate: number | null; patternsUsed: string[] };
             const format = options.format as OutputFormat;
-            // Full quality gate, unchanged from before #1355. It rejects valid
-            // pytest/Go/JUnit tests and TS alias/index imports (open CLI bug);
-            // test_generate_enhanced counts by the narrower isUnexecutableScaffold.
+            // Full quality gate. #1371: it judges each language's assertion and
+            // import forms (pytest, Go, JUnit/Kotlin, TS aliases and index
+            // imports); test_generate_enhanced counts by the narrower
+            // isUnexecutableScaffold and reports the gate's verdict as qualityGate.
             const { rejected } = partitionByQualityGate(generated.tests);
             if (rejected.length > 0) {
               const details = rejected.map(test => `${test.sourceFile}: ${describeGateRejection(test)}`);

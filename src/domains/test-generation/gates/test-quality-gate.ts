@@ -12,6 +12,10 @@
  */
 
 import ts from 'typescript';
+import { hasLanguageAssertion, isJavaScriptFamily } from './test-substance.js';
+import { sourceImportVerdict } from './source-import-check.js';
+
+export { isJavaScriptFamily };
 
 // ============================================================================
 // Types
@@ -57,11 +61,6 @@ function scriptKindFor(filePath: string): ts.ScriptKind {
   if (/\.(?:tsx)$/i.test(filePath)) return ts.ScriptKind.TSX;
   if (/\.(?:js|mjs|cjs)$/i.test(filePath)) return ts.ScriptKind.JS;
   return ts.ScriptKind.TS;
-}
-
-/** #1355: the files whose generated tests the gate parses (TypeScript AST). */
-export function isJavaScriptFamily(filePath: string): boolean {
-  return /\.(?:tsx?|jsx?|mjs|cjs|mts|cts)$/i.test(filePath);
 }
 
 function parseGeneratedTest(testCode: string, sourceFilePath: string): ts.SourceFile {
@@ -110,7 +109,9 @@ export function getGeneratedTestSyntaxIssues(
 
 function hasExecutableAssertion(testCode: string, sourceFilePath: string): boolean {
   if (!isJavaScriptFamily(sourceFilePath)) {
-    return /\b(?:assert\w*|expect)\s*(?:[.(])/i.test(testCode);
+    // #1371: each language's own assertion forms; the old token check for others.
+    return hasLanguageAssertion(testCode, sourceFilePath)
+      ?? /\b(?:assert\w*|expect)\s*(?:[.(])/i.test(testCode);
   }
 
   const sourceFile = parseGeneratedTest(testCode, sourceFilePath);
@@ -192,7 +193,7 @@ export class TestQualityGate {
     }
 
     if (this.config.checkSourceImports) {
-      issues.push(...this.detectMissingSourceImports(testCode, importTarget ?? sourceFilePath));
+      issues.push(...this.detectMissingSourceImports(testCode, sourceFilePath, importTarget, sourceCode));
     }
 
     if (this.config.checkTautologicalAssertions) {
@@ -222,57 +223,30 @@ export class TestQualityGate {
   // ============================================================================
 
   /**
-   * Check whether the test code imports from the source file.
-   * If no import/require statement references the source file basename, flag an error.
+   * Check whether the test code references the source under test, in the
+   * import forms of the source's language (#1371, see source-import-check).
+   * A language the gate cannot judge produces no finding.
    */
   private detectMissingSourceImports(
     testCode: string,
-    sourceFilePath: string
+    sourceFilePath: string,
+    importTarget?: string,
+    sourceCode?: string,
   ): TestQualityIssue[] {
-    // Extract basename without extension for matching
-    const parts = sourceFilePath.replace(/\\/g, '/').split('/');
-    const fileName = parts[parts.length - 1];
-    const baseName = fileName.replace(/\.(ts|js|tsx|jsx|mts|mjs|py)$/, '');
-
-    // Collect all import/require paths from the test code
-    const importPaths: string[] = [];
-
-    // ES import: import ... from '...'
-    const esImportRegex = /(?:import|from)\s+['"]([^'"]+)['"]/g;
-    let match: RegExpExecArray | null;
-    while ((match = esImportRegex.exec(testCode)) !== null) {
-      importPaths.push(match[1]);
-    }
-
-    // CommonJS require: require('...')
-    const requireRegex = /require\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
-    while ((match = requireRegex.exec(testCode)) !== null) {
-      importPaths.push(match[1]);
-    }
-
-    // Check if any import path references the source file
-    const hasSourceImport = importPaths.some((importPath) => {
-      const importBaseName = importPath
-        .replace(/\\/g, '/')
-        .split('/')
-        .pop()
-        ?.replace(/\.(ts|js|tsx|jsx|mts|mjs)$/, '')
-        ?.replace(/\.js$/, '');
-      return importBaseName === baseName;
-    });
-
-    if (!hasSourceImport && importPaths.length >= 0) {
-      return [
-        {
-          type: 'no-source-import',
-          severity: 'error',
-          description: `Test does not import from source file "${baseName}". Tests that never reference the source under test are likely mock-only or dead code.`,
-          suggestion: `Add an import statement that references the source module, e.g.: import { ... } from './${baseName}.js'`,
-        },
-      ];
-    }
-
-    return [];
+    const verdict = sourceImportVerdict(testCode, { sourceFilePath, importTarget, sourceCode });
+    if (verdict !== 'missing') return [];
+    const target = (importTarget || sourceFilePath).replace(/\\/g, '/').split('/').pop() ?? sourceFilePath;
+    const baseName = target.replace(/\.(ts|js|tsx|jsx|mts|mjs|cts|cjs|py)$/, '');
+    return [
+      {
+        type: 'no-source-import',
+        severity: 'error',
+        description: `Test does not import from source file "${baseName}". Tests that never reference the source under test are likely mock-only or dead code.`,
+        suggestion: isJavaScriptFamily(sourceFilePath)
+          ? `Add an import statement that references the source module, e.g.: import { ... } from './${baseName}.js'`
+          : 'Import the module under test (or, for Go/Java/Kotlin, declare the test in its package and call it).',
+      },
+    ];
   }
 
   /**
