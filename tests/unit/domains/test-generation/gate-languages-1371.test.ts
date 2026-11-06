@@ -137,9 +137,88 @@ describe('#1371 inline sourceCode (MCP) is judged by its logical import path', (
 
   it('uses the Go module import target', () => {
     // The import's last segment (mathx) matches neither the package (calc) nor the temp dir.
-    const verdict = sourceImportVerdict('package calc_test\n\nimport "example.com/fx/pkg/mathx"\n',
+    const verdict = sourceImportVerdict('package calc_test\n\nimport "example.com/fx/pkg/mathx"\n\nfunc TestAdd(t *testing.T) { if mathx.Add(2, 3) != 5 { t.Fatal("bad") } }\n',
       { sourceFilePath: '/tmp/aqe-temp-2.go', importTarget: 'example.com/fx/pkg/mathx', sourceCode: GO_SRC });
     expect(verdict).toBe('found');
+  });
+});
+
+describe('#1390 source imports must identify and exercise the actual module', () => {
+  it('rejects a Python module with the same basename from an unrelated package', () => {
+    expect(issueTypes(
+      'from django import calc\n\ndef test_add():\n    assert calc.add(2, 3) == 5\n',
+      'src/calc.py', PY_SRC,
+    )).toContain('no-source-import');
+  });
+
+  it('rejects a Python import that is correct but never uses an imported symbol', () => {
+    expect(issueTypes(
+      'from src.calc import add\n\ndef test_add():\n    x = 2\n    assert x == 2\n',
+      'src/calc.py', PY_SRC,
+    )).toContain('no-source-import');
+  });
+
+  it('rejects an external Go import with the wrong full module path', () => {
+    writeFileSync(join(root, 'go.mod'), 'module example.com/project\n');
+    expect(issueTypes(
+      'package calc_test\n\nimport "github.com/other/calc"\n\nfunc TestAdd(t *testing.T) { if calc.Add(2, 3) != 5 { t.Fatal("bad") } }\n',
+      'pkg/calc.go', GO_SRC,
+    )).toContain('no-source-import');
+  });
+
+  it('rejects a correct JavaScript import when no imported symbol is referenced', () => {
+    const source = 'export function add(a: number, b: number) { return a + b; }';
+    expect(issueTypes(
+      "import { add } from '../src/calc';\nit('adds', () => { expect(2).toBe(2); });\n",
+      'src/calc.ts', source,
+    )).toContain('no-source-import');
+  });
+
+  it('resolves JavaScript specifiers from the generated test file and matches full paths', () => {
+    const sourcePath = join(root, 'src', 'calc.ts');
+    const testPath = join(root, 'tests', 'unit', 'calc.test.ts');
+    expect(sourceImportVerdict(
+      "import { add } from '../../src/calc';\nit('adds', () => { expect(add(2, 3)).toBe(5); });\n",
+      { sourceFilePath: sourcePath, testFilePath: testPath, sourceCode: 'export function add(a: number, b: number) { return a + b; }' },
+    )).toBe('found');
+    expect(sourceImportVerdict(
+      "import { add } from '../../other/calc';\nit('adds', () => { expect(add(2, 3)).toBe(5); });\n",
+      { sourceFilePath: sourcePath, testFilePath: testPath, sourceCode: 'export function add(a: number, b: number) { return a + b; }' },
+    )).toBe('missing');
+  });
+
+  it('uses the nearest package tsconfig when resolving path aliases', () => {
+    const packageRoot = join(root, 'packages', 'api');
+    mkdirSync(join(packageRoot, 'src'), { recursive: true });
+    mkdirSync(join(packageRoot, 'tests'), { recursive: true });
+    writeFileSync(join(packageRoot, 'tsconfig.json'), JSON.stringify({ compilerOptions: { baseUrl: '.', paths: { '@calc': ['src/calc.ts'] } } }));
+    expect(sourceImportVerdict(
+      "import { add } from '@calc';\nit('adds', () => { expect(add(2, 3)).toBe(5); });\n",
+      { sourceFilePath: join(packageRoot, 'src', 'calc.ts'), testFilePath: join(packageRoot, 'tests', 'calc.test.ts'), sourceCode: 'export function add(a: number, b: number) { return a + b; }' },
+    )).toBe('found');
+  });
+});
+
+describe('#1390 assertion-like identifiers are not assertions', () => {
+  it('does not count a Python variable starting with assert', () => {
+    expect(unexecutableTestReason(
+      'def test_add():\n    assertion_count = 3\n    print(assertion_count)\n',
+      'src/calc.py',
+    )).toBeDefined();
+  });
+
+  it('does not count a Kotlin variable starting with assert', () => {
+    expect(unexecutableTestReason(
+      'class CalcTest { @Test fun add() { val assertion = 3; println(assertion) } }\n',
+      'src/Calc.kt',
+    )).toBeDefined();
+  });
+
+  it('does not count a Java/Kotlin method named shouldAdd as an assertion', () => {
+    expect(unexecutableTestReason(
+      'class CalcTest { @Test fun shouldAdd() { println(3) } }\n',
+      'src/Calc.kt',
+    )).toBeDefined();
   });
 });
 

@@ -27,6 +27,8 @@ export type SourceImportVerdict = 'found' | 'missing' | 'unjudged';
 export interface SourceImportSubject {
   /** The file the test was generated from, with its real extension (selects the language). */
   sourceFilePath: string;
+  /** The generated test file path, used to resolve relative imports. */
+  testFilePath?: string;
   /** The module path the test should import when it differs (inline sourceCode's logical path). */
   importTarget?: string;
   /** The source text, when it was readable. */
@@ -79,16 +81,30 @@ const OPTIONS_ONLY_HOST: ts.ParseConfigHost = {
  * compilerOptions.paths from the project's tsconfig.json, following `extends`
  * the way tsc does (comments allowed).
  */
-function readTsPaths(root: string): TsPaths | undefined {
-  const configPath = path.join(root, 'tsconfig.json');
-  if (!ts.sys.fileExists(configPath)) return undefined;
+function readTsPaths(root: string, sourceFilePath: string): TsPaths | undefined {
+  let directory = path.dirname(path.resolve(sourceFilePath));
+  let configPath: string | undefined;
+  while (directory === root || directory.startsWith(`${root}${path.sep}`)) {
+    const candidate = path.join(directory, 'tsconfig.json');
+    if (ts.sys.fileExists(candidate)) {
+      configPath = candidate;
+      break;
+    }
+    if (directory === root) break;
+    directory = path.dirname(directory);
+  }
+  if (!configPath) return undefined;
   const read = ts.readConfigFile(configPath, ts.sys.readFile);
   if (read.error || !read.config) return undefined;
-  const { options } = ts.parseJsonConfigFileContent(read.config, OPTIONS_ONLY_HOST, root, undefined, configPath);
+  const configDir = path.dirname(configPath);
+  const { options } = ts.parseJsonConfigFileContent(read.config, OPTIONS_ONLY_HOST, configDir, undefined, configPath);
   if (!options.paths) return undefined;
   // tsc resolves `paths` against baseUrl, else against the config that declared them.
-  const baseDir = options.baseUrl ?? (options as { pathsBasePath?: string }).pathsBasePath ?? root;
-  return { baseDir: path.resolve(root, baseDir), paths: options.paths };
+  const baseDir = options.baseUrl ?? (options as { pathsBasePath?: string }).pathsBasePath ?? configDir;
+  return {
+    baseDir: path.isAbsolute(baseDir) ? baseDir : path.resolve(configDir, baseDir),
+    paths: options.paths,
+  };
 }
 
 /** The files an aliased specifier can resolve to, extension-less. */
@@ -119,65 +135,138 @@ function javascriptVerdict(testCode: string, subject: SourceImportSubject): Sour
   const root = path.resolve(findProjectRoot());
   const target = subject.importTarget || subject.sourceFilePath;
   const sourceNoExt = path.resolve(root, target).replace(JS_EXT, '');
-  const baseName = lastSegment(sourceNoExt);
-  const isIndex = baseName === 'index';
-  const dirName = lastSegment(path.dirname(sourceNoExt));
-  const tsPaths = readTsPaths(root);
+  const normalizeModulePath = (value: string): string => {
+    const withoutExt = value.replace(JS_EXT, '');
+    return path.basename(withoutExt) === 'index' ? path.dirname(withoutExt) : withoutExt;
+  };
+  const sourceModulePath = normalizeModulePath(sourceNoExt);
+  const tsPaths = readTsPaths(root, sourceNoExt);
 
   const matches = (spec: string): boolean => {
     const clean = spec.replace(/[?#].*$/, '').replace(JS_EXT, '').replace(/\/index$/, '');
-    const last = lastSegment(clean);
-    // `./math`, `./math.js`, `../src/math`; `../utils/index` or `../utils` for utils/index.ts.
-    if (!isIndex && last === baseName) return true;
-    if (isIndex && last === dirName) return true;
-    // A tsconfig `paths` alias that resolves to the source (`@math`, `~/lib/math`).
-    if (tsPaths && !spec.startsWith('.') && !path.isAbsolute(spec)) {
-      return aliasTargets(spec, tsPaths).some(t => t === sourceNoExt || (isIndex && t === path.dirname(sourceNoExt)));
+    if (spec.startsWith('.') || path.isAbsolute(spec)) {
+      if (subject.testFilePath) {
+        return normalizeModulePath(path.resolve(path.dirname(subject.testFilePath), clean)) === sourceModulePath;
+      }
+      // Older direct gate callers do not provide the generated test path. Keep
+      // their source-relative and conventional tests/ resolution, while still
+      // comparing the complete normalized paths.
+      return [path.dirname(sourceNoExt), root, path.join(root, 'tests')]
+        .some(base => normalizeModulePath(path.resolve(base, clean)) === sourceModulePath);
     }
-    return false;
+    // A tsconfig `paths` alias that resolves to the source (`@math`, `~/lib/math`).
+    if (tsPaths && aliasTargets(spec, tsPaths).some(t => normalizeModulePath(t) === sourceModulePath)) return true;
+    // Root-relative specifiers are used by a number of test runners and monorepo configs.
+    return normalizeModulePath(path.resolve(root, clean)) === sourceModulePath;
   };
-  return jsSpecifiers(stripSlashComments(testCode)).some(matches) ? 'found' : 'missing';
+  const sourceFile = ts.createSourceFile('generated-test.ts', testCode, ts.ScriptTarget.Latest, true);
+  const importedNames = new Set<string>();
+  const importNodes = new Set<ts.Node>();
+  const visitImports = (node: ts.Node): void => {
+    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier) && matches(node.moduleSpecifier.text)) {
+      importNodes.add(node);
+      const clause = node.importClause;
+      if (clause?.name) importedNames.add(clause.name.text);
+      if (clause?.namedBindings && ts.isNamespaceImport(clause.namedBindings)) {
+        importedNames.add(clause.namedBindings.name.text);
+      } else if (clause?.namedBindings && ts.isNamedImports(clause.namedBindings)) {
+        for (const element of clause.namedBindings.elements) importedNames.add(element.name.text);
+      }
+    }
+    ts.forEachChild(node, visitImports);
+  };
+  visitImports(sourceFile);
+  if (importedNames.size === 0) return 'missing';
+  let referenced = false;
+  const visitReferences = (node: ts.Node): void => {
+    if (importNodes.has(node)) return;
+    if (ts.isIdentifier(node) && importedNames.has(node.text)) referenced = true;
+    if (!referenced) ts.forEachChild(node, visitReferences);
+  };
+  visitReferences(sourceFile);
+  return referenced ? 'found' : 'missing';
 }
 
 // ---------------------------------------------------------------------------
 // Python
 // ---------------------------------------------------------------------------
 
-/** Dotted module names a test imports, plus `from pkg import name` names. */
-function pythonImports(testCode: string): { modules: string[]; fromNames: string[] } {
+/** Dotted module names and bound names used by Python imports. */
+function pythonImports(testCode: string): { modules: Array<{ path: string; local: string }>; fromImports: Array<{ module: string; name: string; local: string }> } {
   // #1371: an import written inside a string or comment is not an import.
   const code = stripCode(testCode, 'python');
-  const modules: string[] = [];
-  const fromNames: string[] = [];
+  const modules: Array<{ path: string; local: string }> = [];
+  const fromImports: Array<{ module: string; name: string; local: string }> = [];
   for (const m of code.matchAll(/^[ \t]*from[ \t]+([.\w]+)[ \t]+import[ \t]+(\([^)]{0,4096}\)|[^\n]+)/gm)) {
-    modules.push(m[1]);
-    fromNames.push(...m[2].replace(/[()]/g, '').split(',').map(n => n.trim().split(/\s+as\s+/)[0]).filter(Boolean));
+    for (const entry of m[2].replace(/[()]/g, '').split(',')) {
+      const parts = entry.trim().split(/\s+as\s+/);
+      const name = parts[0];
+      if (name) fromImports.push({ module: m[1], name, local: parts[1] || name });
+    }
   }
   for (const m of code.matchAll(/^[ \t]*import\s+([^\n]+)/gm)) {
-    modules.push(...m[1].split(',').map(n => n.trim().split(/\s+as\s+/)[0]).filter(Boolean));
+    for (const entry of m[1].split(',')) {
+      const parts = entry.trim().split(/\s+as\s+/);
+      if (parts[0]) modules.push({ path: parts[0], local: parts[1] || parts[0].split('.')[0] });
+    }
   }
-  // importlib.import_module("src.calc") / __import__("calc")
   const withStrings = stripCode(testCode, 'python', true);
-  for (const m of withStrings.matchAll(/\b(?:import_module|__import__)\s*\(\s*['"]([.\w]+)['"]/g)) modules.push(m[1]);
-  return { modules, fromNames };
+  for (const m of withStrings.matchAll(/\b(?:importlib\.)?(?:import_module|__import__)\s*\(\s*['"]([.\w]+)['"]/g)) {
+    const lineStart = withStrings.lastIndexOf('\n', m.index) + 1;
+    const assigned = withStrings.slice(lineStart, m.index).match(/([A-Za-z_]\w*)\s*=\s*$/)?.[1];
+    const module = m[1];
+    modules.push({ path: module, local: assigned ?? module.split('.').pop()! });
+  }
+  return { modules, fromImports };
 }
 
 function pythonVerdict(testCode: string, subject: SourceImportSubject): SourceImportVerdict {
-  const target = (subject.importTarget || subject.sourceFilePath).replace(/\\/g, '/').replace(/\.py$/i, '');
-  // An importTarget may already be dotted (`src.calc`); a path is split on `/`.
-  const segments = (target.includes('/') ? target.split('/') : target.split('.')).filter(Boolean);
-  let module = segments[segments.length - 1] ?? '';
+  const root = path.resolve(findProjectRoot());
+  const target = subject.importTarget || subject.sourceFilePath;
+  const dottedTarget = !path.isAbsolute(target) && !target.includes('/') && target.includes('.')
+    ? target.replace(/\.py$/i, '').split('.').filter(Boolean)
+    : path.relative(root, path.resolve(root, target)).replace(/\\/g, '/').replace(/\.py$/i, '').split('/').filter(Boolean);
+  let module = dottedTarget[dottedTarget.length - 1] ?? '';
   // A package's __init__.py is imported by the package name.
   const isPackageInit = module === '__init__';
-  if (isPackageInit) module = segments[segments.length - 2] ?? '';
+  if (isPackageInit) module = dottedTarget[dottedTarget.length - 2] ?? '';
   if (!module) return 'unjudged';
-  const { modules, fromNames } = pythonImports(testCode);
-  // `from . import add` in a test inside the package imports from its __init__.py.
-  if (isPackageInit && modules.includes('.')) return 'found';
-  // `from src.calc import add`, `import src.calc`, `from .calc import add`, `from calc import add` (conftest / sys.path).
-  if (modules.some(m => m.split('.').filter(Boolean).pop() === module)) return 'found';
-  // `from src import calc`, `from . import calc`.
-  return fromNames.includes(module) ? 'found' : 'missing';
+  const expectedSegments = isPackageInit ? dottedTarget.slice(0, -1) : dottedTarget;
+  const expected = expectedSegments.join('.');
+  const { modules, fromImports } = pythonImports(testCode);
+  const normalizeRelative = (value: string): string => {
+    if (!value.startsWith('.')) return value;
+    const testPath = path.resolve(root, subject.testFilePath || subject.sourceFilePath);
+    const packageDir = path.relative(root, path.dirname(testPath))
+      .replace(/\\/g, '/').split('/').filter(Boolean);
+    const dots = value.match(/^\.+/)?.[0].length ?? 0;
+    const base = packageDir.slice(0, Math.max(0, packageDir.length - dots + 1));
+    return [...base, ...value.slice(dots).split('.').filter(Boolean)].join('.');
+  };
+  const sysPathPrefixes = [...stripCode(testCode, 'python', true).matchAll(/sys\.path\.insert\s*\(\s*\d+\s*,\s*['"]([^'"]+)['"]/g)]
+    .map(m => m[1].replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/$/, '').replace(/\//g, '.'));
+  const matchesModule = (candidate: string): boolean => {
+    const normalized = normalizeRelative(candidate);
+    if (normalized === expected) return true;
+    return sysPathPrefixes.some(prefix => expected.startsWith(`${prefix}.`) && normalized === expected.slice(prefix.length + 1));
+  };
+  const boundNames = new Set<string>();
+  for (const imported of modules) {
+    if (matchesModule(imported.path) || (isPackageInit && imported.path === '.')) boundNames.add(imported.local);
+  }
+  for (const imported of fromImports) {
+    if (matchesModule(imported.module)
+      || matchesModule(`${imported.module}.${imported.name}`)
+      || (isPackageInit && imported.module === '.' && imported.name === module)) {
+      boundNames.add(imported.local);
+    }
+  }
+  const executable = stripCode(testCode, 'python')
+    .replace(/^[ \t]*(?:from|import)\s+[^\n]*/gm, '')
+    .replace(/^[ \t]*(?:[A-Za-z_]\w*\s*=\s*)?(?:importlib\.)?(?:import_module|__import__)\s*\([^\n]*\)[ \t]*$/gm, '');
+  return [...boundNames].some(name => new RegExp(`\\b${name.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\b`).test(executable))
+    ? 'found'
+    : 'missing';
 }
 
 // ---------------------------------------------------------------------------
@@ -350,10 +439,13 @@ function goVerdict(testCode: string, subject: SourceImportSubject): SourceImport
   // Same package (white-box test): no import; it must call something the source declares.
   if (testPackage === sourcePackage) return usesSource(code, declaredNames(subject.sourceCode ?? '', 'go')) ? 'found' : 'missing';
   // External test package: the source package must be imported by its module path.
-  const dirName = lastSegment(path.dirname(subject.sourceFilePath));
-  const targetPath = subject.importTarget?.replace(/\\/g, '/');
-  const imported = imports.some(p => p === targetPath || [sourcePackage, dirName].includes(lastSegment(p)));
-  return imported ? 'found' : 'missing';
+  const root = path.resolve(findProjectRoot());
+  const sourceDir = path.relative(root, path.dirname(path.resolve(root, subject.sourceFilePath))).replace(/\\/g, '/');
+  const targetPath = subject.importTarget?.replace(/\\/g, '/').replace(/\/$/, '');
+  const imported = targetPath
+    ? imports.some(p => p === targetPath)
+    : imports.some(p => p === sourceDir || p.endsWith(`/${sourceDir}`));
+  return imported && usesSource(code, declaredNames(subject.sourceCode ?? '', 'go')) ? 'found' : 'missing';
 }
 
 // ---------------------------------------------------------------------------
@@ -381,7 +473,7 @@ function jvmVerdict(testCode: string, subject: SourceImportSubject): SourceImpor
     // A wildcard import counts only when the test then uses a source declaration.
     return next === '*' ? usesSource(code, names) : names.has(next) || next === stem;
   });
-  return imported ? 'found' : 'missing';
+  return imported && usesSource(code, names) ? 'found' : 'missing';
 }
 
 // ---------------------------------------------------------------------------
