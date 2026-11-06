@@ -334,3 +334,101 @@ describe('#1371 CodeQL: hostile input', () => {
     expect(issueTypes(vitest('#ok/math'), 'src/lib/math.ts')).toEqual([]);
   });
 });
+
+describe('#1371 review round 2: an imported assertion name is not an assertion', () => {
+  const KT_ADD = 'package com.ex\n\nfun add(a: Int, b: Int): Int = a + b\n';
+  it.each([
+    ['Java static import of assertTrue', 'src/main/java/com/example/Calc.java', JAVA_SRC,
+      'package com.example;\n\nimport org.junit.jupiter.api.Test;\nimport static org.junit.jupiter.api.Assertions.assertTrue;\n\nclass CalcTest {\n  @Test void x() { Calc.add(2, 3); assertTrue(true); }\n}\n'],
+    ['Java static import of assertEquals', 'src/main/java/com/example/Calc.java', JAVA_SRC,
+      'package com.example;\n\nimport static org.junit.jupiter.api.Assertions.assertEquals;\n\nclass CalcTest {\n  void x() { Calc.add(2, 3); assertEquals("a", "a"); }\n}\n'],
+    ['Kotlin import of assertTrue', 'src/calc.kt', KT_ADD,
+      'package com.ex\n\nimport kotlin.test.Test\nimport kotlin.test.assertTrue\n\nclass CalcTest {\n    @Test\n    fun x() {\n        add(1, 2)\n        assertTrue(true)\n    }\n}\n'],
+  ])('%s: the CLI gate and MCP both reject the tautology', (_label, file, source, testCode) => {
+    expect(issueTypes(testCode, file, source)).toContain('no-testable-assertion');
+    expect(unexecutableTestReason(testCode, file)).toMatch(/tautology/);
+  });
+
+  it('an import line alone is no assertion (MCP and gate)', () => {
+    const testCode = 'package com.example;\n\nimport static org.junit.jupiter.api.Assertions.assertEquals;\n\nclass CalcTest {\n  void x() { Calc.add(2, 3); }\n}\n';
+    expect(unexecutableTestReason(testCode, 'src/Calc.java')).toMatch(/No Java\/Kotlin assertion/);
+    expect(issueTypes(testCode, 'src/main/java/com/example/Calc.java', JAVA_SRC)).toContain('no-assertions');
+  });
+});
+
+describe('#1371 review round 2: Kotlin forms', () => {
+  const KT = 'package com.ex\n\nfun greet(name: String): String = "Hello, $name!"\n\nfun add(a: Int, b: Int): Int = a + b\n';
+  const kt = (body: string) => `package com.ex\n\nimport kotlin.test.Test\nimport kotlin.test.assertEquals\n\nclass GreetTest {\n${body}\n}\n`;
+
+  it.each([
+    ['a backtick test name with an apostrophe', '    @Test fun `doesn\'t lose the name`() { assertEquals("Hello, Bob!", greet("Bob")) }'],
+    ['the source used only inside ${...} templates', '    @Test fun greets() { assertEquals("Hello, Bob! (3)", "${greet("Bob")} (${add(1, 2)})") }'],
+    ['the source used only as a $name template', '    @Test fun greets() { val f = 1; assertEquals("1", "$add".take(0) + f) }'],
+    ['a test method named like the source function', '    @Test fun add() { assertEquals(5, add(2, 3)) }'],
+  ])('%s is accepted', (_label, body) => {
+    expect(issueTypes(kt(body), 'src/greet.kt', KT)).toEqual([]);
+  });
+
+  it('a backtick test name with an odd double quote does not open a string', () => {
+    expect(issueTypes(kt('    @Test fun `the "quote`() { assertEquals("Hello, Bob!", greet("Bob")) }'), 'src/greet.kt', KT)).toEqual([]);
+  });
+
+  it('a malformed template does not swallow the following lines', () => {
+    expect(issueTypes(kt('    @Test fun x() {\n        val s = "${"\n        assertEquals(5, add(2, 3))\n    }'), 'src/greet.kt', KT)).toEqual([]);
+  });
+
+  it('many unclosed templates stay linear (each ends at its line)', () => {
+    const start = performance.now();
+    issueTypes(kt('    @Test fun x() {\n' + '        val s = "${"\n'.repeat(30_000) + '        assertEquals(5, add(2, 3))\n    }'), 'src/greet.kt', KT);
+    expect(performance.now() - start).toBeLessThan(2000);
+  });
+
+  it('a test method named like the source function, not calling it, is still rejected', () => {
+    expect(issueTypes(kt('    @Test fun add() { assertEquals(5, 2 + 3) }'), 'src/greet.kt', KT)).toContain('no-source-import');
+  });
+
+  it('a template keeps code, not text: an assertion name written in plain text inside it does not count', () => {
+    expect(issueTypes(kt('    @Test fun x() { println("assertEquals ${greet("a")}") }'), 'src/greet.kt', KT)).toContain('no-assertions');
+  });
+});
+
+describe('#1371 review round 2: scanner details', () => {
+  it('honours backslash escapes inside strings', () => {
+    // Without escape handling, \" ends the string and the text after it would count as an assertion.
+    const py = 'from src.calc import add\n\ndef test_x():\n    add(1, 2)\n    print("x \\" assert add(1, 2) == 3 \\" y")\n';
+    expect(issueTypes(py, 'src/calc.py', PY_SRC)).toContain('no-assertions');
+    const java = 'package com.example;\n\nclass CalcTest {\n  void x() { Calc.add(1, 2); System.out.println("a \\" assertEquals(1, 2) \\" b"); }\n}\n';
+    expect(unexecutableTestReason(java, 'src/Calc.java')).toMatch(/No Java\/Kotlin assertion/);
+  });
+
+  it('gives different strings different placeholders', () => {
+    expect(unexecutableTestReason('class T { void x() { assertEquals("a", "b"); } }', 'src/T.java')).toBeUndefined();
+    expect(unexecutableTestReason('def test_x():\n    self.assertEqual("a", "b")\n', 'src/t.py')).toBeUndefined();
+  });
+
+  it('removes Go block comments', () => {
+    const testCode = 'package calc\n\nimport "testing"\n\n/* Add(1, 2) is not called here */\nfunc TestX(t *testing.T) {\n\tif 1 != 1 { t.Fatal("x") }\n}\n';
+    expect(issueTypes(testCode, 'pkg/calc/calc.go', GO_SRC)).toContain('no-source-import');
+    expect(unexecutableTestReason('func TestX(t *testing.T) {\n\t/* t.Fatal("x") */\n}\n', 'pkg/calc.go')).toMatch(/No Go assertion/);
+  });
+
+  it('ends an unterminated string at the end of its line', () => {
+    const py = 'from src.calc import add\n\ndef test_x():\n    x = "oops\n    assert add(2, 3) == 5\n';
+    expect(issueTypes(py, 'src/calc.py', PY_SRC)).toEqual([]);
+    const go = 'package calc\n\nimport "testing"\n\nfunc TestX(t *testing.T) {\n\tx := "oops\n\tif Add(2, 3) != 5 { t.Fatal(x) }\n}\n';
+    expect(issueTypes(go, 'pkg/calc/calc.go', GO_SRC)).toEqual([]);
+  });
+
+  it('reads char and rune literals, including quote characters', () => {
+    const java = 'package com.example;\n\nimport static org.junit.jupiter.api.Assertions.assertEquals;\n\nclass CalcTest {\n  void x() { char q = \'"\'; char a = \'\\\'\'; assertEquals(5, Calc.add(2, 3)); }\n}\n';
+    expect(issueTypes(java, 'src/main/java/com/example/Calc.java', JAVA_SRC)).toEqual([]);
+  });
+
+  it('stays linear on many blank lines and long identifiers', () => {
+    const start = performance.now();
+    const blank = '\n'.repeat(50_000);
+    issueTypes(`package calc${blank}import "testing"${blank}func TestX(t *testing.T) { t.Fatal(Add(1, 2)) }\n`, 'pkg/calc/calc.go', GO_SRC);
+    issueTypes(`from src.calc import add${blank}def test_x():\n    assert ${'a'.repeat(100_000)} == add(1, 2)\n`, 'src/calc.py', PY_SRC);
+    expect(performance.now() - start).toBeLessThan(2000);
+  });
+});

@@ -147,11 +147,11 @@ function pythonImports(testCode: string): { modules: string[]; fromNames: string
   const code = stripCode(testCode, 'python');
   const modules: string[] = [];
   const fromNames: string[] = [];
-  for (const m of code.matchAll(/^\s*from\s+([.\w]+)\s+import\s+(\([^)]*\)|[^\n]+)/gm)) {
+  for (const m of code.matchAll(/^[ \t]*from\s+([.\w]+)\s+import\s+(\([^)]*\)|[^\n]+)/gm)) {
     modules.push(m[1]);
     fromNames.push(...m[2].replace(/[()]/g, '').split(',').map(n => n.trim().split(/\s+as\s+/)[0]).filter(Boolean));
   }
-  for (const m of code.matchAll(/^\s*import\s+([^\n]+)/gm)) {
+  for (const m of code.matchAll(/^[ \t]*import\s+([^\n]+)/gm)) {
     modules.push(...m[1].split(',').map(n => n.trim().split(/\s+as\s+/)[0]).filter(Boolean));
   }
   // importlib.import_module("src.calc") / __import__("calc")
@@ -193,7 +193,7 @@ const JVM_MODIFIERS = '(?:(?:public|private|protected|internal|open|final|abstra
  * members are indented in their class; Go grouped `var (...)` entries are read
  * from the block).
  */
-function declaredNames(sourceCode: string, language: 'go' | 'jvm'): Set<string> {
+function declaredNames(sourceCode: string, language: 'go' | 'java' | 'kotlin'): Set<string> {
   const code = stripCode(sourceCode, language);
   const names = new Set<string>();
   const add = (re: RegExp) => { for (const m of code.matchAll(re)) names.add(m[1]); };
@@ -201,7 +201,7 @@ function declaredNames(sourceCode: string, language: 'go' | 'jvm'): Set<string> 
     add(/^func\s+(?:\([^)]*\)\s*)?([A-Za-z_]\w*)/gm);
     add(/^(?:type|var|const)\s+([A-Za-z_]\w*)/gm);
     for (const block of code.matchAll(/^(?:type|var|const)\s*\(([\s\S]*?)^\)/gm)) {
-      for (const m of block[1].matchAll(/^\s+([A-Za-z_]\w*)/gm)) names.add(m[1]);
+      for (const m of block[1].matchAll(/^[ \t]+([A-Za-z_]\w*)/gm)) names.add(m[1]);
     }
   } else {
     add(new RegExp(`^${JVM_MODIFIERS}(?:class|interface|object|enum|record|fun|val|var|typealias)\\s+`
@@ -218,16 +218,43 @@ function testDeclaredNames(code: string): Set<string> {
   return names;
 }
 
-/** True when the (stripped) test uses a source declaration it does not declare itself. */
+/** How often each identifier occurs in `code`, and how often it is followed by `(`. One linear scan. */
+function identifierCounts(code: string): { mentions: Map<string, number>; calls: Map<string, number> } {
+  const mentions = new Map<string, number>();
+  const calls = new Map<string, number>();
+  for (const m of code.matchAll(/\b[A-Za-z_]\w*/g)) {
+    const name = m[0];
+    mentions.set(name, (mentions.get(name) ?? 0) + 1);
+    let k = m.index! + name.length;
+    while (code[k] === ' ' || code[k] === '\t') k++;
+    if (code[k] === '(') calls.set(name, (calls.get(name) ?? 0) + 1);
+  }
+  return { mentions, calls };
+}
+
+/**
+ * True when the (stripped) test uses a source declaration. A name the test
+ * declares itself does not count, unless the test also calls it outside its
+ * own declaration (`@Test fun add() { assertEquals(5, add(2, 3)) }`).
+ */
 function usesSource(code: string, sourceNames: Set<string>): boolean {
   const own = testDeclaredNames(code);
-  return [...sourceNames].some(n => !own.has(n) && new RegExp(`\\b${n}\\b`).test(code));
+  const { mentions, calls } = identifierCounts(code);
+  const declaredCalls = new Map<string, number>();
+  for (const m of code.matchAll(/\b(?:fun|func|def)[ \t]+(?:\([^)\n]*\)[ \t]*)?([A-Za-z_]\w*)[ \t]*\(/g)) {
+    declaredCalls.set(m[1], (declaredCalls.get(m[1]) ?? 0) + 1);
+  }
+  for (const name of sourceNames) {
+    if (!mentions.has(name)) continue;
+    if (!own.has(name) || (calls.get(name) ?? 0) > (declaredCalls.get(name) ?? 0)) return true;
+  }
+  return false;
 }
 
 function goImports(code: string): string[] {
   const out: string[] = [];
-  for (const m of code.matchAll(/^\s*import\s+(?:[\w.]+\s+)?"([^"]+)"/gm)) out.push(m[1]);
-  for (const block of code.matchAll(/^\s*import\s*\(([\s\S]*?)\)/gm)) {
+  for (const m of code.matchAll(/^[ \t]*import\s+(?:[\w.]+\s+)?"([^"]+)"/gm)) out.push(m[1]);
+  for (const block of code.matchAll(/^[ \t]*import\s*\(([\s\S]*?)\)/gm)) {
     for (const m of block[1].matchAll(/"([^"]+)"/g)) out.push(m[1]);
   }
   return out;
@@ -237,8 +264,8 @@ function goVerdict(testCode: string, subject: SourceImportSubject): SourceImport
   // Imports are string literals: read them before strings are blanked.
   const imports = goImports(stripCode(testCode, 'go', true));
   const code = stripCode(testCode, 'go');
-  const testPackage = code.match(/^\s*package\s+(\w+)/m)?.[1];
-  const sourcePackage = subject.sourceCode?.match(/^\s*package\s+(\w+)/m)?.[1];
+  const testPackage = code.match(/^[ \t]*package\s+(\w+)/m)?.[1];
+  const sourcePackage = subject.sourceCode?.match(/^[ \t]*package\s+(\w+)/m)?.[1];
   if (!testPackage || !sourcePackage) return sourcePackage ? 'missing' : 'unjudged';
   // Same package (white-box test): no import; it must call something the source declares.
   if (testPackage === sourcePackage) return usesSource(code, declaredNames(subject.sourceCode ?? '', 'go')) ? 'found' : 'missing';
@@ -255,10 +282,11 @@ function goVerdict(testCode: string, subject: SourceImportSubject): SourceImport
 
 function jvmVerdict(testCode: string, subject: SourceImportSubject): SourceImportVerdict {
   if (subject.sourceCode === undefined) return 'unjudged';
-  const code = stripCode(testCode, 'jvm');
-  const sourcePackage = subject.sourceCode.match(/^\s*package\s+([\w.]+)/m)?.[1] ?? '';
-  const testPackage = code.match(/^\s*package\s+([\w.]+)/m)?.[1] ?? '';
-  const names = declaredNames(subject.sourceCode, 'jvm');
+  const language = /\.kts?$/i.test(subject.sourceFilePath) ? 'kotlin' : 'java';
+  const code = stripCode(testCode, language);
+  const sourcePackage = subject.sourceCode.match(/^[ \t]*package\s+([\w.]+)/m)?.[1] ?? '';
+  const testPackage = code.match(/^[ \t]*package\s+([\w.]+)/m)?.[1] ?? '';
+  const names = declaredNames(subject.sourceCode, language);
   const stem = path.basename(subject.sourceFilePath).replace(/\.[^.]+$/, '');
   if (names.size === 0) names.add(stem);
   // Same package: no import is needed, but the test must use what the source declares.
@@ -266,7 +294,7 @@ function jvmVerdict(testCode: string, subject: SourceImportSubject): SourceImpor
   if (!sourcePackage) return 'missing'; // the default package cannot be imported
   // `import com.example.Calc;`, `import com.example.*`, `import static com.example.Calc.add;`, Kotlin `import com.ex.add`.
   // #1371: `\w+(?:\.\w+)*` so the `.` before a wildcard is not swallowed.
-  const imported = [...code.matchAll(/^\s*import\s+(?:static\s+)?(\w+(?:\.\w+)*(?:\.\*)?)/gm)].some(m => {
+  const imported = [...code.matchAll(/^[ \t]*import\s+(?:static\s+)?(\w+(?:\.\w+)*(?:\.\*)?)/gm)].some(m => {
     const imp = m[1];
     if (!imp.startsWith(`${sourcePackage}.`)) return false;
     const next = imp.slice(sourcePackage.length + 1).split('.')[0];
