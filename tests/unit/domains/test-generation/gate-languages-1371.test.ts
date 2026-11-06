@@ -432,3 +432,97 @@ describe('#1371 review round 2: scanner details', () => {
     expect(performance.now() - start).toBeLessThan(2000);
   });
 });
+
+describe("#1371 review round 3: the test's own shadow is not the source", () => {
+  const KT_ADD = 'package com.ex\n\nfun add(a: Int, b: Int): Int = a + b\n';
+  const GO_ADD = 'package calc\n\nfunc Add(a, b int) int { return a + b }\n';
+  const kt = (body: string, extra = '') =>
+    `package com.ex\n\nimport kotlin.test.Test\nimport kotlin.test.assertEquals\n\nclass AddTest {\n${extra}    @Test\n    fun t() {\n${body}\n    }\n}\n`;
+
+  it.each([
+    ['a Kotlin local lambda named add', 'src/add.kt', KT_ADD, kt('        val add = { a: Int, b: Int -> a + b }\n        assertEquals(5, add(2, 3))')],
+    ['a Kotlin private helper fun add', 'src/add.kt', KT_ADD, kt('        assertEquals(5, add(2, 3))', '    private fun add(a: Int, b: Int): Int = a + b\n\n')],
+    ['a Kotlin recursive helper add', 'src/add.kt', KT_ADD,
+      kt('        assertEquals(5, add(2, 3))', '    private fun add(a: Int, b: Int): Int = if (b == 0) a else add(a + 1, b - 1)\n\n')],
+    ['an annotated fun add that takes parameters (not a test method)', 'src/add.kt', KT_ADD,
+      kt('        assertEquals(5, add(2, 3))', '    @Test\n    fun add(a: Int, b: Int): Int = a + b\n\n')],
+    ['a Go closure Add :=', 'pkg/calc/calc.go', GO_ADD,
+      'package calc\n\nimport "testing"\n\nfunc TestAdd(t *testing.T) {\n\tAdd := func(a, b int) int { return a + b }\n\tif Add(2, 3) != 5 { t.Fatal("x") }\n}\n'],
+    ['a Go var Add = func', 'pkg/calc/calc.go', GO_ADD,
+      'package calc\n\nimport "testing"\n\nfunc TestAdd(t *testing.T) {\n\tvar Add = func(a, b int) int { return a + b }\n\tif Add(2, 3) != 5 { t.Fatal("x") }\n}\n'],
+  ])('%s is rejected', (_label, file, source, testCode) => {
+    expect(issueTypes(testCode, file, source)).toContain('no-source-import');
+  });
+
+  it.each([
+    ['Kotlin @Test fun add() calling the source', 'src/add.kt', KT_ADD,
+      'package com.ex\n\nimport kotlin.test.Test\nimport kotlin.test.assertEquals\n\nclass AddTest {\n    @Test\n    fun add() {\n        assertEquals(5, add(2, 3))\n    }\n}\n'],
+    ['Kotlin @Test on the same line', 'src/add.kt', KT_ADD,
+      'package com.ex\n\nimport kotlin.test.Test\nimport kotlin.test.assertEquals\n\nclass AddTest {\n    @Test fun add() { assertEquals(5, add(2, 3)) }\n}\n'],
+    ['Kotlin @Test with another annotation between', 'src/add.kt', KT_ADD,
+      'package com.ex\n\nimport kotlin.test.Test\nimport kotlin.test.assertEquals\n\nclass AddTest {\n    @Test\n    @DisplayName("adds")\n    fun add() {\n        assertEquals(5, add(2, 3))\n    }\n}\n'],
+    ['Go TestX(t *testing.T) with the source named Test-like', 'pkg/calc/calc.go', 'package calc\n\nfunc TestHelperValue() int { return 5 }\n',
+      'package calc\n\nimport "testing"\n\nfunc TestHelperValue(t *testing.T) {\n\tif TestHelperValue() != 5 { t.Fatal("x") }\n}\n'],
+  ])('%s is accepted', (_label, file, source, testCode) => {
+    expect(issueTypes(testCode, file, source)).toEqual([]);
+  });
+
+  it('a non-test fun named like the source with no parameters is still a helper', () => {
+    const testCode = 'package com.ex\n\nimport kotlin.test.Test\nimport kotlin.test.assertEquals\n\nclass AddTest {\n    fun add(): Int = 5\n\n    @Test\n    fun t() {\n        assertEquals(5, add())\n    }\n}\n';
+    expect(issueTypes(testCode, 'src/add.kt', KT_ADD)).toContain('no-source-import');
+  });
+});
+
+describe('#1371 review round 3: linear scans (doubling the input about doubles the time)', () => {
+  const timed = (fn: () => unknown) => { const t0 = performance.now(); fn(); return performance.now() - t0; };
+  const linear = (make: (n: number) => () => unknown, n: number) => {
+    make(n / 4)(); // warm up
+    const t1 = timed(make(n));
+    const t2 = timed(make(2 * n));
+    // Quadratic would be ~4x; allow noise with an absolute floor.
+    expect(t2).toBeLessThan(3 * t1 + 100);
+  };
+
+  it('Go := scan (testOwnNames)', () => {
+    linear(n => () => issueTypes(`package calc\n\nimport "testing"\n\nfunc TestX(t *testing.T) {\n\t${'a, '.repeat(n)}\n\tif Add(1, 2) != 3 { t.Fatal("x") }\n}\n`,
+      'pkg/calc/calc.go', GO_SRC), 15_000);
+  });
+
+  it('JS import specifier scan', () => {
+    linear(n => () => sourceImportVerdict(`import { it } from 'vitest';\n${'import '.repeat(n)}\n`, { sourceFilePath: join(root, 'src/m.ts') }), 20_000);
+  });
+
+  it('Go grouped declaration and import blocks', () => {
+    linear(n => () => issueTypes('package calc\n\nimport "testing"\n\nfunc TestX(t *testing.T) {\n\tif Add(1, 2) != 3 { t.Fatal("x") }\n}\n',
+      'pkg/calc/calc.go', `package calc\n\n${'var (\n'.repeat(n)}`), 15_000);
+    linear(n => () => sourceImportVerdict(`package calc_test\n\n${'import (\n'.repeat(n)}`,
+      { sourceFilePath: 'pkg/calc/calc.go', sourceCode: GO_SRC }), 15_000);
+  });
+
+  it('still reads closed Go blocks after the change', () => {
+    const source = 'package calc\n\nconst (\n\tMaxN = 10\n)\n\nvar (\n\tLimit = 3\n)\n';
+    const call = (expr: string) => `package calc\n\nimport (\n\t"testing"\n)\n\nfunc TestX(t *testing.T) {\n\tif ${expr} { t.Fatal("x") }\n}\n`;
+    expect(issueTypes(call('MaxN != 10'), 'pkg/calc/calc.go', source)).toEqual([]);
+    expect(issueTypes(call('Limit != 3'), 'pkg/calc/calc.go', source)).toEqual([]);
+  });
+});
+
+describe('#1371 review round 3: remaining scanner details', () => {
+  it('strips strings inside a Kotlin ${...} template', () => {
+    const testCode = 'package com.ex\n\nclass AddTest {\n    fun t() {\n        add(1, 2)\n        println("${"assertEquals(3, add(1, 2))"}")\n    }\n}\n';
+    expect(issueTypes(testCode, 'src/add.kt', 'package com.ex\n\nfun add(a: Int, b: Int): Int = a + b\n')).toContain('no-assertions');
+  });
+
+  it('accepts a directory import with a trailing slash for an index file', () => {
+    const testCode = "import { it, expect } from 'vitest';\nimport { fn } from '../src/utils/';\nit('x', () => { expect(fn(2)).toBe(4); });\n";
+    expect(issueTypes(testCode, 'src/utils/index.ts')).toEqual([]);
+  });
+
+  it('ignores a specifier longer than the path bound, even if its start would match', () => {
+    // The first 4096 characters end in `/math`; the whole specifier does not.
+    const head = `../${'a'.repeat(4096 - 3 - 5)}/math`;
+    expect(head.length).toBe(4096);
+    const testCode = `import { it, expect } from 'vitest';\nimport { fn } from '${head}/${'x'.repeat(2000)}';\nit('x', () => { expect(fn(2)).toBe(4); });\n`;
+    expect(issueTypes(testCode, 'src/math.ts')).toContain('no-source-import');
+  });
+});

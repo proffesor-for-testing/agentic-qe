@@ -57,7 +57,9 @@ function lastSegment(p: string): string {
 function jsSpecifiers(testCode: string): string[] {
   const specs: string[] = [];
   const patterns = [
-    /\b(?:import|export)\s[^'";]*?\bfrom\s*['"]([^'"]+)['"]/g,
+    // #1371: `from '<spec>'` only appears in import/export statements; scanning for it
+    // directly is linear (a lazy `import ... from` scan was quadratic).
+    /\bfrom\s*['"]([^'"\n]+)['"]/g,
     /\bimport\s*['"]([^'"]+)['"]/g,
     /\b(?:import|require)\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
   ];
@@ -147,7 +149,7 @@ function pythonImports(testCode: string): { modules: string[]; fromNames: string
   const code = stripCode(testCode, 'python');
   const modules: string[] = [];
   const fromNames: string[] = [];
-  for (const m of code.matchAll(/^[ \t]*from\s+([.\w]+)\s+import\s+(\([^)]*\)|[^\n]+)/gm)) {
+  for (const m of code.matchAll(/^[ \t]*from[ \t]+([.\w]+)[ \t]+import[ \t]+(\([^)]{0,4096}\)|[^\n]+)/gm)) {
     modules.push(m[1]);
     fromNames.push(...m[2].replace(/[()]/g, '').split(',').map(n => n.trim().split(/\s+as\s+/)[0]).filter(Boolean));
   }
@@ -198,10 +200,10 @@ function declaredNames(sourceCode: string, language: 'go' | 'java' | 'kotlin'): 
   const names = new Set<string>();
   const add = (re: RegExp) => { for (const m of code.matchAll(re)) names.add(m[1]); };
   if (language === 'go') {
-    add(/^func\s+(?:\([^)]*\)\s*)?([A-Za-z_]\w*)/gm);
-    add(/^(?:type|var|const)\s+([A-Za-z_]\w*)/gm);
-    for (const block of code.matchAll(/^(?:type|var|const)\s*\(([\s\S]*?)^\)/gm)) {
-      for (const m of block[1].matchAll(/^[ \t]+([A-Za-z_]\w*)/gm)) names.add(m[1]);
+    add(/^func[ \t]+(?:\([^)\n]*\)[ \t]*)?([A-Za-z_]\w*)/gm);
+    add(/^(?:type|var|const)[ \t]+([A-Za-z_]\w*)/gm);
+    for (const body of blocks(code, /^(?:type|var|const)[ \t]*\(/gm, '\n)')) {
+      for (const m of body.matchAll(/^[ \t]+([A-Za-z_]\w*)/gm)) names.add(m[1]);
     }
   } else {
     add(new RegExp(`^${JVM_MODIFIERS}(?:class|interface|object|enum|record|fun|val|var|typealias)\\s+`
@@ -210,12 +212,92 @@ function declaredNames(sourceCode: string, language: 'go' | 'java' | 'kotlin'): 
   return names;
 }
 
-/** Names a test declares itself (`var err`, `val total`, `x :=`, `func helper`); using them is not using the source. */
-function testDeclaredNames(code: string): Set<string> {
-  const names = new Set<string>();
-  for (const m of code.matchAll(/\b(?:var|val|const|func|fun|type|class|interface|object)\s+([A-Za-z_]\w*)/g)) names.add(m[1]);
-  for (const m of code.matchAll(/\b([A-Za-z_]\w*)\s*(?:,\s*[A-Za-z_]\w*\s*)*:=/g)) names.add(m[1]);
+/**
+ * Bodies of `start(... close` blocks (Go `var (`, `import (`). An index scan:
+ * each block is searched from its own start, and an unclosed block ends the
+ * scan, so the cost is linear (a lazy `[\s\S]*?` regex was quadratic).
+ */
+function blocks(code: string, start: RegExp, close: string): string[] {
+  const out: string[] = [];
+  start.lastIndex = 0;
+  for (let m = start.exec(code); m; m = start.exec(code)) {
+    const from = m.index + m[0].length;
+    const end = code.indexOf(close, from);
+    if (end < 0) break;
+    out.push(code.slice(from, end));
+    start.lastIndex = end + close.length;
+  }
+  return out;
+}
+
+/** Names assigned with `:=` (`x := ...`, `a, b := ...`): find each `:=` and walk back. Linear. */
+function shortVarNames(code: string): string[] {
+  const names: string[] = [];
+  const isWord = (c: string | undefined) => !!c && /\w/.test(c);
+  for (let at = code.indexOf(':='); at >= 0; at = code.indexOf(':=', at + 2)) {
+    let k = at;
+    for (;;) {
+      while (code[k - 1] === ' ' || code[k - 1] === '\t') k--;
+      const end = k;
+      while (isWord(code[k - 1])) k--;
+      if (k === end || !/[A-Za-z_]/.test(code[k])) break;
+      names.push(code.slice(k, end));
+      while (code[k - 1] === ' ' || code[k - 1] === '\t') k--;
+      if (code[k - 1] !== ',') break;
+      k--;
+    }
+  }
   return names;
+}
+
+const VAR_DECL = /\b(?:var|val|const|let|lateinit[ \t]+var)[ \t]+([A-Za-z_]\w*)/g;
+const FUNC_DECL = /\b(?:fun|func|def)[ \t]+(?:\([^)\n]*\)[ \t]*)?(?:[A-Za-z_]\w*\.)?([A-Za-z_]\w*)[ \t]*\(([^)\n]*)\)/g;
+
+/**
+ * True when a test function declaration at `index` is the test method itself:
+ * `@Test`-annotated (on its line or the annotation lines above), Go's
+ * `TestX(t *testing.T)`, or pytest's `test_x()`; and it takes no other parameters.
+ */
+function isTestMethod(code: string, index: number, name: string, params: string): boolean {
+  const p = params.trim();
+  if (/^t[ \t]+\*testing\.T$/.test(p)) return name.startsWith('Test');
+  if (p !== '') return false;
+  if (name.startsWith('test_') || name === 'test') return true;
+  // Walk up over annotation and blank lines (and the current line's prefix).
+  let end = index;
+  for (let lines = 0; lines < 8; lines++) {
+    const start = code.lastIndexOf('\n', end - 1) + 1;
+    const line = code.slice(start, lines === 0 ? index : end).trim();
+    if (/(^|\s)@Test\b/.test(line)) return true;
+    if (lines > 0 && line !== '' && !line.startsWith('@')) return false;
+    if (start === 0) return false;
+    end = start - 1;
+  }
+  return false;
+}
+
+interface TestOwnNames {
+  /** Declared as a variable, constant or lambda (`val add = {...}`, `Add := func`, `var Add = ...`): always the test's own. */
+  variables: Set<string>;
+  /** Declared as a helper function: the test's own. */
+  helpers: Set<string>;
+  /** Declared only as the test method itself: a call elsewhere can still reach the source. */
+  testMethods: Map<string, number>;
+}
+
+/** Names a test declares itself. Using them is not using the source (#1371). */
+function testOwnNames(code: string): TestOwnNames {
+  const variables = new Set<string>();
+  for (const m of code.matchAll(VAR_DECL)) variables.add(m[1]);
+  for (const name of shortVarNames(code)) variables.add(name);
+  for (const m of code.matchAll(/\b(?:type|class|interface|object)[ \t]+([A-Za-z_]\w*)/g)) variables.add(m[1]);
+  const helpers = new Set<string>();
+  const testMethods = new Map<string, number>();
+  for (const m of code.matchAll(FUNC_DECL)) {
+    if (isTestMethod(code, m.index!, m[1], m[2])) testMethods.set(m[1], (testMethods.get(m[1]) ?? 0) + 1);
+    else helpers.add(m[1]);
+  }
+  return { variables, helpers, testMethods };
 }
 
 /** How often each identifier occurs in `code`, and how often it is followed by `(`. One linear scan. */
@@ -234,28 +316,26 @@ function identifierCounts(code: string): { mentions: Map<string, number>; calls:
 
 /**
  * True when the (stripped) test uses a source declaration. A name the test
- * declares itself does not count, unless the test also calls it outside its
- * own declaration (`@Test fun add() { assertEquals(5, add(2, 3)) }`).
+ * declares itself (variable, lambda, helper function) never counts. A test
+ * method with the source's name counts only through a call outside its own
+ * declaration: `@Test fun add() { assertEquals(5, add(2, 3)) }`.
  */
 function usesSource(code: string, sourceNames: Set<string>): boolean {
-  const own = testDeclaredNames(code);
+  const own = testOwnNames(code);
   const { mentions, calls } = identifierCounts(code);
-  const declaredCalls = new Map<string, number>();
-  for (const m of code.matchAll(/\b(?:fun|func|def)[ \t]+(?:\([^)\n]*\)[ \t]*)?([A-Za-z_]\w*)[ \t]*\(/g)) {
-    declaredCalls.set(m[1], (declaredCalls.get(m[1]) ?? 0) + 1);
-  }
   for (const name of sourceNames) {
-    if (!mentions.has(name)) continue;
-    if (!own.has(name) || (calls.get(name) ?? 0) > (declaredCalls.get(name) ?? 0)) return true;
+    if (!mentions.has(name) || own.variables.has(name) || own.helpers.has(name)) continue;
+    const declaredAsTest = own.testMethods.get(name) ?? 0;
+    if (declaredAsTest === 0 || (calls.get(name) ?? 0) > declaredAsTest) return true;
   }
   return false;
 }
 
 function goImports(code: string): string[] {
   const out: string[] = [];
-  for (const m of code.matchAll(/^[ \t]*import\s+(?:[\w.]+\s+)?"([^"]+)"/gm)) out.push(m[1]);
-  for (const block of code.matchAll(/^[ \t]*import\s*\(([\s\S]*?)\)/gm)) {
-    for (const m of block[1].matchAll(/"([^"]+)"/g)) out.push(m[1]);
+  for (const m of code.matchAll(/^[ \t]*import[ \t]+(?:[\w.]+[ \t]+)?"([^"\n]+)"/gm)) out.push(m[1]);
+  for (const body of blocks(code, /^[ \t]*import[ \t]*\(/gm, ')')) {
+    for (const m of body.matchAll(/"([^"]+)"/g)) out.push(m[1]);
   }
   return out;
 }
