@@ -491,8 +491,8 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
       generationLimits: t.generationLimits,
       sourceFile: t.sourceFile,
       testFile: t.testFile || t.file,
-      // #1355: the gate's findings, shown but not used to drop the test (the
-      // gate cannot judge non-JS assertions or alias/index imports).
+      // #1355: the gate's findings, shown but not used to drop the test.
+      // #1371: the same verdict the CLI uses.
       ...(t.qualityGateResult ? { qualityGate: t.qualityGateResult } : {}),
     }));
     const noTestsReason = tests.length === 0

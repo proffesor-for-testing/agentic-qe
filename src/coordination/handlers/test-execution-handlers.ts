@@ -314,9 +314,9 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
 
       // #1355: output with no test that can fail (see unexecutableReason) is
       // not a generated test; it is returned separately as a scaffold. Other
-      // gate findings stay on the test as qualityGateResult: the full gate
-      // cannot judge non-JS assertions or alias/index imports, so they do not
-      // drop a test.
+      // gate findings stay on the test as qualityGateResult and do not drop
+      // it (#1371 taught the gate other languages' forms, but it still skips
+      // the import check for C#, Rust and Swift).
       const passed = tests.filter(t => !t.unexecutable).map(({ unexecutable: _u, ...t }) => t);
       const rejected = tests.filter(t => t.unexecutable);
       const shownFile = (f?: string) => (f && f === tempPath ? 'the supplied sourceCode' : f || 'the source');

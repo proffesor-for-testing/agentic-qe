@@ -12,7 +12,12 @@
  *   skipped. Unknown languages are always kept.
  */
 import ts from 'typescript';
-import { isJavaScriptFamily } from './test-quality-gate.js';
+import { codeLanguageOf, stripCode } from './code-text.js';
+
+/** #1355: the files whose generated tests the gate parses (TypeScript AST). */
+export function isJavaScriptFamily(filePath: string): boolean {
+  return /\.(?:tsx?|jsx?|mjs|cjs|mts|cts)$/i.test(filePath);
+}
 
 const TEST_FNS = new Set(['it', 'test', 'xit', 'xtest', 'fit']);
 const SUITE_FNS = new Set(['describe', 'xdescribe', 'fdescribe', 'suite', 'context']);
@@ -148,13 +153,17 @@ interface LanguageRule {
   assertion: RegExp;
   /** Global: assertions that cannot fail, e.g. `assert True`. */
   tautology: RegExp;
-  comments: (code: string) => string;
+  /** Comment (and, for some languages, string) removal; `file` selects a dialect. */
+  comments: (code: string, file: string) => string;
   allSkipped?: (code: string) => boolean;
 }
 
-const stripHashComments = (code: string) =>
-  code.replace(/"""[\s\S]*?"""|'''[\s\S]*?'''/g, '').replace(/#[^\n]*/g, '');
 const stripSlashComments = (code: string) => code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+
+/** Blank Java/Kotlin `import` lines (`[ \t]*`, not `\s*`, so the scan stays linear). */
+function dropImportLines(code: string): string {
+  return code.replace(/^[ \t]*import[ \t][^\n]*/gm, '');
+}
 
 function countAll(code: string, re: RegExp): number {
   return [...code.matchAll(re)].length;
@@ -182,19 +191,20 @@ function annotatedTestsAllSkipped(code: string): boolean {
 const RULES: Array<[RegExp, LanguageRule]> = [
   [/\.py$/i, {
     name: 'Python', example: 'assert*, self.assert*, pytest.raises',
-    comments: stripHashComments,
+    // #1371: strings too, so `print("assert x")` is not an assertion.
+    comments: code => stripCode(code, 'python'),
     assertion: /\bassert\w*|\bself\.fail\s*\(|\bpytest\.(?:raises|warns|fail)\b/g,
     tautology: /\bassert\s+(?:True|1)\s*(?=$|[#,;)])|\bassertTrue\s*\(\s*True\s*\)|\bassertEqual\s*\(\s*([\w.'"]+)\s*,\s*\1\s*\)/gm,
     allSkipped: code => {
-      if (/^\s*pytestmark\s*=.*\bpytest\.mark\.skip\b/m.test(code)) return true;
-      const tests = countAll(code, /^\s*(?:async\s+)?def\s+test\w*/gm);
-      const skipped = countAll(code, /^\s*@(?:pytest\.mark\.skip|unittest\.skip)\b[^\n]*\n(?:\s*@[^\n]*\n)*\s*(?:async\s+)?def\s+test\w*/gm);
+      if (/^[ \t]*pytestmark[ \t]*=.*\bpytest\.mark\.skip\b/m.test(code)) return true;
+      const tests = countAll(code, /^[ \t]*(?:async[ \t]+)?def[ \t]+test\w*/gm);
+      const skipped = countAll(code, /^[ \t]*@(?:pytest\.mark\.skip|unittest\.skip)\b[^\n]*\n(?:[ \t]*@[^\n]*\n)*[ \t]*(?:async[ \t]+)?def[ \t]+test\w*/gm);
       return tests > 0 && skipped === tests;
     },
   }],
   [/\.go$/i, {
     name: 'Go', example: '<t>.Error/Fatal/Fail, require., assert., Expect(',
-    comments: stripSlashComments,
+    comments: code => stripCode(code, 'go'),
     assertion: /\b\w+\.(?:Error|Errorf|Fatal|Fatalf|Fail|FailNow)\s*\(|\b(?:require|assert)\.\w|\.(?:Assert|Require)\(\)\.\w|\bExpect\s*\(/g,
     tautology: /\b(?:assert|require)\.True\s*\(\s*\w+\s*,\s*true\s*[,)]/g,
     allSkipped: code => {
@@ -205,7 +215,8 @@ const RULES: Array<[RegExp, LanguageRule]> = [
   }],
   [/\.(?:java|kt|kts)$/i, {
     name: 'Java/Kotlin', example: 'assert*, assertThat, verify(, should*',
-    comments: stripSlashComments,
+    // #1371: an `import ...assertTrue` line names an assertion, it does not make one.
+    comments: (code, file) => dropImportLines(stripCode(code, codeLanguageOf(file) === 'kotlin' ? 'kotlin' : 'java')),
     assertion: /\bassert\w*|\bverify\s*\(|\bfail\s*\(|\bshould\w*|\bexpect\w*\s*\(/g,
     tautology: /\bassertTrue\s*\(\s*true\s*\)|\bassertThat\s*\(\s*true\s*\)\s*\.\s*isTrue\s*\(\s*\)|\bassertEquals\s*\(\s*([\w.'"]+)\s*,\s*\1\s*\)|\bassert\s+true\b/g,
     allSkipped: annotatedTestsAllSkipped,
@@ -233,6 +244,16 @@ const RULES: Array<[RegExp, LanguageRule]> = [
 ];
 
 /**
+ * #1371: whether non-JS test code has an assertion in its language's forms
+ * (Python `assert x == y`, Go `t.Fatal`, JUnit `assertEquals`), or undefined
+ * for a language without a rule here.
+ */
+export function hasLanguageAssertion(testCode: string, analysedFile: string): boolean | undefined {
+  const rule = RULES.find(([ext]) => ext.test(analysedFile))?.[1];
+  return rule ? countAll(rule.comments(testCode, analysedFile), rule.assertion) > 0 : undefined;
+}
+
+/**
  * Why a generated test file has no test that can fail, or undefined when it
  * may have one. `analysedFile` is the source file the test was generated
  * from, with its real extension; it selects the language.
@@ -242,7 +263,7 @@ export function unexecutableTestReason(testCode: string | undefined, analysedFil
   if (isJavaScriptFamily(analysedFile)) return javascriptReason(testCode, analysedFile);
   const rule = RULES.find(([ext]) => ext.test(analysedFile))?.[1];
   if (!rule) return undefined;
-  const code = rule.comments(testCode);
+  const code = rule.comments(testCode, analysedFile);
   const assertions = countAll(code, rule.assertion);
   if (assertions === 0) return `No ${rule.name} assertion found (looked for ${rule.example}).`;
   // Same rule as JS/TS: one assertion that can fail keeps the file.
