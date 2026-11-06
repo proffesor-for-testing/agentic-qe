@@ -145,3 +145,43 @@ describe('DreamEngine on a locked database (#1253)', () => {
     expect((db.prepare(`SELECT COUNT(*) AS n FROM dream_cycles WHERE status = 'completed'`).get() as { n: number }).n).toBe(1);
   }, 30_000);
 });
+
+describe('abandoned-cycle sweep on a locked database (#1253, #1356)', () => {
+  beforeEach(async () => {
+    resetUnifiedPersistence();
+    fs.mkdirSync(DIR, { recursive: true });
+    removeDb();
+    await initializeUnifiedPersistence({ dbPath: DB_PATH });
+    db = getUnifiedPersistence().getDatabase();
+    // A cycle a killed process left 'running' a day ago.
+    db.prepare(`INSERT INTO dream_cycles (id, start_time, status) VALUES ('stale', ?, 'running')`)
+      .run(new Date(Date.now() - 24 * 3600 * 1000).toISOString());
+  });
+
+  afterEach(() => {
+    resetUnifiedPersistence();
+    removeDb();
+  });
+
+  const status = () => (db.prepare(`SELECT status FROM dream_cycles WHERE id = 'stale'`).get() as { status: string }).status;
+
+  it('is skipped while another writer holds the lock, and the next initialize() runs it', async () => {
+    const other = new Database(DB_PATH);
+    other.pragma('busy_timeout = 0');
+    other.exec('BEGIN IMMEDIATE');
+    const first = createDreamEngine();
+    try {
+      await first.initialize(); // housekeeping only: the engine still initializes
+    } finally {
+      other.exec('ROLLBACK');
+      other.close();
+    }
+    expect(status()).toBe('running');
+    await first.close();
+
+    const second = createDreamEngine();
+    await second.initialize();
+    expect(status()).toBe('interrupted');
+    await second.close();
+  }, 30_000);
+});

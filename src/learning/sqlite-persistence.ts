@@ -377,54 +377,7 @@ export class SQLitePatternStore {
    */
   private deduplicatePatterns(): void {
     if (!this.db) return;
-
-    try {
-      // Check if unique index already exists (migration already done)
-      const indexExists = this.db.prepare(
-        `SELECT name FROM sqlite_master WHERE type='index' AND name='idx_patterns_unique_name_domain_type'`
-      ).get();
-
-      if (indexExists) return; // Already deduplicated
-
-      const dupeCount = (this.db.prepare(`
-        SELECT COUNT(*) as cnt FROM (
-          SELECT name, qe_domain, pattern_type, COUNT(*) as c
-          FROM qe_patterns GROUP BY name, qe_domain, pattern_type HAVING c > 1
-        )
-      `).get() as { cnt: number })?.cnt || 0;
-
-      if (dupeCount > 0) {
-        // Count how many rows will be deleted BEFORE deleting
-        const totalBefore = (this.db.prepare('SELECT COUNT(*) as cnt FROM qe_patterns').get() as { cnt: number })?.cnt || 0;
-        const keepCount = (this.db.prepare(`
-          SELECT COUNT(*) as cnt FROM (
-            SELECT MIN(rowid) FROM qe_patterns GROUP BY name, qe_domain, pattern_type
-          )
-        `).get() as { cnt: number })?.cnt || 0;
-        const deleteCount = totalBefore - keepCount;
-
-        // Safety: refuse to delete more than 10% of patterns in one dedup pass
-        if (deleteCount > totalBefore * 0.10) {
-          console.warn(`[SQLitePatternStore] SKIPPING dedup: would delete ${deleteCount}/${totalBefore} patterns (>${Math.round(totalBefore * 0.10)} safety limit). Investigate manually.`);
-        } else {
-          this.db.exec(`
-            DELETE FROM qe_patterns WHERE rowid NOT IN (
-              SELECT MIN(rowid) FROM qe_patterns
-              GROUP BY name, qe_domain, pattern_type
-            )
-          `);
-          console.log(`[SQLitePatternStore] Deduplicated: removed ${deleteCount} duplicates from ${totalBefore} patterns (${keepCount} kept)`);
-        }
-      }
-
-      // Create unique index to prevent future duplicates
-      this.db.exec(`
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_patterns_unique_name_domain_type
-          ON qe_patterns(name, qe_domain, pattern_type)
-      `);
-    } catch (e) {
-      console.debug('[SQLitePatternStore] Deduplication migration:', toErrorMessage(e));
-    }
+    deduplicateQePatterns(this.db);
   }
 
   /**
@@ -432,11 +385,7 @@ export class SQLitePatternStore {
    */
   private ensureEmbeddingSpaceSchema(): void {
     if (!this.db) throw new Error('Database not initialized');
-    const columns = this.db.prepare("PRAGMA table_info('qe_pattern_embeddings')").all() as Array<{ name: string }>;
-    if (!columns.some((column) => column.name === 'space_id')) {
-      this.db.exec('ALTER TABLE qe_pattern_embeddings ADD COLUMN space_id TEXT');
-    }
-    this.db.exec('CREATE INDEX IF NOT EXISTS idx_qe_pattern_embeddings_space ON qe_pattern_embeddings(space_id)');
+    ensurePatternEmbeddingSpaceSchema(this.db);
   }
 
   private prepareStatements(): void {
@@ -1170,20 +1119,7 @@ export class SQLitePatternStore {
 
     try {
       // Ensure the table exists (migration-safe)
-      this.db.exec(`
-        CREATE TABLE IF NOT EXISTS qe_pattern_reuse (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          pattern_id TEXT NOT NULL,
-          task_description TEXT NOT NULL,
-          similarity_score REAL NOT NULL,
-          was_reused INTEGER DEFAULT 0,
-          tokens_saved INTEGER DEFAULT 0,
-          routing_context_json TEXT,
-          created_at TEXT DEFAULT (datetime('now'))
-        );
-        CREATE INDEX IF NOT EXISTS idx_pattern_reuse_pattern ON qe_pattern_reuse(pattern_id);
-        CREATE INDEX IF NOT EXISTS idx_pattern_reuse_created ON qe_pattern_reuse(created_at);
-      `);
+      ensurePatternReuseSchema(this.db);
 
       const stmt = this.db.prepare(`
         INSERT INTO qe_pattern_reuse (
@@ -1505,4 +1441,102 @@ export function createSQLitePatternStore(
   config: Partial<SQLitePersistenceConfig> = {}
 ): SQLitePatternStore {
   return new SQLitePatternStore(config);
+}
+
+/**
+ * Deduplicate qe_patterns and add its unique (name, qe_domain, pattern_type)
+ * index (#1356: exported so the MCP server runs it once at startup on the shared
+ * connection, kernel/startup-schema.ts). One-time and idempotent: returns at once
+ * when the index exists. Returns false when it failed (the error is logged at
+ * debug level, as before), true otherwise.
+ */
+export function deduplicateQePatterns(db: DatabaseType): boolean {
+  try {
+    // Check if unique index already exists (migration already done)
+    const indexExists = db.prepare(
+      `SELECT name FROM sqlite_master WHERE type='index' AND name='idx_patterns_unique_name_domain_type'`
+    ).get();
+
+    if (indexExists) return true; // Already deduplicated
+
+    const dupeCount = (db.prepare(`
+      SELECT COUNT(*) as cnt FROM (
+        SELECT name, qe_domain, pattern_type, COUNT(*) as c
+        FROM qe_patterns GROUP BY name, qe_domain, pattern_type HAVING c > 1
+      )
+    `).get() as { cnt: number })?.cnt || 0;
+
+    if (dupeCount > 0) {
+      // Count how many rows will be deleted BEFORE deleting
+      const totalBefore = (db.prepare('SELECT COUNT(*) as cnt FROM qe_patterns').get() as { cnt: number })?.cnt || 0;
+      const keepCount = (db.prepare(`
+        SELECT COUNT(*) as cnt FROM (
+          SELECT MIN(rowid) FROM qe_patterns GROUP BY name, qe_domain, pattern_type
+        )
+      `).get() as { cnt: number })?.cnt || 0;
+      const deleteCount = totalBefore - keepCount;
+
+      // Safety: refuse to delete more than 10% of patterns in one dedup pass
+      if (deleteCount > totalBefore * 0.10) {
+        console.warn(`[SQLitePatternStore] SKIPPING dedup: would delete ${deleteCount}/${totalBefore} patterns (>${Math.round(totalBefore * 0.10)} safety limit). Investigate manually.`);
+      } else {
+        db.exec(`
+          DELETE FROM qe_patterns WHERE rowid NOT IN (
+            SELECT MIN(rowid) FROM qe_patterns
+            GROUP BY name, qe_domain, pattern_type
+          )
+        `);
+        console.log(`[SQLitePatternStore] Deduplicated: removed ${deleteCount} duplicates from ${totalBefore} patterns (${keepCount} kept)`);
+      }
+    }
+
+    // Create unique index to prevent future duplicates
+    db.exec(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_patterns_unique_name_domain_type
+          ON qe_patterns(name, qe_domain, pattern_type)
+      `);
+    return true;
+  } catch (e) {
+    console.debug('[SQLitePatternStore] Deduplication migration:', toErrorMessage(e));
+    return false;
+  }
+}
+
+/**
+ * Schema for embedding-space provenance: qe_pattern_embeddings.space_id and its
+ * index (#1356). Idempotent; a no-op while qe_pattern_embeddings does not exist.
+ * The MCP server runs it once at startup on the shared connection
+ * (kernel/startup-schema.ts); SQLitePatternStore still runs it, and RvfDualWriter's
+ * constructor runs the same DDL, both then no-ops.
+ */
+export function ensurePatternEmbeddingSpaceSchema(db: DatabaseType): void {
+  const columns = db.prepare("PRAGMA table_info('qe_pattern_embeddings')").all() as Array<{ name: string }>;
+  if (columns.length === 0) return;
+  if (!columns.some((column) => column.name === 'space_id')) {
+    db.exec('ALTER TABLE qe_pattern_embeddings ADD COLUMN space_id TEXT');
+  }
+  db.exec('CREATE INDEX IF NOT EXISTS idx_qe_pattern_embeddings_space ON qe_pattern_embeddings(space_id)');
+}
+
+/**
+ * Schema for pattern reuse tracking: qe_pattern_reuse (#1356). Idempotent: the
+ * MCP server runs it once at startup on the shared connection
+ * (kernel/startup-schema.ts); recordPatternReuse still runs it, where it is
+ * then a no-op.
+ */
+export function ensurePatternReuseSchema(db: DatabaseType): void {
+  db.exec(`
+        CREATE TABLE IF NOT EXISTS qe_pattern_reuse (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          pattern_id TEXT NOT NULL,
+          task_description TEXT NOT NULL,
+          similarity_score REAL NOT NULL,
+          was_reused INTEGER DEFAULT 0,
+          tokens_saved INTEGER DEFAULT 0,
+          routing_context_json TEXT,
+          created_at TEXT DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_pattern_reuse_pattern ON qe_pattern_reuse(pattern_id);
+        CREATE INDEX IF NOT EXISTS idx_pattern_reuse_created ON qe_pattern_reuse(created_at);
+      `);
 }

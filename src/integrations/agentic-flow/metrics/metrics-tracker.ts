@@ -148,15 +148,7 @@ export class MetricsTracker implements IMetricsTracker {
    */
   private ensureSchema(): void {
     if (!this.db) throw new Error('Database not initialized');
-
-    try {
-      this.db.exec(METRICS_OUTCOMES_SCHEMA);
-    } catch (error) {
-      // Table may already exist, that's fine
-      if (error instanceof Error && !error.message.includes('already exists')) {
-        throw error;
-      }
-    }
+    ensureMetricsOutcomesSchema(this.db);
   }
 
   /**
@@ -630,5 +622,21 @@ export function resetMetricsTracker(): void {
   if (sharedInstance) {
     sharedInstance.dispose().catch(console.error);
     sharedInstance = null;
+  }
+}
+
+/**
+ * Schema for MetricsTracker: metrics_outcomes (#1356). Idempotent: the MCP server runs it once at
+ * startup on the shared connection (kernel/startup-schema.ts) and the class
+ * still runs it on initialize, where it is then a no-op.
+ */
+export function ensureMetricsOutcomesSchema(db: DatabaseType): void {
+  try {
+    db.exec(METRICS_OUTCOMES_SCHEMA);
+  } catch (error) {
+    // Table may already exist, that's fine
+    if (error instanceof Error && !error.message.includes('already exists')) {
+      throw error;
+    }
   }
 }

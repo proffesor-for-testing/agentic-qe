@@ -72,6 +72,32 @@ CREATE INDEX IF NOT EXISTS idx_llm_spend_ts ON llm_spend(ts);
 `;
 
 /**
+ * Schema for the spend ledger: llm_spend and its additive `agent_type` column
+ * (#1356). Idempotent: the MCP server runs it once at startup on the shared
+ * connection (kernel/startup-schema.ts); the ledger constructor still runs it,
+ * where it is then a no-op. Returns whether the `agent_type` column exists.
+ */
+export function ensureSpendLedgerSchema(db: DatabaseType): boolean {
+  // Additive schema only — CREATE TABLE/INDEX IF NOT EXISTS never drops data.
+  db.exec(CREATE_TABLE_SQL);
+  // ADR-124 M2.3: additive `agent_type` column for per-agent attribution.
+  // ALTER TABLE ADD COLUMN is non-destructive (existing rows get NULL); guarded
+  // so re-opening an already-migrated DB is a no-op. Never drops or rewrites.
+  try {
+    const cols = db.prepare(`PRAGMA table_info(llm_spend)`).all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === 'agent_type')) {
+      db.exec(`ALTER TABLE llm_spend ADD COLUMN agent_type TEXT`);
+    }
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_llm_spend_agent ON llm_spend(agent_type)`);
+    return true;
+  } catch {
+    // Attribution is best-effort; never block ledger use on the migration.
+    // false → record() degrades to un-attributed INSERTs.
+    return false;
+  }
+}
+
+/**
  * SQLite-backed ledger. Cross-process because every process opens its own
  * connection to the same WAL-mode `memory.db`.
  */
@@ -97,22 +123,7 @@ export class SqliteSpendLedger implements SpendLedger {
 
   constructor(db: DatabaseType) {
     this.db = db;
-    // Additive schema only — CREATE TABLE/INDEX IF NOT EXISTS never drops data.
-    this.db.exec(CREATE_TABLE_SQL);
-    // ADR-124 M2.3: additive `agent_type` column for per-agent attribution.
-    // ALTER TABLE ADD COLUMN is non-destructive (existing rows get NULL); guarded
-    // so re-opening an already-migrated DB is a no-op. Never drops or rewrites.
-    try {
-      const cols = this.db.prepare(`PRAGMA table_info(llm_spend)`).all() as Array<{ name: string }>;
-      if (!cols.some((c) => c.name === 'agent_type')) {
-        this.db.exec(`ALTER TABLE llm_spend ADD COLUMN agent_type TEXT`);
-      }
-      this.db.exec(`CREATE INDEX IF NOT EXISTS idx_llm_spend_agent ON llm_spend(agent_type)`);
-      this.hasAgentColumn = true;
-    } catch {
-      // Attribution is best-effort; never block ledger use on the migration.
-      // hasAgentColumn stays false → record() degrades to un-attributed INSERTs.
-    }
+    this.hasAgentColumn = ensureSpendLedgerSchema(db);
   }
 
   record(entry: SpendEntry): void {

@@ -198,28 +198,7 @@ export class LearningMetricsTracker {
    */
   private ensureMetricsTable(): void {
     if (!this.db) return;
-
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS learning_daily_snapshots (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        snapshot_date TEXT NOT NULL UNIQUE,
-        total_patterns INTEGER DEFAULT 0,
-        patterns_created_today INTEGER DEFAULT 0,
-        total_experiences INTEGER DEFAULT 0,
-        experiences_today INTEGER DEFAULT 0,
-        total_q_values INTEGER DEFAULT 0,
-        avg_reward REAL DEFAULT 0.0,
-        avg_confidence REAL DEFAULT 0.0,
-        avg_quality_score REAL DEFAULT 0.0,
-        success_rate REAL DEFAULT 0.0,
-        pattern_reuse_count INTEGER DEFAULT 0,
-        short_term_patterns INTEGER DEFAULT 0,
-        long_term_patterns INTEGER DEFAULT 0,
-        domain_coverage_json TEXT,
-        created_at TEXT DEFAULT (datetime('now'))
-      );
-      CREATE INDEX IF NOT EXISTS idx_learning_daily_snapshots_date ON learning_daily_snapshots(snapshot_date DESC);
-    `);
+    ensureLearningSnapshotsSchema(this.db);
   }
 
   /**
@@ -724,4 +703,33 @@ export function createLearningMetricsTracker(
   projectRoot?: string
 ): LearningMetricsTracker {
   return new LearningMetricsTracker(projectRoot);
+}
+
+/**
+ * Schema for LearningMetricsTracker: learning_daily_snapshots (#1356). Idempotent: the MCP server runs it once at
+ * startup on the shared connection (kernel/startup-schema.ts) and the class
+ * still runs it on initialize, where it is then a no-op.
+ */
+export function ensureLearningSnapshotsSchema(db: DatabaseType): void {
+  db.exec(`
+      CREATE TABLE IF NOT EXISTS learning_daily_snapshots (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        snapshot_date TEXT NOT NULL UNIQUE,
+        total_patterns INTEGER DEFAULT 0,
+        patterns_created_today INTEGER DEFAULT 0,
+        total_experiences INTEGER DEFAULT 0,
+        experiences_today INTEGER DEFAULT 0,
+        total_q_values INTEGER DEFAULT 0,
+        avg_reward REAL DEFAULT 0.0,
+        avg_confidence REAL DEFAULT 0.0,
+        avg_quality_score REAL DEFAULT 0.0,
+        success_rate REAL DEFAULT 0.0,
+        pattern_reuse_count INTEGER DEFAULT 0,
+        short_term_patterns INTEGER DEFAULT 0,
+        long_term_patterns INTEGER DEFAULT 0,
+        domain_coverage_json TEXT,
+        created_at TEXT DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_learning_daily_snapshots_date ON learning_daily_snapshots(snapshot_date DESC);
+    `);
 }

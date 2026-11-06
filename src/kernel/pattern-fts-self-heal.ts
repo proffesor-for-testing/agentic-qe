@@ -158,6 +158,16 @@ function isReadOnly(db: DatabaseType): boolean {
 }
 
 /**
+ * Read-only: would ensurePatternFtsInSync() repair anything (#1356)? False
+ * when qe_patterns is absent or the connection is read-only, as there the
+ * self-heal does nothing either. Takes no write lock.
+ */
+export function patternFtsNeedsRepair(db: DatabaseType): boolean {
+  if (!objectExists(db, 'table', 'qe_patterns') || isReadOnly(db)) return false;
+  return needsRepair(inspect(db));
+}
+
+/**
  * Ensure qe_patterns_fts exists, has its three sync triggers, and indexes
  * exactly the rows of qe_patterns. Idempotent and silent when healthy; logs
  * one line when it repairs something; never throws.

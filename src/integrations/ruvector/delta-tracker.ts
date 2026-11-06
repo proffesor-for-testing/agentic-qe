@@ -76,6 +76,15 @@ export interface DeltaTrackerConfig {
 /**
  * DDL for the pattern_deltas table
  */
+/**
+ * Schema for DeltaTracker: pattern_deltas (#1356). Idempotent: the MCP server
+ * runs it once at startup on the shared connection (kernel/startup-schema.ts);
+ * DeltaTracker.initialize() still runs it, where it is then a no-op.
+ */
+export function ensurePatternDeltasSchema(db: DatabaseType): void {
+  db.exec(PATTERN_DELTAS_SCHEMA);
+}
+
 export const PATTERN_DELTAS_SCHEMA = `
   CREATE TABLE IF NOT EXISTS pattern_deltas (
     id TEXT PRIMARY KEY,
@@ -192,7 +201,7 @@ export class DeltaTracker {
    */
   initialize(): void {
     if (this.initialized) return;
-    this.db.exec(PATTERN_DELTAS_SCHEMA);
+    ensurePatternDeltasSchema(this.db);
     this.prepareStatements();
     this.initialized = true;
   }

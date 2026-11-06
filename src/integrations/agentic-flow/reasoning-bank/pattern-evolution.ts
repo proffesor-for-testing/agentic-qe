@@ -313,54 +313,7 @@ export class PatternEvolution {
    */
   private ensureSchema(): void {
     if (!this.db) throw new Error('Database not initialized');
-
-    // Pattern versions table
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS pattern_versions (
-        id TEXT PRIMARY KEY,
-        pattern_id TEXT NOT NULL,
-        version INTEGER NOT NULL,
-        embedding BLOB NOT NULL,
-        embedding_dimension INTEGER NOT NULL,
-        changes TEXT,
-        quality_score REAL DEFAULT 0.5,
-        success_rate REAL DEFAULT 0.5,
-        trigger TEXT DEFAULT 'manual',
-        created_at TEXT DEFAULT (datetime('now')),
-        FOREIGN KEY (pattern_id) REFERENCES qe_patterns(id) ON DELETE CASCADE
-      );
-      CREATE INDEX IF NOT EXISTS idx_pattern_versions_pattern ON pattern_versions(pattern_id);
-      CREATE INDEX IF NOT EXISTS idx_pattern_versions_version ON pattern_versions(pattern_id, version DESC);
-    `);
-
-    // Evolution events table
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS pattern_evolution_events (
-        id TEXT PRIMARY KEY,
-        pattern_id TEXT NOT NULL,
-        event_type TEXT NOT NULL,
-        details TEXT,
-        created_at TEXT DEFAULT (datetime('now')),
-        FOREIGN KEY (pattern_id) REFERENCES qe_patterns(id) ON DELETE CASCADE
-      );
-      CREATE INDEX IF NOT EXISTS idx_evolution_events_pattern ON pattern_evolution_events(pattern_id);
-      CREATE INDEX IF NOT EXISTS idx_evolution_events_type ON pattern_evolution_events(event_type);
-    `);
-
-    // Pattern relationships table (for tracking merges, splits)
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS pattern_relationships (
-        id TEXT PRIMARY KEY,
-        source_pattern_id TEXT NOT NULL,
-        target_pattern_id TEXT NOT NULL,
-        relationship_type TEXT NOT NULL,
-        similarity_score REAL,
-        created_at TEXT DEFAULT (datetime('now')),
-        FOREIGN KEY (source_pattern_id) REFERENCES qe_patterns(id) ON DELETE CASCADE
-      );
-      CREATE INDEX IF NOT EXISTS idx_pattern_rel_source ON pattern_relationships(source_pattern_id);
-      CREATE INDEX IF NOT EXISTS idx_pattern_rel_target ON pattern_relationships(target_pattern_id);
-    `);
+    ensurePatternEvolutionSchema(this.db);
   }
 
   /**
@@ -973,4 +926,59 @@ export function createPatternEvolution(
   config: Partial<PatternEvolutionConfig> = {}
 ): PatternEvolution {
   return new PatternEvolution(config);
+}
+
+/**
+ * Schema for PatternEvolution: pattern versions, events, relationships (#1356). Idempotent: the MCP server runs it once at
+ * startup on the shared connection (kernel/startup-schema.ts) and the class
+ * still runs it on initialize, where it is then a no-op.
+ */
+export function ensurePatternEvolutionSchema(db: DatabaseType): void {
+  // Pattern versions table
+  db.exec(`
+      CREATE TABLE IF NOT EXISTS pattern_versions (
+        id TEXT PRIMARY KEY,
+        pattern_id TEXT NOT NULL,
+        version INTEGER NOT NULL,
+        embedding BLOB NOT NULL,
+        embedding_dimension INTEGER NOT NULL,
+        changes TEXT,
+        quality_score REAL DEFAULT 0.5,
+        success_rate REAL DEFAULT 0.5,
+        trigger TEXT DEFAULT 'manual',
+        created_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (pattern_id) REFERENCES qe_patterns(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_pattern_versions_pattern ON pattern_versions(pattern_id);
+      CREATE INDEX IF NOT EXISTS idx_pattern_versions_version ON pattern_versions(pattern_id, version DESC);
+    `);
+
+  // Evolution events table
+  db.exec(`
+      CREATE TABLE IF NOT EXISTS pattern_evolution_events (
+        id TEXT PRIMARY KEY,
+        pattern_id TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        details TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (pattern_id) REFERENCES qe_patterns(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_evolution_events_pattern ON pattern_evolution_events(pattern_id);
+      CREATE INDEX IF NOT EXISTS idx_evolution_events_type ON pattern_evolution_events(event_type);
+    `);
+
+  // Pattern relationships table (for tracking merges, splits)
+  db.exec(`
+      CREATE TABLE IF NOT EXISTS pattern_relationships (
+        id TEXT PRIMARY KEY,
+        source_pattern_id TEXT NOT NULL,
+        target_pattern_id TEXT NOT NULL,
+        relationship_type TEXT NOT NULL,
+        similarity_score REAL,
+        created_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (source_pattern_id) REFERENCES qe_patterns(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_pattern_rel_source ON pattern_relationships(source_pattern_id);
+      CREATE INDEX IF NOT EXISTS idx_pattern_rel_target ON pattern_relationships(target_pattern_id);
+    `);
 }

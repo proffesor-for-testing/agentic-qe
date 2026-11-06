@@ -39,3 +39,27 @@ export function getLockWaitCap(): number | null {
 export function capBusyTimeout(requestedMs: number): number {
   return lockWaitCapMs === null ? requestedMs : Math.min(requestedMs, lockWaitCapMs);
 }
+
+/**
+ * Run `attempt` and, when it reports a locked database, run it once more
+ * (#1356). For a startup step that fails as a whole when memory.db stays
+ * locked past the busy_timeout, such as the MCP server's fleet auto-init:
+ * before the startup migrations were queued, a second initializer happened to
+ * wait the lock out (freezing the server); this keeps that patience without
+ * the freeze. `isLocked` gets the failed result.
+ */
+export async function retryOnceWhenLocked<T>(
+  attempt: () => Promise<T>,
+  isLocked: (result: T) => boolean,
+  onRetry?: () => void,
+): Promise<T> {
+  const first = await attempt();
+  if (!isLocked(first)) return first;
+  onRetry?.();
+  return attempt();
+}
+
+/** True for a "database is locked" / SQLITE_BUSY error message. */
+export function isLockedMessage(message: string | undefined | null): boolean {
+  return /database is locked|database table is locked|SQLITE_BUSY/i.test(message ?? '');
+}
