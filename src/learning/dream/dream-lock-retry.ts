@@ -45,6 +45,14 @@ export interface RetryWhileBusyOptions {
   /** Checked before every attempt; when false, `cancelledError` is thrown instead of retrying. */
   shouldContinue?: () => boolean;
   cancelledError?: () => Error;
+  /**
+   * Keep trying until the whole budget has passed (#1356). By default the
+   * retry gives up as soon as the next backoff would cross the budget, which
+   * can be up to a second early; with this set it sleeps only the remaining
+   * time and makes one last attempt at the deadline, so the total patience
+   * matches a synchronous busy_timeout of `budgetMs`.
+   */
+  useWholeBudget?: boolean;
   /** Injectable for tests. */
   sleep?: (ms: number) => Promise<void>;
   now?: () => number;
@@ -70,12 +78,16 @@ export async function retryWhileBusy<T>(
     if (options.shouldContinue && !options.shouldContinue()) {
       throw options.cancelledError?.() ?? new Error('Cancelled while waiting for a locked database');
     }
+    let pause: number;
     try {
       return withBusyTimeout(db, waitMs, fn);
     } catch (error) {
-      if (!isBusyError(error) || now() - started + backoff >= budgetMs) throw error;
+      if (!isBusyError(error)) throw error;
+      const remaining = budgetMs - (now() - started);
+      if (remaining <= 0 || (!options.useWholeBudget && backoff >= remaining)) throw error;
+      pause = Math.min(backoff, remaining);
     }
-    await sleep(backoff);
+    await sleep(pause);
     backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);
   }
 }

@@ -25,7 +25,7 @@
 import { type Database as DatabaseType, type Statement } from 'better-sqlite3';
 import { openDatabase as openSafeDatabase } from '../shared/safe-db.js';
 import { safeJsonParse } from '../shared/safe-json.js';
-import { capBusyTimeout } from '../shared/sqlite-lock-wait.js';
+import { capBusyTimeout, getLockWaitCap } from '../shared/sqlite-lock-wait.js';
 import {
   registerWriteQueue,
   unregisterWriteQueue,
@@ -75,6 +75,7 @@ import {
   STATS_TABLES,
 } from './unified-memory-schemas.js';
 import { ensurePatternFtsInSync } from './pattern-fts-self-heal.js';
+import { applyStartupSchema } from './startup-schema.js';
 import { applyMigration as applyLearningEvidenceMigration } from '../migrations/20260830_add_learning_evidence_tables.js';
 
 // CRDT imports for distributed state synchronization
@@ -371,9 +372,16 @@ export class UnifiedMemoryManager {
         signal.throwIfAborted();
       }
       await this.runMigrations();
-      // Not gated on schema version: repairs missing qe_patterns_fts sync
-      // triggers / index drift on every open. Never throws; silent when healthy.
-      ensurePatternFtsInSync(this.db!, { logPrefix: '[UnifiedMemory]' });
+      if (this.runsStartupSchema()) {
+        // #1356: the MCP server creates every module's tables now, in one
+        // queued write (the FTS self-heal included), instead of in each
+        // module's constructor during a tool call.
+        await this.applyModuleSchemas();
+      } else {
+        // Not gated on schema version: repairs missing qe_patterns_fts sync
+        // triggers / index drift on every open. Never throws; silent when healthy.
+        ensurePatternFtsInSync(this.db!, { logPrefix: '[UnifiedMemory]' });
+      }
       signal?.throwIfAborted();
 
       // DATA LOSS PREVENTION: After migration, if the DB existed before and was
@@ -537,11 +545,45 @@ export class UnifiedMemoryManager {
     }
   }
 
+  /**
+   * Whether initialize() runs the module schema step (#1356): in the MCP
+   * server, which sets the lock wait cap, on a file database. CLI and SDK
+   * callers keep the modules' own DDL, which waits with full patience.
+   */
+  private runsStartupSchema(): boolean {
+    return getLockWaitCap() !== null && this.config.dbPath !== ':memory:';
+  }
+
+  /**
+   * Create every module's tables and columns now, as one queued write
+   * (kernel/startup-schema.ts). Never throws: if the database stays locked
+   * for the whole retry budget, each module creates its schema itself later.
+   */
+  private async applyModuleSchemas(): Promise<void> {
+    try {
+      const report = await applyStartupSchema(this.db!, (fn) => this.writeWhenUnlocked(fn));
+      for (const { step, error } of report.failed) {
+        logger.warn(`startup schema step ${step} skipped: ${error}`);
+      }
+    } catch (error) {
+      logger.warn(`startup schema deferred to the modules: ${toErrorMessage(error)}`);
+    }
+  }
+
   private async runMigrations(): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
 
-    this.db.exec(SCHEMA_VERSION_TABLE);
-    this.handleV2SchemaIncompatibilities();
+    // #1356: in the MCP server (lock wait cap set) the migrations are queued
+    // like every write on this connection, so a locked database is waited for
+    // in short capped attempts instead of blocking the event loop for the
+    // busy_timeout. Elsewhere (CLI, SDK) they run synchronously, as before.
+    const initWrite = <T>(fn: () => T): Promise<T> =>
+      getLockWaitCap() === null ? Promise.resolve(fn()) : this.enqueueWrite(fn, true);
+
+    await initWrite(() => {
+      this.db!.exec(SCHEMA_VERSION_TABLE);
+      this.handleV2SchemaIncompatibilities();
+    });
 
     const versionRow = this.db.prepare(
       'SELECT version FROM schema_version WHERE id = 1'
@@ -601,7 +643,7 @@ export class UnifiedMemoryManager {
         return currentVersion;
       });
 
-      const migratedFrom = migrate.immediate();
+      const migratedFrom = await initWrite(() => migrate.immediate());
       if (migratedFrom >= SCHEMA_VERSION) {
         console.log(`[UnifiedMemory] Another process completed the migration to v${SCHEMA_VERSION}`);
       } else {
@@ -690,9 +732,20 @@ export class UnifiedMemoryManager {
    * attempt runs synchronously, as the write did before.
    */
   writeWhenUnlocked<T>(fn: () => T): Promise<T> {
+    return this.enqueueWrite(fn, false);
+  }
+
+  /**
+   * writeWhenUnlocked, optionally with the whole busyTimeout of patience
+   * (#1356): initialize()'s migrations ran synchronously with the full
+   * busy_timeout before they were queued, so they keep trying until it has
+   * passed instead of giving up one backoff early.
+   */
+  private enqueueWrite<T>(fn: () => T, useWholeBudget: boolean): Promise<T> {
     const run = () => retryWhileBusy(this.db!, fn, {
       waitMs: capBusyTimeout(this.config.busyTimeout),
       budgetMs: this.config.busyTimeout,
+      useWholeBudget,
     });
     // Queued writes yield to the event loop first, so one write's last attempt
     // and the next one's first never block back to back.
