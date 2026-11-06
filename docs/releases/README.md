@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.15.19](v3.15.19.md) | 2026-11-06 | Scaffolds aren't tests; per-language gate; honest sync; no startup freeze. |
 | [v3.15.18](v3.15.18.md) | 2026-11-01 | No lock on concurrent open; sync reads non-WAL DBs; honest git timeouts. |
 | [v3.15.17](v3.15.17.md) | 2026-10-28 | pytest runs; Copilot reloads tools on upgrade; stable embedding spaces. |
 | [v3.15.16](v3.15.16.md) | 2026-10-27 | Locked DB no longer freezes MCP; measured a11y; monorepo runners. |
