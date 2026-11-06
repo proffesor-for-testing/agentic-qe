@@ -491,6 +491,107 @@ describe('lock held past the busy_timeout at startup (#1356)', () => {
   }, 15_000);
 });
 
+describe('schema copy safety (#1356)', () => {
+  const allSteps = async () => Promise.all(STARTUP_SCHEMA_STEPS.map((step) => step.load()));
+
+  /** Give the table `harmless` a crafted sqlite_master text, as writable_schema allows. */
+  function craftSchemaSql(file: string, sql: string): void {
+    const crafted = new Database(file);
+    crafted.exec('CREATE TABLE harmless (id INTEGER)');
+    crafted.unsafeMode(true); // lift SQLITE_DBCONFIG_DEFENSIVE, as an attacker's own tool would
+    crafted.pragma('writable_schema = ON');
+    crafted.prepare("UPDATE sqlite_master SET sql = ? WHERE name = 'harmless'").run(sql);
+    crafted.pragma('writable_schema = OFF');
+    crafted.close();
+  }
+
+  it('a crafted multi-statement schema entry runs nothing: the victim database and the file system are untouched', async () => {
+    await openMemory();
+    resetUnifiedMemory();
+    const victim = path.join(dir, 'victim.db');
+    const planted = path.join(dir, 'planted.db');
+    const v = new Database(victim);
+    v.exec('CREATE TABLE t (id INTEGER)');
+    for (let i = 0; i < 10; i++) v.prepare('INSERT INTO t VALUES (?)').run(i);
+    v.close();
+    craftSchemaSql(dbPath, `CREATE TABLE harmless (id INTEGER); ATTACH '${victim}' AS v; DELETE FROM v.t; `
+      + `ATTACH '${planted}' AS p; CREATE TABLE p.planted (note TEXT)`);
+    const db = new Database(dbPath);
+
+    try {
+      expect(startupSchemaPending(db, await allSteps())).toBe(true); // refused, so treated as pending
+    } finally {
+      db.close();
+    }
+
+    const after = new Database(victim, { readonly: true });
+    expect((after.prepare('SELECT count(*) AS n FROM t').get() as { n: number }).n).toBe(10);
+    after.close();
+    expect(fs.existsSync(planted)).toBe(false);
+  });
+
+  it('a schema entry that is not a plain CREATE statement is not run (allowlist)', async () => {
+    await openMemory();
+    resetUnifiedMemory();
+    const db0 = new Database(dbPath);
+    expect(startupSchemaPending(db0, await allSteps())).toBe(false); // up to date
+    db0.close();
+    craftSchemaSql(dbPath, 'CREATE TEMP TABLE harmless (id INTEGER)'); // loads, but is not an allowed form
+    const db = new Database(dbPath);
+
+    try {
+      expect(db.prepare("SELECT sql FROM sqlite_master WHERE name = 'harmless'").get()).toBeDefined(); // SQLite loads it
+      expect(startupSchemaPending(db, await allSteps())).toBe(true);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('FTS4 and rtree shadow tables do not make an up-to-date database look pending', async () => {
+    const db = (await openMemory()).getDatabase();
+    db.exec('CREATE VIRTUAL TABLE extra_fts4 USING fts4(body); CREATE VIRTUAL TABLE extra_rtree USING rtree(id, x0, x1)');
+
+    expect(startupSchemaPending(db, await allSteps())).toBe(false);
+  });
+});
+
+describe('background retry lifecycle (#1356)', () => {
+  /** A migrated database without module tables, locked for longer than the startup write's budget. */
+  async function deferredStartup(lockMs: number): Promise<UnifiedMemoryManager> {
+    setLockWaitCap(null);
+    await openMemory();
+    resetUnifiedMemory();
+    setLockWaitCap(CAP_MS);
+    lockFor(lockMs);
+    return openMemory();
+  }
+  const retryTimer = (um: UnifiedMemoryManager) => (um as unknown as { schemaRetryTimer: unknown }).schemaRetryTimer;
+
+  it('close() cancels a pending retry: it never runs', async () => {
+    STARTUP_SCHEMA_RETRY.delaysMs = [300];
+    const um = await deferredStartup(BUSY_TIMEOUT_MS + 1000);
+    expect(retryTimer(um)).not.toBeNull();
+    const apply = vi.spyOn(um as unknown as { applyModuleSchemas: () => Promise<void> }, 'applyModuleSchemas');
+
+    um.close();
+    await new Promise((r) => setTimeout(r, 600));
+
+    expect(retryTimer(um)).toBeNull();
+    expect(apply).not.toHaveBeenCalled();
+  }, 15_000);
+
+  it('a retry whose write was still waiting when close() came does not arm another one', async () => {
+    STARTUP_SCHEMA_RETRY.delaysMs = [100, 60_000]; // a re-armed retry would still be pending at the end
+    const um = await deferredStartup(3 * BUSY_TIMEOUT_MS + 2000);
+    await new Promise((r) => setTimeout(r, 400)); // the first retry is now waiting on the lock
+
+    um.close();
+    await new Promise((r) => setTimeout(r, BUSY_TIMEOUT_MS + 500)); // its write gives up
+
+    expect(retryTimer(um)).toBeNull();
+  }, 20_000);
+});
+
 describe('upgrade (#1356)', () => {
   it('a database missing module tables and a column gets them back at the next start', async () => {
     const um = await openMemory();

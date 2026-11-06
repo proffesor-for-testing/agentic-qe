@@ -157,8 +157,13 @@ export const STARTUP_SCHEMA_STEPS: readonly StartupSchemaStep[] = [
   },
 ];
 
-/** Shadow tables SQLite creates itself for an FTS5 virtual table. */
-const FTS5_SHADOW_SUFFIXES = ['_data', '_idx', '_content', '_docsize', '_config'];
+/**
+ * The only statements copySchema runs: one CREATE of a table, index, view,
+ * trigger or virtual table. Schema text comes from the database file, which
+ * anyone who can write it can craft (writable_schema), so nothing else is
+ * ever executed from it.
+ */
+const SCHEMA_OBJECT_SQL = /^\s*CREATE\s+(TABLE|(UNIQUE\s+)?INDEX|VIEW|TRIGGER|VIRTUAL\s+TABLE)\b/i;
 
 /** Every schema object, in a stable order: equal signatures mean equal schemas. */
 function schemaSignature(db: DatabaseType): string {
@@ -167,16 +172,26 @@ function schemaSignature(db: DatabaseType): string {
   ).all());
 }
 
-/** Recreate `source`'s schema (no rows) in `target`. Reads `source` only. */
+/**
+ * Recreate `source`'s schema (no rows) in the in-memory `target`. Reads
+ * `source` only. Throws, which the caller treats as "pending", on any object
+ * whose SQL is not a single allowed CREATE statement: prepare() refuses more
+ * than one statement, so a crafted entry such as
+ * `CREATE TABLE x(a); ATTACH '/other.db' AS v; DELETE FROM v.t` never runs.
+ */
 function copySchema(source: DatabaseType, target: DatabaseType): void {
+  // Shadow tables (FTS3/4/5, rtree, ...) are created by their virtual table.
+  const shadow = new Set((source.prepare('PRAGMA main.table_list').all() as Array<{ name: string; type: string }>)
+    .filter((t) => t.type === 'shadow')
+    .map((t) => t.name));
   const objects = source.prepare(
     "SELECT type, name, sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' ORDER BY rowid",
   ).all() as Array<{ type: string; name: string; sql: string }>;
-  const virtual = objects.filter((o) => o.type === 'table' && /^CREATE\s+VIRTUAL\s+TABLE/i.test(o.sql)).map((o) => o.name);
-  const isShadow = (name: string) => virtual.some((v) => FTS5_SHADOW_SUFFIXES.some((s) => name === v + s));
   for (const type of ['table', 'index', 'view', 'trigger']) {
     for (const o of objects) {
-      if (o.type === type && !isShadow(o.name)) target.exec(o.sql);
+      if (o.type !== type || shadow.has(o.name)) continue;
+      if (!SCHEMA_OBJECT_SQL.test(o.sql)) throw new Error(`unexpected schema SQL for ${o.name}`);
+      target.prepare(o.sql).run();
     }
   }
 }
@@ -197,6 +212,8 @@ export function startupSchemaPending(
   let scratch: DatabaseType | null = null;
   try {
     scratch = new Database(':memory:');
+    // Functions in schema SQL (defaults, views, triggers) stay restricted.
+    scratch.pragma('trusted_schema = OFF');
     copySchema(db, scratch);
     const before = schemaSignature(scratch);
     for (const fn of fns) fn(scratch);

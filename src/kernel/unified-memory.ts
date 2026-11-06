@@ -570,6 +570,8 @@ export class UnifiedMemoryManager {
         logger.warn(`startup schema step ${step} skipped: ${error}`);
       }
     } catch (error) {
+      // Closed (or reopened) while the write waited: nothing left to retry for.
+      if (this.db !== db) return;
       const delay = STARTUP_SCHEMA_RETRY.delaysMs[attempt];
       if (delay === undefined) {
         logger.warn(`startup schema deferred to the modules: ${toErrorMessage(error)}`);
@@ -579,7 +581,9 @@ export class UnifiedMemoryManager {
       logger.warn(`startup schema deferred, retrying in ${delay} ms: ${toErrorMessage(error)}`);
       this.schemaRetryTimer = setTimeout(() => {
         this.schemaRetryTimer = null;
-        if (this.db === db) void this.applyModuleSchemas(attempt + 1);
+        // close() clears this timer, and applyModuleSchemas returns at once
+        // without a database, so no further guard is needed here.
+        void this.applyModuleSchemas(attempt + 1);
       }, delay);
       this.schemaRetryTimer.unref?.();
     }
