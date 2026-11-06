@@ -5,9 +5,16 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [3.15.19] - 2026-11-06
 
-Changes queued for 3.15.19.
+Test generation no longer counts template scaffolding or invented tests as
+generated tests, and no longer learns from runs that produced none. The
+test quality gate understands Python, Go, Java, Kotlin and TypeScript
+tests. Cloud sync fails instead of reporting success when it cannot read a
+source, load the PostgreSQL driver or verify the cloud copy, and the
+quality gate reports "unmeasured" instead of passing with no data. MCP
+tools refuse hardlinked files, and a locked `memory.db` no longer freezes
+the MCP server at startup or on the first tool call.
 
 ### Changed
 
@@ -55,6 +62,58 @@ Changes queued for 3.15.19.
   not counted. A `reason` field says why nothing was generated. Without an
   LLM provider and without `behaviorExamples`, the tool now usually
   returns 0 tests. Pass `sourceFiles` to name several files.
+- **Template-only output is scaffolding, not generated tests** ([#1370],
+  [#1369], [#1387]): when no LLM provider is configured and no
+  `behaviorExamples` are given, every framework's template output (pytest,
+  Go, JUnit, Kotlin, xUnit, Rust, Swift, Dart, mocha, jest-rn, vitest) is
+  returned under `scaffolds` with a `rejectedBecause` reason. It is no longer
+  counted in `testsGenerated` or in the saved metadata's `testCount`.
+  - `aqe test generate` exits 1 for template-only output, with the
+    scaffolding reason first. Dart, mocha and jest-rn exited 0 before.
+  - `aiInsights.confidence` is no longer returned; it was a fixed 0.85.
+  - The metadata and report add `scaffoldCount` and `reason`.
+  - `qe/tests/generate` returns scaffolds separately from tests, with a
+    `warning`.
+  - Templates import the source in the language's own form: a Python dotted
+    module (relative to the project root), the Go package from `go.mod`, the
+    declared JVM package (no package line when there is none), and the C#
+    namespace.
+- **The test quality gate understands each language** ([#1371], [#1389]):
+  `aqe test generate` no longer rejects valid generated tests in Python, Go,
+  Java, Kotlin and TypeScript.
+  - The gate now recognises each language's assertions: pytest `assert`, Go
+    `t.Error`/`t.Fatal` and testify, JUnit/Kotlin `assert*`.
+  - It also recognises how each language imports the code under test:
+    - Python dotted, relative and package imports;
+    - same-package Go, Java and Kotlin tests;
+    - Java/Kotlin wildcard imports;
+    - TypeScript tsconfig `paths` aliases (including `extends`), directory
+      `index` imports, and `.js` or extension-less specifiers.
+  - C#, Rust and Swift tests are no longer judged on their import form;
+    their assertions are still checked.
+  - Tests that cannot fail are rejected in every language, with the same
+    reason MCP gives: all-tautological assertions such as `assert True` or
+    `assertTrue(true)`, or every test skipped.
+  - Assertions and source names that appear only in comments or strings no
+    longer count, and neither do the test's own locals, lambdas or helpers.
+  - The MCP `qualityGate` verdict changes the same way and stays
+    informational.
+- **`aqe sync verify` reports what it could check** ([#1361], [#1377]):
+  - Each table is VERIFIED, MISMATCH, PARTIAL or UNVERIFIED, and the run
+    exits 0 only when every table is verified. It exits 1 on a mismatch or
+    when nothing could be checked, and 2 when the result is partial. Before,
+    it said "verified" even when the cloud could not be reached.
+  - `aqe sync` and `aqe sync pull` exit 1 for unknown or disabled
+    `--sources`/`--tables`. They also exit 1 when no source could be read,
+    for example `aqe sync --full --sources claude-flow-memory` without a
+    store, which used to report COMPLETED. A run where every source failed
+    now exits 1, not 2.
+- **The quality gate says "unmeasured" instead of passing on no data**
+  ([#1374], [#1381]): gate-check results gain `unmeasured` and `reason`
+  fields, and `current` can be `null`. With no executed test results in the
+  last 7 days, the test-pass and bug gates fail as unmeasured. Before, they
+  reported 0 bugs or a 100% pass rate. Generated, never-run test records are
+  no longer counted as executed results.
 
 ### Fixed
 
@@ -85,6 +144,35 @@ Changes queued for 3.15.19.
   `test_generate_enhanced` no longer writes the tests it generates to
   `test_outcomes` as passed results. Tests that never ran are no longer
   counted as passed in the learning data. Thanks to @rudycelekli.
+- **A corrupt sync source fails instead of syncing as empty** ([#1378],
+  [#1382]): a claude-flow or ruvector JSON store that cannot be parsed or
+  read now makes `aqe sync` report PARTIAL (exit 2), or FAILED when nothing
+  else was read. Before, it was counted as 0 records and the run reported
+  COMPLETED. `aqe sync status` shows the store as unreadable. Error messages
+  give the parse position, never the file's contents.
+- **A missing `pg` driver fails sync instead of syncing to a mock**
+  ([#1376], [#1385]): when the PostgreSQL driver cannot be loaded,
+  `aqe sync` and `aqe sync pull` now fail with exit 1 and a "Reinstall
+  agentic-qe" hint. Before, they wrote every record to an in-memory mock and
+  reported COMPLETED. The writer also stops a cloud tunnel it started, both
+  when connecting fails and when it closes.
+- **No learning from runs that produced no test** ([#1369], [#1387]): a
+  test-generation run that produced only scaffolds no longer records a
+  successful experience, pattern usage or a new learned pattern. A failed
+  generation is still recorded as a failure. Patterns already learned this
+  way by earlier versions are not removed yet ([#1388]).
+- **No server freeze while creating tables at MCP startup** ([#1356],
+  [#1391]):
+  - The MCP server creates every module's tables once at startup, through
+    its write queue. On a new or upgraded project, a locked `memory.db` no
+    longer freezes the server for 3–8 s; the longest freeze measured was
+    under 1 s.
+  - An up-to-date database takes no write lock at startup.
+  - Fleet start-up retries once when the database is locked.
+  - Four empty tables (`llm_spend`, `metrics_outcomes`,
+    `learning_daily_snapshots`, `qe_pattern_reuse`) may now appear earlier
+    than before.
+  - The CLI and SDK are unchanged.
 
 ### Dependencies
 
@@ -113,6 +201,20 @@ Changes queued for 3.15.19.
 [#1368]: https://github.com/proffesor-for-testing/agentic-qe/pull/1368
 [#1369]: https://github.com/proffesor-for-testing/agentic-qe/issues/1369
 [#1372]: https://github.com/proffesor-for-testing/agentic-qe/pull/1372
+[#1361]: https://github.com/proffesor-for-testing/agentic-qe/issues/1361
+[#1370]: https://github.com/proffesor-for-testing/agentic-qe/issues/1370
+[#1371]: https://github.com/proffesor-for-testing/agentic-qe/issues/1371
+[#1374]: https://github.com/proffesor-for-testing/agentic-qe/issues/1374
+[#1376]: https://github.com/proffesor-for-testing/agentic-qe/issues/1376
+[#1377]: https://github.com/proffesor-for-testing/agentic-qe/pull/1377
+[#1378]: https://github.com/proffesor-for-testing/agentic-qe/issues/1378
+[#1381]: https://github.com/proffesor-for-testing/agentic-qe/pull/1381
+[#1382]: https://github.com/proffesor-for-testing/agentic-qe/pull/1382
+[#1385]: https://github.com/proffesor-for-testing/agentic-qe/pull/1385
+[#1387]: https://github.com/proffesor-for-testing/agentic-qe/pull/1387
+[#1388]: https://github.com/proffesor-for-testing/agentic-qe/issues/1388
+[#1389]: https://github.com/proffesor-for-testing/agentic-qe/pull/1389
+[#1391]: https://github.com/proffesor-for-testing/agentic-qe/pull/1391
 
 ## [3.15.18] - 2026-11-01
 
