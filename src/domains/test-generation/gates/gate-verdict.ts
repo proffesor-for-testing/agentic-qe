@@ -47,12 +47,16 @@ function scaffoldingNote(test: GateCheckedTest): string | undefined {
   return test.generationLimits?.length ? test.generationLimits.join(' ') : 'The generator produced scaffolding only.';
 }
 
-/** The gate's reasons for rejecting a test, joined for display. */
+/**
+ * The reasons for rejecting a test, joined for display. #1370: a scaffold's
+ * note comes first, so the gate's own findings never hide why it is not a test.
+ */
 export function describeGateRejection(test: GateCheckedTest): string {
-  return test.qualityGateResult?.issues
-    ?.map(issue => issue.description)
-    .filter(Boolean)
-    .join('; ') || scaffoldingNote(test) || 'missing passing quality evidence';
+  const reasons = [
+    scaffoldingNote(test),
+    ...(test.qualityGateResult?.issues?.map(issue => issue.description) ?? []),
+  ].filter(Boolean);
+  return reasons.join('; ') || 'missing passing quality evidence';
 }
 
 /**

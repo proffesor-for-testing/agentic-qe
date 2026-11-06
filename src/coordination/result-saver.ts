@@ -290,6 +290,8 @@ export class ResultSaver {
       tests: Array<{ name: string; file: string; type: string; testCode?: string; code?: string }>;
       coverageEstimate: number | null;
       patternsUsed: string[];
+      scaffolds?: unknown[];
+      warning?: string;
     };
 
     const testDir = path.join(this.resultsDir, 'tests', 'generated');
@@ -300,6 +302,9 @@ export class ResultSaver {
     const manifestContent = JSON.stringify({
       generated: new Date().toISOString(),
       testsGenerated: data.testsGenerated,
+      // #1370: scaffolds are not tests; say how many came back and why.
+      scaffoldCount: data.scaffolds?.length ?? 0,
+      ...(data.warning ? { reason: data.warning } : {}),
       coverageEstimate: data.coverageEstimate,
       patternsUsed: data.patternsUsed,
       language: options.language || 'typescript',
@@ -610,6 +615,8 @@ end_of_record
       coverageEstimate: number | null;
       patternsUsed: string[];
       tests: Array<{ name: string; file: string; type: string }>;
+      scaffolds?: unknown[];
+      warning?: string;
     },
     options: SaveOptions
   ): string {
@@ -624,9 +631,10 @@ end_of_record
 | Metric | Value |
 |--------|-------|
 | Tests Generated | ${data.testsGenerated} |
+| Scaffolds (not tests) | ${data.scaffolds?.length ?? 0} |
 | Coverage Estimate | ${data.coverageEstimate == null ? 'Unmeasured' : data.coverageEstimate + '%'} |
 | Patterns Used | ${data.patternsUsed.length} |
-
+${data.warning ? `\n**Reason:** ${data.warning}\n` : ''}
 ## Patterns Applied
 
 ${data.patternsUsed.map(p => `- ${p}`).join('\n')}

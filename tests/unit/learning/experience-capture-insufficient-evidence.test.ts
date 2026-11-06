@@ -121,4 +121,33 @@ describe('experience capture skips insufficient-evidence results (#1002)', () =>
 
     expect(inserts().length).toBeGreaterThan(0);
   });
+
+  // #1370/#1369: a scaffold-only test generation is not a successful run.
+  it('records no experience or pattern for a test generation that produced only scaffolds', async () => {
+    const handler = vi.fn(async () => ({
+      success: true,
+      data: { testsGenerated: 0, tests: [], scaffolds: [{ scaffold: true, rejectedBecause: 'Template scaffolding' }] },
+    }));
+    const wrapped = wrapWithExperienceCapture(handler, 'test-generation', 'qe-test-architect');
+
+    const result = await wrapped({});
+
+    expect(result.success).toBe(true);
+    expect(inserts()).toEqual([]);
+    expect((await getCaptureStats()).activeExperiences).toBe(0);
+  });
+
+  it('still records a test generation that produced a test', async () => {
+    const handler = vi.fn(async () => ({ success: true, data: { testsGenerated: 1, tests: [{ name: 'adds' }] } }));
+    await wrapWithExperienceCapture(handler, 'test-generation', 'qe-test-architect')({});
+
+    expect(inserts().length).toBeGreaterThan(0);
+  });
+
+  it('still records a failed test generation as a failure', async () => {
+    const handler = vi.fn(async () => ({ success: false, error: 'generator crashed', data: { testsGenerated: 0 } }));
+    await wrapWithExperienceCapture(handler, 'test-generation', 'qe-test-architect')({});
+
+    expect(inserts().length).toBeGreaterThan(0);
+  });
 });

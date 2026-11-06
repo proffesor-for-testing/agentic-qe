@@ -8,12 +8,18 @@
  * - pytest: a dotted module path (`app.services.user_service`)
  * - go-test: a package import path (`github.com/org/app/services`), or empty
  *   when the module path is unknown (the template then imports nothing)
- * - junit5 / kotlin-junit: a fully qualified class name (`com.example.Calc`)
+ * - junit5 / kotlin-junit: the declared package (`com.example`), or empty
+ *   when none is declared (the template then writes no package line). A
+ *   Kotlin file named calc.kt with top-level functions is not a class.
+ * - Python: paths are taken relative to the project root; a segment that is
+ *   not a Python identifier (`my-mod.py`) leaves only the file's module name,
+ *   with invalid characters replaced, which the caller may need to adjust.
  * - xunit: a namespace (`MyApp.Services`), or empty when none is declared
  * Other languages keep the extension-stripped path (unchanged behaviour).
  */
 import * as path from 'path';
 import { readConfinedTextSync } from '../../../shared/io/confined-read.js';
+import { findProjectRoot } from '../../../kernel/project-root.js';
 
 const JS_EXT = /\.(?:ts|js|tsx|jsx)$/;
 
@@ -21,15 +27,25 @@ function stem(sourceFile: string): string {
   return path.basename(sourceFile).replace(/\.[^.]+$/, '');
 }
 
-/** A source path relative to the working directory when it lies inside it. */
+/**
+ * A source path relative to the project root when it lies inside it. A
+ * relative path is taken as project-relative (the MCP `filePath` form).
+ */
 function projectRelative(sourceFile: string): string {
-  if (!path.isAbsolute(sourceFile)) return sourceFile.replace(/^\.\//, '');
-  const rel = path.relative(process.cwd(), sourceFile);
+  const root = path.resolve(findProjectRoot());
+  const rel = path.relative(root, path.resolve(root, sourceFile));
   return rel && !rel.startsWith('..') && !path.isAbsolute(rel) ? rel : path.basename(sourceFile);
 }
 
+const PY_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/** projectRelative is normalized, so no `.`/`..` segment survives; a path outside the root is its basename. */
 function pythonModule(sourceFile: string): string {
-  return projectRelative(sourceFile).replace(/\\/g, '/').replace(/\.py$/i, '').split('/').filter(Boolean).join('.');
+  const segments = projectRelative(sourceFile).replace(/\\/g, '/').replace(/\.py$/i, '')
+    .split('/').filter(Boolean);
+  if (segments.length > 0 && segments.every((s) => PY_IDENTIFIER.test(s))) return segments.join('.');
+  const name = stem(sourceFile).replace(/[^A-Za-z0-9_]/g, '_');
+  return /^[0-9]/.test(name) ? `_${name}` : name || 'module_under_test';
 }
 
 /** `module x` from the nearest go.mod inside the project, plus the package directory. */
@@ -54,9 +70,8 @@ function goPackage(sourceFile: string): string {
   return '';
 }
 
-function jvmClass(sourceFile: string, sourceContent: string): string {
-  const pkg = sourceContent.match(/^\s*package\s+([\w.]+)\s*;?\s*$/m)?.[1];
-  return pkg ? `${pkg}.${stem(sourceFile)}` : stem(sourceFile);
+function jvmPackage(sourceContent: string): string {
+  return sourceContent.match(/^\s*package\s+([\w.]+)\s*;?\s*$/m)?.[1] ?? '';
 }
 
 function csharpNamespace(sourceContent: string): string {
@@ -66,7 +81,7 @@ function csharpNamespace(sourceContent: string): string {
 export function templateImportPath(sourceFile: string, sourceContent = ''): string {
   if (/\.py$/i.test(sourceFile)) return pythonModule(sourceFile);
   if (/\.go$/i.test(sourceFile)) return goPackage(sourceFile);
-  if (/\.(?:java|kt|kts)$/i.test(sourceFile)) return jvmClass(sourceFile, sourceContent);
+  if (/\.(?:java|kt|kts)$/i.test(sourceFile)) return jvmPackage(sourceContent);
   if (/\.cs$/i.test(sourceFile)) return csharpNamespace(sourceContent);
   return sourceFile.replace(JS_EXT, '');
 }

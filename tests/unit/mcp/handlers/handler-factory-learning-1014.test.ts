@@ -163,6 +163,12 @@ describe('#1014 — isLearnableResult', () => {
     ['quality-assessment', { evidenceStatus: 'insufficient-evidence' }, false],
     ['quality-assessment', { status: 'passed' }, true],
     ['test-generation', { tests: [] }, true],
+    // #1370/#1369: a generation that produced no test (only scaffolds) is no success.
+    ['test-generation', { testsGenerated: 0, tests: [], scaffolds: [{ scaffold: true }] }, false],
+    ['test-generation', { testsGenerated: 0, tests: [] }, false],
+    ['test-generation', { testsGenerated: 2, tests: [{}, {}] }, true],
+    ['coverage-analysis', { measured: true, testsGenerated: 0 }, true],
+    ['quality-assessment', { testsGenerated: 0 }, true],
   ])('%s %j → %s', (domain, data, expected) => {
     expect(isLearnableResult(domain, data)).toBe(expected);
   });

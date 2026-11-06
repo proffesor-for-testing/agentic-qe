@@ -356,7 +356,10 @@ export function isInsufficientEvidenceResult(
   // Delegates to the shared predicate (#1014/#1021 dedupe). A FAILED
   // coverage-analysis call is still a real failure record, so only the
   // insufficient-evidence status applies to it.
-  if (domain === 'coverage-analysis' && !result.success) return !isLearnableResult('', result.data);
+  // #1370: likewise a failed test-generation call stays a failure record.
+  if ((domain === 'coverage-analysis' || domain === 'test-generation') && !result.success) {
+    return !isLearnableResult('', result.data);
+  }
   return !isLearnableResult(domain ?? '', result.data);
 }
 

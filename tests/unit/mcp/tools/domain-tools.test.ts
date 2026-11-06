@@ -20,6 +20,9 @@ import {
   ChaosInjectTool,
   LearningOptimizeTool,
 } from '../../../../src/mcp/tools';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { AccessibilityTesterService } from '../../../../src/domains/visual-accessibility/services/accessibility-tester';
 
 // Mock shared memory backend to prevent real SQLite initialization in unit tests
@@ -74,7 +77,27 @@ describe('TestGenerateTool', () => {
 
     expect(result.success).toBe(true);
     expect(result.data?.tests).toBeDefined();
-    expect(result.data?.tests.length).toBeGreaterThan(0);
+    // #1370: without an LLM the output is scaffolding, returned apart from tests.
+    expect((result.data?.tests.length ?? 0) + (result.data?.scaffolds?.length ?? 0)).toBeGreaterThan(0);
+  });
+
+  it('returns a template as a scaffold, not a generated test (#1370)', async () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'aqe-1370-tool-')));
+    vi.stubEnv('AQE_PROJECT_ROOT', root);
+    try {
+      mkdirSync(join(root, 'src'));
+      writeFileSync(join(root, 'src', 'calc.py'), 'def add(a, b):\n    return a + b\n');
+      const result = await tool.invoke({ sourceFiles: [join(root, 'src', 'calc.py')], testType: 'unit', framework: 'pytest' });
+
+      expect(result.success).toBe(true);
+      expect(result.data?.tests).toEqual([]);
+      expect(result.data?.scaffolds).toHaveLength(1);
+      expect(result.data?.scaffolds?.[0]).toMatchObject({ scaffold: true, rejectedBecause: expect.stringMatching(/^Template scaffolding/) });
+      expect(result.data?.warning).toMatch(/^No tests generated, only 1 scaffold/);
+    } finally {
+      vi.unstubAllEnvs();
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('should support streaming', () => {

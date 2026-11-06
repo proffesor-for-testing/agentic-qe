@@ -187,6 +187,23 @@ describe('ResultSaver', () => {
       expect(existsSync(reportFile!.path)).toBe(true);
     });
 
+    // #1370: a scaffold-only run says why no test was generated.
+    it('records the scaffold count and reason when only scaffolds came back', async () => {
+      const warning = 'Nothing testable in src/calc.py: Template scaffolding: placeholders.';
+      const result = await saver.save('scaffold-only', 'generate-tests', {
+        testsGenerated: 0, tests: [], coverageEstimate: null, patternsUsed: [], warning,
+        scaffolds: [{ name: 'calc tests', scaffold: true, rejectedBecause: 'Template scaffolding: placeholders.', testCode: 'x' }],
+      }, { language: 'python', framework: 'pytest' });
+
+      const manifest = JSON.parse(await fs.readFile(result.files.find(f => f.format === 'json')!.path, 'utf8'));
+      expect(manifest).toMatchObject({ testsGenerated: 0, scaffoldCount: 1, reason: warning });
+      const report = await fs.readFile(result.files.find(f => f.format === 'markdown')!.path, 'utf8');
+      expect(report).toContain('| Tests Generated | 0 |');
+      expect(report).toContain('| Scaffolds (not tests) | 1 |');
+      expect(report).toContain(`**Reason:** ${warning}`);
+      expect(result.files.filter(f => f.format === 'source')).toEqual([]);
+    });
+
     it('should save individual test files when code is provided', async () => {
       const result = await saver.save('task_002', 'generate-tests', TEST_GENERATION_RESULT, {
         language: 'typescript',

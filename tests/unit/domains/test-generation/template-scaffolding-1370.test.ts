@@ -19,6 +19,7 @@ import type { QueenTask } from '../../../../src/coordination/queen-coordinator';
 import { TestGenerationCoordinator } from '../../../../src/domains/test-generation/coordinator';
 import { createCoordinatorTestContext, resetTestContext, flushPromises } from '../coordinator-test-utils';
 import { TestGenerationEvents } from '../../../../src/shared/events/domain-events';
+import { BlindReviewOrchestrator } from '../../../../src/domains/test-generation/blind-review/blind-review-orchestrator';
 
 let root: string;
 beforeEach(() => {
@@ -105,6 +106,22 @@ describe('#1370 framework templates are scaffolding', () => {
     }
   });
 
+  it('writes the declared JVM package, or none, never a class or file name', async () => {
+    const kt = await generate('kotlin-junit', 'src/calc.kt', 'package com.ex\n\nfun add(a: Int, b: Int): Int = a + b\n');
+    expect(kt.test.testCode).toMatch(/^package com\.ex$/m);
+    expect(kt.test.testCode).not.toMatch(/^package com\.ex\.calc/m);
+
+    const java = await generate('junit5', 'nopkg/Calc.java', 'public class Calc { public static int add(int a, int b) { return a + b; } }\n');
+    expect(java.test.testCode).not.toMatch(/^\s*package /m);
+  });
+
+  it('puts the scaffolding note first when the gate also has findings', () => {
+    const pytest = { qualityGateResult: { passed: false, issues: [{ description: 'Test does not import from source file "calc".' }] },
+      generationMode: 'scaffolding', generationLimits: ['Template scaffolding: placeholders.'] };
+
+    expect(describeGateRejection(pytest)).toBe('Template scaffolding: placeholders.; Test does not import from source file "calc".');
+  });
+
   it('gives the CLI the scaffolding reason when the gate passed a template', () => {
     const dart = { qualityGateResult: { passed: true, issues: [] }, generationMode: 'scaffolding',
       generationLimits: ['Template scaffolding: inputs and expected values are placeholders, not derived from the source.'] };
@@ -134,14 +151,24 @@ describe('#1370 templateImportPath', () => {
   it.each([
     ['src/calc.py', '', 'src.calc'],
     ['./app/services/user_service.py', '', 'app.services.user_service'],
-    ['src/Calc.java', 'package com.example;\nclass Calc {}', 'com.example.Calc'],
-    ['src/Calc.kt', 'package com.example\nfun x() = 1', 'com.example.Calc'],
+    ['src/Calc.java', 'package com.example;\nclass Calc {}', 'com.example'],
+    ['src/Calc.kt', 'package com.example\nfun x() = 1', 'com.example'],
+    ['src/calc.kt', 'package com.ex\nfun add(a: Int, b: Int) = a + b', 'com.ex'],
+    ['nopkg/Calc.java', 'public class Calc {}', ''],
+    ['../outside/calc.py', '', 'calc'],
+    ['src/my-mod.py', '', 'my_mod'],
+    ['src/2fast.py', '', '_2fast'],
     ['src/Calc.cs', 'namespace My.App;\nclass Calc {}', 'My.App'],
     ['src/Calc.cs', 'class Calc {}', ''],
     ['src/math.ts', '', 'src/math'],
     ['src/calc.rs', '', 'src/calc.rs'],
   ])('maps %s (case %#)', (file, content, expected) => {
     expect(templateImportPath(file, content)).toBe(expected);
+  });
+
+  it('takes Python paths relative to the project root, not the working directory', () => {
+    expect(process.cwd()).not.toBe(root);
+    expect(templateImportPath(join(root, 'app', 'services', 'user_service.py'))).toBe('app.services.user_service');
   });
 
   it('builds a Go package path from the nearest go.mod', () => {
@@ -262,5 +289,31 @@ describe('#1370 the coordinator announces no scaffold as a generated test', () =
     await flushPromises();
 
     expect(ctx.eventBus.getEventsByType(TestGenerationEvents.TestGenerated)).toEqual([]);
+  });
+});
+
+describe('#1370 blind review counts no scaffold as a test', () => {
+  const scaffold = { id: 's', name: 'calc tests', sourceFile: 'src/calc.py', testFile: 'tests/test_calc.py', type: 'unit' as const,
+    assertions: 1, testCode: 'def test_add():\n    assert add(None, None) is not None\n',
+    generationMode: 'scaffolding' as const, generationLimits: ['Template scaffolding: placeholders.'] };
+  const real = { ...scaffold, id: 'r', generationMode: undefined, generationLimits: undefined,
+    testCode: 'def test_add():\n    assert add(2, 3) == 5\n' };
+  const service = (tests: unknown[]) => ({
+    generateTests: vi.fn(async () => ({ success: true, value: { tests, coverageEstimate: null, patternsUsed: [] } })),
+  }) as never;
+
+  it('fails when every reviewer produced only scaffolds', async () => {
+    const result = await new BlindReviewOrchestrator(service([scaffold]))
+      .generateWithBlindReview({ sourceFiles: ['src/calc.py'], testType: 'unit', framework: 'pytest' as 'vitest' }, { reviewerCount: 2 });
+
+    expect(result.success).toBe(false);
+  });
+
+  it('merges only real tests', async () => {
+    const result = await new BlindReviewOrchestrator(service([scaffold, real]))
+      .generateWithBlindReview({ sourceFiles: ['src/calc.py'], testType: 'unit', framework: 'pytest' as 'vitest' }, { reviewerCount: 1 });
+
+    expect(result.success).toBe(true);
+    expect((result as { value: { mergedTests: Array<{ id: string }> } }).value.mergedTests.map(t => t.id)).toEqual(['r']);
   });
 });
