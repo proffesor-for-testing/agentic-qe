@@ -68,6 +68,17 @@ describe('test_generate_enhanced result mapping (#1355)', () => {
     expect(result.tests[0].assertions).toContain('expect(add(1, 2)).toBe(3)');
   });
 
+  it('keeps nested calls in assertion descriptions (#1365)', () => {
+    const testCode = 'it(\'parses a value\', () => { expect(add(2, 3)).toStrictEqual(JSON.parse("5")); });';
+    const result = mapToResult({
+      testsGenerated: 1,
+      tests: [{ name: 'nested calls', type: 'unit', testCode }],
+      llmEnhanced: false,
+    });
+
+    expect(result.tests[0].assertions).toContain('expect(add(2, 3)).toStrictEqual(JSON.parse("5"))');
+  });
+
   it('reports no invented confidence for LLM output (#1369)', () => {
     const testCode = "it('adds', () => {\n  expect(add(1, 2)).toBe(3);\n});";
     const result = mapToResult({ tests: [{ name: 'math tests', type: 'unit', testCode }], llmEnhanced: true, coverageEstimate: 80 },
