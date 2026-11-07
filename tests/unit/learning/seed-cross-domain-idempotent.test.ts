@@ -26,6 +26,7 @@ import { InMemoryBackend } from '../../../src/kernel/memory-backend.js';
 import { InMemoryEventBus } from '../../../src/kernel/event-bus.js';
 import { resetUnifiedMemory } from '../../../src/kernel/unified-memory.js';
 import { seedCrossDomainPatterns } from '../../../src/learning/pattern-promotion.js';
+import { PatternMutationError } from '../../../src/learning/pattern-mutation-error.js';
 
 const SEED_FLAG_KEY = 'reasoning-bank:cross-domain-seeded';
 
@@ -198,5 +199,47 @@ describe('seedCrossDomainPatterns when a target domain cannot be listed (#1325)'
       expect.objectContaining({ qeDomain: 'code-intelligence', name: 'Original (from defect-intelligence)' }),
     );
     expect(result.skipped).toBeGreaterThan(0);
+  });
+});
+
+describe('seedCrossDomainPatterns with a committed row and pending vector index (#1333)', () => {
+  it('counts the committed pattern as transferred', async () => {
+    const original = {
+      id: 'p1',
+      name: 'Original',
+      description: 'd',
+      patternType: 'test-template',
+      qeDomain: 'defect-intelligence',
+      confidence: 0.8,
+      template: { type: 'code', content: 'x', variables: [] },
+      context: { tags: [] },
+    };
+    const searchPatterns = vi.fn(async (_query: unknown, options?: Record<string, unknown>) => {
+      if (options?.domain === 'defect-intelligence') {
+        return { success: true as const, value: [{ pattern: original, score: 1 }] };
+      }
+      if (options?.domain === 'quality-assessment') {
+        return { success: false as const, error: new Error('store unavailable') };
+      }
+      return { success: false as const, error: new Error('index unavailable') };
+    });
+    const storePattern = vi.fn(async () => ({
+      success: false as const,
+      error: new PatternMutationError('committed-row-id', 'COMMITTED_PENDING_INDEX', new Error('index pending')),
+    }));
+    const patternStore = {
+      getStats: vi.fn(async () => ({
+        byDomain: { 'defect-intelligence': 1, 'quality-assessment': 1, 'code-intelligence': 0 },
+      })),
+    };
+
+    const result = await seedCrossDomainPatterns({
+      searchPatterns: searchPatterns as never,
+      storePattern: storePattern as never,
+      patternStore: patternStore as never,
+    });
+
+    expect(storePattern).toHaveBeenCalled();
+    expect(result.transferred).toBe(storePattern.mock.calls.length);
   });
 });
