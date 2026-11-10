@@ -372,7 +372,7 @@ describe('JSONReader', () => {
       expect(records.length).toBe(1);
     });
 
-    it('should return empty array for non-existent path', async () => {
+    it('should fail when a configured JSON path is absent', async () => {
       const configWithPath: JSONReaderConfig = {
         ...defaultConfig,
         source: {
@@ -388,9 +388,9 @@ describe('JSONReader', () => {
       reader = new JSONReader(configWithPath);
       await reader.initialize();
 
-      const records = await reader.readAll();
-
-      expect(records).toEqual([]);
+      await expect(reader.readAll()).rejects.toThrow(
+        'Configured JSON path $.nonexistent.path was not found in source test-json',
+      );
     });
 
     it('should convert object to records for q-values path', async () => {
@@ -422,6 +422,33 @@ describe('JSONReader', () => {
   });
 
   describe('Claude Flow memory extraction', () => {
+    it('should extract one record per entry from the versioned store shape', async () => {
+      const configClaudeFlow: JSONReaderConfig = {
+        ...defaultConfig,
+        source: { ...defaultSource, name: 'claude-flow-memory' },
+      };
+      const data = {
+        entries: {
+          'memory-1': { content: 'first' },
+          'memory-2': { content: 'second' },
+        },
+        version: '1.0',
+      };
+      mockFs.readFileSync = vi.fn().mockReturnValue(JSON.stringify(data));
+      (secureJsonParse.parse as ReturnType<typeof vi.fn>).mockReturnValue(data);
+
+      reader = new JSONReader(configClaudeFlow);
+      await reader.initialize();
+      const records = await reader.readAll();
+
+      expect(records).toHaveLength(2);
+      expect(records.map((record) => record.key)).toEqual(['memory-1', 'memory-2']);
+      expect(records.map((record) => record.value)).toEqual([
+        { content: 'first' },
+        { content: 'second' },
+      ]);
+    });
+
     it('should extract records from Claude Flow structure', async () => {
       const configClaudeFlow: JSONReaderConfig = {
         ...defaultConfig,

@@ -232,7 +232,7 @@ export class JSONReader implements DataReader<JSONRecord> {
       if (current && typeof current === 'object' && Object.hasOwn(current, part)) {
         current = (current as Record<string, unknown>)[part];
       } else {
-        return [];
+        throw new Error(`Configured JSON path ${jsonPath} was not found in source ${this.name}`);
       }
     }
 
@@ -262,8 +262,13 @@ export class JSONReader implements DataReader<JSONRecord> {
     const records: JSONRecord[] = [];
     const store = parsed as Record<string, unknown>;
 
-    // Handle flat key-value structure
-    for (const [key, value] of Object.entries(store)) {
+    // Claude Flow stores current memories under `entries`; the root also has
+    // metadata such as `version`. Keep the older flat-store shape supported.
+    const entries = store.entries && typeof store.entries === 'object' && !Array.isArray(store.entries)
+      ? store.entries as Record<string, unknown>
+      : store;
+
+    for (const [key, value] of Object.entries(entries)) {
       // Skip metadata keys
       if (key.startsWith('_')) continue;
 
