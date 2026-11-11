@@ -21,6 +21,7 @@
 import type { Database } from 'better-sqlite3';
 import type { Pattern } from '../interfaces';
 import { MEASURED_USAGE_SQL } from '../../../learning/usage-outcome.js';
+import { getLanguageFromExtension } from '../../../shared/types/test-frameworks.js';
 
 interface PatternRow {
   id: string;
@@ -28,6 +29,11 @@ interface PatternRow {
   pattern_type: string;
   usage_count: number;
   quality_score: number;
+}
+
+interface ExtensionCandidate extends PatternRow {
+  context_json: string | null;
+  language: string | null;
 }
 
 const COLUMNS = 'p.id, p.name, p.pattern_type, p.usage_count, p.quality_score';
@@ -44,6 +50,41 @@ export const MEASURED_SUCCESS_SQL =
 
 /** SQL over `qe_patterns p`: the pattern may be applied to a generation. */
 export const APPLICABLE_PATTERN_SQL = `(NOT ${LEARNED_PATTERN_SQL} OR ${MEASURED_SUCCESS_SQL})`;
+
+/** How many extension candidates are refined; the best five are applied. */
+const EXTENSION_CANDIDATE_LIMIT = 200;
+const EXTENSION_MATCH_LIMIT = 5;
+
+/**
+ * #1388: patterns relevant to a file extension. A pattern matches through a
+ * file reference with exactly that extension (`src/Calc.kt`, not `.kts`) or
+ * through its declared `language`. A bare substring (`%ts%`) matched the
+ * "generate-tests" text of every learned pattern, applying Kotlin and Python
+ * patterns to TypeScript files.
+ */
+function queryExtensionPatterns(db: Database, sourceFile: string): PatternRow[] {
+  const dot = sourceFile.lastIndexOf('.');
+  const extension = dot >= 0 ? sourceFile.slice(dot + 1) : '';
+  if (!/^[A-Za-z0-9]+$/.test(extension)) return [];
+  const language = getLanguageFromExtension(extension) ?? null;
+  const fileReference = new RegExp(`\\.${extension}(?![A-Za-z0-9_])`, 'i');
+
+  const candidates = db.prepare(
+    `SELECT ${COLUMNS}, p.context_json,
+            CASE WHEN json_valid(p.context_json) THEN json_extract(p.context_json, '$.language') END AS language
+     FROM qe_patterns p
+     WHERE p.qe_domain = 'test-generation'
+       AND (p.context_json LIKE ?
+            OR (json_valid(p.context_json) AND json_extract(p.context_json, '$.language') = ?))
+       AND ${APPLICABLE_PATTERN_SQL}
+     ORDER BY p.quality_score DESC
+     LIMIT ${EXTENSION_CANDIDATE_LIMIT}`
+  ).all(`%.${extension}%`, language) as ExtensionCandidate[];
+
+  return candidates
+    .filter((row) => (language !== null && row.language === language) || fileReference.test(row.context_json ?? ''))
+    .slice(0, EXTENSION_MATCH_LIMIT);
+}
 
 function toPattern(row: PatternRow): Pattern {
   return {
@@ -73,14 +114,7 @@ export function queryApplicablePatterns(
     if (row && !patterns.some((p) => p.id === row.id)) patterns.push(toPattern(row));
   }
 
-  const extension = sourceFile.split('.').pop() || '';
-  const domainRows = db.prepare(
-    `SELECT ${COLUMNS} FROM qe_patterns p
-     WHERE p.qe_domain = 'test-generation' AND p.context_json LIKE ?
-       AND ${APPLICABLE_PATTERN_SQL}
-     ORDER BY p.quality_score DESC
-     LIMIT 5`
-  ).all(`%${extension}%`) as PatternRow[];
+  const domainRows = queryExtensionPatterns(db, sourceFile);
   for (const row of domainRows) {
     if (!patterns.some((p) => p.id === row.id)) patterns.push(toPattern(row));
   }
