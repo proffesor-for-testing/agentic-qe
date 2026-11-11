@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   "Patterns Used", and each use counted as another success. Test generation
   now applies a stored pattern only if it meets one of these conditions:
   - it is one of AQE's built-in patterns;
-  - you stored it with `aqe hooks learn`;
+  - you stored it with `aqe hooks learn --curate`;
   - you imported it from an export that marked it as curated;
   - you imported it with `--curate`;
   - its tests have been run with a measured, passing result.
@@ -35,12 +35,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **New `--curate` flag on import.** Use `aqe learning import -i <file>
     --curate` (or `import-merge … --curate`) to vouch for every pattern in a
     file. This is also how to restore patterns you imported with an earlier
-    version, because those exports carry no marker.
+    version, because those exports carry no marker. Every import prints how
+    many patterns arrived already marked as curated, for example "3 of 20
+    patterns carry a curation marker from the file", so a file that declares
+    its own patterns curated is visible.
+  - **`aqe hooks learn` marks a pattern curated only with `--curate`.** Agent
+    prompts run `aqe hooks learn` as an automatic step, so a pattern stored
+    without the flag is kept but not applied until it is measured.
+  - **A curation marker is permanent.** A later measured failure does not
+    revoke it, and there is no command to remove it yet ([#1426]). An
+    automatic update that changes a curated pattern's template drops the
+    marker, so the changed content has to earn trust again.
   - **`aqe brain import` copies patterns as they are.** A pattern without a
     marker stays unused, and a marker in the file is trusted, since
     importing the file is your choice.
-  - **A curation marker survives later automatic updates** of the same
-    pattern.
   - **With an LLM:** the template the LLM starts from no longer carries
     learned patterns in its "Applied patterns" header, and `patternsUsed`
     lists only the patterns actually applied. Edge-case hints from memory
@@ -63,6 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [#1412]: https://github.com/proffesor-for-testing/agentic-qe/issues/1412
 [#1423]: https://github.com/proffesor-for-testing/agentic-qe/issues/1423
+[#1426]: https://github.com/proffesor-for-testing/agentic-qe/issues/1426
 
 ## [3.15.19] - 2026-11-06
 
