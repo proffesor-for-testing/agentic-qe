@@ -46,6 +46,16 @@ npm run deps:update:all       # broad in-range lockfile maintenance (review care
 Reports are written to `reports/dependency-audit.{json,md}` and
 `reports/dependency-update.{json,md}`.
 
+The updater classifies every lockfile change as `UPGRADE`, `DOWNGRADE`, `ADDED`,
+`REMOVED` or `REPLACED`, and ends each run with one disposition (#1403):
+
+| Disposition | When | Scheduled workflow |
+|---|---|---|
+| `NO_CHANGE` | the update succeeded and the lockfile did not move | does nothing |
+| `ADMITTED` | only upgrades and additions | opens or refreshes the PR |
+| `REVIEW_REQUIRED` | any downgrade, removal or replacement | opens the PR titled `[REVIEW REQUIRED]`, listing those changes |
+| `REJECTED` | the update command failed, a lockfile or `npm audit` output could not be read, or an optional platform dependency was dropped | restores the lockfile, exits 1, pushes nothing |
+
 ## Severity SLAs
 
 | Severity | Consumer-reachable | Action |
