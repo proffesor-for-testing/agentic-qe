@@ -5,6 +5,39 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Learned test-generation patterns are applied only after a measured
+  success** ([#1388]): before 3.15.19, a run without an LLM saved its
+  template scaffolding as a learned pattern with a 100% success rate. Those
+  patterns stayed in `.agentic-qe/memory.db` and were still applied to new
+  generations. They showed up as an `// Applied patterns: generate-tests …`
+  line and under "Patterns Used", and each use counted as another success.
+  Test generation now applies a learned pattern only when a run of the
+  tests it produced has been measured and passed. Nothing in this release
+  records such a run for test generation yet, so learned test-generation
+  patterns stay stored but unused until measured outcomes arrive
+  ([#1412]). With an LLM, the generated tests are unchanged except for the
+  missing "Applied patterns" header, and `patternsUsed` lists only curated
+  patterns. Built-in patterns are unaffected.
+  Nothing in your database is changed or deleted. No cleanup step is needed,
+  and a pattern is applied again once it has a measured success.
+
+### Fixed
+
+- **Patterns no longer cross languages** ([#1388]): matching patterns by
+  file extension used a substring search, so for a `.ts` file every learned
+  pattern matched through the word "generate-tests", and Kotlin and Python
+  patterns were applied to TypeScript. A pattern now matches only a file
+  with exactly that extension, or its declared language.
+- **`qe/tests/generate` reports `testsGenerated`** ([#1388]): the count of
+  real tests, with scaffolds excluded, so a scaffold-only result can never
+  be learned from.
+
+[#1412]: https://github.com/proffesor-for-testing/agentic-qe/issues/1412
+
 ## [3.15.19] - 2026-11-06
 
 Test generation no longer counts template scaffolding or invented tests as
