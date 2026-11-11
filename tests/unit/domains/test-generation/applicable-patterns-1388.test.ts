@@ -2,9 +2,10 @@
  * #1388: patterns learned from scaffold-only generation before #1387 stay in
  * users' memory.db (success_rate 1.0 from unmeasured "task completed" rows)
  * and were still applied: a Kotlin scaffold began `// Applied patterns:
- * generate-tests sourceFilessrccalckt…`. A learned pattern is applied to test
- * generation only once a measured successful usage exists. Nothing is written:
- * the rows stay as they are and the filter is read-only.
+ * generate-tests sourceFilessrccalckt…`. Test generation now applies a pattern
+ * only when it is a built-in seed (or its cross-domain transfer), a pattern a
+ * person imported, or a pattern with a measured successful usage. Every
+ * automatic writer's pattern is unproven until measured. Nothing is written.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import Database from 'better-sqlite3';
@@ -28,86 +29,127 @@ beforeEach(() => {
 });
 afterEach(() => db.close());
 
-interface Row { id: string; name: string; description?: string; context?: unknown; quality?: number; domain?: string }
-function addPattern({ id, name, description = 'curated', context = {}, quality = 0.5, domain = 'test-generation' }: Row): void {
+interface Row { id: string; name: string; type?: string; description?: string; context?: unknown; quality?: number; domain?: string }
+function addPattern({ id, name, type = 'test-template', description = '', context = {}, quality = 0.5, domain = 'test-generation' }: Row): void {
   db.prepare(`INSERT INTO qe_patterns (id, pattern_type, qe_domain, domain, name, description, quality_score, context_json)
-              VALUES (?, 'test-template', ?, ?, ?, ?, ?, ?)`)
-    .run(id, domain, domain, name, description, quality, JSON.stringify(context));
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(id, type, domain, domain, name, description, quality, JSON.stringify(context));
 }
 function addUsage(patternId: string, success: 0 | 1, metrics: unknown): void {
   db.prepare('INSERT INTO qe_pattern_usage (pattern_id, success, metrics_json) VALUES (?, ?, ?)')
     .run(patternId, success, metrics === null ? null : JSON.stringify(metrics));
 }
+const unmeasuredSuccess = (id: string) => addUsage(id, 1, { outcome: 'unmeasured', outcomeBasis: 'task-completed' });
 
 const kotlinTask = 'generate-tests: {"sourceFiles":["src/Calc.kt"],"language":"kotlin","framework":"kotlin-junit"}';
-/** The shape 3.15.18 stored after a scaffold-only MCP run. */
-function addScaffoldLearned(id: string, task = kotlinTask, withOrigin = true): void {
-  addPattern({
-    id,
-    name: `generate-tests ${id}`,
-    description: `Pattern extracted from: ${task}`,
-    quality: 0.654,
-    context: withOrigin
-      ? { tags: ['qe-test-generation', 'unit'], experienceOrigin: { task, domain: null, patternType: 'test-template' }, testType: 'unit' }
-      : { tags: ['qe-test-generation', 'unit'], testType: 'unit' },
-  });
-  addUsage(id, 1, { outcome: 'unmeasured', outcomeBasis: 'task-completed', runId: `run-${id}-1` });
-  addUsage(id, 1, { outcome: 'unmeasured', outcomeBasis: 'task-completed', runId: `run-${id}-2` });
-}
+
+/** One row per automatic writer, in the shape it stores today (all mention Calc.kt). */
+const AUTOMATIC_WRITERS: Array<[string, Row]> = [
+  ['experience capture (3.15.18 scaffold run)', {
+    id: 'experience', name: 'generate-tests sourceFilessrcCalckt 5b78', description: `Pattern extracted from: ${kotlinTask}`,
+    context: { tags: ['qe-test-generation', 'unit'], experienceOrigin: { task: kotlinTask, domain: null, patternType: 'test-template' }, testType: 'unit' },
+  }],
+  ['experience capture before v3.14.7 (no experienceOrigin)', {
+    id: 'experience-old', name: 'generate-tests old', description: `Pattern extracted from: ${kotlinTask}`,
+    context: { tags: ['qe-test-generation', 'src/Calc.kt'] },
+  }],
+  ['session consolidation', {
+    id: 'consolidation', name: 'cli-hook-test-generation-2026-10', type: 'workflow',
+    description: 'Auto-consolidated from 6 experiences. Agent: cli-hook, success rate: 100%',
+    context: { tags: ['cli-hook-post-edit', 'src/Calc.kt'], sourceType: 'session-consolidation', extractedAt: '2026-10-09T17:54:33.262Z' },
+  }],
+  ['PostTestGeneration hook template', {
+    id: 'post-test-generation', name: 'Generated tests for Calc.kt',
+    description: 'Test template extracted from successful test generation for src/Calc.kt',
+    context: { framework: 'kotlin-junit', language: 'kotlin', testType: 'unit', tags: ['generated', 'test-template', 'kotlin-junit', 'kotlin'] },
+  }],
+  ['task-completed extraction', {
+    id: 'task-completed', name: 'test-generation-test-template-ab12cd',
+    description: 'Auto-extracted test-template pattern from test-generation domain',
+    context: { tags: ['test-generation', 'test-template', 'src/Calc.kt'] },
+  }],
+  ['dream insight', {
+    id: 'dream', name: 'Dream Insight: novel_association',
+    description: 'Calc.kt tests cluster with arithmetic helpers (confidence: 0.81)',
+    context: { tags: ['dream-generated', 'novel_association', 'src/Calc.kt'], complexity: 'medium' },
+  }],
+  ['ReasoningBankService task pattern', {
+    id: 'service-task', name: 'generate-tests-test-generation',
+    description: 'Generate tests for src/Calc.kt', context: { tags: ['generate-tests', 'test-generation', 'kotlin'] },
+  }],
+];
 
 const ids = (file: string, requested: string[] = []) => queryApplicablePatterns(db, file, requested).map((p) => p.id);
 
-describe('#1388 learned patterns without a measured success are not applied', () => {
-  it('skips a scaffold-learned pattern found by file extension', () => {
-    addScaffoldLearned('scaffold-kt');
+describe('#1388 automatic writers\' patterns are not applied without a measured success', () => {
+  it.each(AUTOMATIC_WRITERS)('%s: not applied by the extension or the id path', (_writer, row) => {
+    // language makes every row an extension match, so only the filter decides.
+    addPattern({ ...row, context: { ...(row.context as object), language: 'kotlin' } });
+    unmeasuredSuccess(row.id);
+    unmeasuredSuccess(row.id);
+    addUsage(row.id, 1, null);
+
     expect(ids('/p/src/Calc.kt')).toEqual([]);
+    expect(ids('/p/src/Calc.kt', [row.id, row.name])).toEqual([]);
   });
 
-  it('skips it when it is requested by id or by name (hook, QESONA and matcher ids)', () => {
-    addScaffoldLearned('scaffold-kt');
-    expect(ids('/p/src/Calc.kt', ['scaffold-kt', 'generate-tests scaffold-kt'])).toEqual([]);
+  it.each(AUTOMATIC_WRITERS)('%s: applied once a measured successful usage exists', (_writer, row) => {
+    addPattern({ ...row, context: { ...(row.context as object), language: 'kotlin' } });
+    addUsage(row.id, 1, { outcome: 'measured', outcomeBasis: 'test-results' });
+
+    expect(ids('/p/src/Calc.kt')).toEqual([row.id]);
+    expect(ids('/p/src/Calc.kt', [row.id])).toEqual([row.id]);
   });
 
-  it('skips a pre-3.14.7 learned pattern that has no experienceOrigin', () => {
-    addScaffoldLearned('old-kt', kotlinTask, false);
-    expect(ids('/p/src/Calc.kt', ['old-kt'])).toEqual([]);
+  it('a failed measured usage does not enable a pattern', () => {
+    const [, row] = AUTOMATIC_WRITERS[0];
+    addPattern(row);
+    addUsage(row.id, 0, { outcome: 'measured', outcomeBasis: 'test-results' });
+    expect(ids('/p/src/Calc.kt', [row.id])).toEqual([]);
   });
 
-  it('skips a learned pattern whose only successes have no outcome tag', () => {
-    addScaffoldLearned('null-metrics');
-    addUsage('null-metrics', 1, null);
-    addUsage('null-metrics', 1, { outcome: 'garbage' });
-    expect(ids('/p/src/Calc.kt', ['null-metrics'])).toEqual([]);
+  it('an invented curation value does not enable a pattern', () => {
+    const [, row] = AUTOMATIC_WRITERS[0];
+    addPattern({ ...row, context: { ...(row.context as object), curation: 'automatic' } });
+    expect(ids('/p/src/Calc.kt', [row.id])).toEqual([]);
   });
+});
 
-  it('skips a learned pattern whose measured usage failed', () => {
-    addScaffoldLearned('measured-fail');
-    addUsage('measured-fail', 0, { outcome: 'measured', outcomeBasis: 'test-results' });
-    expect(ids('/p/src/Calc.kt', ['measured-fail'])).toEqual([]);
-  });
-
-  it('applies a learned pattern once a measured successful usage exists', () => {
-    addScaffoldLearned('measured-ok');
-    addUsage('measured-ok', 1, { outcome: 'measured', outcomeBasis: 'test-results' });
-    expect(ids('/p/src/Calc.kt')).toEqual(['measured-ok']);
-    expect(ids('/p/src/Calc.kt', ['measured-ok'])).toEqual(['measured-ok']);
-  });
-
-  it('still applies a curated seed requested by name', () => {
+describe('#1388 seeds and curated patterns still apply', () => {
+  it('applies a built-in seed requested by name, with usage but no measured success', () => {
     addPattern({ id: 'seed-aaa', name: 'AAA Unit Test', description: 'Arrange-Act-Assert pattern', context: { testType: 'unit', tags: ['unit-test', 'aaa'] } });
-    const applied = queryApplicablePatterns(db, '/p/src/Calc.kt', ['AAA Unit Test']);
-    expect(applied).toEqual([{ id: 'seed-aaa', name: 'AAA Unit Test', structure: 'test-template', examples: 0, applicability: 0.5 }]);
+    unmeasuredSuccess('seed-aaa');
+    expect(queryApplicablePatterns(db, '/p/src/Calc.kt', ['AAA Unit Test'])).toEqual([
+      { id: 'seed-aaa', name: 'AAA Unit Test', structure: 'test-template', examples: 0, applicability: 0.5 },
+    ]);
   });
 
-  it('still applies a curated pattern that names the file extension', () => {
-    addPattern({ id: 'seed-kt', name: 'Kotlin seed', context: { tags: ['kotlin'], example: 'src/Calc.kt' } });
-    expect(ids('/p/src/Calc.kt')).toEqual(['seed-kt']);
+  it('applies a ReasoningBankService seed and a seed\'s cross-domain transfer', () => {
+    addPattern({ id: 'svc-seed', name: 'unit-test-generation', context: { tags: ['unit'] } });
+    addPattern({ id: 'transfer', name: 'AAA Unit Test (from test-generation)', domain: 'test-execution',
+      context: { tags: ['cross-domain-transfer', 'source:test-generation'] } });
+    expect(ids('/p/src/Calc.kt', ['unit-test-generation', 'transfer'])).toEqual(['svc-seed', 'transfer']);
+  });
+
+  it('does not treat a learned pattern\'s transfer as a seed', () => {
+    addPattern({ id: 'learned-transfer', name: 'generate-tests sourceFilessrcCalckt (from test-generation)', domain: 'test-execution',
+      context: { tags: ['cross-domain-transfer'] } });
+    expect(ids('/p/src/Calc.kt', ['learned-transfer'])).toEqual([]);
+  });
+
+  it('applies a pattern a person imported, by extension and by id', () => {
+    addPattern({ id: 'imported', name: 'Team Kotlin template', description: `Pattern extracted from: ${kotlinTask}`,
+      context: { tags: ['kotlin'], language: 'kotlin', curation: 'user-import' } });
+    unmeasuredSuccess('imported');
+    expect(ids('/p/src/Calc.kt')).toEqual(['imported']);
+    expect(ids('/p/src/Calc.kt', ['Team Kotlin template'])).toEqual(['imported']);
   });
 
   it('writes nothing', () => {
-    addScaffoldLearned('scaffold-kt');
-    const before = db.prepare('SELECT (SELECT COUNT(*) FROM qe_patterns) p, (SELECT COUNT(*) FROM qe_pattern_usage) u').get();
-    ids('/p/src/Calc.kt', ['scaffold-kt']);
-    expect(db.prepare('SELECT (SELECT COUNT(*) FROM qe_patterns) p, (SELECT COUNT(*) FROM qe_pattern_usage) u').get()).toEqual(before);
+    for (const [, row] of AUTOMATIC_WRITERS) { addPattern(row); unmeasuredSuccess(row.id); }
+    const count = () => db.prepare('SELECT (SELECT COUNT(*) FROM qe_patterns) p, (SELECT COUNT(*) FROM qe_pattern_usage) u').get();
+    const before = count();
+    ids('/p/src/Calc.kt', AUTOMATIC_WRITERS.map(([, row]) => row.id));
+    expect(count()).toEqual(before);
   });
 });

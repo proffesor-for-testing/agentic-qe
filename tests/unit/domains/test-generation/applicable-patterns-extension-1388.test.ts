@@ -38,10 +38,11 @@ function addLearned(id: string, sourceFile: string): void {
     .run(id, JSON.stringify({ outcome: 'measured', outcomeBasis: 'test-results' }));
 }
 
+/** A pattern imported by a person (`aqe learning import`). */
 function addCurated(id: string, context: Record<string, unknown>): void {
   db.prepare(`INSERT INTO qe_patterns (id, pattern_type, qe_domain, domain, name, description, quality_score, context_json)
               VALUES (?, 'test-template', 'test-generation', 'test-generation', ?, 'curated', 0.5, ?)`)
-    .run(id, id, JSON.stringify(context));
+    .run(id, id, JSON.stringify({ ...context, curation: 'user-import' }));
 }
 
 const ids = (file: string) => queryApplicablePatterns(db, file, []).map((p) => p.id).sort();
@@ -76,7 +77,7 @@ describe('#1388 extension lookup matches the extension, not a substring', () => 
     for (let i = 0; i < 7; i++) {
       db.prepare(`INSERT INTO qe_patterns (id, pattern_type, qe_domain, domain, name, description, quality_score, context_json)
                   VALUES (?, 'test-template', 'test-generation', 'test-generation', ?, 'curated', ?, ?)`)
-        .run(`go-${i}`, `go-${i}`, 0.1 * i, JSON.stringify({ tags: [], language: 'go' }));
+        .run(`go-${i}`, `go-${i}`, 0.1 * i, JSON.stringify({ tags: [], language: 'go', curation: 'user-import' }));
     }
     // Eight .go matches: 'go' and go-6 (0.6), go-5, go-4, go-3 are the best five.
     expect(ids('/p/pkg/x.go')).toEqual(['go', 'go-3', 'go-4', 'go-5', 'go-6']);

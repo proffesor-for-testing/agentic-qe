@@ -20,6 +20,7 @@ import { existsSync, writeFileSync, readFileSync, copyFileSync, renameSync } fro
 import { safeJsonParse } from '../../shared/safe-json.js';
 import { stat, unlink } from 'node:fs/promises';
 import type { QEDomain, QEPatternType, QEPatternTemplate, QEPatternContext } from '../../learning/qe-patterns.js';
+import { markUserCurated } from '../../learning/curated-patterns.js';
 import { QE_DOMAIN_LIST } from '../../learning/qe-patterns.js';
 import {
   createLearningMetricsTracker,
@@ -505,7 +506,9 @@ function registerImportCommand(learning: Command): void {
             try {
               const result = await reasoningBank.storePattern({
                 patternType: pattern.patternType, name: pattern.name,
-                description: pattern.description, template: pattern.template, context: pattern.context,
+                description: pattern.description, template: pattern.template,
+                // #1388: a person chose to import it, so generation may apply it.
+                context: markUserCurated(pattern.context, 'user-import'),
               });
               if (result.success) {
                 imported++;
@@ -1048,7 +1051,7 @@ function registerImportMergeCommand(learning: Command): void {
             const isDuplicate = existingNames.has(pattern.name);
             if (isDuplicate && options.skipDuplicates) { skipped++; continue; }
             try {
-              const result = await reasoningBank.storePattern({ patternType: pattern.patternType as QEPatternType, name: pattern.name, description: pattern.description, template: pattern.template as Omit<QEPatternTemplate, 'example'>, context: pattern.context as Partial<QEPatternContext> });
+              const result = await reasoningBank.storePattern({ patternType: pattern.patternType as QEPatternType, name: pattern.name, description: pattern.description, template: pattern.template as Omit<QEPatternTemplate, 'example'>, context: markUserCurated(pattern.context as Partial<QEPatternContext> | undefined, 'user-import') });
               // #981: a committed row with a pending vector index is imported.
               if (result.success || committedPendingIndexPatternId(result.error)) { if (isDuplicate) updated++; else imported++; }
               else { skipped++; errors.push(`${pattern.name}: ${result.error.message}`); }

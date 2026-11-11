@@ -7,52 +7,65 @@
  * "Applied patterns" header, `patternsUsed`, and the ids whose usage is
  * recorded after a real test is produced.
  *
- * #1388: a pattern LEARNED from generation runs is applied only once it has a
- * measured successful usage. Before #1387, scaffold-only runs stored such
- * patterns with success_rate 1.0 from unmeasured "task completed" rows, and
- * they kept being applied (and reinforced) to any later generation. Learned
- * means `context_json.experienceOrigin` (written since v3.14.7) or the
- * "Pattern extracted from" description every experience-derived pattern
- * carries; curated seeds have neither. Nothing is written: the rows stay as
- * they are, and a pattern becomes applicable again as soon as a measured
- * success is recorded for it.
+ * #1388: fail-closed. A pattern is applied only when it is a built-in seed (or
+ * a seed's cross-domain transfer), a pattern a person imported, or a pattern
+ * with a measured successful usage. Automatic writers record only unmeasured
+ * "task completed" evidence; before #1387 they stored scaffold-only runs as
+ * patterns with success_rate 1.0, which kept being applied and reinforced.
+ * Nothing is written: the rows stay as they are, and a pattern becomes
+ * applicable as soon as a measured success is recorded for it.
  */
 
 import type { Database } from 'better-sqlite3';
 import type { Pattern } from '../interfaces';
 import { MEASURED_USAGE_SQL } from '../../../learning/usage-outcome.js';
+import { isBuiltinSeedName, isUserCurated } from '../../../learning/curated-patterns.js';
 import { getLanguageFromExtension } from '../../../shared/types/test-frameworks.js';
+import { safeJsonParse } from '../../../shared/safe-json.js';
 
-interface PatternRow {
+interface CandidateRow {
   id: string;
   name: string;
   pattern_type: string;
   usage_count: number;
   quality_score: number;
-}
-
-interface ExtensionCandidate extends PatternRow {
   context_json: string | null;
-  language: string | null;
+  measured_success: number;
 }
 
-const COLUMNS = 'p.id, p.name, p.pattern_type, p.usage_count, p.quality_score';
-
-/** SQL over `qe_patterns p`: the pattern was learned from tool runs, not curated. */
-export const LEARNED_PATTERN_SQL =
-  `((json_valid(p.context_json) AND json_extract(p.context_json, '$.experienceOrigin') IS NOT NULL)
-    OR p.description LIKE 'Pattern extracted from%')`;
-
-/** SQL over `qe_patterns p`: at least one measured successful usage exists. */
-export const MEASURED_SUCCESS_SQL =
-  `EXISTS (SELECT 1 FROM qe_pattern_usage u
-           WHERE u.pattern_id = p.id AND u.success = 1 AND ${MEASURED_USAGE_SQL} = 1)`;
-
-/** SQL over `qe_patterns p`: the pattern may be applied to a generation. */
-export const APPLICABLE_PATTERN_SQL = `(NOT ${LEARNED_PATTERN_SQL} OR ${MEASURED_SUCCESS_SQL})`;
+/** Candidate columns over `qe_patterns p`, with whether a measured success exists. */
+const COLUMNS = `p.id, p.name, p.pattern_type, p.usage_count, p.quality_score, p.context_json,
+  EXISTS (SELECT 1 FROM qe_pattern_usage u
+          WHERE u.pattern_id = p.id AND u.success = 1 AND ${MEASURED_USAGE_SQL} = 1) AS measured_success`;
 
 /** The best five extension matches are applied. */
 const EXTENSION_MATCH_LIMIT = 5;
+
+function parseContext(row: CandidateRow): Record<string, unknown> {
+  try {
+    const parsed = safeJsonParse<unknown>(row.context_json || '{}');
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+
+/** #1388: seed, person-curated, or measured success. Everything else is unproven. */
+export function isApplicableToGeneration(row: Pick<CandidateRow, 'name' | 'context_json' | 'measured_success'>): boolean {
+  if (row.measured_success === 1) return true;
+  if (isBuiltinSeedName(row.name)) return true;
+  return isUserCurated(parseContext(row as CandidateRow));
+}
+
+function toPattern(row: CandidateRow): Pattern {
+  return {
+    id: row.id,
+    name: row.name,
+    structure: row.pattern_type,
+    examples: row.usage_count,
+    applicability: row.quality_score,
+  };
+}
 
 /**
  * #1388: patterns relevant to a file extension. A pattern matches through a
@@ -61,7 +74,7 @@ const EXTENSION_MATCH_LIMIT = 5;
  * "generate-tests" text of every learned pattern, applying Kotlin and Python
  * patterns to TypeScript files.
  */
-function queryExtensionPatterns(db: Database, sourceFile: string): PatternRow[] {
+function queryExtensionPatterns(db: Database, sourceFile: string): CandidateRow[] {
   const dot = sourceFile.lastIndexOf('.');
   const extension = dot >= 0 ? sourceFile.slice(dot + 1) : '';
   if (!/^[A-Za-z0-9]+$/.test(extension)) return [];
@@ -69,29 +82,20 @@ function queryExtensionPatterns(db: Database, sourceFile: string): PatternRow[] 
   const fileReference = new RegExp(`\\.${extension}(?![A-Za-z0-9_])`, 'i');
 
   const candidates = db.prepare(
-    `SELECT ${COLUMNS}, p.context_json,
-            CASE WHEN json_valid(p.context_json) THEN json_extract(p.context_json, '$.language') END AS language
-     FROM qe_patterns p
+    `SELECT ${COLUMNS} FROM qe_patterns p
      WHERE p.qe_domain = 'test-generation'
        AND (p.context_json LIKE ?
             OR (json_valid(p.context_json) AND json_extract(p.context_json, '$.language') = ?))
-       AND ${APPLICABLE_PATTERN_SQL}
      ORDER BY p.quality_score DESC`
-  ).all(`%.${extension}%`, language) as ExtensionCandidate[];
+  ).all(`%.${extension}%`, language) as CandidateRow[];
 
   return candidates
-    .filter((row) => (language !== null && row.language === language) || fileReference.test(row.context_json ?? ''))
+    .filter((row) => {
+      const declared = parseContext(row).language;
+      return (language !== null && declared === language) || fileReference.test(row.context_json ?? '');
+    })
+    .filter(isApplicableToGeneration)
     .slice(0, EXTENSION_MATCH_LIMIT);
-}
-
-function toPattern(row: PatternRow): Pattern {
-  return {
-    id: row.id,
-    name: row.name,
-    structure: row.pattern_type,
-    examples: row.usage_count,
-    applicability: row.quality_score,
-  };
 }
 
 /**
@@ -103,17 +107,14 @@ export function queryApplicablePatterns(
   requestedPatterns: readonly string[]
 ): Pattern[] {
   const patterns: Pattern[] = [];
-  const byIdOrName = db.prepare(
-    `SELECT ${COLUMNS} FROM qe_patterns p
-     WHERE (p.id = ? OR p.name = ?) AND ${APPLICABLE_PATTERN_SQL} LIMIT 1`
-  );
+  const byIdOrName = db.prepare(`SELECT ${COLUMNS} FROM qe_patterns p WHERE p.id = ? OR p.name = ?`);
   for (const requested of requestedPatterns) {
-    const row = byIdOrName.get(requested, requested) as PatternRow | undefined;
+    const rows = byIdOrName.all(requested, requested) as CandidateRow[];
+    const row = rows.find(isApplicableToGeneration);
     if (row && !patterns.some((p) => p.id === row.id)) patterns.push(toPattern(row));
   }
 
-  const domainRows = queryExtensionPatterns(db, sourceFile);
-  for (const row of domainRows) {
+  for (const row of queryExtensionPatterns(db, sourceFile)) {
     if (!patterns.some((p) => p.id === row.id)) patterns.push(toPattern(row));
   }
   return patterns;
