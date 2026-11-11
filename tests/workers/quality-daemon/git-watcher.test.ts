@@ -208,6 +208,7 @@ describe('GitWatcher', () => {
     const internals = watcher as unknown as {
       enqueueCommitAnalysis(branch: string, commitHash: string, lastHash?: string): Promise<boolean>;
       processRefChange(filename: string): Promise<void>;
+      retryTimers: Map<string, NodeJS.Timeout>;
     };
     const enqueue = vi.spyOn(internals, 'enqueueCommitAnalysis').mockResolvedValue(false);
 
@@ -215,7 +216,8 @@ describe('GitWatcher', () => {
     await internals.processRefChange('main');
 
     expect(enqueue).toHaveBeenCalledTimes(2);
-    expect(vi.getTimerCount()).toBe(1);
+    expect([...internals.retryTimers.keys()]).toEqual(['main']);
+    expect(internals.retryTimers.size).toBe(1);
   });
 
   // -------------------------------------------------------------------------
