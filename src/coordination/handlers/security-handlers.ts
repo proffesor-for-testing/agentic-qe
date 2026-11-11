@@ -325,10 +325,12 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
       // failed/partial required engine, never a completed scan with no findings.
       let dependencyScan: DependencyAdvisoryOutcome | null = null;
       if (payload.dependencies === true) {
-        // #1350: package.json and the lockfile are sent to OSV as names and
-        // versions, so they are read under the same hardlink policy.
+        // #1350: package.json, the lockfile and pnpm-workspace.yaml are sent
+        // to OSV as names and versions, so any hardlink is refused, even under
+        // node_modules: pnpm and bun never hardlink a project's own manifest,
+        // and a disclosure after the lookup would come too late.
         dependencyScan = await runDependencyAdvisoryScan(ctx.getSecurityScanner(), targetPath, {
-          hardlinks: WALK_HARDLINKS, onExemptHardlink, onRefusedHardlink: (file) => { refused.add(file); },
+          hardlinks: 'refuse', onRefusedHardlink: (file) => { refused.add(file); },
         });
         engines.push(dependencyScan.engine);
       }

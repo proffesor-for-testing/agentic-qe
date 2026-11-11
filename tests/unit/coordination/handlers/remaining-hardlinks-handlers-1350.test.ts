@@ -16,7 +16,8 @@ import { SecurityScannerService } from '../../../../src/domains/security-complia
 import type { MemoryBackend } from '../../../../src/kernel/interfaces';
 // Load the handlers first, as the MCP server does (domain-handler-configs has an import cycle).
 import '../../../../src/mcp/handlers/domain-handlers';
-import { defectPredictConfig, securityScanConfig } from '../../../../src/mcp/handlers/domain-handler-configs';
+import { codeIndexConfig, defectPredictConfig, securityScanConfig } from '../../../../src/mcp/handlers/domain-handler-configs';
+import { OSVClient } from '../../../../src/shared/security/osv-client';
 
 const CANARY = 'canary-1350-outside-dep';
 
@@ -31,7 +32,7 @@ const memory = (): MemoryBackend => ({
   getStats: vi.fn().mockResolvedValue({ entries: 0, memoryUsage: 0 }),
 }) as unknown as MemoryBackend;
 
-function handlerFor(type: string): InstanceTaskHandler {
+function handlerFor(type: string, extra: Record<string, unknown> = {}): InstanceTaskHandler {
   let handler: InstanceTaskHandler | undefined;
   const scanner = new SecurityScannerService({ memory: memory() }, {
     defaultRuleSets: ['owasp-top-10'], enableLLMAnalysis: false, enableSemgrep: false,
@@ -40,6 +41,7 @@ function handlerFor(type: string): InstanceTaskHandler {
     memory: memory(),
     registerHandler: (t: string, fn: InstanceTaskHandler) => { if (t === type) handler = fn; },
     getSecurityScanner: () => scanner,
+    ...extra,
   } as unknown as TaskHandlerContext;
   registerSecurityHandlers(ctx);
   registerCodeIntelligenceHandlers(ctx);
@@ -114,6 +116,28 @@ describe('MCP scan-security / predict-defects remaining hardlink reads (#1350)',
       expect(value.refused).toEqual([{ path: lock, reason: 'hardlinked' }]);
     });
 
+    it('refuses a hardlinked package.json under node_modules too, before any OSV call (no exemption)', async () => {
+      const lookup = vi.spyOn(OSVClient.prototype, 'lookupBatch');
+      const fetchSpy = vi.spyOn(globalThis, 'fetch');
+      try {
+        const pkg = path.join(root, 'node_modules', 'x');
+        fs.mkdirSync(pkg, { recursive: true });
+        const manifest = path.join(pkg, 'package.json');
+        fs.linkSync(path.join(base, 'outside', 'package.json'), manifest);
+        const result = await run('scan-security', { target: pkg, sast: false, dast: false, compliance: [], dependencies: true });
+        const value = result.value!;
+        expect(lookup).not.toHaveBeenCalled();
+        expect(fetchSpy).not.toHaveBeenCalled();
+        expect(JSON.stringify(value)).not.toContain(CANARY);
+        expect(value.refused).toEqual([{ path: manifest, reason: 'hardlinked' }]);
+        expect(value.exemptHardlinks).toBeUndefined();
+        expect(value.dependencyScan).toMatchObject({ status: 'not-run', packagesRequested: 0 });
+      } finally {
+        lookup.mockRestore();
+        fetchSpy.mockRestore();
+      }
+    });
+
     it('still reads a regular package.json (the canary reaches the OSV request)', async () => {
       fs.copyFileSync(path.join(base, 'outside', 'package.json'), path.join(deps, 'package.json'));
       const result = await run('scan-security', { target: deps, sast: false, dast: false, compliance: [], dependencies: true });
@@ -139,6 +163,49 @@ describe('MCP scan-security / predict-defects remaining hardlink reads (#1350)',
       const result = await run('predict-defects', { target: pkgDir, minConfidence: 0.5 });
       expect(result.value).toMatchObject({ filesAnalyzed: 1, scanStatus: 'partial', exemptHardlinks: [path.join(pkgDir, 'index.js')] });
       expect(defectPredictConfig.mapToResult('t', result.value!, 1, [])).toMatchObject({ scanStatus: 'partial' });
+    });
+  });
+
+  describe('index-code', () => {
+    const indexWith = (skipped: Array<{ path: string; reason: string }>) => {
+      const collectProjectMetrics = vi.fn().mockResolvedValue({
+        success: true, value: { loc: { total: 99, byLanguage: {} }, tests: { total: 0 }, toolsUsed: ['node-native'] },
+      });
+      const coordinator = { collectProjectMetrics, indexForSearch: vi.fn().mockResolvedValue({ warnings: [] }) };
+      const kg = {
+        index: vi.fn().mockResolvedValue({ success: true, value: {
+          filesIndexed: 1, nodesCreated: 1, edgesCreated: 0, duration: 1, errors: [], warnings: [], skipped,
+        } }),
+      };
+      const handler = handlerFor('index-code', {
+        getKnowledgeGraph: () => kg, getCodeIntelligenceCoordinator: async () => coordinator,
+      });
+      return { handler, collectProjectMetrics };
+    };
+
+    beforeEach(() => {
+      fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+      fs.writeFileSync(path.join(root, 'src', 'app.ts'), 'export const a = 1;\n');
+      fs.writeFileSync(path.join(root, 'src', 'leak.ts'), 'export const b = 2;\n');
+    });
+
+    it('is partial with a refused file and does not run the project metric tools over it', async () => {
+      const leak = path.join(root, 'src', 'leak.ts');
+      const { handler, collectProjectMetrics } = indexWith([{ path: leak, reason: 'hardlinked' }]);
+      const result = await handler({ payload: { target: path.join(root, 'src') } } as never) as { success: boolean; value?: Value };
+      expect(result.success).toBe(true);
+      expect(result.value).toMatchObject({ scanStatus: 'partial', refused: [{ path: leak, reason: 'hardlinked' }] });
+      expect(result.value!.projectMetrics).toBeUndefined();
+      expect(collectProjectMetrics).not.toHaveBeenCalled();
+      expect(result.value!.warnings.join('\n')).toMatch(/Project metrics were not collected/);
+      expect(codeIndexConfig.mapToResult('t', result.value!, 1, [])).toMatchObject({ scanStatus: 'partial', refused: [{ path: leak }] });
+    });
+
+    it('is complete with project metrics when nothing was refused', async () => {
+      const { handler, collectProjectMetrics } = indexWith([]);
+      const result = await handler({ payload: { target: path.join(root, 'src') } } as never) as { success: boolean; value?: Value };
+      expect(result.value).toMatchObject({ scanStatus: 'complete', projectMetrics: { loc: 99 } });
+      expect(collectProjectMetrics).toHaveBeenCalled();
     });
   });
 });

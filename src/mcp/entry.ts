@@ -86,8 +86,9 @@ async function main(): Promise<void> {
   // memory writes wait briefly per attempt and retry asynchronously instead.
   setLockWaitCap(INTERACTIVE_LOCK_WAIT_MS);
   // #1350: every FileReader in this process serves MCP callers, who name the
-  // paths read; a hardlink outside the project's node_modules is refused.
-  setDefaultFileReaderHardlinks('refuse-outside-node-modules');
+  // paths read, so a file with more than one hardlink is refused. FileReader
+  // reads cannot disclose a node_modules exemption, so there is none.
+  setDefaultFileReaderHardlinks('refuse');
   initFeatureFlagsFromEnv();
   // Output startup message BEFORE suppressing stderr (Claude Code health check needs this)
   const version = pkg.version;

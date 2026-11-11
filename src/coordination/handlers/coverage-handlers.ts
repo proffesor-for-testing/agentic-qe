@@ -135,10 +135,11 @@ function fromEvaluation(
  */
 /**
  * #1350: source files and coverage configs found under the caller's target
- * are read refusing a hardlink outside node_modules (pnpm and bun hardlink
- * every package file there), as the directory scanners do.
+ * are read refusing any hardlink. The estimate has no way to disclose a read
+ * under the node_modules exemption, and its walk skips node_modules, so a
+ * pnpm or bun project's own sources are unaffected.
  */
-const SOURCE_HARDLINKS: HardlinkPolicy = 'refuse-outside-node-modules';
+const SOURCE_HARDLINKS: HardlinkPolicy = 'refuse';
 
 async function collectCoverage(targetPath: string): Promise<CollectResult> {
   // #1354: the target is named by an MCP or task caller, so a report that is

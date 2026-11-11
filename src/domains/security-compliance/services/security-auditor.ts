@@ -276,7 +276,10 @@ export class SecurityAuditorService implements ISecurityAuditorService {
       }
 
       if (options.includeDependencies) {
-        dependencyResults = await this.performDependencyScan(read);
+        // #1350: manifest contents go to OSV, so under any refusing policy a
+        // hardlink is refused outright (no node_modules exemption).
+        dependencyResults = await this.performDependencyScan(
+          { ...read, hardlinks: hardlinks === 'allow' ? 'allow' : 'refuse' });
       }
 
       if (options.includeSecrets) {

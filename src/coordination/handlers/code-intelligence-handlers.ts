@@ -156,8 +156,19 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
       // metric step (LOC, tests, tools); run the same step here, rooted at the
       // caller's target the way #997 resolves it. Best-effort: indexing has
       // already succeeded, so a metric failure only omits projectMetrics.
-      const projectMetrics = await collectProjectMetricsForTarget(ctx, targetPath, indexedFiles);
+      // #1350: the metric tools (cloc, tokei or the node-native counter) walk
+      // the project and read every file themselves, so with a refused hardlink
+      // under the target they would count the outside file. They are skipped.
+      const refused = (indexResult.skipped ?? []).filter((s) => s.reason === 'hardlinked')
+        .map((s) => ({ path: s.path, reason: 'hardlinked' as const }));
+      const projectMetrics = refused.length > 0
+        ? undefined
+        : await collectProjectMetricsForTarget(ctx, targetPath, indexedFiles);
       const searchWarnings = await indexFilesForSearch(ctx, indexedFiles);
+      const refusalWarnings = refused.length > 0 ? [
+        `${refused.length} file(s) were not indexed because they have more than one hardlink (a hardlink can point outside the project).`,
+        'Project metrics were not collected: the metric tools read every project file and would count the refused file(s).',
+      ] : [];
 
       // Detect languages from files
       const detectedLanguages = new Set<string>();
@@ -191,13 +202,12 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
         languages: Array.from(detectedLanguages),
         duration: indexResult.duration,
         errors: indexResult.errors,
-        warnings: [...(indexResult.warnings ?? []), ...searchWarnings],
+        warnings: [...(indexResult.warnings ?? []), ...searchWarnings, ...refusalWarnings],
         skipped: indexResult.skipped ?? [],
-        // #1350: files refused because they have more than one hardlink.
-        ...((indexResult.skipped ?? []).some((s) => s.reason === 'hardlinked') ? {
-          refused: (indexResult.skipped ?? []).filter((s) => s.reason === 'hardlinked')
-            .map((s) => ({ path: s.path, reason: 'hardlinked' as const })),
-        } : {}),
+        // #1350: files refused because they have more than one hardlink; an
+        // index with refused or failed files is partial, as the scanners say.
+        ...(refused.length > 0 ? { refused } : {}),
+        scanStatus: refused.length > 0 || indexResult.errors.length > 0 ? 'partial' : 'complete',
         ...(projectMetrics ? { projectMetrics } : {}),
       });
     } catch (error) {

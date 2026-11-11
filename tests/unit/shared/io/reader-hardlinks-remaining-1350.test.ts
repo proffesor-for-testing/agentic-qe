@@ -59,25 +59,34 @@ describe('remaining hardlink reads (#1350)', () => {
       expect(result.success && result.value).toContain(CANARY);
     });
 
-    it('refuses a hardlink outside node_modules once the MCP server sets the default', async () => {
+    it('refuses a hardlink once the MCP server sets the default', async () => {
       const reader = new FileReader({ projectRoot: root });
       // Set after construction: the policy is read at read time.
-      setDefaultFileReaderHardlinks('refuse-outside-node-modules');
+      setDefaultFileReaderHardlinks('refuse');
       const result = await reader.readFile(leak);
       expect(result.success).toBe(false);
       expect(!result.success && result.error).toMatchObject({ code: 'HARDLINKED' });
       expect(JSON.stringify(result)).not.toContain(CANARY);
     });
 
-    it('still reads a store hardlink under node_modules and a regular file', async () => {
-      setDefaultFileReaderHardlinks('refuse-outside-node-modules');
+    it('under the MCP default, refuses a store hardlink under node_modules too (a FileReader read cannot disclose an exemption) and reads a regular file', async () => {
+      setDefaultFileReaderHardlinks('refuse');
       const reader = new FileReader({ projectRoot: root });
-      expect((await reader.readFile(storeFile)).success).toBe(true);
+      const store = await reader.readFile(storeFile);
+      expect(!store.success && store.error).toMatchObject({ code: 'HARDLINKED' });
       expect((await reader.readFile(path.join(root, 'src', 'app.ts'))).success).toBe(true);
     });
 
+    it('the MCP server entry point sets the strict default at startup', () => {
+      const entry = fs.readFileSync(path.resolve(__dirname, '../../../../src/mcp/entry.ts'), 'utf-8');
+      const main = entry.slice(entry.indexOf('async function main()'));
+      expect(main).toMatch(/^async function main\(\)[\s\S]*?setDefaultFileReaderHardlinks\('refuse'\);/);
+      // Before any tool or service can run: ahead of the server start.
+      expect(main.indexOf("setDefaultFileReaderHardlinks('refuse')")).toBeLessThan(main.indexOf('quickStart('));
+    });
+
     it('an explicit reader option wins over the process default', async () => {
-      setDefaultFileReaderHardlinks('refuse-outside-node-modules');
+      setDefaultFileReaderHardlinks('refuse');
       const result = await new FileReader({ projectRoot: root, hardlinks: 'allow' }).readFile(leak);
       expect(result.success).toBe(true);
     });
@@ -93,7 +102,7 @@ describe('remaining hardlink reads (#1350)', () => {
     }) as unknown as MemoryBackend;
 
     it('skips a refused hardlink as hardlinked (not indexed, not an error) under the MCP default', async () => {
-      setDefaultFileReaderHardlinks('refuse-outside-node-modules');
+      setDefaultFileReaderHardlinks('refuse');
       const kg = new KnowledgeGraphService(memory(), { projectRoot: root, basePath: root } as never);
       const result = await kg.index({ paths: [leak, path.join(root, 'src', 'app.ts')] });
       expect(result.success).toBe(true);
@@ -106,7 +115,7 @@ describe('remaining hardlink reads (#1350)', () => {
 
   describe('compliance patterns report files they did not read', () => {
     it('lists a refused hardlink and a missing file, and analyses the rest', async () => {
-      setDefaultFileReaderHardlinks('refuse-outside-node-modules');
+      setDefaultFileReaderHardlinks('refuse');
       const analyzer = new CompliancePatternAnalyzer();
       const missing = path.join(root, 'src', 'missing.ts');
       const analysis = await analyzer.analyzeEncryption([leak, missing, path.join(root, 'src', 'app.ts')]);
@@ -134,7 +143,7 @@ describe('remaining hardlink reads (#1350)', () => {
         "export default { test: { coverage: { include: ['src/app.ts'] } } };\n");
       fs.linkSync(path.join(base, 'outside', 'vitest.config.ts'), path.join(root, 'vitest.config.ts'));
       expect(readCoverageScope(root)).toMatchObject({ source: 'vitest.config.ts', readable: true, include: ['src/app.ts'] });
-      expect(readCoverageScope(root, { hardlinks: 'refuse-outside-node-modules' }))
+      expect(readCoverageScope(root, { hardlinks: 'refuse' }))
         .toMatchObject({ source: 'vitest.config.ts', readable: false, include: [] });
     });
 
@@ -142,7 +151,7 @@ describe('remaining hardlink reads (#1350)', () => {
       const allowed = buildEstimatedCoverage(path.join(root, 'src'))!;
       expect(allowed.data.files.map(f => f.path).sort()).toEqual([path.join(root, 'src', 'app.ts'), leak]);
 
-      const refused = buildEstimatedCoverage(path.join(root, 'src'), { hardlinks: 'refuse-outside-node-modules' })!;
+      const refused = buildEstimatedCoverage(path.join(root, 'src'), { hardlinks: 'refuse' })!;
       expect(refused.data.files.map(f => f.path)).toEqual([path.join(root, 'src', 'app.ts')]);
       expect(refused.provenance.notes.join('\n')).toMatch(/1 source file\(s\) were refused unread.*more than one hardlink/);
       expect(refused.provenance.notes.join('\n')).toContain(leak);
