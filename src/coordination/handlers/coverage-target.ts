@@ -20,7 +20,7 @@
  */
 
 import * as fs from 'fs';
-import { ConfinedReadError, readConfinedText, readConfinedTextSync } from '../../shared/io/confined-read.js';
+import { ConfinedReadError, readConfinedText, readConfinedTextSync, type HardlinkPolicy } from '../../shared/io/confined-read.js';
 import * as os from 'os';
 import * as path from 'path';
 import type { CoverageData, FileCoverage } from '../../domains/coverage-analysis/interfaces';
@@ -470,7 +470,11 @@ export function evaluateCoverageForTarget(
   report: CoverageData,
   projectRoot: string,
   target: string,
-  options: { numTotalTests?: number | null; reportPath?: string; checkCompleteness?: boolean } = {}
+  options: {
+    numTotalTests?: number | null; reportPath?: string; checkCompleteness?: boolean;
+    /** #1350: how the project's coverage config is read (MCP: refuse hardlinks outside node_modules). */
+    scopeHardlinks?: HardlinkPolicy;
+  } = {}
 ): CoverageEvaluation {
   if (options.numTotalTests === 0) return { status: 'no-data', reason: 'no-tests-ran' };
 
@@ -490,6 +494,7 @@ export function evaluateCoverageForTarget(
   const evidence = assessCoverageEvidence(report, production, projectRoot, target, {
     reportPath: options.reportPath, checkCompleteness: options.checkCompleteness,
     excluded: excluded.filter(e => !e.file || !isTestPath(e.file, projectRoot)),
+    ...(options.scopeHardlinks ? { scopeRead: { hardlinks: options.scopeHardlinks } } : {}),
   });
   return { status: 'measured', files: production, evidence };
 }
@@ -544,7 +549,8 @@ export async function resolveExistingCoverage(
   if (!existing) return { status: 'no-report', target, projectRoot, refused };
   return {
     status: 'evaluated', target, projectRoot, source: 'project-report',
-    evaluation: evaluateCoverageForTarget(existing.data, projectRoot, target, { reportPath: existing.path }),
+    evaluation: evaluateCoverageForTarget(existing.data, projectRoot, target,
+      { reportPath: existing.path, ...(read.sourceHardlinks ? { scopeHardlinks: read.sourceHardlinks } : {}) }),
   };
 }
 

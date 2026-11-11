@@ -337,6 +337,8 @@ export interface CodeIndexParams {
 export interface CodeIndexResult {
   taskId: string;
   status: string;
+  /** #1350: discovered files not indexed because they have more than one hardlink. */
+  refused?: Array<{ path: string; reason: 'hardlinked' }>;
   filesIndexed: number;
   symbolsExtracted: number;
   relationsFound: number;
@@ -1273,6 +1275,7 @@ export const codeIndexConfig: DomainHandlerConfig<CodeIndexParams, CodeIndexResu
     ...(Array.isArray(data.skipped) && data.skipped.length > 0
       ? { skipped: data.skipped as CodeIndexResult['skipped'] }
       : {}),
+    ...(Array.isArray(data.refused) ? { refused: data.refused as CodeIndexResult['refused'] } : {}),
     duration,
     savedFiles,
   }),

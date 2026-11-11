@@ -5,6 +5,39 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **More MCP tools refuse hardlinked files** ([#1350]): over MCP, a file
+  inside the project that is a hardlink to a file outside it is no longer
+  read by `code_index`, `quality_assess`, `coverage_analyze_sublinear`
+  (static estimate and coverage config), `qe/code/c4`, the dependency check
+  of `security_scan_comprehensive` (`dependencies: true`), and the
+  `security-audit` task (SAST walk and `package.json`).
+  - The dependency check refuses a hardlinked `package.json` or lockfile
+    before anything is sent to OSV, so names and versions from an outside
+    file are never looked up.
+  - Refused files are listed in `refused` (or `skipped` with reason
+    `hardlinked` for `code_index`), and the result is reported as partial or
+    incomplete instead of clean.
+  - Hardlinks under the project's `node_modules` (pnpm, bun and yarn stores)
+    are still read and disclosed in `exemptHardlinks`. A scan that read one
+    is now `partial`, not `complete`, in `security_scan_comprehensive` and
+    `defect_predict`.
+  - The CLI is unchanged: `aqe code index`, `aqe coverage` and
+    `aqe security --dependencies` still read the operator's own hardlinked
+    files.
+- **Security posture counts secrets and incomplete audits** ([#1350]):
+  exposed secrets from the latest audit count as critical issues, the
+  audit's incomplete checks are returned, and an incomplete audit no longer
+  gets "Maintain current security practices".
+- **Compliance checks name the files they did not read** ([#1350]): the
+  evidence lists unread files with the reason instead of counting them as
+  analysed.
+
+[#1350]: https://github.com/proffesor-for-testing/agentic-qe/issues/1350
+
 ## [3.15.19] - 2026-11-06
 
 Test generation no longer counts template scaffolding or invented tests as

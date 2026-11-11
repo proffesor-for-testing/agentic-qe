@@ -193,6 +193,11 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
         errors: indexResult.errors,
         warnings: [...(indexResult.warnings ?? []), ...searchWarnings],
         skipped: indexResult.skipped ?? [],
+        // #1350: files refused because they have more than one hardlink.
+        ...((indexResult.skipped ?? []).some((s) => s.reason === 'hardlinked') ? {
+          refused: (indexResult.skipped ?? []).filter((s) => s.reason === 'hardlinked')
+            .map((s) => ({ path: s.path, reason: 'hardlinked' as const })),
+        } : {}),
         ...(projectMetrics ? { projectMetrics } : {}),
       });
     } catch (error) {
@@ -349,7 +354,7 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
         predictionMethod: 'static-code-indicators',
         estimated: true,
         filesSkipped,
-        scanStatus: filesSkipped > 0 ? 'partial' : 'complete',
+        scanStatus: filesSkipped > 0 || exemptHardlinks.length > 0 ? 'partial' : 'complete',
       }, { namespace: 'defect-intelligence', ttl: 86400 * 7 });
       // #1137: the run is stored; a retention failure must not report it lost.
       let retentionError: string | undefined;
@@ -397,7 +402,7 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
         filesSkipped,
         ...(refused.length > 0 ? { refused } : {}),
         ...(exemptHardlinks.length > 0 ? { exemptHardlinks, limitations: [describeExemptHardlinks(exemptHardlinks.length)] } : {}),
-        scanStatus: filesSkipped > 0 ? 'partial' : 'complete',
+        scanStatus: filesSkipped > 0 || exemptHardlinks.length > 0 ? 'partial' : 'complete',
         predictionMethod: 'static-code-indicators',
         estimated: true,
         ...(retentionError ? { retention: 'failed', retentionError } : {}),

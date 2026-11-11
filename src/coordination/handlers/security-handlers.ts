@@ -325,7 +325,11 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
       // failed/partial required engine, never a completed scan with no findings.
       let dependencyScan: DependencyAdvisoryOutcome | null = null;
       if (payload.dependencies === true) {
-        dependencyScan = await runDependencyAdvisoryScan(ctx.getSecurityScanner(), targetPath);
+        // #1350: package.json and the lockfile are sent to OSV as names and
+        // versions, so they are read under the same hardlink policy.
+        dependencyScan = await runDependencyAdvisoryScan(ctx.getSecurityScanner(), targetPath, {
+          hardlinks: WALK_HARDLINKS, onExemptHardlink, onRefusedHardlink: (file) => { refused.add(file); },
+        });
         engines.push(dependencyScan.engine);
       }
 
@@ -350,8 +354,10 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
         file.status === 'analyzed' && requestedPaths.has(file.path)).map(file => file.path));
       const requiredEngines = engines.filter(engine => engine.requested && engine.required);
       const hasExecuted = analyzedPaths.size > 0 || (dependencyScan?.report.packagesChecked ?? 0) > 0;
+      // #1350: a hardlink read under the node_modules exemption cannot be told
+      // apart from a planted one, so a scan that read one is not complete.
       const complete = hasExecuted && requiredEngines.every(engine => engine.status === 'completed') &&
-        (!discoveryResult || discoveryResult.discovery.status === 'complete');
+        (!discoveryResult || discoveryResult.discovery.status === 'complete') && exemptHardlinks.size === 0;
       const evidence: SecurityScanEvidence = {
         schemaVersion: 1, completeness: complete ? 'complete' : hasExecuted ? 'partial' : 'none',
         requestedFiles: filesToScan.length, requestedPaths: filesToScan, duplicateInputs: 0,

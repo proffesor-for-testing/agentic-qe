@@ -16,7 +16,7 @@ import { LoggerFactory } from '../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import * as path from 'path';
 import * as fs from 'fs/promises';
-import { readConfinedText } from '../../../shared/io/confined-read.js';
+import { ConfinedReadError, readConfinedText, type HardlinkPolicy } from '../../../shared/io/confined-read.js';
 import { Result, ok, err, DomainEvent } from '../../../shared/types';
 import { EventBus, MemoryBackend, Subscription } from '../../../kernel/interfaces';
 import {
@@ -77,6 +77,14 @@ export interface ProductFactorsBridgeConfig {
    * stays fast/offline; surfaces that expose search (MCP) turn it on.
    */
   enableC4Embeddings?: boolean;
+  /**
+   * #1350: how package.json is read. The MCP tool passes
+   * 'refuse-outside-node-modules', so a package.json hardlinked to a file
+   * outside the project is not read (its name, description and dependencies
+   * are reported); a refused file is listed in analysisMetadata.refusedFiles.
+   * Default 'allow'.
+   */
+  readHardlinks?: HardlinkPolicy;
 }
 
 const DEFAULT_CONFIG: ProductFactorsBridgeConfig = {
@@ -344,15 +352,16 @@ export class ProductFactorsBridgeService
     request: C4DiagramRequest
   ): Promise<Result<C4DiagramResult, Error>> {
     const startTime = Date.now();
+    const refused = new Set<string>();
 
     try {
       // Get project metadata
-      const projectInfo = await this.getProjectMetadata(request.projectPath);
+      const projectInfo = await this.getProjectMetadata(request.projectPath, refused);
 
       // Detect external systems
       let externalSystems: DetectedExternalSystem[] = [];
       if (request.detectExternalSystems !== false) {
-        externalSystems = await this.detectExternalSystems(request.projectPath);
+        externalSystems = await this.detectExternalSystems(request.projectPath, refused);
       }
 
       // Analyze components
@@ -416,6 +425,7 @@ export class ProductFactorsBridgeService
             externalSystemsDetected: externalSystems.length,
             filesAnalyzed,
           }),
+          ...(refused.size > 0 ? { refusedFiles: [...refused] } : {}),
         },
       };
 
@@ -512,12 +522,23 @@ export class ProductFactorsBridgeService
   // Analysis Methods
   // ==========================================================================
 
+  /** #1350: read a package.json under the configured hardlink policy; a refusal is recorded, then rethrown. */
+  private async readPackageJson(packageJsonPath: string, refused?: Set<string>): Promise<string> {
+    try {
+      return await readConfinedText(packageJsonPath, { outsideRoot: 'allow', hardlinks: this.config.readHardlinks ?? 'allow' });
+    } catch (error) {
+      if (error instanceof ConfinedReadError && error.reason === 'hardlinked') refused?.add(packageJsonPath);
+      throw error;
+    }
+  }
+
   private async getProjectMetadata(
-    projectPath: string
+    projectPath: string,
+    refused?: Set<string>,
   ): Promise<C4ProjectInfo> {
     try {
       const packageJsonPath = path.join(projectPath, 'package.json');
-      const content = await readConfinedText(packageJsonPath, { outsideRoot: 'allow' }); // #1161
+      const content = await this.readPackageJson(packageJsonPath, refused); // #1161, #1350
       const pkg = safeJsonParse(content);
       return {
         name: pkg.name || 'Project',
@@ -532,7 +553,8 @@ export class ProductFactorsBridgeService
   }
 
   private async detectExternalSystems(
-    projectPath: string
+    projectPath: string,
+    refused?: Set<string>,
   ): Promise<DetectedExternalSystem[]> {
     const systems: DetectedExternalSystem[] = [];
 
@@ -546,7 +568,7 @@ export class ProductFactorsBridgeService
         return systems;
       }
 
-      const content = await readConfinedText(packageJsonPath, { outsideRoot: 'allow' }); // #1161
+      const content = await this.readPackageJson(packageJsonPath, refused); // #1161, #1350
       const pkg = safeJsonParse(content);
 
       const allDeps = {
@@ -910,7 +932,7 @@ export class ProductFactorsBridgeService
     // Simple hash based on package.json and file count
     try {
       const packageJsonPath = path.join(projectPath, 'package.json');
-      const content = await readConfinedText(packageJsonPath, { outsideRoot: 'allow' }); // #1161
+      const content = await this.readPackageJson(packageJsonPath); // #1161, #1350
       return this.hashString(content);
     } catch {
       return this.hashString(projectPath + Date.now());
