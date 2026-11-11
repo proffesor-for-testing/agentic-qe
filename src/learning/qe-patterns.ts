@@ -226,10 +226,11 @@ export interface QEPatternContext {
   readonly tags: string[];
 
   /**
-   * #1388: set only when a person curated the pattern (`aqe learning import`).
+   * #1388: set only when a person curated the pattern (`aqe hooks learn`,
+   * or an `aqe learning import` of a marked export or with `--curate`).
    * Test generation applies such a pattern without a measured success.
    */
-  readonly curation?: 'user-import';
+  readonly curation?: 'user-import' | 'user-store';
 }
 
 /**

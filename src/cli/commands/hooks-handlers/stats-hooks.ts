@@ -239,8 +239,11 @@ export function registerStatsHooks(hooks: Command): void {
             content: options.description,
             variables: [],
           },
+          // #1388: a person stored this pattern on purpose, so test generation
+          // applies it without a measured success.
           context: {
             tags: options.tags || [],
+            curation: 'user-store',
           },
         });
 

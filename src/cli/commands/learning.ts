@@ -20,7 +20,7 @@ import { existsSync, writeFileSync, readFileSync, copyFileSync, renameSync } fro
 import { safeJsonParse } from '../../shared/safe-json.js';
 import { stat, unlink } from 'node:fs/promises';
 import type { QEDomain, QEPatternType, QEPatternTemplate, QEPatternContext } from '../../learning/qe-patterns.js';
-import { markUserCurated } from '../../learning/curated-patterns.js';
+import { exportContext, importContext, selectMeasuredSuccessIds } from '../../learning/curated-patterns.js';
 import { QE_DOMAIN_LIST } from '../../learning/qe-patterns.js';
 import {
   createLearningMetricsTracker,
@@ -450,13 +450,17 @@ function registerExportCommand(learning: Command): void {
         if (!searchResult.success) throw new Error(searchResult.error.message);
 
         const patterns = searchResult.value.map(m => m.pattern).filter(p => !options.longTermOnly || p.tier === 'long-term');
+        const measuredIds = measuredSuccessIdsAt(getDbPath());
         const exportData = {
           version: '3.0.0', exportedAt: new Date().toISOString(), source: process.cwd(),
           patternCount: patterns.length,
           patterns: patterns.map(p => ({
             id: p.id, name: p.name, description: p.description, patternType: p.patternType,
             qeDomain: p.qeDomain, tier: p.tier, confidence: p.confidence, successRate: p.successRate,
-            successfulUses: p.successfulUses, qualityScore: p.qualityScore, template: p.template, context: p.context,
+            successfulUses: p.successfulUses, qualityScore: p.qualityScore, template: p.template,
+            // #1388: a curation marker only for rows applicable now, so a round trip
+            // does not turn unproven patterns into curated ones.
+            context: exportContext(p, measuredIds),
           })),
         };
 
@@ -479,6 +483,26 @@ function registerExportCommand(learning: Command): void {
 // Subcommand: import
 // ============================================================================
 
+/**
+ * #1388: test generation applies an imported pattern only when the export
+ * marked it curated (it was a seed, curated, or measured where it came from).
+ * --curate marks every row instead, for a file the person vouches for.
+ */
+const CURATE_HELP = 'Vouch for every pattern in the file: test generation applies them without a measured success. '
+  + 'Without it, only patterns the export marked as curated (built-in, imported with --curate, stored with "aqe hooks learn", '
+  + 'or with a measured success) are applied.';
+
+/** Ids with a measured successful usage in the project's memory.db; empty when it cannot be read (fail-closed). */
+function measuredSuccessIdsAt(dbPath: string): Set<string> {
+  try {
+    if (!existsSync(dbPath)) return new Set();
+    const db = openDatabase(dbPath, { readonly: true, fileMustExist: true });
+    try { return selectMeasuredSuccessIds(db); } finally { db.close(); }
+  } catch {
+    return new Set();
+  }
+}
+
 function registerImportCommand(learning: Command): void {
   learning
     .command('import')
@@ -486,6 +510,7 @@ function registerImportCommand(learning: Command): void {
     .requiredOption('-i, --input <file>', 'Input file path')
     .option('--dry-run', 'Show what would be imported without making changes')
     .option('--json', 'Output as JSON')
+    .option('--curate', CURATE_HELP)
     .action(async (options) => {
       try {
         const inputPath = path.resolve(options.input);
@@ -507,8 +532,8 @@ function registerImportCommand(learning: Command): void {
               const result = await reasoningBank.storePattern({
                 patternType: pattern.patternType, name: pattern.name,
                 description: pattern.description, template: pattern.template,
-                // #1388: a person chose to import it, so generation may apply it.
-                context: markUserCurated(pattern.context, 'user-import'),
+                // #1388: keep the export's curation marker; --curate vouches for every row.
+                context: importContext(pattern.context, options.curate === true),
               });
               if (result.success) {
                 imported++;
@@ -950,12 +975,13 @@ function registerExportFullCommand(learning: Command): void {
         const searchResult = await reasoningBank.searchPatterns('', { limit: 10000 });
         if (!searchResult.success) throw new Error(searchResult.error.message);
 
+        const measuredIds = measuredSuccessIdsAt(dbPath);
         const patterns = searchResult.value.map(m => ({
           id: m.pattern.id, name: m.pattern.name, description: m.pattern.description,
           patternType: m.pattern.patternType, qeDomain: m.pattern.qeDomain, tier: m.pattern.tier,
           confidence: m.pattern.confidence, successRate: m.pattern.successRate,
           successfulUses: m.pattern.successfulUses, qualityScore: m.pattern.qualityScore,
-          template: m.pattern.template, context: m.pattern.context,
+          template: m.pattern.template, context: exportContext(m.pattern, measuredIds),
           createdAt: m.pattern.createdAt instanceof Date ? m.pattern.createdAt.toISOString() : m.pattern.createdAt || undefined,
           lastUsedAt: m.pattern.lastUsedAt instanceof Date ? m.pattern.lastUsedAt.toISOString() : m.pattern.lastUsedAt || undefined,
         }));
@@ -1020,6 +1046,7 @@ function registerImportMergeCommand(learning: Command): void {
     .option('--skip-duplicates', 'Skip patterns with matching names (default: update)')
     .option('--dry-run', 'Show what would be imported without making changes')
     .option('--json', 'Output as JSON')
+    .option('--curate', CURATE_HELP)
     .action(async (options) => {
       try {
         const inputPath = path.resolve(options.input);
@@ -1051,7 +1078,7 @@ function registerImportMergeCommand(learning: Command): void {
             const isDuplicate = existingNames.has(pattern.name);
             if (isDuplicate && options.skipDuplicates) { skipped++; continue; }
             try {
-              const result = await reasoningBank.storePattern({ patternType: pattern.patternType as QEPatternType, name: pattern.name, description: pattern.description, template: pattern.template as Omit<QEPatternTemplate, 'example'>, context: markUserCurated(pattern.context as Partial<QEPatternContext> | undefined, 'user-import') });
+              const result = await reasoningBank.storePattern({ patternType: pattern.patternType as QEPatternType, name: pattern.name, description: pattern.description, template: pattern.template as Omit<QEPatternTemplate, 'example'>, context: importContext(pattern.context as Partial<QEPatternContext> | undefined, options.curate === true) });
               // #981: a committed row with a pending vector index is imported.
               if (result.success || committedPendingIndexPatternId(result.error)) { if (isDuplicate) updated++; else imported++; }
               else { skipped++; errors.push(`${pattern.name}: ${result.error.message}`); }
