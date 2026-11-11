@@ -9,7 +9,7 @@ import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rm
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 // @ts-expect-error — .mjs sibling script, no type decls
-import { classifyTransitions, decideDisposition, renderMarkdown, auditUsable } from '../../../scripts/dependency-update.mjs';
+import { classifyTransitions, decideDisposition, renderMarkdown, auditUsable, cell } from '../../../scripts/dependency-update.mjs';
 
 type Pkgs = Record<string, Record<string, unknown>>;
 const lock = (packages: Pkgs) =>
@@ -181,6 +181,49 @@ describe('renderMarkdown', () => {
     const rows = md.slice(md.indexOf('## All transitions')).split('\n').filter((l: string) => /^\| (UPGRADE|DOWNGRADE|ADDED|REMOVED|REPLACED) /.test(l));
     expect(rows).toHaveLength(transitions.length);
     expect(md).toContain('### Required check (issue #401)');
+  });
+});
+
+/** Split a Markdown table row on pipes that are not escaped (preceded by an even number of backslashes). */
+function splitRow(row: string): string[] {
+  const cells: string[] = [];
+  let current = '';
+  let backslashes = 0;
+  for (const ch of row) {
+    if (ch === '|' && backslashes % 2 === 0) { cells.push(current); current = ''; }
+    else current += ch;
+    backslashes = ch === '\\' ? backslashes + 1 : 0;
+  }
+  cells.push(current);
+  return cells.slice(1, -1); // drop the empty edges outside the leading and trailing pipe
+}
+
+describe('cell (CodeQL js/incomplete-sanitization)', () => {
+  const nasty = 'npm ERR! a\\|b\nnext line\r\nends with \\';
+
+  it('should_escapeBackslashesBeforePipesAndFlattenNewlines_when_valueIsHostile', () => {
+    expect(cell(nasty)).toBe('npm ERR! a\\\\\\|b next line ends with \\\\');
+    expect(cell('')).toBe('—');
+    expect(cell(null)).toBe('—');
+  });
+
+  it('should_renderOneIntactCell_when_tableValueHasEscapedPipeTrailingBackslashAndNewline', () => {
+    const transitions = [{
+      path: 'node_modules/x\\|y', name: 'x\\|y\\', kind: 'REPLACED', from: '1.0.0', to: 'a\\|b\n', fromSource: 'registry',
+      toSource: 'file', detail: nasty, scope: 'prod', direct: false, requiredBy: ['p\\', 'q|r'],
+    }];
+    const md = renderMarkdown({
+      mode: 'security', disposition: 'REVIEW_REQUIRED', reasons: ['1 REPLACED'],
+      command: { argv: ['npm', 'audit', 'fix', '--package-lock-only'], status: 0, signal: null },
+      transitions, counts: { UPGRADE: 0, DOWNGRADE: 0, ADDED: 0, REMOVED: 0, REPLACED: 1 },
+      audit: { before: { usable: true, critical: 0, high: 0, moderate: 0, low: 0 }, after: { usable: true, critical: 0, high: 0, moderate: 0, low: 0 } },
+      optionalDeps: { tracked: 0, dropped: [] },
+    });
+    const rows = md.split('\n').filter((l: string) => l.startsWith('| REPLACED '));
+    expect(rows).toHaveLength(2); // one in "Review required", one in "All transitions"; no row was split by a newline
+    expect(splitRow(rows[0])).toHaveLength(7);
+    expect(splitRow(rows[1])).toHaveLength(7);
+    expect(splitRow(rows[0])[6].trim()).toBe(cell(nasty));
   });
 });
 

@@ -223,7 +223,16 @@ export function decideDisposition({ command, lockChanged, transitions, auditBefo
   return { disposition: 'ADMITTED', reasons: [] };
 }
 
-const cell = (v) => (v === null || v === undefined || v === '' ? '—' : String(v).replace(/\|/g, '\\|'));
+/**
+ * One Markdown table cell. Backslashes are escaped before pipes (so `\|` cannot
+ * turn into an unescaped pipe), and line breaks become spaces so a value can
+ * never split its row.
+ */
+export function cell(v) {
+  if (v === null || v === undefined || v === '') return '—';
+  return String(v).replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\r\n|\r|\n/g, ' ');
+}
+const codeCell = (v) => (v === null || v === undefined || v === '' ? '—' : `\`${cell(v)}\``);
 
 /** Markdown report (also the PR body). Rendered from the same object as the JSON report. */
 export function renderMarkdown(report) {
@@ -255,7 +264,7 @@ export function renderMarkdown(report) {
     md.push('| Kind | Package | From | To | Scope | Required by | Detail |');
     md.push('|---|---|---|---|---|---|---|');
     for (const t of review) {
-      md.push(`| ${t.kind} | \`${t.name}\` | ${cell(t.from)} | ${cell(t.to)} | ${t.scope} | ${cell(t.requiredBy.join(', '))} | ${cell(t.detail)} |`);
+      md.push(`| ${t.kind} | ${codeCell(t.name)} | ${cell(t.from)} | ${cell(t.to)} | ${t.scope} | ${cell(t.requiredBy.join(', '))} | ${cell(t.detail)} |`);
     }
   }
   if (transitions.length) {
@@ -265,7 +274,7 @@ export function renderMarkdown(report) {
     md.push('| Kind | Package | Lock path | From | To | Scope | Direct |');
     md.push('|---|---|---|---|---|---|---|');
     for (const t of transitions) {
-      md.push(`| ${t.kind} | \`${t.name}\` | \`${t.path}\` | ${cell(t.from)} | ${cell(t.to)} | ${t.scope} | ${t.direct ? 'yes' : 'no'} |`);
+      md.push(`| ${t.kind} | ${codeCell(t.name)} | ${codeCell(t.path)} | ${cell(t.from)} | ${cell(t.to)} | ${t.scope} | ${t.direct ? 'yes' : 'no'} |`);
     }
   }
   md.push('');
