@@ -142,6 +142,9 @@ const logger = LoggerFactory.create('defect-intelligence/defect-predictor');
 const GIT_TIMEOUT_WARNING =
   'Git history timed out or was too large to read for this file: change frequency, developer experience, ' +
   'code age and bug history use their "no git data" defaults, so this prediction is incomplete.';
+const GIT_INCOMPLETE_WARNING =
+  'A Git query failed for this file: one or more Git-based metrics use their "no git data" defaults, ' +
+  'so this prediction is incomplete.';
 
 export class DefectPredictorService implements IDefectPredictorService {
   private readonly config: DefectPredictorConfig;
@@ -614,7 +617,7 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
     threshold: number
   ): Promise<FilePrediction> {
     // Extract file metrics
-    const { metrics: fileMetrics, gitTimedOut } = await this.extractFileMetrics(file);
+    const { metrics: fileMetrics, gitTimedOut, gitIncomplete } = await this.extractFileMetrics(file);
 
     // Calculate probability based on weighted features
     const featureContributions: { name: string; contribution: number }[] = [];
@@ -638,7 +641,8 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
 
     // Generate recommendations based on high-contributing factors
     const recommendations = this.generateRecommendations(featureContributions, probability);
-    if (gitTimedOut) recommendations.unshift(GIT_TIMEOUT_WARNING);
+    const gitWarning = gitTimedOut ? GIT_TIMEOUT_WARNING : gitIncomplete ? GIT_INCOMPLETE_WARNING : undefined;
+    if (gitWarning) recommendations.unshift(gitWarning);
 
     return {
       file,
@@ -646,18 +650,22 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
       riskLevel,
       factors: featureContributions.filter((f) => f.contribution > 0.05),
       recommendations,
-      ...(gitTimedOut ? { warnings: [GIT_TIMEOUT_WARNING] } : {}),
+      ...(gitWarning ? { warnings: [gitWarning] } : {}),
     };
   }
 
-  private async extractFileMetrics(file: string): Promise<{ metrics: Record<string, number>; gitTimedOut: boolean }> {
+  private async extractFileMetrics(file: string): Promise<{
+    metrics: Record<string, number>;
+    gitTimedOut: boolean;
+    gitIncomplete: boolean;
+  }> {
     // Try to get cached metrics
     const cachedMetrics = await this.memory.get<Record<string, number>>(
       `${this.config.modelNamespace}:file-metrics:${file}`
     );
 
     if (cachedMetrics) {
-      return { metrics: cachedMetrics, gitTimedOut: false };
+      return { metrics: cachedMetrics, gitTimedOut: false, gitIncomplete: false };
     }
 
     // Calculate metrics using real code analysis and git history
@@ -675,12 +683,13 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
     const measureOnce = async () => ({
       metrics: await measure(),
       gitTimedOut: this.gitAnalyzer.consumeTimeout?.(file) === true,
+      gitIncomplete: this.gitAnalyzer.consumeIncomplete?.(file) === true,
     });
     // #1115: the git-based metrics of one file share one deadline.
-    const { metrics, gitTimedOut } = this.gitAnalyzer.withFileDeadline
+    const { metrics, gitTimedOut, gitIncomplete } = this.gitAnalyzer.withFileDeadline
       ? await this.gitAnalyzer.withFileDeadline(file, measureOnce)
       : await measureOnce();
-    if (!gitTimedOut) {
+    if (!gitTimedOut && !gitIncomplete) {
       await this.memory.set(
         `${this.config.modelNamespace}:file-metrics:${file}`,
         metrics,
@@ -688,7 +697,7 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
       );
     }
 
-    return { metrics, gitTimedOut };
+    return { metrics, gitTimedOut, gitIncomplete };
   }
 
   /**
@@ -1156,7 +1165,9 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
 
     // #1165: git defaults stand in for most features of a prediction whose
     // git history timed out; such predictions halve their share of confidence.
-    const incomplete = predictions.filter((p) => p.warnings?.includes(GIT_TIMEOUT_WARNING)).length;
+    const incomplete = predictions.filter((p) =>
+      p.warnings?.some((warning) => warning === GIT_TIMEOUT_WARNING || warning === GIT_INCOMPLETE_WARNING)
+    ).length;
     if (predictions.length > 0) confidence *= 1 - incomplete / predictions.length / 2;
 
     return Math.min(1, Math.max(0, confidence));

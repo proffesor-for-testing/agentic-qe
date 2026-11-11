@@ -204,6 +204,25 @@ describe('DefectPredictorService', () => {
       expect(timedOut.value.modelConfidence).toBeLessThan(healthy.value.modelConfidence);
     });
 
+    it('should mark non-timeout Git failures incomplete and avoid caching fallback metrics (#1330)', async () => {
+      mockGit.withFileDeadline = vi.fn((_file: string, work: () => Promise<unknown>) => work()) as GitAnalyzer['withFileDeadline'];
+      mockGit.consumeTimeout = vi.fn(() => false);
+      mockGit.consumeIncomplete = vi.fn((file: string) => file === 'src/git-failed.ts');
+
+      const healthy = await service.predictDefects({ files: ['src/healthy.ts'] });
+      const failed = await service.predictDefects({ files: ['src/git-failed.ts'] });
+
+      expect(healthy.success && failed.success).toBe(true);
+      if (!healthy.success || !failed.success) return;
+      const [prediction] = failed.value.predictions;
+      expect(prediction.warnings).toEqual([expect.stringContaining('A Git query failed')]);
+      expect(prediction.recommendations[0]).toContain('A Git query failed');
+      expect(failed.value.modelConfidence).toBeLessThan(healthy.value.modelConfidence);
+      const cachedKeys = vi.mocked(mockMemory.set).mock.calls.map(([key]) => key);
+      expect(cachedKeys.some(key => key.endsWith(':file-metrics:src/git-failed.ts'))).toBe(false);
+      expect(cachedKeys.some(key => key.endsWith(':file-metrics:src/healthy.ts'))).toBe(true);
+    });
+
     it('should return error for empty files array', async () => {
       const result = await service.predictDefects({ files: [] });
 
