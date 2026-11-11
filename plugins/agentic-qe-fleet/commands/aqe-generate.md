@@ -149,30 +149,30 @@ Task("Generate comprehensive test suite", `
 
 ```bash
 # Retrieve existing coverage baseline
-npx ruflo@3.5.18 memory retrieve --key "aqe/coverage-baseline"
+npx ruflo@3.76.0 memory retrieve --key "aqe/coverage-baseline"
 
 # Retrieve learned test patterns
-npx ruflo@3.5.18 memory retrieve --key "aqe/test-patterns"
+npx ruflo@3.76.0 memory retrieve --key "aqe/test-patterns"
 
 # Retrieve source code analysis
-npx ruflo@3.5.18 memory retrieve --key "aqe/source-code/${target}"
+npx ruflo@3.76.0 memory retrieve --key "aqe/source-code/${target}"
 ```
 
 ### Output Memory Keys
 
 ```bash
 # Store generation results
-npx ruflo@3.5.18 memory store \
+npx ruflo@3.76.0 memory store \
   --key "aqe/test-generation/results" \
   --value '{"tasksGenerated": 45, "projectedCoverage": 96}'
 
 # Store generated test suite metadata
-npx ruflo@3.5.18 memory store \
+npx ruflo@3.76.0 memory store \
   --key "aqe/test-suite/${target}" \
   --value '{"framework": "jest", "testCount": 45, "timestamp": "2025-09-30T10:00:00Z"}'
 
 # Store coverage projection
-npx ruflo@3.5.18 memory store \
+npx ruflo@3.76.0 memory store \
   --key "aqe/coverage-projection" \
   --value '{"before": 78, "after": 96, "improvement": 18}'
 ```
@@ -182,7 +182,7 @@ npx ruflo@3.5.18 memory store \
 ### Pre-Task Hook
 
 ```bash
-npx ruflo@3.5.18 hooks pre-task \
+npx ruflo@3.76.0 hooks pre-task \
   --description "Generate tests for ${target}" \
   --agent "qe-test-generator"
 ```
@@ -190,7 +190,7 @@ npx ruflo@3.5.18 hooks pre-task \
 ### Post-Edit Hook (for each generated test file)
 
 ```bash
-npx ruflo@3.5.18 hooks post-edit \
+npx ruflo@3.76.0 hooks post-edit \
   --file "${TEST_FILE}" \
   --memory-key "aqe/test-files/${FILE_NAME}"
 ```
@@ -198,7 +198,7 @@ npx ruflo@3.5.18 hooks post-edit \
 ### Post-Task Hook
 
 ```bash
-npx ruflo@3.5.18 hooks post-task \
+npx ruflo@3.76.0 hooks post-task \
   --task-id "${TASK_ID}" \
   --results "${GENERATION_RESULTS}"
 ```
@@ -206,7 +206,7 @@ npx ruflo@3.5.18 hooks post-task \
 ### Notify Fleet
 
 ```bash
-npx ruflo@3.5.18 hooks notify \
+npx ruflo@3.76.0 hooks notify \
   --message "Generated ${TEST_COUNT} tests with ${COVERAGE}% projected coverage"
 ```
 

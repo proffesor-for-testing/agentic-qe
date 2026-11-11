@@ -153,30 +153,30 @@ Task("Execute chaos testing scenario", `
 
 ```bash
 # Retrieve baseline metrics
-npx ruflo@3.5.18 memory retrieve --key "aqe/chaos/baseline"
+npx ruflo@3.76.0 memory retrieve --key "aqe/chaos/baseline"
 
 # Retrieve system configuration
-npx ruflo@3.5.18 memory retrieve --key "aqe/system/config"
+npx ruflo@3.76.0 memory retrieve --key "aqe/system/config"
 
 # Retrieve previous chaos results
-npx ruflo@3.5.18 memory retrieve --key "aqe/chaos/history"
+npx ruflo@3.76.0 memory retrieve --key "aqe/chaos/history"
 ```
 
 ### Output Memory Keys
 
 ```bash
 # Store chaos results
-npx ruflo@3.5.18 memory store \
+npx ruflo@3.76.0 memory store \
   --key "aqe/chaos/${chaos_id}" \
   --value '{"scenario": "latency", "duration": 60, "failures": 3}'
 
 # Store failure modes
-npx ruflo@3.5.18 memory store \
+npx ruflo@3.76.0 memory store \
   --key "aqe/chaos/failure-modes" \
   --value '[{"type": "timeout", "count": 12, "severity": "medium"}]'
 
 # Store recovery metrics
-npx ruflo@3.5.18 memory store \
+npx ruflo@3.76.0 memory store \
   --key "aqe/chaos/recovery" \
   --value '{"recoveryTime": 45, "dataLoss": false, "status": "healthy"}'
 ```
@@ -186,7 +186,7 @@ npx ruflo@3.5.18 memory store \
 ### Pre-Task Hook
 
 ```bash
-npx ruflo@3.5.18 hooks pre-task \
+npx ruflo@3.76.0 hooks pre-task \
   --description "Chaos test: ${scenario}" \
   --agent "qe-test-executor"
 ```
@@ -194,14 +194,14 @@ npx ruflo@3.5.18 hooks pre-task \
 ### During Chaos (monitoring)
 
 ```bash
-npx ruflo@3.5.18 hooks notify \
+npx ruflo@3.76.0 hooks notify \
   --message "Chaos active: ${scenario} - ${ELAPSED}s / ${DURATION}s"
 ```
 
 ### Post-Task Hook
 
 ```bash
-npx ruflo@3.5.18 hooks post-task \
+npx ruflo@3.76.0 hooks post-task \
   --task-id "${CHAOS_ID}" \
   --results "${CHAOS_RESULTS}"
 ```

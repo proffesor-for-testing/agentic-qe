@@ -223,7 +223,7 @@ End-to-end integration tests, smoke tests, and documentation.
 ### Swarm Configuration
 
 ```bash
-npx ruflo@3.5.18 swarm init \
+npx ruflo@3.76.0 swarm init \
   --topology hierarchical \
   --max-agents 8 \
   --strategy specialized

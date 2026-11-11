@@ -980,13 +980,13 @@ async function checkIntegrationHealth(): Promise<IntegrationHealth> {
 
 ```bash
 # Store initial world state
-npx ruflo@3.5.18 memory store \
+npx ruflo@3.76.0 memory store \
   --key "goap:browser-integration:world-state" \
   --value '{"milestone": 0, "status": "planning"}' \
   --namespace goap
 
 # Store goal state
-npx ruflo@3.5.18 memory store \
+npx ruflo@3.76.0 memory store \
   --key "goap:browser-integration:goal-state" \
   --value '{"allMilestonesComplete": true, "metricsValidated": true}' \
   --namespace goap
@@ -996,15 +996,15 @@ npx ruflo@3.5.18 memory store \
 
 ```bash
 # Route task to optimal agent
-npx ruflo@3.5.18 hooks route \
+npx ruflo@3.76.0 hooks route \
   --task "Implement BrowserSecurityScanner integration for visual-accessibility domain"
 
 # Pre-task hook for model routing
-npx ruflo@3.5.18 hooks pre-task \
+npx ruflo@3.76.0 hooks pre-task \
   --description "Import and adapt BrowserSecurityScanner from @claude-flow/browser"
 
 # Spawn agents for parallel execution
-npx ruflo@3.5.18 swarm init \
+npx ruflo@3.76.0 swarm init \
   --topology hierarchical \
   --max-agents 8 \
   --strategy specialized
@@ -1014,13 +1014,13 @@ npx ruflo@3.5.18 swarm init \
 
 ```bash
 # Store milestone completion
-npx ruflo@3.5.18 memory store \
+npx ruflo@3.76.0 memory store \
   --key "goap:browser-integration:milestone-1" \
   --value '{"status": "complete", "timestamp": "2026-01-22T18:00:00Z"}' \
   --namespace goap
 
 # Search for learned patterns
-npx ruflo@3.5.18 memory search \
+npx ruflo@3.76.0 memory search \
   --query "security scanner integration" \
   --namespace browser-integration:patterns
 ```

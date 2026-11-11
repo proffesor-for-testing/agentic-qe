@@ -145,30 +145,30 @@ Task("Execute comprehensive test suite", `
 
 ```bash
 # Retrieve test suite metadata
-npx ruflo@3.5.18 memory retrieve --key "aqe/test-suite/${suite}"
+npx ruflo@3.76.0 memory retrieve --key "aqe/test-suite/${suite}"
 
 # Retrieve flaky test data
-npx ruflo@3.5.18 memory retrieve --key "aqe/flaky-tests"
+npx ruflo@3.76.0 memory retrieve --key "aqe/flaky-tests"
 
 # Retrieve execution configuration
-npx ruflo@3.5.18 memory retrieve --key "aqe/execution-config"
+npx ruflo@3.76.0 memory retrieve --key "aqe/execution-config"
 ```
 
 ### Output Memory Keys
 
 ```bash
 # Store execution results
-npx ruflo@3.5.18 memory store \
+npx ruflo@3.76.0 memory store \
   --key "aqe/execution/results/${run_id}" \
   --value '{"numTotalTests": 120, "numPassedTests": 118, "numFailedTests": 2}'
 
 # Update current coverage
-npx ruflo@3.5.18 memory store \
+npx ruflo@3.76.0 memory store \
   --key "aqe/coverage/current" \
   --value '{"pct": 94.5}'
 
 # Store test failures
-npx ruflo@3.5.18 memory store \
+npx ruflo@3.76.0 memory store \
   --key "aqe/test-failures" \
   --value '[{"test": "user-auth-test", "error": "timeout"}]'
 ```
@@ -178,7 +178,7 @@ npx ruflo@3.5.18 memory store \
 ### Pre-Task Hook
 
 ```bash
-npx ruflo@3.5.18 hooks pre-task \
+npx ruflo@3.76.0 hooks pre-task \
   --description "Execute test suite: ${suite}" \
   --agent "qe-test-executor"
 ```
@@ -187,14 +187,14 @@ npx ruflo@3.5.18 hooks pre-task \
 
 ```bash
 # Notify fleet of progress
-npx ruflo@3.5.18 hooks notify \
+npx ruflo@3.76.0 hooks notify \
   --message "Executing: ${TEST_FILE} (${CURRENT}/${TOTAL})"
 ```
 
 ### Post-Task Hook
 
 ```bash
-npx ruflo@3.5.18 hooks post-task \
+npx ruflo@3.76.0 hooks post-task \
   --task-id "${RUN_ID}" \
   --results "${EXECUTION_RESULTS}"
 ```

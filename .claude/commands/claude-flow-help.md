@@ -66,7 +66,7 @@ Claude-Flow is the ultimate multi-terminal orchestration platform that revolutio
 
 ### Initialize with SPARC:
 ```bash
-npx -y ruflo@3.5.18 init --sparc
+npx -y ruflo@3.76.0 init --sparc
 ```
 
 ### Start a development swarm:
@@ -91,7 +91,7 @@ npx -y ruflo@3.5.18 init --sparc
 ```
 
 ## 🎯 Best Practices
-- Use `./claude-flow` instead of `npx claude-flow` after initialization
+- Use `./claude-flow` instead of `npx ruflo@3.76.0` after initialization
 - Store important context in memory for cross-session persistence
 - Use swarm mode for complex tasks requiring multiple agents
 - Enable monitoring for real-time progress tracking

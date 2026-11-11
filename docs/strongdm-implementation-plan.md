@@ -46,16 +46,16 @@ npm run build
 npm test -- --run
 
 # Start the Claude Flow daemon
-npx ruflo@3.5.18 daemon start
+npx ruflo@3.76.0 daemon start
 
 # Run doctor to verify environment
-npx ruflo@3.5.18 doctor --fix
+npx ruflo@3.76.0 doctor --fix
 ```
 
 ### Initialize the swarm
 
 ```bash
-npx ruflo@3.5.18 swarm init \
+npx ruflo@3.76.0 swarm init \
   --topology hierarchical \
   --max-agents 8 \
   --strategy specialized \
@@ -66,13 +66,13 @@ npx ruflo@3.5.18 swarm init \
 
 ```bash
 # Create the root namespace for this implementation
-npx ruflo@3.5.18 memory store \
+npx ruflo@3.76.0 memory store \
   --key "plan-metadata" \
   --value '{"status":"initialized","tier":1,"startedAt":"'$(date -Iseconds)'"}' \
   --namespace "aqe/strongdm-impl"
 
 # Store the file ownership matrix for agent coordination
-npx ruflo@3.5.18 memory store \
+npx ruflo@3.76.0 memory store \
   --key "file-ownership-matrix" \
   --value '{"version":1,"locked":false}' \
   --namespace "aqe/strongdm-impl/coordination"
@@ -99,25 +99,25 @@ npx ruflo@3.5.18 memory store \
 
 ```bash
 # Spawn coordinator
-npx ruflo@3.5.18 agent spawn \
+npx ruflo@3.76.0 agent spawn \
   -t hierarchical-coordinator \
   --name sdm-coord \
   --capabilities "orchestration,gate-checking,progress-tracking"
 
 # Spawn workers (run all in one message via Task tool)
-npx ruflo@3.5.18 agent spawn -t coder --name sdm-loop-coder \
+npx ruflo@3.76.0 agent spawn -t coder --name sdm-loop-coder \
   --capabilities "anti-drift,loop-detection,event-bus"
-npx ruflo@3.5.18 agent spawn -t tester --name sdm-loop-tester \
+npx ruflo@3.76.0 agent spawn -t tester --name sdm-loop-tester \
   --capabilities "testing,loop-detection,vitest"
-npx ruflo@3.5.18 agent spawn -t coder --name sdm-token-coder \
+npx ruflo@3.76.0 agent spawn -t coder --name sdm-token-coder \
   --capabilities "token-tracking,cli,dashboard"
-npx ruflo@3.5.18 agent spawn -t coder --name sdm-holdout-coder \
+npx ruflo@3.76.0 agent spawn -t coder --name sdm-holdout-coder \
   --capabilities "test-generation,holdout,ci"
-npx ruflo@3.5.18 agent spawn -t coder --name sdm-gate-coder \
+npx ruflo@3.76.0 agent spawn -t coder --name sdm-gate-coder \
   --capabilities "coherence,quality-gates,ratcheting"
-npx ruflo@3.5.18 agent spawn -t coder --name sdm-context-coder \
+npx ruflo@3.76.0 agent spawn -t coder --name sdm-context-coder \
   --capabilities "agent-spawning,context,memory"
-npx ruflo@3.5.18 agent spawn -t coder --name sdm-meta-coder \
+npx ruflo@3.76.0 agent spawn -t coder --name sdm-meta-coder \
   --capabilities "learning,metrics,optimization"
 ```
 
@@ -144,13 +144,13 @@ All agents share the following HNSW-indexed memory namespaces for cross-agent co
 
 ```bash
 # Agent stores completion signal
-npx ruflo@3.5.18 memory store \
+npx ruflo@3.76.0 memory store \
   --key "action-1-status" \
   --value '{"complete":true,"testsPass":true,"filesModified":["anti-drift-middleware.ts"]}' \
   --namespace "aqe/strongdm-impl/action-1"
 
 # Coordinator queries for completion
-npx ruflo@3.5.18 memory search \
+npx ruflo@3.76.0 memory search \
   --query "action status complete" \
   --namespace "aqe/strongdm-impl"
 ```
@@ -286,7 +286,7 @@ If an agent discovers it needs to modify a file owned by another agent:
 
 1. Store the required change as a structured request in shared memory:
    ```bash
-   npx ruflo@3.5.18 memory store \
+   npx ruflo@3.76.0 memory store \
      --key "cross-agent-request-{requestId}" \
      --value '{"requester":"sdm-meta-coder","owner":"sdm-loop-coder","file":"anti-drift-middleware.ts","change":"Add getLoopMetrics() export","priority":"medium"}' \
      --namespace "aqe/strongdm-impl/coordination"
@@ -455,7 +455,7 @@ Extend the `TokenUsageParams.operation` union type to include `'dashboard'`, whi
 The existing `aqe-costs` skill should call the new dashboard endpoint. Store the wiring instructions in shared memory for the skill maintainer:
 
 ```bash
-npx ruflo@3.5.18 memory store \
+npx ruflo@3.76.0 memory store \
   --key "aqe-costs-dashboard-wiring" \
   --value '{"skill":"aqe-costs","newEndpoint":"TokenMetricsCollector.formatDashboardSummary()","status":"ready-for-wiring"}' \
   --namespace "aqe/strongdm-impl/action-2"
@@ -1003,7 +1003,7 @@ End of Week 10:
 npm run build && \
 npm test -- --run && \
 npm run lint && \
-npx ruflo@3.5.18 memory search --query "action status" --namespace "aqe/strongdm-impl"
+npx ruflo@3.76.0 memory search --query "action status" --namespace "aqe/strongdm-impl"
 ```
 
 ### Tier 2 Gate (after Actions 3 and 4)
@@ -1072,8 +1072,8 @@ git branch -D strongdm/action-1-loop-detection
 git branch -D strongdm/action-2-token-dashboard
 
 # Clean up memory namespaces
-npx ruflo@3.5.18 memory delete --namespace "aqe/strongdm-impl/action-1"
-npx ruflo@3.5.18 memory delete --namespace "aqe/strongdm-impl/action-2"
+npx ruflo@3.76.0 memory delete --namespace "aqe/strongdm-impl/action-1"
+npx ruflo@3.76.0 memory delete --namespace "aqe/strongdm-impl/action-2"
 ```
 
 ### Feature flags for runtime rollback
@@ -1134,7 +1134,7 @@ Based on the 3-tier model routing (ADR-026):
 
 ```bash
 # Check budget during execution
-npx ruflo@3.5.18 memory retrieve \
+npx ruflo@3.76.0 memory retrieve \
   --key "token-budget-status" \
   --namespace "aqe/strongdm-impl/coordination"
 
@@ -1161,32 +1161,32 @@ Tracked continuously during and after implementation.
 
 ```bash
 # Loop detection savings
-npx ruflo@3.5.18 memory search \
+npx ruflo@3.76.0 memory search \
   --query "loop detected prevented savings" \
   --namespace "aqe/strongdm-impl/loop-patterns"
 
 # Token dashboard engagement
-npx ruflo@3.5.18 memory search \
+npx ruflo@3.76.0 memory search \
   --query "dashboard invocation count" \
   --namespace "aqe/strongdm-impl/action-2"
 
 # Holdout pass rate trend
-npx ruflo@3.5.18 memory search \
+npx ruflo@3.76.0 memory search \
   --query "holdout pass rate monthly" \
   --namespace "aqe/strongdm-impl/action-3"
 
 # Ratchet history
-npx ruflo@3.5.18 memory search \
+npx ruflo@3.76.0 memory search \
   --query "ratchet threshold increase" \
   --namespace "aqe/strongdm-impl/action-4"
 
 # Context token reduction
-npx ruflo@3.5.18 memory search \
+npx ruflo@3.76.0 memory search \
   --query "tokens per spawn reduction" \
   --namespace "aqe/strongdm-impl/action-5"
 
 # Meta-learning suggestions adopted
-npx ruflo@3.5.18 memory search \
+npx ruflo@3.76.0 memory search \
   --query "meta-pattern promoted high confidence" \
   --namespace "aqe/strongdm-impl/action-6"
 ```

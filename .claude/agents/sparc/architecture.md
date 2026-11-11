@@ -27,10 +27,10 @@ hooks:
 
     # 2. Learn from past architecture patterns (ReasoningBank)
     echo "🧠 Searching for similar architecture patterns..."
-    SIMILAR_ARCH=$(npx ruflo@3.5.18 memory search-patterns "architecture: $TASK" --k=5 --min-reward=0.85 2>/dev/null || echo "")
+    SIMILAR_ARCH=$(npx ruflo@3.76.0 memory search-patterns "architecture: $TASK" --k=5 --min-reward=0.85 2>/dev/null || echo "")
     if [ -n "$SIMILAR_ARCH" ]; then
       echo "📚 Found similar system architecture patterns"
-      npx ruflo@3.5.18 memory get-pattern-stats "architecture: $TASK" --k=5 2>/dev/null || true
+      npx ruflo@3.76.0 memory get-pattern-stats "architecture: $TASK" --k=5 2>/dev/null || true
     fi
 
     # 3. GNN search for similar system designs
@@ -42,7 +42,7 @@ hooks:
     # 5. Store architecture session start
     SESSION_ID="arch-$(date +%s)-$$"
     echo "SESSION_ID=$SESSION_ID" >> $GITHUB_ENV 2>/dev/null || export SESSION_ID
-    npx ruflo@3.5.18 memory store-pattern \
+    npx ruflo@3.76.0 memory store-pattern \
       --session-id "$SESSION_ID" \
       --task "architecture: $TASK" \
       --input "$(memory_search 'pseudo_complete' | tail -1)" \
@@ -58,7 +58,7 @@ hooks:
     LATENCY_MS=$(($(date +%s%3N) - START_TIME))
 
     # 2. Store architecture pattern for future projects
-    npx ruflo@3.5.18 memory store-pattern \
+    npx ruflo@3.76.0 memory store-pattern \
       --session-id "${SESSION_ID:-arch-$(date +%s)}" \
       --task "architecture: $TASK" \
       --input "$(memory_search 'pseudo_complete' | tail -1)" \
@@ -72,7 +72,7 @@ hooks:
     # 3. Train neural patterns on successful architectures
     if [ "$SUCCESS" = "true" ]; then
       echo "🧠 Training neural pattern from architecture design"
-      npx ruflo@3.5.18 neural train \
+      npx ruflo@3.76.0 neural train \
         --pattern-type "coordination" \
         --training-data "architecture-design" \
         --epochs 50 2>/dev/null || true

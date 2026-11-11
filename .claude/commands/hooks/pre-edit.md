@@ -5,7 +5,7 @@ Execute pre-edit validations and agent assignment before file modifications.
 ## Usage
 
 ```bash
-npx claude-flow hook pre-edit [options]
+npx ruflo@3.76.0 hook pre-edit [options]
 ```
 
 ## Options
@@ -21,25 +21,25 @@ npx claude-flow hook pre-edit [options]
 ### Basic pre-edit hook
 
 ```bash
-npx claude-flow hook pre-edit --file "src/auth/login.js"
+npx ruflo@3.76.0 hook pre-edit --file "src/auth/login.js"
 ```
 
 ### With validation
 
 ```bash
-npx claude-flow hook pre-edit -f "config/database.js" --validate-syntax
+npx ruflo@3.76.0 hook pre-edit -f "config/database.js" --validate-syntax
 ```
 
 ### Manual agent assignment
 
 ```bash
-npx claude-flow hook pre-edit -f "api/users.ts" --auto-assign-agent false
+npx ruflo@3.76.0 hook pre-edit -f "api/users.ts" --auto-assign-agent false
 ```
 
 ### Safe editing with backup
 
 ```bash
-npx claude-flow hook pre-edit -f "production.env" --backup-file --check-conflicts
+npx ruflo@3.76.0 hook pre-edit -f "production.env" --backup-file --check-conflicts
 ```
 
 ## Features
@@ -86,7 +86,7 @@ Manual usage in agents:
 
 ```bash
 # Before editing files
-npx claude-flow hook pre-edit --file "path/to/file.js" --validate-syntax
+npx ruflo@3.76.0 hook pre-edit --file "path/to/file.js" --validate-syntax
 ```
 
 ## Output

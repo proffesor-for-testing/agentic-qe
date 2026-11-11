@@ -618,7 +618,7 @@ prime-radiant-advanced-wasm: ^0.1.3
 - [ ] Concurrency test: 8 concurrent simulated agents using coherence gate without deadlock or data corruption
 - [ ] Security review: cryptographic implementations (Blake3, Ed25519) reviewed for correctness
 - [x] New metrics appear in `aqe ruvector status` and persist to monitoring system — **PASS: health metrics visible via status command**
-- [ ] Run `npx ruflo@3.5.18 security scan` and verify no new vulnerabilities
+- [ ] Run `npx ruflo@3.76.0 security scan` and verify no new vulnerabilities
 
 ---
 

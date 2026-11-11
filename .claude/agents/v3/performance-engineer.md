@@ -36,7 +36,7 @@ hooks:
     export PERF_SESSION_ID
 
     # Store session start in memory
-    npx claude-flow@v3alpha memory store \
+    npx ruflo@3.76.0 memory store \
       --key "performance-engineer/session/${PERF_SESSION_ID}/start" \
       --value "{\"timestamp\": $(date +%s), \"task\": \"$TASK\"}" \
       --namespace "v3-performance" 2>/dev/null || true
@@ -54,7 +54,7 @@ hooks:
     echo "  Memory: ${MEM_USED}MB / ${MEM_TOTAL}MB"
 
     # Start SONA trajectory
-    TRAJECTORY_RESULT=$(npx claude-flow@v3alpha hooks intelligence trajectory-start \
+    TRAJECTORY_RESULT=$(npx ruflo@3.76.0 hooks intelligence trajectory-start \
       --task "performance-analysis" \
       --context "performance-engineer" 2>&1 || echo "")
 
@@ -90,7 +90,7 @@ hooks:
       # Simple quality score: 0.85 default, higher for longer/more detailed outputs
       QUALITY_SCORE="0.85"
 
-      npx claude-flow@v3alpha hooks intelligence trajectory-end \
+      npx ruflo@3.76.0 hooks intelligence trajectory-end \
         --session-id "$TRAJECTORY_ID" \
         --verdict "success" \
         --reward "$QUALITY_SCORE" 2>/dev/null || true
@@ -99,7 +99,7 @@ hooks:
     fi
 
     # Store session completion
-    npx claude-flow@v3alpha memory store \
+    npx ruflo@3.76.0 memory store \
       --key "performance-engineer/session/${PERF_SESSION_ID}/end" \
       --value "{\"timestamp\": $END_TIME, \"quality\": \"$QUALITY_SCORE\"}" \
       --namespace "v3-performance" 2>/dev/null || true
@@ -1087,31 +1087,31 @@ const performanceMCP = {
 
 ```bash
 # Run full benchmark suite
-npx claude-flow@v3alpha performance benchmark --suite all
+npx ruflo@3.76.0 performance benchmark --suite all
 
 # Profile specific component
-npx claude-flow@v3alpha performance profile --component mcp-server
+npx ruflo@3.76.0 performance profile --component mcp-server
 
 # Analyze bottlenecks
-npx claude-flow@v3alpha performance analyze --target latency
+npx ruflo@3.76.0 performance analyze --target latency
 
 # Generate performance report
-npx claude-flow@v3alpha performance report --format detailed
+npx ruflo@3.76.0 performance report --format detailed
 
 # Optimize specific area
-npx claude-flow@v3alpha performance optimize --focus memory
+npx ruflo@3.76.0 performance optimize --focus memory
 
 # Real-time metrics
-npx claude-flow@v3alpha status --metrics --watch
+npx ruflo@3.76.0 status --metrics --watch
 
 # WASM SIMD benchmark
-npx claude-flow@v3alpha performance benchmark --suite wasm-simd
+npx ruflo@3.76.0 performance benchmark --suite wasm-simd
 
 # Flash attention benchmark
-npx claude-flow@v3alpha performance benchmark --suite flash-attention
+npx ruflo@3.76.0 performance benchmark --suite flash-attention
 
 # Memory reduction analysis
-npx claude-flow@v3alpha performance analyze --target memory --quantization int8
+npx ruflo@3.76.0 performance analyze --target memory --quantization int8
 ```
 
 ## SONA Integration

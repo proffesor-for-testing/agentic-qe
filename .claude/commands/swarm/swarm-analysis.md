@@ -4,5 +4,5 @@ Command documentation for swarm-analysis in category swarm.
 
 Usage:
 ```bash
-npx claude-flow swarm swarm-analysis [options]
+npx ruflo@3.76.0 swarm swarm-analysis [options]
 ```

@@ -881,8 +881,8 @@ Phase 6: HYG-001 || HYG-002 || HYG-003 || HYG-004 (all independent)
 
 ```bash
 # Namespace structure for cross-agent learning
-npx ruflo@3.5.18 memory store --namespace "improvement-plan" --key "phase-1-patterns" --value "..."
-npx ruflo@3.5.18 memory store --namespace "improvement-plan" --key "refactoring-patterns" --value "..."
+npx ruflo@3.76.0 memory store --namespace "improvement-plan" --key "phase-1-patterns" --value "..."
+npx ruflo@3.76.0 memory store --namespace "improvement-plan" --key "refactoring-patterns" --value "..."
 
 # Shared namespaces:
 # - improvement-plan/security-fixes    : Security fix patterns and validation results
@@ -895,25 +895,25 @@ npx ruflo@3.5.18 memory store --namespace "improvement-plan" --key "refactoring-
 
 ```bash
 # Phase 1-2: Security + Performance (tight coordination)
-npx ruflo@3.5.18 swarm init \
+npx ruflo@3.76.0 swarm init \
   --topology hierarchical \
   --max-agents 6 \
   --strategy specialized
 
 # Phase 3: Refactoring (parallel file work with coordination)
-npx ruflo@3.5.18 swarm init \
+npx ruflo@3.76.0 swarm init \
   --topology hierarchical \
   --max-agents 8 \
   --strategy specialized
 
 # Phase 4-5: Testing (independent test writing)
-npx ruflo@3.5.18 swarm init \
+npx ruflo@3.76.0 swarm init \
   --topology mesh \
   --max-agents 6 \
   --strategy specialized
 
 # Phase 6: Hygiene (cross-file consistency)
-npx ruflo@3.5.18 swarm init \
+npx ruflo@3.76.0 swarm init \
   --topology hierarchical \
   --max-agents 4 \
   --strategy specialized

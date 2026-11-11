@@ -550,10 +550,10 @@ Flow Nexus swarms integrate seamlessly with Claude Flow hooks:
 
 ```bash
 # Pre-task coordination setup
-npx ruflo@3.5.18 hooks pre-task --description "Initialize swarm"
+npx ruflo@3.76.0 hooks pre-task --description "Initialize swarm"
 
 # Post-task metrics export
-npx ruflo@3.5.18 hooks post-task --task-id "swarm-execution"
+npx ruflo@3.76.0 hooks post-task --task-id "swarm-execution"
 ```
 
 ## Common Use Cases

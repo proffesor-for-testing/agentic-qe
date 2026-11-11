@@ -109,16 +109,16 @@ Task("Monitor fleet health", `
 
 ```bash
 # Retrieve fleet ID
-npx ruflo@3.5.18 memory retrieve --key "aqe/fleet/id"
+npx ruflo@3.76.0 memory retrieve --key "aqe/fleet/id"
 
 # Retrieve fleet status
-npx ruflo@3.5.18 memory retrieve --key "aqe/fleet/status"
+npx ruflo@3.76.0 memory retrieve --key "aqe/fleet/status"
 
 # Retrieve agent metrics
-npx ruflo@3.5.18 memory retrieve --key "aqe/agents/*/metrics"
+npx ruflo@3.76.0 memory retrieve --key "aqe/agents/*/metrics"
 
 # Retrieve recent activity
-npx ruflo@3.5.18 memory retrieve --key "aqe/activity/recent"
+npx ruflo@3.76.0 memory retrieve --key "aqe/activity/recent"
 ```
 
 ## Expected Outputs

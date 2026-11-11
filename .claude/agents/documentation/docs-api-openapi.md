@@ -106,14 +106,14 @@ hooks:
 
     # 🧠 v3.0.0-alpha.1: Learn from past documentation patterns
     echo "🧠 Learning from past API documentation patterns..."
-    SIMILAR_DOCS=$(npx ruflo@3.5.18 memory search-patterns "API documentation: $TASK" --k=5 --min-reward=0.85 2>/dev/null || echo "")
+    SIMILAR_DOCS=$(npx ruflo@3.76.0 memory search-patterns "API documentation: $TASK" --k=5 --min-reward=0.85 2>/dev/null || echo "")
     if [ -n "$SIMILAR_DOCS" ]; then
       echo "📚 Found similar successful documentation patterns"
-      npx ruflo@3.5.18 memory get-pattern-stats "API documentation" --k=5 2>/dev/null || true
+      npx ruflo@3.76.0 memory get-pattern-stats "API documentation" --k=5 2>/dev/null || true
     fi
 
     # Store task start
-    npx ruflo@3.5.18 memory store-pattern \
+    npx ruflo@3.76.0 memory store-pattern \
       --session-id "api-docs-$(date +%s)" \
       --task "Documentation: $TASK" \
       --input "$TASK_CONTEXT" \
@@ -135,7 +135,7 @@ hooks:
     REWARD="0.9"
     SUCCESS="true"
 
-    npx ruflo@3.5.18 memory store-pattern \
+    npx ruflo@3.76.0 memory store-pattern \
       --session-id "api-docs-$(date +%s)" \
       --task "Documentation: $TASK" \
       --output "OpenAPI spec with $ENDPOINT_COUNT endpoints, $SCHEMA_COUNT schemas" \
@@ -146,7 +146,7 @@ hooks:
     # Train neural patterns on successful documentation
     if [ "$SUCCESS" = "true" ]; then
       echo "🧠 Training neural pattern from successful documentation"
-      npx ruflo@3.5.18 neural train \
+      npx ruflo@3.76.0 neural train \
         --pattern-type "coordination" \
         --training-data "$TASK_OUTPUT" \
         --epochs 50 2>/dev/null || true
@@ -157,7 +157,7 @@ hooks:
     echo "🔧 Check OpenAPI specification syntax"
 
     # Store failure pattern
-    npx ruflo@3.5.18 memory store-pattern \
+    npx ruflo@3.76.0 memory store-pattern \
       --session-id "api-docs-$(date +%s)" \
       --task "Documentation: $TASK" \
       --output "Failed: {{error_message}}" \

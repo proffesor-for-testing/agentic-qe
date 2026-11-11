@@ -23,7 +23,7 @@ mcp__claude-flow__task_orchestrate({
 ```
 
 ### Using CLI (Fallback)
-`npx claude-flow swarm "optimize performance" --strategy optimization`
+`npx ruflo@3.76.0 swarm "optimize performance" --strategy optimization`
 
 ## Agent Roles
 

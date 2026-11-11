@@ -55,7 +55,7 @@ gh run view <run-id> --json jobs,conclusion | \
 
 ```bash
 # Usage example
-npx ruflo@3.5.18 github gh-coordinator \
+npx ruflo@3.76.0 github gh-coordinator \
   "Coordinate multi-repo release across 5 repositories"
 ```
 
@@ -81,7 +81,7 @@ gh pr create --title "Feature: New capability" \
 
 ```bash
 # Create coordinated issue workflow
-npx ruflo@3.5.18 github issue-tracker \
+npx ruflo@3.76.0 github issue-tracker \
   "Manage sprint issues with automated tracking"
 ```
 
@@ -93,7 +93,7 @@ npx ruflo@3.5.18 github issue-tracker \
 
 ```bash
 # Automated release management
-npx ruflo@3.5.18 github release-manager \
+npx ruflo@3.76.0 github release-manager \
   "Create v2.0.0 release with changelog and deployment"
 ```
 
@@ -105,7 +105,7 @@ npx ruflo@3.5.18 github release-manager \
 
 ```bash
 # Optimize repository structure
-npx ruflo@3.5.18 github repo-architect \
+npx ruflo@3.76.0 github repo-architect \
   "Restructure monorepo with optimal organization"
 ```
 
@@ -131,7 +131,7 @@ gh pr view 123 --json files | \
 
 ```bash
 # Orchestrate CI/CD pipeline
-npx ruflo@3.5.18 github ci-orchestrator \
+npx ruflo@3.76.0 github ci-orchestrator \
   "Setup parallel test execution with smart caching"
 ```
 
@@ -541,17 +541,17 @@ mcp__claude-flow__task_orchestrate {
 #### GitHub Hooks Integration
 ```bash
 # Pre-task: Setup GitHub context
-npx ruflo@3.5.18 hooks pre-task \
+npx ruflo@3.76.0 hooks pre-task \
   --description "PR review workflow" \
   --context "pr-123"
 
 # During task: Track progress
-npx ruflo@3.5.18 hooks notify \
+npx ruflo@3.76.0 hooks notify \
   --message "Completed security scan" \
   --type "github-action"
 
 # Post-task: Export results
-npx ruflo@3.5.18 hooks post-task \
+npx ruflo@3.76.0 hooks post-task \
   --task-id "pr-review-123" \
   --export-github-summary
 ```
@@ -899,7 +899,7 @@ jobs:
 #### Example 3: Multi-Repo Synchronization
 ```bash
 # Synchronize multiple repositories
-npx ruflo@3.5.18 github sync-coordinator \
+npx ruflo@3.76.0 github sync-coordinator \
   "Synchronize version updates across:
    - github.com/org/repo-a
    - github.com/org/repo-b
@@ -987,7 +987,7 @@ npx ruv-swarm actions analytics [options]
 - [ ] GitHub CLI (`gh`) installed and authenticated
 - [ ] Git configured with user credentials
 - [ ] Node.js v16+ installed
-- [ ] `ruflo@3.5.18` package available
+- [ ] `ruflo@3.76.0` package available
 - [ ] Repository has `.github/workflows` directory
 - [ ] GitHub Actions enabled on repository
 - [ ] Necessary secrets configured
@@ -999,7 +999,7 @@ npx ruv-swarm actions analytics [options]
 # setup-github-automation.sh
 
 # Install dependencies
-npm install -g ruflo@3.5.18
+npm install -g ruflo@3.76.0
 
 # Verify GitHub CLI
 gh auth status || gh auth login

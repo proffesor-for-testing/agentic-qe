@@ -65,19 +65,19 @@ mcp__claude-flow__swarm_monitor {
 ### Option 2: Using NPX CLI (Fallback when MCP not available)
 ```bash
 # Use when running from terminal or MCP tools unavailable
-npx claude-flow sparc run <mode> "task description"
+npx ruflo@3.76.0 sparc run <mode> "task description"
 
 # For alpha features
-npx ruflo@3.5.18 sparc run <mode> "task description"
+npx ruflo@3.76.0 sparc run <mode> "task description"
 
 # List all modes
-npx claude-flow sparc modes
+npx ruflo@3.76.0 sparc modes
 
 # Get help for a mode
-npx claude-flow sparc help <mode>
+npx ruflo@3.76.0 sparc help <mode>
 
 # Run with options
-npx claude-flow sparc run <mode> "task" --parallel --monitor
+npx ruflo@3.76.0 sparc run <mode> "task" --parallel --monitor
 ```
 
 ### Option 3: Local Installation
@@ -126,16 +126,16 @@ mcp__claude-flow__sparc_mode {
 #### Using NPX CLI (Fallback)
 ```bash
 # 1. Architecture design
-npx claude-flow sparc run architect "design microservices"
+npx ruflo@3.76.0 sparc run architect "design microservices"
 
 # 2. Implementation
-npx claude-flow sparc run coder "implement services"
+npx ruflo@3.76.0 sparc run coder "implement services"
 
 # 3. Testing
-npx claude-flow sparc run tdd "test all services"
+npx ruflo@3.76.0 sparc run tdd "test all services"
 
 # 4. Review
-npx claude-flow sparc run reviewer "review implementation"
+npx ruflo@3.76.0 sparc run reviewer "review implementation"
 ```
 
 ### Research and Innovation
@@ -164,11 +164,11 @@ mcp__claude-flow__sparc_mode {
 #### Using NPX CLI (Fallback)
 ```bash
 # 1. Research phase
-npx claude-flow sparc run researcher "research best practices"
+npx ruflo@3.76.0 sparc run researcher "research best practices"
 
 # 2. Innovation
-npx claude-flow sparc run innovator "propose novel solutions"
+npx ruflo@3.76.0 sparc run innovator "propose novel solutions"
 
 # 3. Documentation
-npx claude-flow sparc run documenter "document findings"
+npx ruflo@3.76.0 sparc run documenter "document findings"
 ```

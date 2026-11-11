@@ -162,12 +162,12 @@ assigned_agents:
   - qe-coder
 claude_flow_commands:
   - |
-    npx ruflo@3.5.18 hooks pre-task \
+    npx ruflo@3.76.0 hooks pre-task \
       --description "Install prime-radiant-advanced-wasm package"
   - |
     cd /workspaces/agentic-qe/v3 && npm install prime-radiant-advanced-wasm@0.1.3
   - |
-    npx ruflo@3.5.18 hooks post-task \
+    npx ruflo@3.76.0 hooks post-task \
       --task-id "A1.1" --success true
 verification:
   - grep "prime-radiant-advanced-wasm" /workspaces/agentic-qe/v3/package.json
@@ -191,10 +191,10 @@ output_files:
   - /workspaces/agentic-qe/v3/src/integrations/coherence/types.ts
 claude_flow_commands:
   - |
-    npx ruflo@3.5.18 memory search \
+    npx ruflo@3.76.0 memory search \
       --query "WASM loader pattern Node.js" --namespace patterns
   - |
-    npx ruflo@3.5.18 hooks route \
+    npx ruflo@3.76.0 hooks route \
       --task "Create WASM loader for prime-radiant-advanced-wasm"
 mcp_tools:
   - |
@@ -228,10 +228,10 @@ output_files:
   - /workspaces/agentic-qe/v3/src/integrations/coherence/index.ts
 claude_flow_commands:
   - |
-    npx ruflo@3.5.18 swarm init \
+    npx ruflo@3.76.0 swarm init \
       --topology hierarchical --max-agents 8 --strategy specialized
   - |
-    npx ruflo@3.5.18 memory store \
+    npx ruflo@3.76.0 memory store \
       --key "coherence-service-interface" \
       --value "{ 'engines': ['cohomology', 'spectral', 'causal', 'category', 'homotopy', 'witness'], 'methods': ['checkCoherence', 'detectContradictions', 'predictCollapse', 'verifyCausality', 'verifyTypes', 'createWitness'] }" \
       --namespace patterns
@@ -270,7 +270,7 @@ output_files:
   - /workspaces/agentic-qe/v3/tests/integrations/coherence/witness-adapter.test.ts
 claude_flow_commands:
   - |
-    npx ruflo@3.5.18 hooks pre-task \
+    npx ruflo@3.76.0 hooks pre-task \
       --description "Generate unit tests for CoherenceService adapters"
 mcp_tools:
   - |
@@ -307,7 +307,7 @@ output_files:
   - /workspaces/agentic-qe/v3/tests/benchmarks/coherence-performance.bench.ts
 claude_flow_commands:
   - |
-    npx ruflo@3.5.18 hooks worker dispatch \
+    npx ruflo@3.76.0 hooks worker dispatch \
       --trigger benchmark --context "coherence-performance"
 verification_command: |
   cd /workspaces/agentic-qe/v3 && npm run test:perf -- coherence-performance
@@ -340,7 +340,7 @@ modified_files:
   - /workspaces/agentic-qe/v3/src/strange-loop/types.ts
 claude_flow_commands:
   - |
-    npx ruflo@3.5.18 memory search \
+    npx ruflo@3.76.0 memory search \
       --query "strange loop self-awareness ADR-031" --namespace patterns
 integration_point: |
   // In StrangeLoopOrchestrator.runCycle()
@@ -405,7 +405,7 @@ output_files:
   - /workspaces/agentic-qe/v3/src/strange-loop/belief-reconciler.ts
 claude_flow_commands:
   - |
-    npx ruflo@3.5.18 hooks route \
+    npx ruflo@3.76.0 hooks route \
       --task "Design belief reconciliation protocol for contradictory agent states"
 protocol_spec: |
   class BeliefReconciler {
@@ -496,7 +496,7 @@ modified_files:
   - /workspaces/agentic-qe/v3/src/learning/real-qe-reasoning-bank.ts
 claude_flow_commands:
   - |
-    npx ruflo@3.5.18 memory search \
+    npx ruflo@3.76.0 memory search \
       --query "pattern retrieval coherence filter" --namespace patterns
 implementation_spec: |
   async routeTask(request: QERoutingRequest): Promise<QERoutingResult> {
@@ -533,7 +533,7 @@ output_files:
   - /workspaces/agentic-qe/v3/src/learning/memory-auditor.ts
 claude_flow_commands:
   - |
-    npx ruflo@3.5.18 hooks worker dispatch \
+    npx ruflo@3.76.0 hooks worker dispatch \
       --trigger audit --context "memory-coherence"
 functionality:
   - Scan all stored patterns for contradictions
@@ -685,7 +685,7 @@ mcp_tool_definitions:
     returns: CollapseRisk
 claude_flow_commands:
   - |
-    npx ruflo@3.5.18 memory store \
+    npx ruflo@3.76.0 memory store \
       --key "mcp-coherence-tools" \
       --value "{ 'tools': ['coherence_check', 'coherence_audit_memory', 'coherence_verify_consensus', 'coherence_predict_collapse'] }" \
       --namespace mcp-registry
@@ -882,35 +882,35 @@ Parallel Group 5 (Week 7-8):
 ### Swarm Initialization
 ```bash
 # Initialize hierarchical swarm for ADR-052 implementation
-npx ruflo@3.5.18 swarm init \
+npx ruflo@3.76.0 swarm init \
   --topology hierarchical \
   --max-agents 8 \
   --strategy specialized
 
 # Check swarm status
-npx ruflo@3.5.18 swarm status
+npx ruflo@3.76.0 swarm status
 ```
 
 ### Pre-Task Hooks (Model Routing)
 ```bash
 # Before each action, route to optimal agent
-npx ruflo@3.5.18 hooks pre-task \
+npx ruflo@3.76.0 hooks pre-task \
   --description "Implement CoherenceService adapter for sheaf cohomology engine"
 
 # Route complex task
-npx ruflo@3.5.18 hooks route \
+npx ruflo@3.76.0 hooks route \
   --task "Design belief reconciliation protocol"
 ```
 
 ### Post-Task Hooks (Learning)
 ```bash
 # Record successful action completion
-npx ruflo@3.5.18 hooks post-task \
+npx ruflo@3.76.0 hooks post-task \
   --task-id "A1.3" \
   --success true
 
 # Record with quality score
-npx ruflo@3.5.18 hooks post-task \
+npx ruflo@3.76.0 hooks post-task \
   --task-id "A1.5" \
   --success true \
   --quality 0.95
@@ -919,18 +919,18 @@ npx ruflo@3.5.18 hooks post-task \
 ### Memory Operations
 ```bash
 # Store implementation pattern
-npx ruflo@3.5.18 memory store \
+npx ruflo@3.76.0 memory store \
   --key "coherence-wasm-loader-pattern" \
   --value "{ 'pattern': 'lazy-load-with-retry', 'retryCount': 3, 'timeout': 5000 }" \
   --namespace patterns
 
 # Search for related patterns
-npx ruflo@3.5.18 memory search \
+npx ruflo@3.76.0 memory search \
   --query "WASM loading error handling" \
   --namespace patterns
 
 # Retrieve specific pattern
-npx ruflo@3.5.18 memory retrieve \
+npx ruflo@3.76.0 memory retrieve \
   --key "coherence-service-interface" \
   --namespace patterns
 ```
@@ -938,17 +938,17 @@ npx ruflo@3.5.18 memory retrieve \
 ### Background Workers
 ```bash
 # Dispatch performance benchmark worker
-npx ruflo@3.5.18 hooks worker dispatch \
+npx ruflo@3.76.0 hooks worker dispatch \
   --trigger benchmark \
   --context "coherence-100-nodes"
 
 # Dispatch audit worker
-npx ruflo@3.5.18 hooks worker dispatch \
+npx ruflo@3.76.0 hooks worker dispatch \
   --trigger audit \
   --context "memory-coherence"
 
 # Dispatch documentation worker
-npx ruflo@3.5.18 hooks worker dispatch \
+npx ruflo@3.76.0 hooks worker dispatch \
   --trigger document \
   --context "coherence-service-api"
 ```
@@ -956,15 +956,15 @@ npx ruflo@3.5.18 hooks worker dispatch \
 ### Session Management
 ```bash
 # Start session for ADR-052 implementation
-npx ruflo@3.5.18 hooks session-start \
+npx ruflo@3.76.0 hooks session-start \
   --session-id "adr-052-coherence-impl"
 
 # Restore session
-npx ruflo@3.5.18 session restore \
+npx ruflo@3.76.0 session restore \
   --name "adr-052-coherence-impl"
 
 # End session with metrics
-npx ruflo@3.5.18 hooks session-end \
+npx ruflo@3.76.0 hooks session-end \
   --export-metrics true
 ```
 
@@ -1131,7 +1131,7 @@ cd /workspaces/agentic-qe/v3 && npm test -- --run
 npm run test:coverage
 
 # Security scan
-npx ruflo@3.5.18 hooks worker dispatch --trigger audit
+npx ruflo@3.76.0 hooks worker dispatch --trigger audit
 ```
 
 ---
@@ -1173,7 +1173,7 @@ The GOAP planner will trigger replanning if:
 
 **Replanning Command:**
 ```bash
-npx ruflo@3.5.18 hooks route \
+npx ruflo@3.76.0 hooks route \
   --task "Replan ADR-052 implementation after [trigger reason]"
 ```
 

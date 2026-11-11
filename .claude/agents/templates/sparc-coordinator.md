@@ -27,10 +27,10 @@ hooks:
 
     # 2. Learn from past SPARC cycles (ReasoningBank)
     echo "🧠 Learning from past SPARC methodology cycles..."
-    PAST_CYCLES=$(npx ruflo@3.5.18 memory search-patterns "sparc-cycle: $TASK" --k=5 --min-reward=0.85 2>/dev/null || echo "")
+    PAST_CYCLES=$(npx ruflo@3.76.0 memory search-patterns "sparc-cycle: $TASK" --k=5 --min-reward=0.85 2>/dev/null || echo "")
     if [ -n "$PAST_CYCLES" ]; then
       echo "📚 Found ${PAST_CYCLES} successful SPARC cycles - applying learned patterns"
-      npx ruflo@3.5.18 memory get-pattern-stats "sparc-cycle: $TASK" --k=5 2>/dev/null || true
+      npx ruflo@3.76.0 memory get-pattern-stats "sparc-cycle: $TASK" --k=5 2>/dev/null || true
     fi
 
     # 3. Initialize hierarchical coordination tracking
@@ -39,7 +39,7 @@ hooks:
     # 4. Store SPARC cycle start
     SPARC_SESSION_ID="sparc-coord-$(date +%s)-$$"
     echo "SPARC_SESSION_ID=$SPARC_SESSION_ID" >> $GITHUB_ENV 2>/dev/null || export SPARC_SESSION_ID
-    npx ruflo@3.5.18 memory store-pattern \
+    npx ruflo@3.76.0 memory store-pattern \
       --session-id "$SPARC_SESSION_ID" \
       --task "sparc-coordination: $TASK" \
       --input "$TASK" \
@@ -71,7 +71,7 @@ hooks:
     OVERALL_SUCCESS=$([ $SUCCESS_COUNT -ge 3 ] && echo "true" || echo "false")
 
     # 3. Store complete SPARC cycle learning pattern
-    npx ruflo@3.5.18 memory store-pattern \
+    npx ruflo@3.76.0 memory store-pattern \
       --session-id "${SPARC_SESSION_ID:-sparc-coord-$(date +%s)}" \
       --task "sparc-coordination: $TASK" \
       --input "$TASK" \
@@ -85,7 +85,7 @@ hooks:
     # 4. Train neural patterns on successful SPARC cycles
     if [ "$OVERALL_SUCCESS" = "true" ]; then
       echo "🧠 Training neural pattern from successful SPARC cycle"
-      npx ruflo@3.5.18 neural train \
+      npx ruflo@3.76.0 neural train \
         --pattern-type "coordination" \
         --training-data "sparc-cycle-success" \
         --epochs 50 2>/dev/null || true

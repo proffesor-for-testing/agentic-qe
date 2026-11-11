@@ -35,16 +35,16 @@ mcp__claude-flow__sparc_mode {
 ### Option 2: Using NPX CLI (Fallback when MCP not available)
 ```bash
 # Use when running from terminal or MCP tools unavailable
-npx claude-flow sparc run debug "fix memory leak in service"
+npx ruflo@3.76.0 sparc run debug "fix memory leak in service"
 
 # For alpha features
-npx ruflo@3.5.18 sparc run debug "fix memory leak in service"
+npx ruflo@3.76.0 sparc run debug "fix memory leak in service"
 
 # With namespace
-npx claude-flow sparc run debug "your task" --namespace debug
+npx ruflo@3.76.0 sparc run debug "your task" --namespace debug
 
 # Non-interactive mode
-npx claude-flow sparc run debug "your task" --non-interactive
+npx ruflo@3.76.0 sparc run debug "your task" --non-interactive
 ```
 
 ### Option 3: Local Installation
@@ -76,8 +76,8 @@ mcp__claude-flow__memory_search {
 ### Using NPX CLI (Fallback)
 ```bash
 # Store mode-specific context
-npx claude-flow memory store "debug_context" "important decisions" --namespace debug
+npx ruflo@3.76.0 memory store "debug_context" "important decisions" --namespace debug
 
 # Query previous work
-npx claude-flow memory query "debug" --limit 5
+npx ruflo@3.76.0 memory query "debug" --limit 5
 ```

@@ -159,35 +159,35 @@
 
 ```bash
 # Initialize project
-npx ruflo@3.5.18 init --wizard
+npx ruflo@3.76.0 init --wizard
 
 # Start daemon
-npx ruflo@3.5.18 daemon start
+npx ruflo@3.76.0 daemon start
 
 # Spawn agent
-npx ruflo@3.5.18 agent spawn -t coder --name my-coder
+npx ruflo@3.76.0 agent spawn -t coder --name my-coder
 
 # Initialize swarm
-npx ruflo@3.5.18 swarm init --topology hierarchical --max-agents 8
+npx ruflo@3.76.0 swarm init --topology hierarchical --max-agents 8
 
 # Memory operations
-npx ruflo@3.5.18 memory store --key "key" --value "value" --namespace ns
-npx ruflo@3.5.18 memory search --query "search terms"
-npx ruflo@3.5.18 memory list --namespace patterns
+npx ruflo@3.76.0 memory store --key "key" --value "value" --namespace ns
+npx ruflo@3.76.0 memory search --query "search terms"
+npx ruflo@3.76.0 memory list --namespace patterns
 
 # Hooks
-npx ruflo@3.5.18 hooks pre-task --description "task"
-npx ruflo@3.5.18 hooks route --task "task description"
-npx ruflo@3.5.18 hooks worker dispatch --trigger audit
+npx ruflo@3.76.0 hooks pre-task --description "task"
+npx ruflo@3.76.0 hooks route --task "task description"
+npx ruflo@3.76.0 hooks worker dispatch --trigger audit
 
 # Session
-npx ruflo@3.5.18 session restore --latest
-npx ruflo@3.5.18 hooks session-end --export-metrics true
+npx ruflo@3.76.0 session restore --latest
+npx ruflo@3.76.0 hooks session-end --export-metrics true
 
 # Diagnostics
-npx ruflo@3.5.18 doctor --fix
-npx ruflo@3.5.18 performance benchmark --suite all
-npx ruflo@3.5.18 security scan --depth full
+npx ruflo@3.76.0 doctor --fix
+npx ruflo@3.76.0 performance benchmark --suite all
+npx ruflo@3.76.0 security scan --depth full
 ```
 
 ---
@@ -210,13 +210,13 @@ CLAUDE_FLOW_MEMORY_PATH=./data/memory
 
 ```bash
 # Add MCP server
-claude mcp add claude-flow -- npx -y ruflo@3.5.18
+claude mcp add claude-flow -- npx -y ruflo@3.76.0
 
 # Start daemon
-npx ruflo@3.5.18 daemon start
+npx ruflo@3.76.0 daemon start
 
 # Run diagnostics
-npx ruflo@3.5.18 doctor --fix
+npx ruflo@3.76.0 doctor --fix
 ```
 
 ---
@@ -224,8 +224,8 @@ npx ruflo@3.5.18 doctor --fix
 ## Migration (V2 to V3)
 
 ```bash
-npx ruflo@3.5.18 migrate status
-npx ruflo@3.5.18 migrate run --backup
-npx ruflo@3.5.18 migrate rollback
-npx ruflo@3.5.18 migrate validate
+npx ruflo@3.76.0 migrate status
+npx ruflo@3.76.0 migrate run --backup
+npx ruflo@3.76.0 migrate rollback
+npx ruflo@3.76.0 migrate validate
 ```

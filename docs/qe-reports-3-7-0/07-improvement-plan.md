@@ -690,10 +690,10 @@ Phase 6: HYG-006 || HYG-007 (independent)
 
 ```bash
 # Namespace structure for cross-agent knowledge
-npx ruflo@3.5.18 memory store --namespace "v370-plan" --key "security-fixes" --value "..."
-npx ruflo@3.5.18 memory store --namespace "v370-plan" --key "console-migration-patterns" --value "..."
-npx ruflo@3.5.18 memory store --namespace "v370-plan" --key "file-decomposition-template" --value "..."
-npx ruflo@3.5.18 memory store --namespace "v370-plan" --key "test-stub-patterns" --value "..."
+npx ruflo@3.76.0 memory store --namespace "v370-plan" --key "security-fixes" --value "..."
+npx ruflo@3.76.0 memory store --namespace "v370-plan" --key "console-migration-patterns" --value "..."
+npx ruflo@3.76.0 memory store --namespace "v370-plan" --key "file-decomposition-template" --value "..."
+npx ruflo@3.76.0 memory store --namespace "v370-plan" --key "test-stub-patterns" --value "..."
 
 # Shared namespaces:
 # - v370-plan/security-fixes          : Command injection fix patterns and validation results
@@ -707,31 +707,31 @@ npx ruflo@3.5.18 memory store --namespace "v370-plan" --key "test-stub-patterns"
 
 ```bash
 # Phase 1: Critical Fixes (tight coordination needed)
-npx ruflo@3.5.18 swarm init \
+npx ruflo@3.76.0 swarm init \
   --topology hierarchical \
   --max-agents 6 \
   --strategy specialized
 
 # Phase 2: Console/Error Regression (high parallelism)
-npx ruflo@3.5.18 swarm init \
+npx ruflo@3.76.0 swarm init \
   --topology hierarchical \
   --max-agents 8 \
   --strategy specialized
 
 # Phase 3: Complexity Reduction (parallel file work)
-npx ruflo@3.5.18 swarm init \
+npx ruflo@3.76.0 swarm init \
   --topology hierarchical \
   --max-agents 8 \
   --strategy specialized
 
 # Phase 4: Test Coverage (independent test writing)
-npx ruflo@3.5.18 swarm init \
+npx ruflo@3.76.0 swarm init \
   --topology mesh \
   --max-agents 6 \
   --strategy specialized
 
 # Phase 5-6: Test Quality + Hygiene (smaller scope)
-npx ruflo@3.5.18 swarm init \
+npx ruflo@3.76.0 swarm init \
   --topology hierarchical \
   --max-agents 4 \
   --strategy specialized

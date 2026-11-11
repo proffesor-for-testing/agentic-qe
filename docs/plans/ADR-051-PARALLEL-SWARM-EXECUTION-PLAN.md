@@ -45,13 +45,13 @@
 
 ```bash
 # 1. Initialize claude-flow session
-npx ruflo@3.5.18 hooks session-start --sessionId "adr-051-foundation"
+npx ruflo@3.76.0 hooks session-start --sessionId "adr-051-foundation"
 
 # 2. Pre-task analysis for dependency setup
-npx ruflo@3.5.18 hooks pre-task --taskId "adr-051-p1" --description "Add agentic-flow dependency and create adapter interfaces"
+npx ruflo@3.76.0 hooks pre-task --taskId "adr-051-p1" --description "Add agentic-flow dependency and create adapter interfaces"
 
 # 3. Store baseline benchmarks
-npx ruflo@3.5.18 memory store \
+npx ruflo@3.76.0 memory store \
   --key "adr-051-baseline" \
   --value '{"mechanicalEditLatency": 352, "crossSessionPatterns": 0, "llmCostPerCycle": 0.03, "coordinationLatency": 200}' \
   --namespace "integration-baselines"
@@ -69,10 +69,10 @@ npx ruflo@3.5.18 memory store \
 ### Completion Gate
 
 ```bash
-npx ruflo@3.5.18 hooks post-task --taskId "adr-051-p1" --success true --quality 1.0
+npx ruflo@3.76.0 hooks post-task --taskId "adr-051-p1" --success true --quality 1.0
 
 # Verify foundation ready
-npx ruflo@3.5.18 memory retrieve --key "adr-051-foundation-complete" --namespace "integration-status"
+npx ruflo@3.76.0 memory retrieve --key "adr-051-foundation-complete" --namespace "integration-status"
 ```
 
 ---
@@ -83,13 +83,13 @@ npx ruflo@3.5.18 memory retrieve --key "adr-051-foundation-complete" --namespace
 
 ```bash
 # Initialize hierarchical-mesh topology for 12 agents
-npx ruflo@3.5.18 swarm init \
+npx ruflo@3.76.0 swarm init \
   --topology hierarchical-mesh \
   --max-agents 12 \
   --strategy specialized
 
 # Check swarm status
-npx ruflo@3.5.18 swarm status
+npx ruflo@3.76.0 swarm status
 ```
 
 ### Spawn Phase Swarms (Parallel)
@@ -322,7 +322,7 @@ await mcp__agentic-qe__memory_share({
 
 ```bash
 # Verify implementation
-npx ruflo@3.5.18 memory retrieve --key "booster-adapter-status" --namespace "aqe/agentic-flow/booster"
+npx ruflo@3.76.0 memory retrieve --key "booster-adapter-status" --namespace "aqe/agentic-flow/booster"
 
 # Run benchmark
 npm run benchmark:agent-booster
@@ -340,7 +340,7 @@ npm run benchmark:agent-booster
 
 ```bash
 # Verify implementation
-npx ruflo@3.5.18 memory retrieve --key "reasoning-adapter-status" --namespace "aqe/agentic-flow/reasoning"
+npx ruflo@3.76.0 memory retrieve --key "reasoning-adapter-status" --namespace "aqe/agentic-flow/reasoning"
 
 # Test cross-session persistence
 npm run test:reasoning-persistence
@@ -356,7 +356,7 @@ npm run test:reasoning-persistence
 
 ```bash
 # Verify implementation
-npx ruflo@3.5.18 memory retrieve --key "router-adapter-status" --namespace "aqe/agentic-flow/routing"
+npx ruflo@3.76.0 memory retrieve --key "router-adapter-status" --namespace "aqe/agentic-flow/routing"
 
 # Test cost tracking
 npm run test:cost-routing
@@ -375,12 +375,12 @@ npm run test:cost-routing
 ### Start Session
 
 ```bash
-npx ruflo@3.5.18 hooks session-start \
+npx ruflo@3.76.0 hooks session-start \
   --sessionId "adr-051-implementation" \
   --startDaemon true
 
 # Restore if continuing from previous session
-npx ruflo@3.5.18 hooks session-restore \
+npx ruflo@3.76.0 hooks session-restore \
   --sessionId "adr-051-implementation" \
   --restoreAgents true \
   --restoreTasks true
@@ -389,13 +389,13 @@ npx ruflo@3.5.18 hooks session-restore \
 ### End Session
 
 ```bash
-npx ruflo@3.5.18 hooks session-end \
+npx ruflo@3.76.0 hooks session-end \
   --saveState true \
   --exportMetrics true \
   --stopDaemon true
 
 # Export final metrics
-npx ruflo@3.5.18 hooks metrics --period 24h --includeV3 true
+npx ruflo@3.76.0 hooks metrics --period 24h --includeV3 true
 ```
 
 ---
@@ -406,16 +406,16 @@ npx ruflo@3.5.18 hooks metrics --period 24h --includeV3 true
 
 ```bash
 # Swarm health
-npx ruflo@3.5.18 swarm health
+npx ruflo@3.76.0 swarm health
 
 # Agent status
-npx ruflo@3.5.18 agent list --status active
+npx ruflo@3.76.0 agent list --status active
 
 # Task progress
-npx ruflo@3.5.18 task list --status in_progress
+npx ruflo@3.76.0 task list --status in_progress
 
 # Memory usage
-npx ruflo@3.5.18 memory stats
+npx ruflo@3.76.0 memory stats
 ```
 
 ### Progress Tracking
@@ -454,10 +454,10 @@ npm run test:unit
 
 ```bash
 # Shutdown swarm
-npx ruflo@3.5.18 swarm shutdown --graceful true
+npx ruflo@3.76.0 swarm shutdown --graceful true
 
 # Clear integration memory
-npx ruflo@3.5.18 memory delete --key "aqe/agentic-flow/*" --namespace "all"
+npx ruflo@3.76.0 memory delete --key "aqe/agentic-flow/*" --namespace "all"
 
 # Restore previous state
 git checkout HEAD~1 -- src/adapters/
@@ -473,10 +473,10 @@ npm run test:unit
 
 ```bash
 # Collect all metrics
-npx ruflo@3.5.18 performance report --format detailed --timeRange 7d
+npx ruflo@3.76.0 performance report --format detailed --timeRange 7d
 
 # Compare against baseline
-npx ruflo@3.5.18 memory retrieve --key "adr-051-baseline" --namespace "integration-baselines"
+npx ruflo@3.76.0 memory retrieve --key "adr-051-baseline" --namespace "integration-baselines"
 ```
 
 ### Expected Outcomes
@@ -494,30 +494,30 @@ npx ruflo@3.5.18 memory retrieve --key "adr-051-baseline" --namespace "integrati
 
 ```bash
 # Swarm Commands
-npx ruflo@3.5.18 swarm init --topology <type> --max-agents <n>
-npx ruflo@3.5.18 swarm status
-npx ruflo@3.5.18 swarm health
-npx ruflo@3.5.18 swarm shutdown --graceful true
+npx ruflo@3.76.0 swarm init --topology <type> --max-agents <n>
+npx ruflo@3.76.0 swarm status
+npx ruflo@3.76.0 swarm health
+npx ruflo@3.76.0 swarm shutdown --graceful true
 
 # Agent Commands
-npx ruflo@3.5.18 agent spawn --type <type> --domain <domain>
-npx ruflo@3.5.18 agent list --status <status>
-npx ruflo@3.5.18 agent terminate --id <id>
+npx ruflo@3.76.0 agent spawn --type <type> --domain <domain>
+npx ruflo@3.76.0 agent list --status <status>
+npx ruflo@3.76.0 agent terminate --id <id>
 
 # Memory Commands
-npx ruflo@3.5.18 memory store --key <key> --value <json> --namespace <ns>
-npx ruflo@3.5.18 memory retrieve --key <key> --namespace <ns>
-npx ruflo@3.5.18 memory search --query <query> --namespace <ns>
-npx ruflo@3.5.18 memory list --namespace <ns>
+npx ruflo@3.76.0 memory store --key <key> --value <json> --namespace <ns>
+npx ruflo@3.76.0 memory retrieve --key <key> --namespace <ns>
+npx ruflo@3.76.0 memory search --query <query> --namespace <ns>
+npx ruflo@3.76.0 memory list --namespace <ns>
 
 # Hooks Commands
-npx ruflo@3.5.18 hooks pre-task --taskId <id> --description <desc>
-npx ruflo@3.5.18 hooks post-task --taskId <id> --success <bool>
-npx ruflo@3.5.18 hooks route --task <desc>
-npx ruflo@3.5.18 hooks metrics --period <period>
+npx ruflo@3.76.0 hooks pre-task --taskId <id> --description <desc>
+npx ruflo@3.76.0 hooks post-task --taskId <id> --success <bool>
+npx ruflo@3.76.0 hooks route --task <desc>
+npx ruflo@3.76.0 hooks metrics --period <period>
 
 # Session Commands
-npx ruflo@3.5.18 hooks session-start --sessionId <id>
-npx ruflo@3.5.18 hooks session-end --saveState true
-npx ruflo@3.5.18 hooks session-restore --sessionId <id>
+npx ruflo@3.76.0 hooks session-start --sessionId <id>
+npx ruflo@3.76.0 hooks session-end --saveState true
+npx ruflo@3.76.0 hooks session-restore --sessionId <id>
 ```

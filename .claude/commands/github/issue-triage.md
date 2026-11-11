@@ -4,7 +4,7 @@ Intelligent issue classification and triage.
 
 ## Usage
 ```bash
-npx claude-flow github issue-triage [options]
+npx ruflo@3.76.0 github issue-triage [options]
 ```
 
 ## Options
@@ -15,11 +15,11 @@ npx claude-flow github issue-triage [options]
 ## Examples
 ```bash
 # Triage issues
-npx claude-flow github issue-triage --repository myorg/myrepo
+npx ruflo@3.76.0 github issue-triage --repository myorg/myrepo
 
 # With auto-labeling
-npx claude-flow github issue-triage --repository myorg/myrepo --auto-label
+npx ruflo@3.76.0 github issue-triage --repository myorg/myrepo --auto-label
 
 # Full automation
-npx claude-flow github issue-triage --repository myorg/myrepo --auto-label --assign
+npx ruflo@3.76.0 github issue-triage --repository myorg/myrepo --auto-label --assign
 ```

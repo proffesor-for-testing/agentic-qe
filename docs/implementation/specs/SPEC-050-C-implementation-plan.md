@@ -261,22 +261,22 @@ agents:
 
 ```bash
 # Initialize swarm for plan execution
-npx ruflo@3.5.18 swarm init --topology hierarchical --max-agents 8 --strategy specialized
+npx ruflo@3.76.0 swarm init --topology hierarchical --max-agents 8 --strategy specialized
 
 # Phase 1 - Parallel execution
-npx ruflo@3.5.18 task create --type feature --description "Action 1: ML Observability Layer" --priority high
-npx ruflo@3.5.18 task create --type feature --description "Action 2: Q-Learning Persistence" --priority high
-npx ruflo@3.5.18 task create --type feature --description "Action 5: Hypergraph Schema" --priority high
+npx ruflo@3.76.0 task create --type feature --description "Action 1: ML Observability Layer" --priority high
+npx ruflo@3.76.0 task create --type feature --description "Action 2: Q-Learning Persistence" --priority high
+npx ruflo@3.76.0 task create --type feature --description "Action 5: Hypergraph Schema" --priority high
 
 # Monitor progress
-npx ruflo@3.5.18 hooks metrics --period 24h
+npx ruflo@3.76.0 hooks metrics --period 24h
 
 # Check ML vs fallback ratio
-npx ruflo@3.5.18 hooks intelligence --showStatus
+npx ruflo@3.76.0 hooks intelligence --showStatus
 
 # Verify persistence
-npx ruflo@3.5.18 memory list --namespace rl-qvalues
-npx ruflo@3.5.18 memory list --namespace sona-patterns
+npx ruflo@3.76.0 memory list --namespace rl-qvalues
+npx ruflo@3.76.0 memory list --namespace sona-patterns
 ```
 
 ---

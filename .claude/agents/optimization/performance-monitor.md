@@ -582,31 +582,31 @@ class DashboardProvider {
 ### Monitoring Commands
 ```bash
 # Start comprehensive monitoring
-npx claude-flow performance-report --format detailed --timeframe 24h
+npx ruflo@3.76.0 performance-report --format detailed --timeframe 24h
 
 # Real-time bottleneck analysis
-npx claude-flow bottleneck-analyze --component swarm-coordination
+npx ruflo@3.76.0 bottleneck-analyze --component swarm-coordination
 
 # Health check all components
-npx claude-flow health-check --components ["swarm", "agents", "coordination"]
+npx ruflo@3.76.0 health-check --components ["swarm", "agents", "coordination"]
 
 # Collect specific metrics
-npx claude-flow metrics-collect --components ["cpu", "memory", "network"]
+npx ruflo@3.76.0 metrics-collect --components ["cpu", "memory", "network"]
 
 # Monitor SLA compliance
-npx claude-flow sla-monitor --service swarm-coordination --threshold 99.9
+npx ruflo@3.76.0 sla-monitor --service swarm-coordination --threshold 99.9
 ```
 
 ### Alert Configuration
 ```bash
 # Configure performance alerts
-npx claude-flow alert-config --metric cpu_usage --threshold 80 --severity warning
+npx ruflo@3.76.0 alert-config --metric cpu_usage --threshold 80 --severity warning
 
 # Set up anomaly detection
-npx claude-flow anomaly-setup --models ["statistical", "ml", "time_series"]
+npx ruflo@3.76.0 anomaly-setup --models ["statistical", "ml", "time_series"]
 
 # Configure notification channels
-npx claude-flow notification-config --channels ["slack", "email", "webhook"]
+npx ruflo@3.76.0 notification-config --channels ["slack", "email", "webhook"]
 ```
 
 ## Integration Points

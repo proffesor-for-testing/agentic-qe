@@ -21,13 +21,13 @@ hooks:
     echo "🧠 ReasoningBank Learner initializing intelligence system"
     # Initialize trajectory tracking
     SESSION_ID="rb-$(date +%s)"
-    npx claude-flow@v3alpha hooks intelligence trajectory-start --session-id "$SESSION_ID" --agent-type "reasoningbank-learner" --task "$TASK"
+    npx ruflo@3.76.0 hooks intelligence trajectory-start --session-id "$SESSION_ID" --agent-type "reasoningbank-learner" --task "$TASK"
     # Search for similar patterns
     mcp__claude-flow__memory_search --pattern="pattern:*" --namespace="reasoningbank" --limit=10
   post: |
     echo "✅ Learning cycle complete"
     # End trajectory with verdict
-    npx claude-flow@v3alpha hooks intelligence trajectory-end --session-id "$SESSION_ID" --verdict "${VERDICT:-success}"
+    npx ruflo@3.76.0 hooks intelligence trajectory-end --session-id "$SESSION_ID" --verdict "${VERDICT:-success}"
     # Store learned pattern
     mcp__claude-flow__memory_usage --action="store" --namespace="reasoningbank" --key="pattern:$(date +%s)" --value="$PATTERN_SUMMARY"
 ---
@@ -71,7 +71,7 @@ Search for similar patterns 150x-12,500x faster:
 mcp__claude-flow__memory_search --pattern="$TASK" --namespace="reasoningbank" --limit=10
 
 # Get pattern statistics
-npx claude-flow@v3alpha hooks intelligence pattern-stats --query "$TASK" --k 10 --namespace reasoningbank
+npx ruflo@3.76.0 hooks intelligence pattern-stats --query "$TASK" --k 10 --namespace reasoningbank
 ```
 
 ### 2. JUDGE (Verdict Assignment)
@@ -80,14 +80,14 @@ Assign success/failure verdicts to trajectories:
 
 ```bash
 # Record trajectory step with outcome
-npx claude-flow@v3alpha hooks intelligence trajectory-step \
+npx ruflo@3.76.0 hooks intelligence trajectory-step \
   --session-id "$SESSION_ID" \
   --operation "code-generation" \
   --outcome "success" \
   --metadata '{"files_changed": 3, "tests_passed": true}'
 
 # End trajectory with final verdict
-npx claude-flow@v3alpha hooks intelligence trajectory-end \
+npx ruflo@3.76.0 hooks intelligence trajectory-end \
   --session-id "$SESSION_ID" \
   --verdict "success" \
   --reward 0.95
@@ -105,7 +105,7 @@ mcp__claude-flow__memory_usage --action="store" \
   --value='{"task":"implement auth","approach":"JWT with refresh","outcome":"success","reward":0.95}'
 
 # Search for patterns to distill
-npx claude-flow@v3alpha hooks intelligence pattern-search \
+npx ruflo@3.76.0 hooks intelligence pattern-search \
   --query "authentication" \
   --min-reward 0.8 \
   --namespace reasoningbank
@@ -117,10 +117,10 @@ Prevent catastrophic forgetting:
 
 ```bash
 # Consolidate patterns (prevents forgetting old learnings)
-npx claude-flow@v3alpha neural consolidate --namespace reasoningbank
+npx ruflo@3.76.0 neural consolidate --namespace reasoningbank
 
 # Check consolidation status
-npx claude-flow@v3alpha hooks intelligence stats --namespace reasoningbank
+npx ruflo@3.76.0 hooks intelligence stats --namespace reasoningbank
 ```
 
 ## Trajectory Tracking
@@ -129,29 +129,29 @@ Every agent operation should be tracked:
 
 ```bash
 # Start tracking
-npx claude-flow@v3alpha hooks intelligence trajectory-start \
+npx ruflo@3.76.0 hooks intelligence trajectory-start \
   --session-id "task-123" \
   --agent-type "coder" \
   --task "Implement user authentication"
 
 # Track each step
-npx claude-flow@v3alpha hooks intelligence trajectory-step \
+npx ruflo@3.76.0 hooks intelligence trajectory-step \
   --session-id "task-123" \
   --operation "write-test" \
   --outcome "success"
 
-npx claude-flow@v3alpha hooks intelligence trajectory-step \
+npx ruflo@3.76.0 hooks intelligence trajectory-step \
   --session-id "task-123" \
   --operation "implement-feature" \
   --outcome "success"
 
-npx claude-flow@v3alpha hooks intelligence trajectory-step \
+npx ruflo@3.76.0 hooks intelligence trajectory-step \
   --session-id "task-123" \
   --operation "run-tests" \
   --outcome "success"
 
 # End with verdict
-npx claude-flow@v3alpha hooks intelligence trajectory-end \
+npx ruflo@3.76.0 hooks intelligence trajectory-end \
   --session-id "task-123" \
   --verdict "success" \
   --reward 0.92
@@ -197,7 +197,7 @@ The ReasoningBank integrates with V3 hooks:
     "matcher": "^(Write|Edit|Task)$",
     "hooks": [{
       "type": "command",
-      "command": "npx claude-flow@v3alpha hooks intelligence trajectory-step --operation $TOOL_NAME --outcome $TOOL_SUCCESS"
+      "command": "npx ruflo@3.76.0 hooks intelligence trajectory-step --operation $TOOL_NAME --outcome $TOOL_SUCCESS"
     }]
   }]
 }

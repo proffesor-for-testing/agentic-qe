@@ -251,7 +251,7 @@ grep -r "ContinueGate" v3/src/ && echo "PASS"
 npx @claude-flow/guidance conformance-test
 
 # Verify all metrics
-npx ruflo@3.5.18 memory search --query "governance:*" --namespace governance
+npx ruflo@3.76.0 memory search --query "governance:*" --namespace governance
 ```
 
 ---

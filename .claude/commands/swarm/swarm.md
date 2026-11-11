@@ -70,8 +70,8 @@ swarm status                       // ❌ Don't check repeatedly
 
 ## Usage
 ```bash
-npx ruflo@3.5.18 swarm init --topology hierarchical
-npx ruflo@3.5.18 swarm status  # Only after completion
+npx ruflo@3.76.0 swarm init --topology hierarchical
+npx ruflo@3.76.0 swarm status  # Only after completion
 ```
 
 ## Options

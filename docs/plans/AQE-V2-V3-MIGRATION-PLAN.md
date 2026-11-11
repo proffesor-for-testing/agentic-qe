@@ -695,7 +695,7 @@ Task({
 
 ```bash
 # Initialize migration swarm
-npx ruflo@3.5.18 swarm init \
+npx ruflo@3.76.0 swarm init \
   --topology hierarchical-mesh \
   --max-agents 12 \
   --strategy specialized
