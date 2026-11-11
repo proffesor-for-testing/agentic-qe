@@ -63,7 +63,7 @@ mcp__claude-flow__agent_spawn({
 ### Fallback Configuration
 If MCP tools are unavailable:
 ```bash
-npx claude-flow hook pre-task --auto-spawn-agents
+npx ruflo@3.76.0 hook pre-task --auto-spawn-agents
 ```
 
 ## Benefits

@@ -4,5 +4,5 @@ Command documentation for swarm-background in category swarm.
 
 Usage:
 ```bash
-npx claude-flow swarm swarm-background [options]
+npx ruflo@3.76.0 swarm swarm-background [options]
 ```

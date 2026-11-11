@@ -20,8 +20,8 @@ For projects that explicitly want Ruflo, initialize or inspect it through its
 external CLI:
 
 ```bash
-npx ruflo doctor
-npx ruflo discover-plugins
+npx ruflo@3.76.0 doctor
+npx ruflo@3.76.0 discover-plugins
 ```
 
 Use the installed Ruflo MCP tools when available. Treat their absence as

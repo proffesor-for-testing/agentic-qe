@@ -5,7 +5,7 @@ Execute pre-task preparations and context loading.
 ## Usage
 
 ```bash
-npx claude-flow hook pre-task [options]
+npx ruflo@3.76.0 hook pre-task [options]
 ```
 
 ## Options
@@ -21,25 +21,25 @@ npx claude-flow hook pre-task [options]
 ### Basic pre-task hook
 
 ```bash
-npx claude-flow hook pre-task --description "Implement user authentication"
+npx ruflo@3.76.0 hook pre-task --description "Implement user authentication"
 ```
 
 ### With memory loading
 
 ```bash
-npx claude-flow hook pre-task -d "Continue API development" --load-memory
+npx ruflo@3.76.0 hook pre-task -d "Continue API development" --load-memory
 ```
 
 ### Manual agent control
 
 ```bash
-npx claude-flow hook pre-task -d "Debug issue #123" --auto-spawn-agents false
+npx ruflo@3.76.0 hook pre-task -d "Debug issue #123" --auto-spawn-agents false
 ```
 
 ### Full optimization
 
 ```bash
-npx claude-flow hook pre-task -d "Refactor codebase" --optimize-topology --estimate-complexity
+npx ruflo@3.76.0 hook pre-task -d "Refactor codebase" --optimize-topology --estimate-complexity
 ```
 
 ## Features
@@ -85,7 +85,7 @@ Manual usage in agents:
 
 ```bash
 # In agent coordination
-npx claude-flow hook pre-task --description "Your task here"
+npx ruflo@3.76.0 hook pre-task --description "Your task here"
 ```
 
 ## Output

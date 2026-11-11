@@ -99,14 +99,14 @@ The SPARC methodology enhances GOAP planning by providing a structured framework
 
 ```bash
 # Execute SPARC phases for goal achievement
-npx claude-flow sparc run spec-pseudocode "OAuth2 authentication system"
-npx claude-flow sparc run architect "microservices communication layer"
-npx claude-flow sparc tdd "payment processing feature"
-npx claude-flow sparc pipeline "complete feature implementation"
+npx ruflo@3.76.0 sparc run spec-pseudocode "OAuth2 authentication system"
+npx ruflo@3.76.0 sparc run architect "microservices communication layer"
+npx ruflo@3.76.0 sparc tdd "payment processing feature"
+npx ruflo@3.76.0 sparc pipeline "complete feature implementation"
 
 # Batch processing for complex goals
-npx claude-flow sparc batch spec,arch,refine "user management system"
-npx claude-flow sparc concurrent tdd tasks.json
+npx ruflo@3.76.0 sparc batch spec,arch,refine "user management system"
+npx ruflo@3.76.0 sparc concurrent tdd tasks.json
 ```
 
 ### SPARC-GOAP Feature Implementation Plan
@@ -114,7 +114,7 @@ npx claude-flow sparc concurrent tdd tasks.json
 goal: implement_payment_processing_with_sparc
 sparc_phases:
   specification:
-    command: "npx claude-flow sparc run spec-pseudocode 'payment processing'"
+    command: "npx ruflo@3.76.0 sparc run spec-pseudocode 'payment processing'"
     deliverables:
       - requirements_doc
       - acceptance_criteria
@@ -125,7 +125,7 @@ sparc_phases:
       - compliance_standards_identified
       
   pseudocode:
-    command: "npx claude-flow sparc run pseudocode 'payment flow algorithms'"
+    command: "npx ruflo@3.76.0 sparc run pseudocode 'payment flow algorithms'"
     deliverables:
       - payment_flow_logic
       - error_handling_patterns
@@ -135,7 +135,7 @@ sparc_phases:
       - edge_cases_covered
       
   architecture:
-    command: "npx claude-flow sparc run architect 'payment system design'"
+    command: "npx ruflo@3.76.0 sparc run architect 'payment system design'"
     deliverables:
       - system_components
       - api_contracts
@@ -145,7 +145,7 @@ sparc_phases:
       - security_layers_defined
       
   refinement:
-    command: "npx claude-flow sparc tdd 'payment feature'"
+    command: "npx ruflo@3.76.0 sparc tdd 'payment feature'"
     deliverables:
       - unit_tests
       - integration_tests
@@ -155,7 +155,7 @@ sparc_phases:
       - all_tests_passing
       
   completion:
-    command: "npx claude-flow sparc run integration 'deploy payment system'"
+    command: "npx ruflo@3.76.0 sparc run integration 'deploy payment system'"
     deliverables:
       - deployed_system
       - documentation
@@ -414,19 +414,19 @@ class SPARCGoalPlanner {
 
 ```bash
 # 1. Initialize SPARC-GOAP planning
-npx claude-flow sparc run spec-pseudocode "user authentication feature"
+npx ruflo@3.76.0 sparc run spec-pseudocode "user authentication feature"
 
 # 2. Execute architecture phase
-npx claude-flow sparc run architect "authentication system design"
+npx ruflo@3.76.0 sparc run architect "authentication system design"
 
 # 3. TDD implementation with goal tracking
-npx claude-flow sparc tdd "authentication feature" --track-goals
+npx ruflo@3.76.0 sparc tdd "authentication feature" --track-goals
 
 # 4. Complete integration with goal validation
-npx claude-flow sparc run integration "deploy authentication" --validate-goals
+npx ruflo@3.76.0 sparc run integration "deploy authentication" --validate-goals
 
 # 5. Verify goal achievement
-npx claude-flow sparc verify "authentication feature complete"
+npx ruflo@3.76.0 sparc verify "authentication feature complete"
 ```
 
 ## Continuous Improvement
