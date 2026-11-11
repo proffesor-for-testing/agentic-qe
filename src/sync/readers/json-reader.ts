@@ -12,6 +12,7 @@ import secureJsonParse from 'secure-json-parse';
 import type { DataReader, SyncSource } from '../interfaces.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
 import { jsonb } from '../jsonb-text.js';
+import { Q_PATTERNS_TABLE, toQPatterns } from './q-patterns.js';
 
 /**
  * JSON reader configuration
@@ -45,6 +46,8 @@ export class JSONReader implements DataReader<JSONRecord> {
   private readonly filePath: string;
   private data: JSONRecord[] | null = null;
   private fileModTime: Date | null = null;
+  /** #1384: entries the last read skipped as not records of this source. */
+  private lastSkipped: { count: number; reason: string } | null = null;
 
   constructor(config: JSONReaderConfig) {
     this.config = config;
@@ -103,6 +106,7 @@ export class JSONReader implements DataReader<JSONRecord> {
    * a corrupt store is a failed source, never an empty successful one.
    */
   async readAll(): Promise<JSONRecord[]> {
+    this.lastSkipped = null;
     if (!this.statFile()) {
       return [];
     }
@@ -144,6 +148,7 @@ export class JSONReader implements DataReader<JSONRecord> {
    * For JSON files, we compare file modification time
    */
   async readChanged(since: Date): Promise<JSONRecord[]> {
+    this.lastSkipped = null;
     const stats = this.statFile();
     if (!stats) {
       return [];
@@ -156,6 +161,14 @@ export class JSONReader implements DataReader<JSONRecord> {
 
     // File has changed, return all records (JSON doesn't have per-record timestamps)
     return this.readAll();
+  }
+
+  /**
+   * #1384: entries the last read skipped (not records of this source), so
+   * the sync can report them without failing the source; null when none.
+   */
+  skippedOnRead(): { count: number; reason: string } | null {
+    return this.lastSkipped;
   }
 
   /**
@@ -186,8 +199,15 @@ export class JSONReader implements DataReader<JSONRecord> {
    */
   private extractRecords(parsed: unknown): JSONRecord[] {
     // Handle JSON path if specified
-    if (this.config.source.jsonPath) {
-      return this.extractByPath(parsed, this.config.source.jsonPath);
+    const jsonPath = this.config.source.jsonPath;
+    if (jsonPath) {
+      const qPatterns = this.config.source.targetTable === Q_PATTERNS_TABLE;
+      const entries = this.extractByPath(parsed, jsonPath, !qPatterns);
+      if (!qPatterns) return entries;
+      // #1384: only the cloud columns; entries that are not Q-patterns are skipped.
+      const { records, skipped } = toQPatterns(entries, jsonPath);
+      this.lastSkipped = skipped;
+      return records;
     }
 
     // Handle different JSON structures based on source name
@@ -223,7 +243,7 @@ export class JSONReader implements DataReader<JSONRecord> {
   /**
    * Extract by JSON path (simplified implementation)
    */
-  private extractByPath(data: unknown, jsonPath: string): JSONRecord[] {
+  private extractByPath(data: unknown, jsonPath: string, keyAsState = true): JSONRecord[] {
     // Handle simple paths like '$.qvalues' or '$.memories'
     const pathParts = jsonPath.replace(/^\$\./, '').split('.');
 
@@ -244,8 +264,9 @@ export class JSONReader implements DataReader<JSONRecord> {
 
     if (typeof current === 'object' && current !== null) {
       // Convert object to array of key-value pairs
+      // #1384: Q-patterns carry their own state; the map key ("state|action") is not one.
       return Object.entries(current as Record<string, unknown>).map(([key, value]) => ({
-        state: key, // Assuming state-action pairs for qvalues
+        ...(keyAsState ? { state: key } : {}), // Assuming state-action pairs for qvalues
         ...(typeof value === 'object' ? value : { value }) as Record<string, unknown>,
       }));
     }

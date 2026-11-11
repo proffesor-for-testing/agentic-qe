@@ -444,7 +444,7 @@ describe('JSONReader', () => {
       expect(records).toHaveLength(2);
       expect(records.map((record) => record.key)).toEqual(['memory-1', 'memory-2']);
       // #1384: values are JSONB text (JsonbText); compare the payload they carry.
-      expect(records.map((record) => JSON.parse(JSON.stringify(record.value)))).toEqual([
+      expect(records.map((record) => JSON.parse((record.value as { text: string }).text))).toEqual([
         { content: 'first' },
         { content: 'second' },
       ]);

@@ -261,6 +261,12 @@ export interface DataReader<T = unknown> {
   /** Get record count */
   count(): Promise<number>;
 
+  /**
+   * #1384: entries the last read skipped as not records of this source
+   * (reported as skipped; the source still succeeds). Null when none.
+   */
+  skippedOnRead?(): { count: number; reason: string } | null;
+
   /** Close the reader */
   close(): Promise<void>;
 }

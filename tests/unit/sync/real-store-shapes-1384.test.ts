@@ -125,11 +125,20 @@ describe('claude-flow-memory on the real {entries, version} store (#1384)', () =
     expect(JSON.parse(serialized as string)).toEqual(payload);
   });
 
-  it('a NUL character, which JSONB rejects, is dropped and nothing else changes', async () => {
-    const payload = { text: 'a\u0000b', path: 'C:\\u0000dir' };
+  it('a lone surrogate, which PostgreSQL rejects, becomes U+FFFD in values and keys', async () => {
+    const payload = { ['k\ud800']: 'bad \ud800 end', pair: 'ok \u{1F600}', list: ['\udc00'] };
     write('.claude-flow/memory/store.json', { entries: { k: { ...entry('k', ''), value: payload } }, version: '3.0.0' });
     const [record] = await reader(defaultSource('claude-flow-memory')).readAll();
-    expect(JSON.parse(cloudWriter().serializeValue(record.value, 'value') as string)).toEqual({ text: 'ab', path: 'C:\\u0000dir' });
+    const text = cloudWriter().serializeValue(record.value, 'value') as string;
+    expect(text).not.toMatch(/\\ud[89a-f]/i);
+    expect(JSON.parse(text)).toEqual({ ['k\ufffd']: 'bad \ufffd end', pair: 'ok \u{1F600}', list: ['\ufffd'] });
+  });
+
+  it('a NUL character, which JSONB rejects, is dropped (in values and keys) and nothing else changes', async () => {
+    const payload = { text: 'a\u0000b', path: 'C:\\u0000dir', ['k\u0000']: 1 };
+    write('.claude-flow/memory/store.json', { entries: { k: { ...entry('k', ''), value: payload } }, version: '3.0.0' });
+    const [record] = await reader(defaultSource('claude-flow-memory')).readAll();
+    expect(JSON.parse(cloudWriter().serializeValue(record.value, 'value') as string)).toEqual({ text: 'ab', path: 'C:\\u0000dir', k: 1 });
   });
 
   it('a record has only the columns of aqe.claude_flow_memory', async () => {
@@ -178,6 +187,78 @@ describe('intelligence-qlearning on the real intelligence.json (#1384)', () => {
   it('an empty patterns map is a real 0, not an error', async () => {
     write('.ruvector/intelligence.json', { ...intelligence, patterns: {} });
     await expect(reader(defaultSource('intelligence-qlearning')).readAll()).resolves.toEqual([]);
+  });
+});
+
+describe('ruvector pretrain and legacy Q-pattern shapes (#1384)', () => {
+  // ruvector `hooks pretrain` (0.3.x) adds `source: 'pretrain'`; older
+  // versions wrote `{state: {agent: q}}` entries with no action or q_value.
+  const pretrainFirst = {
+    'edit:.ts|coder': { state: 'edit:.ts', action: 'coder', q_value: 0.6, visits: 0, last_update: LAST_UPDATE_S, source: 'pretrain' },
+    'test:.ts|tester': { state: 'test:.ts', action: 'tester', q_value: 0.7, visits: 2, last_update: LAST_UPDATE_S },
+  };
+  const legacy = { 'edit:.py': { coder: 0.5, tester: 1 }, 'edit:.md': { doc: 0.5 } };
+
+  it('a pretrain pattern first still gives only the aqe.qlearning_patterns columns', async () => {
+    write('.ruvector/intelligence.json', { ...intelligence, patterns: pretrainFirst });
+    const records = await reader(defaultSource('intelligence-qlearning')).readAll();
+    expect(records).toHaveLength(2);
+    for (const record of records) {
+      expect(Object.keys(record).sort()).toEqual(['action', 'created_at', 'last_update', 'q_value', 'source_env', 'state', 'visits']);
+    }
+  });
+
+  it('legacy entries without an action or q_value are skipped and counted, never sent', async () => {
+    write('.ruvector/intelligence.json', { ...intelligence, patterns: { ...legacy, ...pretrainFirst } });
+    const r = reader(defaultSource('intelligence-qlearning'));
+    const records = await r.readAll();
+    expect(records.map(x => x.action)).toEqual(['coder', 'tester']);
+    expect(r.skippedOnRead()).toEqual({
+      count: 2, reason: expect.stringMatching(/2 entries in \$\.patterns are not Q-patterns .*skipped/),
+    });
+    // A later read reports its own skips, not the earlier ones.
+    write('.ruvector/intelligence.json', { ...intelligence, patterns: pretrainFirst });
+    await r.readAll();
+    expect(r.skippedOnRead()).toBeNull();
+  });
+
+  it.each([
+    ['a string q_value', { state: 's', action: 'a', q_value: '0.5' }],
+    ['no state', { action: 'a', q_value: 0.5 }],
+    ['a non-finite q_value', { state: 's', action: 'a', q_value: null }],
+  ])('an entry with %s is skipped too', async (_what, entry) => {
+    write('.ruvector/intelligence.json', { ...intelligence, patterns: { 's|a': entry, ...pretrainFirst } });
+    const r = reader(defaultSource('intelligence-qlearning'));
+    await expect(r.readAll()).resolves.toHaveLength(2);
+    expect(r.skippedOnRead()?.count).toBe(1);
+  });
+
+  it('the sync reports the skipped entries on a source that still succeeds', async () => {
+    write('.ruvector/intelligence.json', { ...intelligence, patterns: { ...legacy, ...pretrainFirst } });
+    vi.spyOn(process, 'cwd').mockReturnValue(dir);
+    const agent = new CloudSyncAgent({
+      environment: 'test',
+      sync: { ...DEFAULT_SYNC_CONFIG.sync, sources: [defaultSource('intelligence-qlearning')], dryRun: true },
+    });
+    await agent.initialize();
+    const report = await agent.syncAll();
+    expect(report.status).toBe('completed');
+    expect(report.results[0]).toMatchObject({
+      success: true, recordsSynced: 2, recordsSkipped: 2,
+      warnings: [expect.stringMatching(/2 entries in \$\.patterns are not Q-patterns/)],
+    });
+  });
+
+  it('a store with only legacy entries syncs 0 and says why', async () => {
+    write('.ruvector/intelligence.json', { ...intelligence, patterns: legacy });
+    vi.spyOn(process, 'cwd').mockReturnValue(dir);
+    const agent = new CloudSyncAgent({
+      environment: 'test',
+      sync: { ...DEFAULT_SYNC_CONFIG.sync, sources: [defaultSource('intelligence-qlearning')], dryRun: true },
+    });
+    await agent.initialize();
+    const report = await agent.syncAll();
+    expect(report.results[0]).toMatchObject({ success: true, recordsSynced: 0, recordsSkipped: 2, warnings: [expect.any(String)] });
   });
 });
 

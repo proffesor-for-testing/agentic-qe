@@ -27,6 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     PARTIAL instead of COMPLETED with 0 records.
   - The old `entries` and `version` rows already in your cloud database
     are not removed. You can delete them yourself if you don't want them.
+  - Older ruvector pretrain entries that aren't Q-patterns are skipped
+    and shown as `Skipped: N` with a note; the source still succeeds.
+  - **Upgrade note:** if your `.ruvector/intelligence.json` has no
+    `patterns` (for example an old file that only has `qvalues`), sync
+    shows `intelligence-qlearning` as failed and exits with code 2.
+    `aqe sync verify` shows `aqe.qlearning_patterns` as unverified. The
+    other sources still sync. To skip this source, list the ones you want
+    with `aqe sync --sources`.
 - **`aqe sync verify` matches after this upgrade** ([#1384]): it ignores
   the old `entries`/`version` rows when counting claude-flow memories.
   `aqe.qlearning_patterns` is filled from two places, AQE's own Q-values

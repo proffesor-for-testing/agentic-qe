@@ -35,7 +35,10 @@ const PAYLOADS: Record<string, unknown> = {
   object: { n: 1, nested: { list: [1, 'x'] } },
   'json-null': null,
   boolean: false,
+  'lone-surrogate': 'bad \ud800 end',
 };
+/** What PostgreSQL holds for a payload: lone surrogates become U+FFFD. */
+const STORED: Record<string, unknown> = { ...PAYLOADS, 'lone-surrogate': 'bad \ufffd end' };
 
 const defaultSource = (name: string): SyncSource => DEFAULT_SYNC_CONFIG.sync.sources.find(s => s.name === name)!;
 
@@ -71,7 +74,10 @@ describeWithPg('store shapes round trip through PostgresWriter (#1384)', () => {
     fs.writeFileSync(path.join(dir, '.claude-flow/memory/store.json'), JSON.stringify({ entries, version: '3.0.0' }));
     fs.writeFileSync(path.join(dir, '.ruvector/intelligence.json'), JSON.stringify({
       patterns: {
-        'edit:.ts|coder': { state: 'edit:.ts', action: 'coder', q_value: 0.75, visits: 4, last_update: LAST_UPDATE_S },
+        // Older ruvector pretrain entries: no action, no q_value. Skipped.
+        'edit:.py': { coder: 0.5, tester: 1 },
+        // ruvector `hooks pretrain` adds `source`, which is not a cloud column.
+        'edit:.ts|coder': { state: 'edit:.ts', action: 'coder', q_value: 0.75, visits: 4, last_update: LAST_UPDATE_S, source: 'pretrain' },
         'test:.ts|tester': { state: 'test:.ts', action: 'tester', q_value: 0.5, visits: 0, last_update: 0 },
       },
       memories: [], trajectories: [], errors: {}, file_sequences: [], agents: {}, edges: [], stats: {},
@@ -102,18 +108,21 @@ describeWithPg('store shapes round trip through PostgresWriter (#1384)', () => {
     const typeOf = (v: unknown) => v === null ? 'null' : Array.isArray(v) ? 'array' : typeof v === 'object' ? 'object' : typeof v;
     for (const row of rows) {
       expect({ key: row.key, value: row.value, type: row.type })
-        .toEqual({ key: row.key, value: PAYLOADS[row.key], type: typeOf(PAYLOADS[row.key]) });
+        .toEqual({ key: row.key, value: STORED[row.key], type: typeOf(PAYLOADS[row.key]) });
     }
   });
 
-  it('Q-patterns are written, twice, as one row each, with last_update read as epoch seconds', async () => {
+  it('Q-patterns (pretrain first, legacy entries skipped) are written, twice, one row each, last_update in seconds', async () => {
     const records = await read('intelligence-qlearning');
+    expect(records).toHaveLength(2);
     expect(await writer.upsert('aqe.qlearning_patterns', records)).toBe(2);
     expect(await writer.upsert('aqe.qlearning_patterns', records)).toBe(2);
 
     const rows = await writer.query<{ action: string; last_update: Date | null }>(
       'SELECT action, last_update FROM aqe.qlearning_patterns WHERE source_env = $1 ORDER BY q_value DESC', [ENV]);
-    expect(rows.map(r => [r.action.replace(/"/g, ''), r.last_update?.toISOString() ?? null]))
-      .toEqual([['coder', new Date(LAST_UPDATE_S * 1000).toISOString()], ['tester', null]]);
+    // The writer stores TEXT state/action JSON-quoted (#1407); this changes
+    // deliberately when #1407 is fixed.
+    expect(rows.map(r => [r.action, r.last_update?.toISOString() ?? null]))
+      .toEqual([['"coder"', new Date(LAST_UPDATE_S * 1000).toISOString()], ['"tester"', null]]);
   });
 });

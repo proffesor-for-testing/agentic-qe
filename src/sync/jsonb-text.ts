@@ -7,18 +7,16 @@
  * stored as JSON. That is right for typed columns but corrupts or rejects
  * arbitrary payloads. A JsonbText carries `JSON.stringify(value)`, which the
  * writer sends unchanged, so the payload keeps its JSON type.
+ *
+ * It deliberately has no toJSON(): a writer that does not know JsonbText
+ * would store `{"text": …}`, never something that looks right by accident.
  */
 export class JsonbText {
   /** JSON text for the JSONB column. */
   readonly text: string;
 
   constructor(value: unknown) {
-    this.text = stripNulEscapes(JSON.stringify(value === undefined ? null : value));
-  }
-
-  /** The payload, for logs and dry runs that serialize the record. */
-  toJSON(): unknown {
-    return JSON.parse(this.text);
+    this.text = JSON.stringify(toPostgresSafe(value === undefined ? null : value));
   }
 }
 
@@ -28,11 +26,24 @@ export function jsonb(value: unknown): JsonbText {
 }
 
 /**
- * PostgreSQL JSONB rejects the escape `\u0000`. JSON.stringify writes a NUL
- * character as that escape, and writes a literal backslash as `\\`, so an
- * escape preceded by an even run of backslashes is a NUL and is dropped;
- * text such as `C:\u0000dir` (an escaped backslash) is kept.
+ * PostgreSQL rejects two things JSON allows in strings: the NUL character
+ * (`\u0000`) and an unpaired UTF-16 surrogate. Both are fixed in every string
+ * and object key before serializing: NUL is dropped, a lone surrogate
+ * becomes U+FFFD (String.prototype.toWellFormed).
  */
-function stripNulEscapes(json: string): string {
-  return json.replace(/(?<!\\)((?:\\\\)*)\\u0000/g, '$1');
+function toPostgresSafe(value: unknown): unknown {
+  if (typeof value === 'string') return safeString(value);
+  if (Array.isArray(value)) return value.map(toPostgresSafe);
+  if (value !== null && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value)) out[safeString(key)] = toPostgresSafe(item);
+    return out;
+  }
+  return value;
+}
+
+function safeString(text: string): string {
+  // toWellFormed is ES2024 (Node 20+; the package requires Node 22.13+).
+  // eslint-disable-next-line no-control-regex -- NUL removal: PostgreSQL rejects \u0000
+  return (text as string & { toWellFormed(): string }).toWellFormed().replace(/\u0000/g, '');
 }

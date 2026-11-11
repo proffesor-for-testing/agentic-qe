@@ -32,6 +32,8 @@ interface DataReader<T = unknown> {
   close(): Promise<void>;
   /** #1361: false when the source file is absent (JSON sources). */
   exists?(): boolean;
+  /** #1384: entries the last read skipped (JSON sources). */
+  skippedOnRead?(): { count: number; reason: string } | null;
 }
 import { DEFAULT_SYNC_CONFIG } from './interfaces.js';
 import { LoggerFactory } from '../logging/index.js';
@@ -209,6 +211,7 @@ export class CloudSyncAgent {
 
       // Read all records
       const records = await reader.readAll();
+      noteReadSkips(result, reader);
       this.log(`Read ${records.length} records from ${source.name}`);
 
       if (records.length === 0) {
@@ -271,6 +274,7 @@ export class CloudSyncAgent {
 
       // Read changed records
       const records = await reader.readChanged(since);
+      noteReadSkips(result, reader);
       this.log(`Read ${records.length} changed records from ${source.name} (since ${since.toISOString()})`);
 
       if (records.length === 0) {
@@ -606,6 +610,17 @@ function nothingRead(results: SyncResult[]): boolean {
 }
 
 /**
+ * #1384: entries the reader skipped (not records of this source, e.g. legacy
+ * ruvector pretrain entries) are counted and explained, never a failure.
+ */
+function noteReadSkips(result: SyncResult, reader: DataReader): void {
+  const skipped = reader.skippedOnRead?.();
+  if (!skipped || skipped.count === 0) return;
+  result.recordsSkipped += skipped.count;
+  (result.warnings ??= []).push(skipped.reason);
+}
+
+/**
  * #1361: records a writer reported as not written fail the source. Returns
  * true when it did, with `result.error` saying how many and why.
  */
@@ -613,7 +628,7 @@ function rejectSkipped(
   result: SyncResult, skipped: { count: number; reason: string }, total: number, table: string,
 ): boolean {
   if (skipped.count === 0) return false;
-  result.recordsSkipped = skipped.count;
+  result.recordsSkipped += skipped.count;
   result.success = false;
   result.error = `${skipped.count} of ${total} records were not written to ${table}` +
     (skipped.reason ? `: ${skipped.reason.slice(0, 300)}` : '');
