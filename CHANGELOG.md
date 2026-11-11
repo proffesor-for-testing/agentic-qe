@@ -15,20 +15,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `.agentic-qe/memory.db` and were still applied to new generations. They
   showed up as an `// Applied patterns: generate-tests …` line and under
   "Patterns Used", and each use counted as another success. Test generation
-  now applies a pattern only if it is one of AQE's built-in patterns, one
-  you imported with `aqe learning import` or `import-merge`, or one whose
-  tests have been run with a measured, passing result.
-  - **Learned patterns stay unused for now.** Nothing in this release
-    measures the tests that generation produced, so patterns AQE learned
-    automatically (from test generation, hooks, session consolidation or
-    dream insights) are kept but not applied. A measurement path is
-    tracked in [#1412].
-  - **Earlier imports need re-importing.** Patterns imported by earlier
-    versions carry no import marker, so they also stop applying. To restore
-    them, import the same file again: `aqe learning import -i <file>`.
-  - **With an LLM, generated tests are unchanged** apart from the missing
-    "Applied patterns" header. Stored patterns never reach the LLM prompt.
-    `patternsUsed` now lists only the patterns that were actually applied.
+  now applies a stored pattern only if it meets one of these conditions:
+  - it is one of AQE's built-in patterns;
+  - you stored it with `aqe hooks learn`;
+  - you imported it from an export that marked it as curated;
+  - you imported it with `--curate`;
+  - its tests have been run with a measured, passing result.
+
+  In practice:
+  - **Automatically learned patterns stay unused for now.** Nothing in this
+    release measures the tests that generation produced. Patterns AQE
+    learned on its own are therefore kept but not applied. That covers
+    patterns from test generation, hooks, session consolidation and dream
+    insights. A measurement path is tracked in [#1412].
+  - **A backup/restore keeps them unused.** `aqe learning export` and
+    `export-full` mark a pattern as curated only if it is applicable when
+    exported. `aqe learning import` and `import-merge` keep that marker and
+    mark nothing else.
+  - **New `--curate` flag on import.** Use `aqe learning import -i <file>
+    --curate` (or `import-merge … --curate`) to vouch for every pattern in a
+    file. This is also how to restore patterns you imported with an earlier
+    version, because those exports carry no marker.
+  - **`aqe brain import` copies patterns as they are.** A pattern without a
+    marker stays unused, and a marker in the file is trusted, since
+    importing the file is your choice.
+  - **A curation marker survives later automatic updates** of the same
+    pattern.
+  - **With an LLM:** the template the LLM starts from no longer carries
+    learned patterns in its "Applied patterns" header, and `patternsUsed`
+    lists only the patterns actually applied. Edge-case hints from memory
+    are still added to the prompt; [#1423] tracks filtering them the same
+    way.
   - **Nothing in your database is changed or deleted.** No cleanup step is
     needed.
 
@@ -38,12 +55,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   file extension used a substring search, so for a `.ts` file every learned
   pattern matched through the word "generate-tests", and Kotlin and Python
   patterns were applied to TypeScript. A pattern now matches only a file
-  with exactly that extension, or its declared language.
+  with exactly that extension (in any case, including `.mts` and `.cts`),
+  or its declared language.
 - **`qe/tests/generate` reports `testsGenerated`** ([#1388]): the count of
   real tests, with scaffolds excluded, so a scaffold-only result can never
   be learned from.
 
 [#1412]: https://github.com/proffesor-for-testing/agentic-qe/issues/1412
+[#1423]: https://github.com/proffesor-for-testing/agentic-qe/issues/1423
 
 ## [3.15.19] - 2026-11-06
 
