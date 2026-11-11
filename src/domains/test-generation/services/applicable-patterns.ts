@@ -38,6 +38,9 @@ const COLUMNS = `p.id, p.name, p.pattern_type, p.usage_count, p.quality_score, p
   EXISTS (SELECT 1 FROM qe_pattern_usage u
           WHERE u.pattern_id = p.id AND u.success = 1 AND ${MEASURED_USAGE_SQL} = 1) AS measured_success`;
 
+/** Extensions the shared language map does not list. */
+const EXTRA_LANGUAGES: Readonly<Record<string, string>> = { mts: 'typescript', cts: 'typescript' };
+
 /** The best five extension matches are applied. */
 const EXTENSION_MATCH_LIMIT = 5;
 
@@ -76,10 +79,11 @@ function toPattern(row: CandidateRow): Pattern {
  */
 function queryExtensionPatterns(db: Database, sourceFile: string): CandidateRow[] {
   const dot = sourceFile.lastIndexOf('.');
-  const extension = dot >= 0 ? sourceFile.slice(dot + 1) : '';
-  if (!/^[A-Za-z0-9]+$/.test(extension)) return [];
-  const language = getLanguageFromExtension(extension) ?? null;
-  const fileReference = new RegExp(`\\.${extension}(?![A-Za-z0-9_])`, 'i');
+  const extension = dot >= 0 ? sourceFile.slice(dot + 1).toLowerCase() : '';
+  if (!/^[a-z0-9]+$/.test(extension)) return [];
+  const language = getLanguageFromExtension(extension) ?? EXTRA_LANGUAGES[extension] ?? null;
+  // Not followed by a name character or '-': `.ts` must not match `.tsx` or `.ts-node`.
+  const fileReference = new RegExp(`\\.${extension}(?![A-Za-z0-9_-])`, 'i');
 
   const candidates = db.prepare(
     `SELECT ${COLUMNS} FROM qe_patterns p

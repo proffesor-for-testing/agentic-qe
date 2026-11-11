@@ -83,6 +83,26 @@ describe('#1388 extension lookup matches the extension, not a substring', () => 
     expect(ids('/p/pkg/x.go')).toEqual(['go', 'go-3', 'go-4', 'go-5', 'go-6']);
   });
 
+  it('matches .mts and .cts files, by file reference and as TypeScript', () => {
+    addLearned('mts', 'src/esm.mts');
+    addLearned('cts', 'src/cjs.cts');
+    addCurated('ts-lang', { tags: [], language: 'typescript' });
+    expect(ids('/p/src/other.mts')).toEqual(['mts', 'ts-lang']);
+    expect(ids('/p/src/other.cts')).toEqual(['cts', 'ts-lang']);
+    expect(ids('/p/src/other.ts')).toEqual(['ts', 'ts-lang']);
+  });
+
+  it('matches the extension case-insensitively, by file reference and by language', () => {
+    addCurated('kt-lang', { tags: [], language: 'kotlin' });
+    expect(ids('/p/src/OTHER.KT')).toEqual(['kt', 'kt-lang']);
+    expect(ids('/p/src/other.Py')).toEqual(['py']);
+  });
+
+  it('does not match .ts through a .ts-node reference', () => {
+    addCurated('ts-node', { tags: [], runner: 'node_modules/.bin/x.ts-node' });
+    expect(ids('/p/src/x.ts')).toEqual(['ts']);
+  });
+
   it('matches a pattern by its declared language', () => {
     addCurated('ts-lang', { tags: [], language: 'typescript' });
     addCurated('py-lang', { tags: [], language: 'python' });
