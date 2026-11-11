@@ -72,6 +72,16 @@ describe('#1388 extension lookup matches the extension, not a substring', () => 
     expect(ids('/p/src/x.go')).toEqual(['go']);
   });
 
+  it('applies at most the five best exact matches, by quality', () => {
+    for (let i = 0; i < 7; i++) {
+      db.prepare(`INSERT INTO qe_patterns (id, pattern_type, qe_domain, domain, name, description, quality_score, context_json)
+                  VALUES (?, 'test-template', 'test-generation', 'test-generation', ?, 'curated', ?, ?)`)
+        .run(`go-${i}`, `go-${i}`, 0.1 * i, JSON.stringify({ tags: [], language: 'go' }));
+    }
+    // Eight .go matches: 'go' and go-6 (0.6), go-5, go-4, go-3 are the best five.
+    expect(ids('/p/pkg/x.go')).toEqual(['go', 'go-3', 'go-4', 'go-5', 'go-6']);
+  });
+
   it('matches a pattern by its declared language', () => {
     addCurated('ts-lang', { tags: [], language: 'typescript' });
     addCurated('py-lang', { tags: [], language: 'python' });

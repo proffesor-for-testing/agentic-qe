@@ -51,8 +51,7 @@ export const MEASURED_SUCCESS_SQL =
 /** SQL over `qe_patterns p`: the pattern may be applied to a generation. */
 export const APPLICABLE_PATTERN_SQL = `(NOT ${LEARNED_PATTERN_SQL} OR ${MEASURED_SUCCESS_SQL})`;
 
-/** How many extension candidates are refined; the best five are applied. */
-const EXTENSION_CANDIDATE_LIMIT = 200;
+/** The best five extension matches are applied. */
 const EXTENSION_MATCH_LIMIT = 5;
 
 /**
@@ -77,8 +76,7 @@ function queryExtensionPatterns(db: Database, sourceFile: string): PatternRow[] 
        AND (p.context_json LIKE ?
             OR (json_valid(p.context_json) AND json_extract(p.context_json, '$.language') = ?))
        AND ${APPLICABLE_PATTERN_SQL}
-     ORDER BY p.quality_score DESC
-     LIMIT ${EXTENSION_CANDIDATE_LIMIT}`
+     ORDER BY p.quality_score DESC`
   ).all(`%.${extension}%`, language) as ExtensionCandidate[];
 
   return candidates
