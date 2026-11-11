@@ -2,8 +2,8 @@
  * Exact versions of the third-party CLIs that AQE's skills, commands, agents and
  * generated files tell an agent to run (#1404).
  *
- * A floating tag (`npx ruflo@latest`, `claude-flow@alpha`) or no version at all
- * (`npx ruflo`) runs whatever was published last, with the agent's privileges.
+ * A floating dist-tag (latest, alpha, v3alpha, ...) or no version at all runs
+ * whatever was published last, with the agent's privileges.
  * Every shipped or generated reference uses these exact versions instead;
  * tests/unit/packaging/no-floating-cli-versions-1404.test.ts enforces that, so a
  * bump is one edit here plus the matching sweep of the shipped markdown.
