@@ -60,23 +60,36 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run in-range security updater (optional-dep guard enforced)
+      # #1403: exits 1 (and restores the lockfile) on REJECTED, so the PR step
+      # below never runs for a failed or unreadable update.
+      - name: Run in-range security updater (fails closed, optional-dep guard enforced)
+        id: updater
         run: node scripts/dependency-update.mjs
+
+      - name: Show why the update was rejected
+        if: failure() && steps.updater.outcome == 'failure'
+        run: cat reports/dependency-update.md >> "${GITHUB_STEP_SUMMARY}" || true
 
       - name: Open PR if the lockfile changed
         env:
+          DISPOSITION: ${{ steps.updater.outputs.disposition }}
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           SERVER: ${{ github.server_url }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
+          # #1403: publish only a disposition the updater produced and admits.
+          case "${DISPOSITION}" in
+            ADMITTED|REVIEW_REQUIRED|NO_CHANGE) ;;
+            *) echo "::error::Updater disposition is '${DISPOSITION}'; refusing to push or open a PR."; exit 1 ;;
+          esac
           issue_title="Automated in-range security updates are ready on ${BRANCH}"
           find_issue() {
             gh issue list --state open --search "\"${issue_title}\" in:title" --json number,title |
               jq -r --arg t "${issue_title}" '[.[] | select(.title == $t)][0].number // empty'
           }
-          if git diff --quiet -- package-lock.json; then
+          if [ "${DISPOSITION}" = "NO_CHANGE" ] || git diff --quiet -- package-lock.json; then
             echo "No in-range security updates — nothing to propose."
             # #1344: an open handoff issue now points at an outdated branch.
             stale="$(find_issue)"
@@ -84,6 +97,12 @@ jobs:
               gh issue close "${stale}" --comment "No in-range security updates are needed any more (${RUN_URL}), so \`${BRANCH}\` is outdated. Closing."
             fi
             exit 0
+          fi
+          title="chore(deps): automated in-range security updates"
+          if [ "${DISPOSITION}" = "REVIEW_REQUIRED" ]; then
+            # Downgrades, removals or replacements: the body lists them under
+            # "Review required"; the title makes that visible in PR lists.
+            title="[REVIEW REQUIRED] ${title}"
           fi
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -103,12 +122,11 @@ jobs:
           if [ -n "${pr}" ]; then
             # A push made with GITHUB_TOKEN starts no workflow runs, so the
             # new head has not been tested. Refresh the body and say so.
-            gh pr edit "${pr}" --body-file reports/dependency-update.md
+            gh pr edit "${pr}" --title "${title}" --body-file reports/dependency-update.md
             gh pr comment "${pr}" --body "Force-pushed a new lockfile (${RUN_URL}). CI does not run on pushes made by Actions here: close and reopen this PR to test the new head before merging."
             echo "::warning::PR #${pr} was force-pushed; CI must be re-triggered by closing and reopening it."
             exit 0
           fi
-          title="chore(deps): automated in-range security updates"
           if gh pr create --base main --head "${BRANCH}" --title "${title}" \
                --body-file reports/dependency-update.md --label dependencies 2> pr-create.err; then
             exit 0
