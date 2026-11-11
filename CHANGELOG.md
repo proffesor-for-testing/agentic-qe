@@ -9,21 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Learned test-generation patterns are applied only after a measured
-  success** ([#1388]): before 3.15.19, a run without an LLM saved its
-  template scaffolding as a learned pattern with a 100% success rate. Those
-  patterns stayed in `.agentic-qe/memory.db` and were still applied to new
-  generations. They showed up as an `// Applied patterns: generate-tests …`
-  line and under "Patterns Used", and each use counted as another success.
-  Test generation now applies a learned pattern only when a run of the
-  tests it produced has been measured and passed. Nothing in this release
-  records such a run for test generation yet, so learned test-generation
-  patterns stay stored but unused until measured outcomes arrive
-  ([#1412]). With an LLM, the generated tests are unchanged except for the
-  missing "Applied patterns" header, and `patternsUsed` lists only curated
-  patterns. Built-in patterns are unaffected.
-  Nothing in your database is changed or deleted. No cleanup step is needed,
-  and a pattern is applied again once it has a measured success.
+- **Test generation applies only patterns it can trust** ([#1388]): before
+  3.15.19, a run without an LLM saved its template scaffolding as a
+  learned pattern with a 100% success rate. Those patterns stayed in
+  `.agentic-qe/memory.db` and were still applied to new generations. They
+  showed up as an `// Applied patterns: generate-tests …` line and under
+  "Patterns Used", and each use counted as another success. Test generation
+  now applies a pattern only if it is one of AQE's built-in patterns, one
+  you imported with `aqe learning import` or `import-merge`, or one whose
+  tests have been run with a measured, passing result.
+  - **Learned patterns stay unused for now.** Nothing in this release
+    measures the tests that generation produced, so patterns AQE learned
+    automatically (from test generation, hooks, session consolidation or
+    dream insights) are kept but not applied. A measurement path is
+    tracked in [#1412].
+  - **Earlier imports need re-importing.** Patterns imported by earlier
+    versions carry no import marker, so they also stop applying. To restore
+    them, import the same file again: `aqe learning import -i <file>`.
+  - **With an LLM, generated tests are unchanged** apart from the missing
+    "Applied patterns" header. Stored patterns never reach the LLM prompt.
+    `patternsUsed` now lists only the patterns that were actually applied.
+  - **Nothing in your database is changed or deleted.** No cleanup step is
+    needed.
 
 ### Fixed
 
