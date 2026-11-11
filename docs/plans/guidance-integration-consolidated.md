@@ -398,7 +398,7 @@ npx @claude-flow/guidance scaffold --project-root . --model claude-opus
 mkdir -p v3/src/integrations/guidance
 
 # Step 6: Record progress
-npx @claude-flow/cli@latest memory store \
+npx ruflo@3.5.18 memory store \
   --key "governance:phase1:complete" \
   --value "{\"timestamp\": \"$(date -Iseconds)\", \"status\": \"complete\"}" \
   --namespace governance
@@ -439,7 +439,7 @@ done
 ls -la .claude/guidance/shards/
 
 # Record progress
-npx @claude-flow/cli@latest memory store \
+npx ruflo@3.5.18 memory store \
   --key "governance:phase2:complete" \
   --value "{\"timestamp\": \"$(date -Iseconds)\", \"shards_created\": 12}" \
   --namespace governance
@@ -456,7 +456,7 @@ echo "Phase 2 complete."
 echo "=== Phase 3: Trust & Evolution ==="
 
 # Initialize swarm for parallel work
-npx @claude-flow/cli@latest swarm init \
+npx ruflo@3.5.18 swarm init \
   --topology hierarchical-mesh \
   --max-agents 10 \
   --strategy specialized
@@ -465,7 +465,7 @@ npx @claude-flow/cli@latest swarm init \
 cd v3 && npm run sync:embeddings:force 2>/dev/null || echo "Manual embedding needed" && cd ..
 
 # Store baseline metrics
-npx @claude-flow/cli@latest memory store \
+npx ruflo@3.5.18 memory store \
   --key "governance:benchmark:baseline" \
   --value "{\"timestamp\": \"$(date -Iseconds)\", \"autonomy_min\": 30, \"loops_per_day\": 5}" \
   --namespace governance
@@ -497,12 +497,12 @@ EOF
 npx @claude-flow/guidance conformance-test
 
 # Final metrics
-npx @claude-flow/cli@latest memory store \
+npx ruflo@3.5.18 memory store \
   --key "governance:integration:complete" \
   --value "{\"timestamp\": \"$(date -Iseconds)\", \"all_phases\": true}" \
   --namespace governance
 
-npx @claude-flow/cli@latest hooks session-end --export-metrics true
+npx ruflo@3.5.18 hooks session-end --export-metrics true
 
 echo "=== GUIDANCE INTEGRATION COMPLETE ==="
 ```
@@ -588,7 +588,7 @@ ls -1 .claude/guidance/shards/*.shard.md | wc -l | grep -q "12" && echo "PASS: 1
 ### Phase 3 Verification
 
 ```bash
-npx @claude-flow/cli@latest memory retrieve --key "governance:benchmark:baseline" --namespace governance
+npx ruflo@3.5.18 memory retrieve --key "governance:benchmark:baseline" --namespace governance
 ```
 
 ### Phase 4 Verification

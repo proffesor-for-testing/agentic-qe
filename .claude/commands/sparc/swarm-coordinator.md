@@ -23,7 +23,7 @@ mcp__claude-flow__sparc_mode {
 npx claude-flow sparc run swarm-coordinator "manage development swarm"
 
 # For alpha features
-npx claude-flow@alpha sparc run swarm-coordinator "manage development swarm"
+npx ruflo@3.5.18 sparc run swarm-coordinator "manage development swarm"
 ```
 
 ### Option 3: Local Installation

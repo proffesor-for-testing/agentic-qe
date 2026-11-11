@@ -23,7 +23,7 @@ mcp__claude-flow__sparc_mode {
 npx claude-flow sparc run architect "design microservices architecture"
 
 # For alpha features
-npx claude-flow@alpha sparc run architect "design microservices architecture"
+npx ruflo@3.5.18 sparc run architect "design microservices architecture"
 ```
 
 ### Option 3: Local Installation

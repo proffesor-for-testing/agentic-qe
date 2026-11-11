@@ -54,7 +54,7 @@ export function clearDetectionCache(): void {
  * 2. package.json dependency
  * 3. Locally installed binary (npx --no-install)
  *
- * Never runs `npx @claude-flow/cli@latest` which would trigger a download.
+ * Never runs a floating `npx @claude-flow/cli` tag, which would trigger a download.
  */
 export function detectClaudeFlow(projectRoot: string): ClaudeFlowDetection {
   // Return cached result if fresh

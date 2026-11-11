@@ -325,7 +325,7 @@ mcp__agentic-qe__code_index({ target: "src/[module]" })
 
 ```javascript
 // STEP 1: Initialize Claude Flow swarm
-Bash("npx @claude-flow/cli@latest swarm init --topology hierarchical --max-agents 15")
+Bash("npx ruflo@3.5.18 swarm init --topology hierarchical --max-agents 15")
 
 // STEP 2: Initialize AQE Fleet
 mcp__agentic-qe__fleet_init({ topology: "hierarchical", maxAgents: 10 })
@@ -336,7 +336,7 @@ Task({ prompt: "Analyze coverage gaps", subagent_type: "qe-coverage-specialist",
 
 // STEP 4: Store learnings in both systems
 mcp__agentic-qe__memory_store({ key: "pattern-1", value: "...", namespace: "qe-patterns" })
-Bash("npx @claude-flow/cli@latest memory store --key 'qe-pattern-1' --value '...' --namespace patterns")
+Bash("npx ruflo@3.5.18 memory store --key 'qe-pattern-1' --value '...' --namespace patterns")
 ```
 
 ---

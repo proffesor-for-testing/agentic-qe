@@ -23,7 +23,7 @@ mcp__claude-flow__sparc_mode {
 npx claude-flow sparc run debugger "fix authentication issues"
 
 # For alpha features
-npx claude-flow@alpha sparc run debugger "fix authentication issues"
+npx ruflo@3.5.18 sparc run debugger "fix authentication issues"
 ```
 
 ### Option 3: Local Installation

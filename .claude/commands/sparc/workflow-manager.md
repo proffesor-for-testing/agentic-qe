@@ -23,7 +23,7 @@ mcp__claude-flow__sparc_mode {
 npx claude-flow sparc run workflow-manager "automate deployment"
 
 # For alpha features
-npx claude-flow@alpha sparc run workflow-manager "automate deployment"
+npx ruflo@3.5.18 sparc run workflow-manager "automate deployment"
 ```
 
 ### Option 3: Local Installation

@@ -34,7 +34,7 @@ mcp__claude-flow__sparc_mode {
 npx claude-flow sparc run tutorial "guide me through SPARC methodology"
 
 # For alpha features
-npx claude-flow@alpha sparc run tutorial "guide me through SPARC methodology"
+npx ruflo@3.5.18 sparc run tutorial "guide me through SPARC methodology"
 
 # With namespace
 npx claude-flow sparc run tutorial "your task" --namespace tutorial

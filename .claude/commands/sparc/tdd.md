@@ -23,7 +23,7 @@ mcp__claude-flow__sparc_mode {
 npx claude-flow sparc run tdd "shopping cart feature"
 
 # For alpha features
-npx claude-flow@alpha sparc run tdd "shopping cart feature"
+npx ruflo@3.5.18 sparc run tdd "shopping cart feature"
 ```
 
 ### Option 3: Local Installation

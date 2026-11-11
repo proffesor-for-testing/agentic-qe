@@ -66,7 +66,7 @@ mcp__claude-flow__sparc_mode {
 npx claude-flow sparc run sparc "orchestrate authentication system"
 
 # For alpha features
-npx claude-flow@alpha sparc run sparc "orchestrate authentication system"
+npx ruflo@3.5.18 sparc run sparc "orchestrate authentication system"
 
 # With namespace
 npx claude-flow sparc run sparc "your task" --namespace sparc

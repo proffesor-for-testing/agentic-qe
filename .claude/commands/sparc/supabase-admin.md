@@ -303,7 +303,7 @@ mcp__claude-flow__sparc_mode {
 npx claude-flow sparc run supabase-admin "create user authentication schema"
 
 # For alpha features
-npx claude-flow@alpha sparc run supabase-admin "create user authentication schema"
+npx ruflo@3.5.18 sparc run supabase-admin "create user authentication schema"
 
 # With namespace
 npx claude-flow sparc run supabase-admin "your task" --namespace supabase-admin

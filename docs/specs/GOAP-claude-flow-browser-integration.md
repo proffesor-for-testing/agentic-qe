@@ -980,13 +980,13 @@ async function checkIntegrationHealth(): Promise<IntegrationHealth> {
 
 ```bash
 # Store initial world state
-npx @claude-flow/cli@latest memory store \
+npx ruflo@3.5.18 memory store \
   --key "goap:browser-integration:world-state" \
   --value '{"milestone": 0, "status": "planning"}' \
   --namespace goap
 
 # Store goal state
-npx @claude-flow/cli@latest memory store \
+npx ruflo@3.5.18 memory store \
   --key "goap:browser-integration:goal-state" \
   --value '{"allMilestonesComplete": true, "metricsValidated": true}' \
   --namespace goap
@@ -996,15 +996,15 @@ npx @claude-flow/cli@latest memory store \
 
 ```bash
 # Route task to optimal agent
-npx @claude-flow/cli@latest hooks route \
+npx ruflo@3.5.18 hooks route \
   --task "Implement BrowserSecurityScanner integration for visual-accessibility domain"
 
 # Pre-task hook for model routing
-npx @claude-flow/cli@latest hooks pre-task \
+npx ruflo@3.5.18 hooks pre-task \
   --description "Import and adapt BrowserSecurityScanner from @claude-flow/browser"
 
 # Spawn agents for parallel execution
-npx @claude-flow/cli@latest swarm init \
+npx ruflo@3.5.18 swarm init \
   --topology hierarchical \
   --max-agents 8 \
   --strategy specialized
@@ -1014,13 +1014,13 @@ npx @claude-flow/cli@latest swarm init \
 
 ```bash
 # Store milestone completion
-npx @claude-flow/cli@latest memory store \
+npx ruflo@3.5.18 memory store \
   --key "goap:browser-integration:milestone-1" \
   --value '{"status": "complete", "timestamp": "2026-01-22T18:00:00Z"}' \
   --namespace goap
 
 # Search for learned patterns
-npx @claude-flow/cli@latest memory search \
+npx ruflo@3.5.18 memory search \
   --query "security scanner integration" \
   --namespace browser-integration:patterns
 ```

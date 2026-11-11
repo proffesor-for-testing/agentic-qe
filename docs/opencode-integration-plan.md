@@ -223,7 +223,7 @@ End-to-end integration tests, smoke tests, and documentation.
 ### Swarm Configuration
 
 ```bash
-npx @claude-flow/cli@latest swarm init \
+npx ruflo@3.5.18 swarm init \
   --topology hierarchical \
   --max-agents 8 \
   --strategy specialized

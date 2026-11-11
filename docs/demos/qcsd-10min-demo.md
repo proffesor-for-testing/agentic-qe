@@ -12,7 +12,7 @@
 cd /workspaces/agentic-qe/v3
 
 # 2. Pre-warm the swarm
-npx @claude-flow/cli@latest swarm init --topology hierarchical --max-agents 6 --strategy specialized
+npx ruflo@3.5.18 swarm init --topology hierarchical --max-agents 6 --strategy specialized
 
 # 3. Verify site is accessible
 curl -s -o /dev/null -w "%{http_code}" https://sauce-demo.myshopify.com/

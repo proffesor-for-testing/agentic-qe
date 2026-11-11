@@ -867,13 +867,13 @@ dependencies: [AB1.6]
 
 ```bash
 # Phase 1: Core Integration (6 agents)
-npx @claude-flow/cli@latest swarm init \
+npx ruflo@3.5.18 swarm init \
   --topology hierarchical \
   --max-agents 6 \
   --strategy specialized
 
 # Phase 2-3: Domain Integration + Testing (8 agents)
-npx @claude-flow/cli@latest swarm init \
+npx ruflo@3.5.18 swarm init \
   --topology hierarchical-mesh \
   --max-agents 8 \
   --strategy specialized
@@ -887,17 +887,17 @@ npx @claude-flow/cli@latest swarm init \
 
 ```bash
 # Store after successful integration
-npx @claude-flow/cli@latest memory store \
+npx ruflo@3.5.18 memory store \
   --key "browser-client-factory-pattern" \
   --value "Use BrowserClientFactory for tool selection. Prefer agent-browser for E2E (refs), Vibium for visual (simpler). Auto-fallback when unavailable." \
   --namespace patterns
 
-npx @claude-flow/cli@latest memory store \
+npx ruflo@3.5.18 memory store \
   --key "snapshot-ref-workflow" \
   --value "1. Take snapshot with -i flag. 2. Parse to get refs. 3. Use @e1, @e2 for interactions. 4. Re-snapshot after state changes." \
   --namespace patterns
 
-npx @claude-flow/cli@latest memory store \
+npx ruflo@3.5.18 memory store \
   --key "browser-session-isolation" \
   --value "Use AgentBrowserSessionManager for parallel E2E tests. Each session has isolated cookies, storage, history. Name sessions by test suite." \
   --namespace patterns
@@ -1075,13 +1075,13 @@ v3/docs/integrations/
 
 ```bash
 # Initialize swarm
-npx @claude-flow/cli@latest swarm init --topology hierarchical --max-agents 6
+npx ruflo@3.5.18 swarm init --topology hierarchical --max-agents 6
 
 # Check for similar patterns
-npx @claude-flow/cli@latest memory search --query "browser client factory pattern" --namespace patterns
+npx ruflo@3.5.18 memory search --query "browser client factory pattern" --namespace patterns
 
 # Route first task
-npx @claude-flow/cli@latest hooks route --task "Create common browser types for IBrowserClient interface"
+npx ruflo@3.5.18 hooks route --task "Create common browser types for IBrowserClient interface"
 ```
 
 ### MCP Orchestration

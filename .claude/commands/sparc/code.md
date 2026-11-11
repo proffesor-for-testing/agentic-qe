@@ -44,7 +44,7 @@ mcp__claude-flow__sparc_mode {
 npx claude-flow sparc run code "implement REST API endpoints"
 
 # For alpha features
-npx claude-flow@alpha sparc run code "implement REST API endpoints"
+npx ruflo@3.5.18 sparc run code "implement REST API endpoints"
 
 # With namespace
 npx claude-flow sparc run code "your task" --namespace code

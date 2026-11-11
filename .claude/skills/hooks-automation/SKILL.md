@@ -23,7 +23,7 @@ This skill provides a comprehensive hook system that automatically manages devel
 ## Prerequisites
 
 **Required:**
-- Claude Flow CLI installed (`npm install -g claude-flow@alpha`)
+- Claude Flow CLI installed (`npm install -g ruflo@3.5.18`)
 - Claude Code with hooks enabled
 - `.claude/settings.json` with hook configurations
 

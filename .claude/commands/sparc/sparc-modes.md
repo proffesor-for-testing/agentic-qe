@@ -68,7 +68,7 @@ mcp__claude-flow__swarm_monitor {
 npx claude-flow sparc run <mode> "task description"
 
 # For alpha features
-npx claude-flow@alpha sparc run <mode> "task description"
+npx ruflo@3.5.18 sparc run <mode> "task description"
 
 # List all modes
 npx claude-flow sparc modes

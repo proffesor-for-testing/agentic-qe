@@ -80,8 +80,8 @@ function extractDashboardApi(): string[] {
 
 /**
  * Skills shipped by the .kiro tree. .kiro is an INTENTIONALLY divergent variant
- * (its own frontmatter convention + some skills carry large .kiro-specific bodies,
- * e.g. qcsd-cicd-swarm), so it is gated by PRESENCE here — a skill disappearing
+ * (its own frontmatter convention, written by src/init/kiro-installer.ts), so it is
+ * gated by PRESENCE here — a skill disappearing
  * from .kiro is a regression — rather than by body-equality (which would force
  * destroying that divergence). Faithful body-mirrors (assets, plugins) are gated
  * strictly by `npm run verify:skill-parity`.

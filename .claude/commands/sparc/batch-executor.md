@@ -23,7 +23,7 @@ mcp__claude-flow__sparc_mode {
 npx claude-flow sparc run batch-executor "process multiple files"
 
 # For alpha features
-npx claude-flow@alpha sparc run batch-executor "process multiple files"
+npx ruflo@3.5.18 sparc run batch-executor "process multiple files"
 ```
 
 ### Option 3: Local Installation

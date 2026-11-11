@@ -35,7 +35,7 @@ mcp__claude-flow__sparc_mode {
 npx claude-flow sparc run spec-pseudocode "define payment flow requirements"
 
 # For alpha features
-npx claude-flow@alpha sparc run spec-pseudocode "define payment flow requirements"
+npx ruflo@3.5.18 sparc run spec-pseudocode "define payment flow requirements"
 
 # With namespace
 npx claude-flow sparc run spec-pseudocode "your task" --namespace spec-pseudocode

@@ -38,7 +38,7 @@ mcp__claude-flow__sparc_mode {
 npx claude-flow sparc run integration "connect payment service"
 
 # For alpha features
-npx claude-flow@alpha sparc run integration "connect payment service"
+npx ruflo@3.5.18 sparc run integration "connect payment service"
 
 # With namespace
 npx claude-flow sparc run integration "your task" --namespace integration

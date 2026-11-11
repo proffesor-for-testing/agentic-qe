@@ -24,15 +24,15 @@ hooks:
 
     # 1. Learn from past refactoring patterns (ReasoningBank)
     echo "🧠 Searching for similar refactoring patterns..."
-    SIMILAR_REFACTOR=$(npx claude-flow@alpha memory search-patterns "refinement: $TASK" --k=5 --min-reward=0.85 2>/dev/null || echo "")
+    SIMILAR_REFACTOR=$(npx ruflo@3.5.18 memory search-patterns "refinement: $TASK" --k=5 --min-reward=0.85 2>/dev/null || echo "")
     if [ -n "$SIMILAR_REFACTOR" ]; then
       echo "📚 Found similar refactoring patterns - applying learned improvements"
-      npx claude-flow@alpha memory get-pattern-stats "refinement: $TASK" --k=5 2>/dev/null || true
+      npx ruflo@3.5.18 memory get-pattern-stats "refinement: $TASK" --k=5 2>/dev/null || true
     fi
 
     # 2. Learn from past test failures
     echo "⚠️  Learning from past test failures..."
-    PAST_FAILURES=$(npx claude-flow@alpha memory search-patterns "refinement: $TASK" --only-failures --k=3 2>/dev/null || echo "")
+    PAST_FAILURES=$(npx ruflo@3.5.18 memory search-patterns "refinement: $TASK" --only-failures --k=3 2>/dev/null || echo "")
     if [ -n "$PAST_FAILURES" ]; then
       echo "🔍 Found past test failures - avoiding known issues"
     fi
@@ -44,7 +44,7 @@ hooks:
     # 4. Store refinement session start
     SESSION_ID="refine-$(date +%s)-$$"
     echo "SESSION_ID=$SESSION_ID" >> $GITHUB_ENV 2>/dev/null || export SESSION_ID
-    npx claude-flow@alpha memory store-pattern \
+    npx ruflo@3.5.18 memory store-pattern \
       --session-id "$SESSION_ID" \
       --task "refinement: $TASK" \
       --input "test_baseline=$TEST_BASELINE" \
@@ -71,7 +71,7 @@ hooks:
     LATENCY_MS=$(($(date +%s%3N) - START_TIME))
 
     # 3. Store refinement pattern with test results
-    npx claude-flow@alpha memory store-pattern \
+    npx ruflo@3.5.18 memory store-pattern \
       --session-id "${SESSION_ID:-refine-$(date +%s)}" \
       --task "refinement: $TASK" \
       --input "test_baseline=$TEST_BASELINE" \
@@ -85,7 +85,7 @@ hooks:
     # 4. Train neural patterns on successful refinements
     if [ "$SUCCESS" = "true" ] && [ "$TEST_COVERAGE" != "0" ]; then
       echo "🧠 Training neural pattern from successful refinement"
-      npx claude-flow@alpha neural train \
+      npx ruflo@3.5.18 neural train \
         --pattern-type "optimization" \
         --training-data "refinement-success" \
         --epochs 50 2>/dev/null || true

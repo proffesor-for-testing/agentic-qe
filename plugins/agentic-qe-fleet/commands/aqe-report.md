@@ -142,28 +142,28 @@ Task("Generate comprehensive QE report", `
 
 ```bash
 # Retrieve coverage data
-npx claude-flow@alpha memory retrieve --key "aqe/coverage/current"
+npx ruflo@3.5.18 memory retrieve --key "aqe/coverage/current"
 
 # Retrieve execution history
-npx claude-flow@alpha memory retrieve --key "aqe/execution/history"
+npx ruflo@3.5.18 memory retrieve --key "aqe/execution/history"
 
 # Retrieve performance metrics
-npx claude-flow@alpha memory retrieve --key "aqe/performance/metrics"
+npx ruflo@3.5.18 memory retrieve --key "aqe/performance/metrics"
 
 # Retrieve optimization results
-npx claude-flow@alpha memory retrieve --key "aqe/optimization/results"
+npx ruflo@3.5.18 memory retrieve --key "aqe/optimization/results"
 ```
 
 ### Output Memory Keys
 
 ```bash
 # Store report metadata
-npx claude-flow@alpha memory store \
+npx ruflo@3.5.18 memory store \
   --key "aqe/reports/${report_id}" \
   --value '{"type": "detailed", "format": "html", "timestamp": "2025-09-30T10:20:00Z"}'
 
 # Store report history
-npx claude-flow@alpha memory store \
+npx ruflo@3.5.18 memory store \
   --key "aqe/reports/history" \
   --value '[{"id": "report-123", "date": "2025-09-30"}]'
 ```
@@ -173,7 +173,7 @@ npx claude-flow@alpha memory store \
 ### Pre-Task Hook
 
 ```bash
-npx claude-flow@alpha hooks pre-task \
+npx ruflo@3.5.18 hooks pre-task \
   --description "Generate ${report_type} report" \
   --agent "qe-quality-gate"
 ```
@@ -181,7 +181,7 @@ npx claude-flow@alpha hooks pre-task \
 ### Post-Task Hook
 
 ```bash
-npx claude-flow@alpha hooks post-task \
+npx ruflo@3.5.18 hooks post-task \
   --task-id "${REPORT_ID}" \
   --results "${REPORT_META}"
 ```
@@ -189,7 +189,7 @@ npx claude-flow@alpha hooks post-task \
 ### Notify Fleet
 
 ```bash
-npx claude-flow@alpha hooks notify \
+npx ruflo@3.5.18 hooks notify \
   --message "Report generated: ${REPORT_TYPE} (${REPORT_ID})"
 ```
 

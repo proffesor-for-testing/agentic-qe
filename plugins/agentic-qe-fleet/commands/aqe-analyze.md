@@ -142,30 +142,30 @@ Task("Analyze coverage gaps", `
 
 ```bash
 # Retrieve current coverage data
-npx claude-flow@alpha memory retrieve --key "aqe/coverage/current"
+npx ruflo@3.5.18 memory retrieve --key "aqe/coverage/current"
 
 # Retrieve coverage baseline
-npx claude-flow@alpha memory retrieve --key "aqe/coverage/baseline"
+npx ruflo@3.5.18 memory retrieve --key "aqe/coverage/baseline"
 
 # Retrieve source code analysis
-npx claude-flow@alpha memory retrieve --key "aqe/source-code"
+npx ruflo@3.5.18 memory retrieve --key "aqe/source-code"
 ```
 
 ### Output Memory Keys
 
 ```bash
 # Store analysis results
-npx claude-flow@alpha memory store \
+npx ruflo@3.5.18 memory store \
   --key "aqe/coverage-analysis/results" \
   --value '{"coverage": 93.5, "gaps": 12, "critical": 3}'
 
 # Store identified gaps
-npx claude-flow@alpha memory store \
+npx ruflo@3.5.18 memory store \
   --key "aqe/coverage-gaps" \
   --value '[{"file": "auth.ts", "line": 45, "priority": "critical"}]'
 
 # Store recommendations
-npx claude-flow@alpha memory store \
+npx ruflo@3.5.18 memory store \
   --key "aqe/coverage-recommendations" \
   --value '{"action": "generate", "targets": ["auth.ts:45-60"]}'
 ```
@@ -175,7 +175,7 @@ npx claude-flow@alpha memory store \
 ### Pre-Task Hook
 
 ```bash
-npx claude-flow@alpha hooks pre-task \
+npx ruflo@3.5.18 hooks pre-task \
   --description "Analyze coverage for ${target}" \
   --agent "qe-coverage-analyzer"
 ```
@@ -183,7 +183,7 @@ npx claude-flow@alpha hooks pre-task \
 ### Post-Task Hook
 
 ```bash
-npx claude-flow@alpha hooks post-task \
+npx ruflo@3.5.18 hooks post-task \
   --task-id "${ANALYSIS_ID}" \
   --results "${ANALYSIS_RESULTS}"
 ```
@@ -191,7 +191,7 @@ npx claude-flow@alpha hooks post-task \
 ### Notify Fleet
 
 ```bash
-npx claude-flow@alpha hooks notify \
+npx ruflo@3.5.18 hooks notify \
   --message "Coverage analysis: ${COVERAGE_PCT}% with ${GAPS_COUNT} gaps"
 ```
 

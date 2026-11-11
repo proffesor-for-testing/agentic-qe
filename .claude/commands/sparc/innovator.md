@@ -23,7 +23,7 @@ mcp__claude-flow__sparc_mode {
 npx claude-flow sparc run innovator "innovative solutions for scaling"
 
 # For alpha features
-npx claude-flow@alpha sparc run innovator "innovative solutions for scaling"
+npx ruflo@3.5.18 sparc run innovator "innovative solutions for scaling"
 ```
 
 ### Option 3: Local Installation

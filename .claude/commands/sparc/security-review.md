@@ -35,7 +35,7 @@ mcp__claude-flow__sparc_mode {
 npx claude-flow sparc run security-review "audit API security"
 
 # For alpha features
-npx claude-flow@alpha sparc run security-review "audit API security"
+npx ruflo@3.5.18 sparc run security-review "audit API security"
 
 # With namespace
 npx claude-flow sparc run security-review "your task" --namespace security-review

@@ -38,7 +38,7 @@ mcp__claude-flow__sparc_mode {
 npx claude-flow sparc run refinement-optimization-mode "optimize database queries"
 
 # For alpha features
-npx claude-flow@alpha sparc run refinement-optimization-mode "optimize database queries"
+npx ruflo@3.5.18 sparc run refinement-optimization-mode "optimize database queries"
 
 # With namespace
 npx claude-flow sparc run refinement-optimization-mode "your task" --namespace refinement-optimization-mode

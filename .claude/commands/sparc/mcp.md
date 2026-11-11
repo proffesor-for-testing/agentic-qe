@@ -72,7 +72,7 @@ mcp__claude-flow__sparc_mode {
 npx claude-flow sparc run mcp "integrate with external API"
 
 # For alpha features
-npx claude-flow@alpha sparc run mcp "integrate with external API"
+npx ruflo@3.5.18 sparc run mcp "integrate with external API"
 
 # With namespace
 npx claude-flow sparc run mcp "your task" --namespace mcp

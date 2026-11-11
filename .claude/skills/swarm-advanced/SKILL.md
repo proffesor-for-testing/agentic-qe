@@ -13,10 +13,10 @@ Master advanced swarm patterns for distributed research, development, and testin
 ### Prerequisites
 ```bash
 # Ensure Claude Flow is installed
-npm install -g claude-flow@alpha
+npm install -g ruflo@3.5.18
 
 # Add MCP server (if using MCP tools)
-claude mcp add claude-flow npx claude-flow@alpha mcp start
+claude mcp add claude-flow npx ruflo@3.5.18 mcp start
 ```
 
 ### Basic Pattern

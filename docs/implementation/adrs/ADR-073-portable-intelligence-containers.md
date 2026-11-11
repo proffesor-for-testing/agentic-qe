@@ -212,22 +212,22 @@ interface ImportResult {
 
 ```bash
 # Build a container from the current knowledge base
-npx @claude-flow/cli@latest intelligence export \
+npx ruflo@3.5.18 intelligence export \
   --version 1.0.0 \
   --description "React testing patterns from enterprise project" \
   --tags react,testing,jest,rtl \
   --output ./react-qe-patterns-v1.0.0.rvf
 
 # Inspect a container
-npx @claude-flow/cli@latest intelligence inspect ./react-qe-patterns-v1.0.0.rvf
+npx ruflo@3.5.18 intelligence inspect ./react-qe-patterns-v1.0.0.rvf
 
 # Import a container
-npx @claude-flow/cli@latest intelligence import ./react-qe-patterns-v1.0.0.rvf \
+npx ruflo@3.5.18 intelligence import ./react-qe-patterns-v1.0.0.rvf \
   --conflict-strategy higher-confidence-wins \
   --verify-witness-chain
 
 # Domain-specific import
-npx @claude-flow/cli@latest intelligence import ./enterprise-patterns.rvf \
+npx ruflo@3.5.18 intelligence import ./enterprise-patterns.rvf \
   --domain test-generation \
   --confidence-threshold 0.5
 ```

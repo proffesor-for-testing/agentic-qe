@@ -38,7 +38,7 @@ mcp__claude-flow__sparc_mode {
 npx claude-flow sparc run debug "fix memory leak in service"
 
 # For alpha features
-npx claude-flow@alpha sparc run debug "fix memory leak in service"
+npx ruflo@3.5.18 sparc run debug "fix memory leak in service"
 
 # With namespace
 npx claude-flow sparc run debug "your task" --namespace debug

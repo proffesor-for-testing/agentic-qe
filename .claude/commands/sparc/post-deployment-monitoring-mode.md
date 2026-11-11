@@ -38,7 +38,7 @@ mcp__claude-flow__sparc_mode {
 npx claude-flow sparc run post-deployment-monitoring-mode "monitor production metrics"
 
 # For alpha features
-npx claude-flow@alpha sparc run post-deployment-monitoring-mode "monitor production metrics"
+npx ruflo@3.5.18 sparc run post-deployment-monitoring-mode "monitor production metrics"
 
 # With namespace
 npx claude-flow sparc run post-deployment-monitoring-mode "your task" --namespace post-deployment-monitoring-mode

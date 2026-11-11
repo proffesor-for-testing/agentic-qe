@@ -23,7 +23,7 @@ mcp__claude-flow__sparc_mode {
 npx claude-flow sparc run analyzer "analyze codebase performance"
 
 # For alpha features
-npx claude-flow@alpha sparc run analyzer "analyze codebase performance"
+npx ruflo@3.5.18 sparc run analyzer "analyze codebase performance"
 ```
 
 ### Option 3: Local Installation

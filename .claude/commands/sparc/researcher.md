@@ -23,7 +23,7 @@ mcp__claude-flow__sparc_mode {
 npx claude-flow sparc run researcher "research AI trends 2024"
 
 # For alpha features
-npx claude-flow@alpha sparc run researcher "research AI trends 2024"
+npx ruflo@3.5.18 sparc run researcher "research AI trends 2024"
 ```
 
 ### Option 3: Local Installation

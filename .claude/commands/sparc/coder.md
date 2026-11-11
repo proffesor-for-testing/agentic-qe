@@ -23,7 +23,7 @@ mcp__claude-flow__sparc_mode {
 npx claude-flow sparc run coder "implement user authentication"
 
 # For alpha features
-npx claude-flow@alpha sparc run coder "implement user authentication"
+npx ruflo@3.5.18 sparc run coder "implement user authentication"
 ```
 
 ### Option 3: Local Installation

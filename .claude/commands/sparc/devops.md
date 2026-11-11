@@ -64,7 +64,7 @@ mcp__claude-flow__sparc_mode {
 npx claude-flow sparc run devops "deploy to AWS Lambda"
 
 # For alpha features
-npx claude-flow@alpha sparc run devops "deploy to AWS Lambda"
+npx ruflo@3.5.18 sparc run devops "deploy to AWS Lambda"
 
 # With namespace
 npx claude-flow sparc run devops "your task" --namespace devops

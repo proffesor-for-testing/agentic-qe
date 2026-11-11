@@ -153,30 +153,30 @@ Task("Execute performance benchmark", `
 
 ```bash
 # Retrieve baseline metrics
-npx claude-flow@alpha memory retrieve --key "aqe/benchmarks/baseline"
+npx ruflo@3.5.18 memory retrieve --key "aqe/benchmarks/baseline"
 
 # Retrieve SLA thresholds
-npx claude-flow@alpha memory retrieve --key "aqe/performance/sla"
+npx ruflo@3.5.18 memory retrieve --key "aqe/performance/sla"
 
 # Retrieve historical benchmarks
-npx claude-flow@alpha memory retrieve --key "aqe/benchmarks/history"
+npx ruflo@3.5.18 memory retrieve --key "aqe/benchmarks/history"
 ```
 
 ### Output Memory Keys
 
 ```bash
 # Store benchmark results
-npx claude-flow@alpha memory store \
+npx ruflo@3.5.18 memory store \
   --key "aqe/benchmarks/${bench_id}" \
   --value '{"mean": 45, "median": 42, "p95": 120, "p99": 250}'
 
 # Update performance trends
-npx claude-flow@alpha memory store \
+npx ruflo@3.5.18 memory store \
   --key "aqe/performance/trends" \
   --value '[{"date": "2025-09-30", "mean": 45}]'
 
 # Store baseline for future comparisons
-npx claude-flow@alpha memory store \
+npx ruflo@3.5.18 memory store \
   --key "aqe/benchmarks/baseline" \
   --value '{"mean": 45, "p95": 120, "timestamp": "2025-09-30T10:30:00Z"}'
 ```
@@ -186,7 +186,7 @@ npx claude-flow@alpha memory store \
 ### Pre-Task Hook
 
 ```bash
-npx claude-flow@alpha hooks pre-task \
+npx ruflo@3.5.18 hooks pre-task \
   --description "Benchmark: ${target}" \
   --agent "qe-performance-tester"
 ```
@@ -194,7 +194,7 @@ npx claude-flow@alpha hooks pre-task \
 ### Post-Task Hook
 
 ```bash
-npx claude-flow@alpha hooks post-task \
+npx ruflo@3.5.18 hooks post-task \
   --task-id "${BENCH_ID}" \
   --results "${BENCH_RESULTS}"
 ```
@@ -202,7 +202,7 @@ npx claude-flow@alpha hooks post-task \
 ### Notify Fleet
 
 ```bash
-npx claude-flow@alpha hooks notify \
+npx ruflo@3.5.18 hooks notify \
   --message "Benchmark ${target} completed: $(echo "${BENCH_RESULTS}" | jq -r '.mean')ms mean"
 ```
 
