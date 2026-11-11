@@ -389,7 +389,7 @@ describe('JSONReader', () => {
       await reader.initialize();
 
       await expect(reader.readAll()).rejects.toThrow(
-        'Configured JSON path $.nonexistent.path was not found in source test-json',
+        'Configured JSON path $.nonexistent.path not found in source test-json',
       );
     });
 

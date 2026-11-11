@@ -5,6 +5,32 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **`aqe sync` uploads each claude-flow memory and your Q-learning
+  patterns** ([#1384], [#1402]): sync now reads the real
+  `.claude-flow/memory/store.json` and `.ruvector/intelligence.json`
+  layouts. Thanks to @dajiaohuang for the first part of this fix.
+
+  What changes in your cloud data:
+  - `aqe.claude_flow_memory` gets one row per memory, holding the stored
+    value. Before, every sync uploaded the same two rows: one named
+    `entries` with all your memories in a single blob, and one named
+    `version`.
+  - Your Q-learning patterns start uploading to `aqe.qlearning_patterns`.
+    Before, this source always synced 0 records.
+  - If a store doesn't have the data a source is configured to read, that
+    source now fails with the reason (for example
+    `Configured JSON path $.patterns not found`). The sync then reports
+    PARTIAL instead of COMPLETED with 0 records.
+  - The old `entries` and `version` rows already in your cloud database
+    are not removed. You can delete them yourself if you don't want them.
+
+[#1384]: https://github.com/proffesor-for-testing/agentic-qe/issues/1384
+[#1402]: https://github.com/proffesor-for-testing/agentic-qe/pull/1402
+
 ## [3.15.19] - 2026-11-06
 
 Test generation no longer counts template scaffolding or invented tests as

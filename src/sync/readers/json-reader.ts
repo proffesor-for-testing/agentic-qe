@@ -232,7 +232,8 @@ export class JSONReader implements DataReader<JSONRecord> {
       if (current && typeof current === 'object' && Object.hasOwn(current, part)) {
         current = (current as Record<string, unknown>)[part];
       } else {
-        throw new Error(`Configured JSON path ${jsonPath} was not found in source ${this.name}`);
+        // #1384: a configured path the file does not have is reported, not 0 records.
+        throw new Error(`Configured JSON path ${jsonPath} not found in source ${this.name}: ${this.filePath}`);
       }
     }
 
@@ -248,41 +249,40 @@ export class JSONReader implements DataReader<JSONRecord> {
       }));
     }
 
-    return [];
+    // #1384: a scalar or null at the path has no records to read.
+    const got = current === null ? 'null' : `a ${typeof current}`;
+    throw new Error(`Configured JSON path ${jsonPath} in source ${this.name} is not a list or an object (got ${got}): ${this.filePath}`);
   }
 
   /**
-   * Extract records from Claude-Flow memory store
+   * Extract records from Claude-Flow memory store.
+   *
+   * #1384: the store is `{entries: {key: {key, value, namespace, storedAt, ...}}, version}`;
+   * each entry is one record whose value is the stored payload (as
+   * claude-flow-bridge reads it), not the wrapper. The older flat store
+   * (`{key: value}`) still reads one record per key.
    */
   private extractClaudeFlowMemory(parsed: unknown): JSONRecord[] {
     if (!parsed || typeof parsed !== 'object') {
       return [];
     }
 
-    const records: JSONRecord[] = [];
     const store = parsed as Record<string, unknown>;
+    const versioned = isPlainObject(store.entries);
+    const entries = versioned ? store.entries as Record<string, unknown> : store;
 
-    // Claude Flow stores current memories under `entries`; the root also has
-    // metadata such as `version`. Keep the older flat-store shape supported.
-    const entries = store.entries && typeof store.entries === 'object' && !Array.isArray(store.entries)
-      ? store.entries as Record<string, unknown>
-      : store;
-
+    const records: JSONRecord[] = [];
     for (const [key, value] of Object.entries(entries)) {
       // Skip metadata keys
-      if (key.startsWith('_')) continue;
+      if (key.startsWith('_') || (!versioned && key === 'version')) continue;
 
-      // Determine category from key pattern
-      let category = 'general';
-      if (key.includes('adr')) category = 'adr-analysis';
-      else if (key.includes('agent')) category = 'agent-patterns';
-      else if (key.includes('pattern')) category = 'patterns';
-      else if (key.includes('metric')) category = 'metrics';
-
+      const stored = versioned && isPlainObject(value) && Object.hasOwn(value, 'value') ? value : null;
+      // created_at stays the sync time (transformRecord): incremental pulls
+      // select rows by it, so an old storedAt would hide the row from them.
       records.push({
         key,
-        value: typeof value === 'object' ? value : { data: value },
-        category,
+        value: stored ? toJsonbPayload(stored.value) : (typeof value === 'object' ? value : { data: value }),
+        category: categorizeMemoryKey(key),
       });
     }
 
@@ -428,6 +428,35 @@ function describeParseError(error: unknown): string {
   if (!(error instanceof SyntaxError)) return message;
   const where = message.match(/position \d+(?: \(line \d+ column \d+\))?/);
   return `not valid JSON${where ? ` at ${where[0]}` : ''}`;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Category of a claude-flow memory, from its key (the cloud `category` column). */
+function categorizeMemoryKey(key: string): string {
+  if (key.includes('adr')) return 'adr-analysis';
+  if (key.includes('agent')) return 'agent-patterns';
+  if (key.includes('pattern')) return 'patterns';
+  if (key.includes('metric')) return 'metrics';
+  return 'general';
+}
+
+/**
+ * #1384: a claude-flow payload for the JSONB `value` column. Objects and JSON
+ * text pass through; any other string is encoded as a JSON string, so text
+ * such as a date is stored as text and never rejected as invalid JSONB.
+ */
+function toJsonbPayload(value: unknown): unknown {
+  if (value === undefined || value === null) return { data: null };
+  if (typeof value !== 'string') return value;
+  try {
+    JSON.parse(value);
+    return value;
+  } catch {
+    return JSON.stringify(value);
+  }
 }
 
 /**

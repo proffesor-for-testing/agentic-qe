@@ -751,7 +751,7 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
         mode: 'full',
         enabled: true,
       },
-      // Intelligence JSON (Q-Learning)
+      // Intelligence JSON: Q-learning patterns, {"state|action": {state, action, q_value, visits, last_update}}
       {
         name: 'intelligence-qlearning',
         type: 'json',
@@ -759,7 +759,7 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
         targetTable: 'aqe.qlearning_patterns',
         priority: 'low',
         mode: 'full',
-        jsonPath: '$.qvalues',
+        jsonPath: '$.patterns', // #1384: real intelligence.json keeps its Q-patterns here
         enabled: true,
       },
     ],
