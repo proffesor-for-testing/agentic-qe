@@ -106,6 +106,24 @@ describe('floating third-party CLI versions (#1404)', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('should_useOneRufloPin_when_filesPinRuflo', () => {
+    const setup = readFileSync(join(ROOT, 'src/cli/commands/claude-flow-setup.ts'), 'utf8');
+    const canonical = /'ruflo@(\d+\.\d+\.\d+)'/.exec(setup)?.[1];
+    expect(canonical, 'claude-flow-setup.ts no longer pins ruflo').toBeDefined();
+
+    const mismatched = trackedFiles()
+      // CHANGELOG.md records past pins on purpose.
+      .filter((file) => !(file in RUFLO_OWNED_FILES) && file !== 'CHANGELOG.md')
+      .flatMap((file) => {
+        const versions = [...readFileSync(join(ROOT, file), 'utf8').matchAll(/\bruflo@(\d[\w.-]*)/g)]
+          .map((m) => m[1])
+          .filter((v) => v !== canonical);
+        return versions.length > 0 ? [`${file}: ruflo@${[...new Set(versions)].join(', ruflo@')}`] : [];
+      });
+
+    expect(mismatched).toEqual([]);
+  });
+
   it('should_keepAllowlistCurrent_when_rufloOwnedFilesChange', () => {
     for (const file of Object.keys(RUFLO_OWNED_FILES)) {
       expect(existsSync(join(ROOT, file)), `${file} no longer exists; drop it from the allowlist`).toBe(true);
