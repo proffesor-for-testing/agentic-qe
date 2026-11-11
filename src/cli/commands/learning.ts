@@ -20,7 +20,7 @@ import { existsSync, writeFileSync, readFileSync, copyFileSync, renameSync } fro
 import { safeJsonParse } from '../../shared/safe-json.js';
 import { stat, unlink } from 'node:fs/promises';
 import type { QEDomain, QEPatternType, QEPatternTemplate, QEPatternContext } from '../../learning/qe-patterns.js';
-import { exportContext, importContext, selectMeasuredSuccessIds } from '../../learning/curated-patterns.js';
+import { countCuratedInFile, curationSummary, exportContext, importContext, selectMeasuredSuccessIds } from '../../learning/curated-patterns.js';
 import { QE_DOMAIN_LIST } from '../../learning/qe-patterns.js';
 import {
   createLearningMetricsTracker,
@@ -519,6 +519,8 @@ function registerImportCommand(learning: Command): void {
         const content = readFileSync(inputPath, 'utf-8');
         const importData = safeJsonParse<Record<string, unknown>>(content);
         if (!importData.patterns || !Array.isArray(importData.patterns)) throw new Error('Invalid pattern file format');
+        // #1388: make a self-declared curated pack visible.
+        const curatedInFile = countCuratedInFile(importData.patterns as Array<{ context?: unknown }>);
 
         const reasoningBank = await initializeLearningSystem();
         let imported = 0;
@@ -548,11 +550,12 @@ function registerImportCommand(learning: Command): void {
         }
 
         if (options.json) {
-          printJson({ dryRun: options.dryRun || false, totalPatterns: importData.patterns.length, imported, skipped, pendingIndex, errors });
+          printJson({ dryRun: options.dryRun || false, totalPatterns: importData.patterns.length, imported, skipped, pendingIndex, errors, curatedInFile, curatedByFlag: options.curate === true });
         } else {
           console.log(chalk.bold('\n📥 Pattern Import\n'));
           console.log(`  Source: ${inputPath}`);
           console.log(`  Total patterns: ${importData.patterns.length}`);
+          console.log(`  ${curationSummary(curatedInFile, importData.patterns.length, options.curate === true)}`);
           if (options.dryRun) {
             console.log(chalk.yellow('\n  Dry run - no changes made'));
             console.log(`  Would import: ${importData.patterns.length} patterns`);
@@ -1064,6 +1067,8 @@ function registerImportMergeCommand(learning: Command): void {
 
         const importData = safeJsonParse<LearningExportData>(content);
         if (!importData.patterns || !Array.isArray(importData.patterns)) throw new Error('Invalid import file format: missing patterns array');
+        // #1388: make a self-declared curated pack visible.
+        const curatedInFile = countCuratedInFile(importData.patterns as Array<{ context?: unknown }>);
 
         const reasoningBank = await initializeLearningSystem();
         const existingResult = await reasoningBank.searchPatterns('', { limit: 10000 });
@@ -1097,13 +1102,14 @@ function registerImportMergeCommand(learning: Command): void {
         }
 
         if (options.json) {
-          printJson({ dryRun: options.dryRun || false, importVersion: importData.version, totalPatterns: importData.patterns.length, imported: options.dryRun ? wouldImport : imported, updated: options.dryRun ? wouldUpdate : updated, skipped: options.dryRun ? wouldSkip : skipped, errors: errors.slice(0, 10) });
+          printJson({ dryRun: options.dryRun || false, importVersion: importData.version, totalPatterns: importData.patterns.length, imported: options.dryRun ? wouldImport : imported, updated: options.dryRun ? wouldUpdate : updated, skipped: options.dryRun ? wouldSkip : skipped, errors: errors.slice(0, 10), curatedInFile, curatedByFlag: options.curate === true });
         } else {
           console.log(chalk.bold('\n📥 Learning Data Import (Merge)\n'));
           console.log(`  Source: ${inputPath}`);
           console.log(`  Export version: ${importData.version || 'unknown'}`);
           console.log(`  Total patterns: ${importData.patterns.length}`);
           console.log(`  Existing patterns: ${existingNames.size}`);
+          console.log(`  ${curationSummary(curatedInFile, importData.patterns.length, options.curate === true)}`);
 
           if (options.dryRun) {
             console.log(chalk.yellow('\n  Dry run - no changes made'));

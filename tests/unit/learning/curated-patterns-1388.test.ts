@@ -123,22 +123,57 @@ describe('#1388 aqe learning import keeps the export\'s marker; --curate marks e
     ]);
   });
 
+  it.each([['import'], ['import-merge']])('aqe learning %s reports how many rows arrive curated from the file', async (command) => {
+    await contexts(command, []);
+    expect(mocks.printJson).toHaveBeenCalledWith(expect.objectContaining({ totalPatterns: 3, curatedInFile: 1, curatedByFlag: false }));
+    vi.clearAllMocks();
+    await contexts(command, ['--curate']);
+    expect(mocks.printJson).toHaveBeenCalledWith(expect.objectContaining({ totalPatterns: 3, curatedInFile: 1, curatedByFlag: true }));
+  });
+
+  it.each([['import'], ['import-merge']])('aqe learning %s prints the curated count in text output', async (command) => {
+    const lines: string[] = [];
+    vi.spyOn(console, 'log').mockImplementation((...a: unknown[]) => { lines.push(a.join(' ')); });
+    mocks.initializeLearningSystem.mockResolvedValue({
+      storePattern: vi.fn(async () => stored()), searchPatterns: vi.fn().mockResolvedValue({ success: true, value: [] }),
+    });
+    await createLearningCommand().exitOverride().parseAsync(['node', 'learning', command, '-i', file]);
+    vi.restoreAllMocks();
+    expect(lines.join('\n')).toContain('1 of 3 patterns carry a curation marker from the file');
+  });
+
   it('--curate is explained in --help', () => {
     const help = createLearningCommand().commands.find((c) => c.name() === 'import')!.helpInformation();
     expect(help).toMatch(/--curate\s+Vouch for every pattern in the file/);
   });
 });
 
-describe('#1388 aqe hooks learn stores a curated pattern', () => {
+describe('#1388 aqe hooks learn marks a pattern curated only with --curate', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('marks the stored pattern user-store', async () => {
+  async function learn(flags: string[]): Promise<unknown> {
     mocks.hooksStorePattern.mockResolvedValue({ success: true, value: { id: 'p', name: 'n', patternType: 'test-template', qeDomain: 'test-generation', tier: 'short-term' } });
     vi.spyOn(console, 'log').mockImplementation(() => {});
     const hooks = new Command('hooks').exitOverride();
     registerStatsHooks(hooks);
-    await hooks.parseAsync(['learn', '-n', 'team retry', '-d', 'Wrap flaky calls in retry', '--tags', 'retry', '--json'], { from: 'user' });
+    await hooks.parseAsync(['learn', '-n', 'team retry', '-d', 'Wrap flaky calls in retry', '--tags', 'retry', '--json', ...flags], { from: 'user' });
+    return (mocks.hooksStorePattern.mock.calls[0][0] as { context: unknown }).context;
+  }
 
-    expect(mocks.hooksStorePattern).toHaveBeenCalledWith(expect.objectContaining({ context: { tags: ['retry'], curation: 'user-store' } }));
+  // Agent prompts (e.g. the shipped n8n agents) run `aqe hooks learn` as an
+  // automatic "Store Experience" step, so the command alone is not curation.
+  it('stores no marker without --curate', async () => {
+    expect(await learn([])).toEqual({ tags: ['retry'] });
+  });
+
+  it('marks the pattern user-store with --curate', async () => {
+    expect(await learn(['--curate'])).toEqual({ tags: ['retry'], curation: 'user-store' });
+  });
+
+  it('--curate is explained in --help', () => {
+    const hooks = new Command('hooks');
+    registerStatsHooks(hooks);
+    const help = hooks.commands.find((c) => c.name() === 'learn')!.helpInformation();
+    expect(help).toMatch(/--curate\s+Vouch for this pattern/);
   });
 });

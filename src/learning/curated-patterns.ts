@@ -117,3 +117,14 @@ export function importContext<T extends object>(context: T | undefined, curate: 
   const curation = curationOf(context);
   return curation ? markUserCurated(context, curation) : withoutCuration(context);
 }
+
+/** How many rows of an import file already carry a valid curation marker. */
+export function countCuratedInFile(patterns: ReadonlyArray<{ context?: unknown }>): number {
+  return patterns.filter((pattern) => isUserCurated(pattern.context)).length;
+}
+
+/** The import summary line that makes a self-declared curated pack visible. */
+export function curationSummary(curatedInFile: number, total: number, curate: boolean): string {
+  const fromFile = `${curatedInFile} of ${total} patterns carry a curation marker from the file`;
+  return curate ? `${fromFile}; --curate marked all ${total} as curated` : fromFile;
+}
