@@ -6,7 +6,7 @@
 import { LoggerFactory } from '../../../logging/index.js';
 import { Result, ok, err } from '../../../shared/types';
 import { TypeScriptParser } from '../../../shared/parsers';
-import { FileReader } from '../../../shared/io';
+import { FileReader, FileReadError } from '../../../shared/io';
 import { NomicEmbedder } from '../../../shared/embeddings';
 import { MemoryBackend } from '../../../kernel/interfaces';
 import { findProjectRoot } from '../../../kernel/project-root.js';
@@ -263,6 +263,11 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
           edgesCreated += result.edges;
           filesIndexed++;
         } catch (fileError) {
+          // #1350: a hardlink the reader refuses is skipped and named, not an error.
+          if (fileError instanceof FileReadError && fileError.code === 'HARDLINKED') {
+            skipped.push({ path, reason: 'hardlinked' });
+            continue;
+          }
           errors.push({
             file: path,
             error: toErrorMessage(fileError),
