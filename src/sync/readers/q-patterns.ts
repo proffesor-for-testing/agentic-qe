@@ -41,8 +41,10 @@ export function toQPatterns(entries: JSONRecord[], jsonPath: string): QPatternRe
     records,
     skipped: skipped === 0 ? null : {
       count: skipped,
-      reason: `${skipped} ${skipped === 1 ? 'entry' : 'entries'} in ${jsonPath} are not Q-patterns ` +
-        '(no string state/action or numeric q_value, e.g. legacy ruvector pretrain entries) and were skipped',
+      reason: `${skipped} ${skipped === 1 ? 'entry' : 'entries'} in ${jsonPath} ` +
+        `${skipped === 1 ? 'is not a Q-pattern' : 'are not Q-patterns'} ` +
+        '(no string state/action or numeric q_value, e.g. legacy ruvector pretrain entries) and ' +
+        `${skipped === 1 ? 'was' : 'were'} skipped`,
     },
   };
 }

@@ -223,6 +223,27 @@ describe('ruvector pretrain and legacy Q-pattern shapes (#1384)', () => {
   });
 
   it.each([
+    ['is missing', () => fs.rmSync(path.join(dir, '.ruvector/intelligence.json'))],
+    ['does not parse', () => write('.ruvector/intelligence.json', '{"patterns": ')],
+    ['lacks the path', () => write('.ruvector/intelligence.json', { memories: [] })],
+  ])('a read after one with skips reports none when the file %s', async (_what, change) => {
+    write('.ruvector/intelligence.json', { ...intelligence, patterns: { ...legacy, ...pretrainFirst } });
+    const r = reader(defaultSource('intelligence-qlearning'));
+    await r.readAll();
+    expect(r.skippedOnRead()?.count).toBe(2);
+    change();
+    await r.readAll().catch(() => undefined);
+    expect(r.skippedOnRead()).toBeNull();
+  });
+
+  it('one skipped entry is "1 entry … is not a Q-pattern"', async () => {
+    write('.ruvector/intelligence.json', { ...intelligence, patterns: { 'edit:.py': { coder: 1 }, ...pretrainFirst } });
+    const r = reader(defaultSource('intelligence-qlearning'));
+    await r.readAll();
+    expect(r.skippedOnRead()?.reason).toMatch(/^1 entry in \$\.patterns is not a Q-pattern \(.*\) and was skipped$/);
+  });
+
+  it.each([
     ['a string q_value', { state: 's', action: 'a', q_value: '0.5' }],
     ['no state', { action: 'a', q_value: 0.5 }],
     ['a non-finite q_value', { state: 's', action: 'a', q_value: null }],

@@ -147,3 +147,28 @@ describe('verify counts a table shared by several sources once (#1384)', () => {
     });
   });
 });
+
+describe('a sync result counts read skips and write rejects together (#1384)', () => {
+  it('2 entries skipped while reading plus 1 record the cloud rejected is 3 skipped', async () => {
+    const source = defaultSource('intelligence-qlearning');
+    local[source.name] = [{ state: 'a' }, { state: 'b' }];
+    (createJSONReader as Mock).mockImplementation((args: { source: SyncSource }) => ({
+      ...readerFor(args),
+      skippedOnRead: () => ({ count: 2, reason: '2 entries in $.patterns are not Q-patterns' }),
+    }));
+    const w = cloud({});
+    w.upsert.mockImplementation(async (_table: string, records: unknown[], opts: { onSkipped?: (n: number, r: string) => void }) => {
+      opts.onSkipped?.(1, 'null value in column "q_value"');
+      return records.length - 1;
+    });
+    (createPostgresWriter as Mock).mockReturnValue(w);
+    const agent = new CloudSyncAgent({ environment: 'test', sync: { ...DEFAULT_SYNC_CONFIG.sync, sources: [source], dryRun: false } });
+    await agent.initialize();
+    const report = await agent.syncAll();
+    expect(report.results[0]).toMatchObject({
+      success: false, recordsSynced: 1, recordsSkipped: 3,
+      warnings: ['2 entries in $.patterns are not Q-patterns'],
+      error: expect.stringMatching(/1 of 2 records were not written/),
+    });
+  });
+});
