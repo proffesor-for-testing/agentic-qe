@@ -11,6 +11,7 @@ import * as path from 'path';
 import secureJsonParse from 'secure-json-parse';
 import type { DataReader, SyncSource } from '../interfaces.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
+import { jsonb } from '../jsonb-text.js';
 
 /**
  * JSON reader configuration
@@ -260,7 +261,8 @@ export class JSONReader implements DataReader<JSONRecord> {
    * #1384: the store is `{entries: {key: {key, value, namespace, storedAt, ...}}, version}`;
    * each entry is one record whose value is the stored payload (as
    * claude-flow-bridge reads it), not the wrapper. The older flat store
-   * (`{key: value}`) still reads one record per key.
+   * (`{key: value}`) still reads one record per key. A value is JSON for the
+   * JSONB column (see JsonbText), so a payload keeps its JSON type.
    */
   private extractClaudeFlowMemory(parsed: unknown): JSONRecord[] {
     if (!parsed || typeof parsed !== 'object') {
@@ -281,7 +283,7 @@ export class JSONReader implements DataReader<JSONRecord> {
       // select rows by it, so an old storedAt would hide the row from them.
       records.push({
         key,
-        value: stored ? toJsonbPayload(stored.value) : (typeof value === 'object' ? value : { data: value }),
+        value: jsonb(stored ? stored.value : (typeof value === 'object' ? value : { data: value })),
         category: categorizeMemoryKey(key),
       });
     }
@@ -384,7 +386,7 @@ export class JSONReader implements DataReader<JSONRecord> {
     for (const [key, value] of Object.entries(transformed)) {
       if (key.includes('timestamp') || key.endsWith('_at') || key === 'last_update') {
         if (typeof value === 'number') {
-          transformed[key] = new Date(value).toISOString();
+          transformed[key] = epochToIso(value);
         } else if (typeof value === 'string' && !isNaN(Date.parse(value))) {
           transformed[key] = new Date(value).toISOString();
         }
@@ -444,19 +446,15 @@ function categorizeMemoryKey(key: string): string {
 }
 
 /**
- * #1384: a claude-flow payload for the JSONB `value` column. Objects and JSON
- * text pass through; any other string is encoded as a JSON string, so text
- * such as a date is stored as text and never rejected as invalid JSONB.
+ * #1384: an epoch timestamp as ISO text, or null for 0 (ruvector's "never").
+ * ruvector writes epoch seconds (Math.floor(Date.now() / 1000)); other stores
+ * write milliseconds. A value below 1e12 is read as seconds: as milliseconds
+ * it would be before September 2001, older than any of these stores, and as
+ * seconds 1e12 is in the year 33658, so the two ranges cannot be confused.
  */
-function toJsonbPayload(value: unknown): unknown {
-  if (value === undefined || value === null) return { data: null };
-  if (typeof value !== 'string') return value;
-  try {
-    JSON.parse(value);
-    return value;
-  } catch {
-    return JSON.stringify(value);
-  }
+function epochToIso(value: number): string | null {
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return new Date(value < 1e12 ? value * 1000 : value).toISOString();
 }
 
 /**

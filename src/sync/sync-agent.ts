@@ -43,6 +43,7 @@ import { createJSONReader } from './readers/json-reader.js';
 import { createConnectionManager } from './cloud/tunnel-manager.js';
 import { createPostgresWriter } from './cloud/postgres-writer.js';
 import { toErrorMessage, toError } from '../shared/error-utils.js';
+import { planVerifyGroups, cloudCountQuery, localCount as countLocal, type VerifyGroup } from './verify-plan.js';
 
 /**
  * Sync agent configuration
@@ -373,8 +374,9 @@ export class CloudSyncAgent {
 
     const results: VerifyTableResult[] = [];
     try {
-      for (const source of sources) {
-        results.push(await this.verifySource(source, connectError));
+      // #1384: one result per cloud table, however many sources write it.
+      for (const group of planVerifyGroups(sources)) {
+        results.push(await this.verifyGroup(group, connectError));
       }
     } finally {
       await this.disconnect();
@@ -389,21 +391,29 @@ export class CloudSyncAgent {
     };
   }
 
-  /** #1361: count one source on both sides; any count that cannot be read is unverified. */
-  private async verifySource(source: SyncSource, connectError?: string): Promise<VerifyTableResult> {
-    const base = { source: source.name, table: source.targetTable };
+  /**
+   * #1361: count one cloud table on both sides; any count that cannot be read
+   * is unverified. #1384: the local side is the sum of the table's sources.
+   */
+  private async verifyGroup(group: VerifyGroup, connectError?: string): Promise<VerifyTableResult> {
+    const base = { source: group.sources.map(s => s.name).join(' + '), table: group.table };
     const unverified = (localCount: number, error: string): VerifyTableResult =>
       ({ ...base, localCount, cloudCount: -1, match: false, diff: 0, status: 'unverified', error });
 
-    const reader = this.readers.get(source.name);
-    if (!reader) {
-      return unverified(-1, `Local source could not be read: ${this.readerErrors.get(source.name) ?? 'reader not initialized'}`);
+    let localCount = 0;
+    for (const source of group.sources) {
+      const reader = this.readers.get(source.name);
+      if (!reader) {
+        return unverified(-1, `Local source could not be read: ${this.readerErrors.get(source.name) ?? 'reader not initialized'}`);
+      }
+      try {
+        localCount += await countLocal(source, reader, group.excludeKeys);
+      } catch (error) {
+        return unverified(-1, `Local count failed: ${toErrorMessage(error)}`);
+      }
     }
-    let localCount: number;
-    try {
-      localCount = await reader.count();
-    } catch (error) {
-      return unverified(-1, `Local count failed: ${toErrorMessage(error)}`);
+    if (group.unselectedWriters.length > 0) {
+      return unverified(localCount, `${group.table} is also written by ${group.unselectedWriters.join(', ')}; verify them together`);
     }
     if (connectError || !this.writer) return unverified(localCount, connectError ?? 'No cloud connection');
 
@@ -413,10 +423,8 @@ export class CloudSyncAgent {
       // indexes return 0 rows for COUNT(*) when chosen by the planner)
       await this.writer.beginTransaction();
       await this.writer.execute('SET LOCAL enable_indexonlyscan = off');
-      const rows = await this.writer.query<{ count: number | string }>(
-        `SELECT COUNT(*) as count FROM ${source.targetTable} WHERE source_env = $1`,
-        [this.config.environment]
-      );
+      const { sql, params } = cloudCountQuery(group, this.config.environment);
+      const rows = await this.writer.query<{ count: number | string }>(sql, params);
       await this.writer.commit();
       // node-postgres returns COUNT(*) (bigint) as a string. No row, a null
       // or an empty count is an error, never a count of 0 (#1361).
@@ -428,7 +436,7 @@ export class CloudSyncAgent {
       if (!Number.isInteger(cloudCount) || cloudCount < 0) throw new Error(`Unexpected count: ${String(raw)}`);
     } catch (e) {
       try { await this.writer.rollback(); } catch { /* ignore */ }
-      logger.debug('Cloud count query failed', { source: source.name, error: e instanceof Error ? e.message : String(e) });
+      logger.debug('Cloud count query failed', { table: group.table, error: e instanceof Error ? e.message : String(e) });
       return unverified(localCount, `Cloud count failed: ${toErrorMessage(e)}`);
     }
 

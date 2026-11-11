@@ -149,6 +149,12 @@ export interface SyncSource {
   /** JSON path (for JSON sources) */
   jsonPath?: string;
 
+  /**
+   * #1384: values of the cloud `key` column that `aqe sync verify` leaves out
+   * of both counts, such as rows an earlier version uploaded.
+   */
+  verifyExcludeKeys?: string[];
+
   /** Whether this source is enabled */
   enabled?: boolean;
 }
@@ -749,6 +755,8 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
         targetTable: 'aqe.claude_flow_memory',
         priority: 'medium',
         mode: 'full',
+        // #1384: before 3.15.20 the whole store was uploaded as these two rows.
+        verifyExcludeKeys: ['entries', 'version'],
         enabled: true,
       },
       // Intelligence JSON: Q-learning patterns, {"state|action": {state, action, q_value, visits, last_update}}

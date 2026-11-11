@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     PARTIAL instead of COMPLETED with 0 records.
   - The old `entries` and `version` rows already in your cloud database
     are not removed. You can delete them yourself if you don't want them.
+- **`aqe sync verify` matches after this upgrade** ([#1384]): it ignores
+  the old `entries`/`version` rows when counting claude-flow memories.
+  `aqe.qlearning_patterns` is filled from two places, AQE's own Q-values
+  and ruvector's patterns, so verify now checks it once against both
+  together, shown as `root-rl-q-values + intelligence-qlearning`.
 
 [#1384]: https://github.com/proffesor-for-testing/agentic-qe/issues/1384
 [#1402]: https://github.com/proffesor-for-testing/agentic-qe/pull/1402

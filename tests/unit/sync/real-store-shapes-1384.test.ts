@@ -17,6 +17,14 @@ import * as path from 'node:path';
 import { createJSONReader } from '../../../src/sync/readers/json-reader.js';
 import { CloudSyncAgent } from '../../../src/sync/sync-agent.js';
 import { DEFAULT_SYNC_CONFIG, type SyncSource } from '../../../src/sync/interfaces.js';
+import { PostgresWriter } from '../../../src/sync/cloud/postgres-writer.js';
+import type { JsonbText } from '../../../src/sync/jsonb-text.js';
+
+/** The real cloud writer's value serializer (no connection needed). */
+const cloudWriter = () => new PostgresWriter({
+  cloud: { project: '', zone: '', instance: '', database: '', user: '', tunnelPort: 0 },
+  tunnelManager: { start: async () => ({ host: '', port: 0 }), stop: async () => {}, isActive: () => false, getConnection: () => null },
+}) as unknown as { serializeValue(value: unknown, column: string): unknown };
 
 const STORED_AT = '2026-11-01T10:00:00.000Z';
 
@@ -33,10 +41,13 @@ const claudeFlowStore = {
   version: '3.0.0',
 };
 
+// ruvector writes last_update in epoch SECONDS (Math.floor(Date.now() / 1000)),
+// and a new pattern starts at 0.
+const LAST_UPDATE_S = 1793440000;
 const intelligence = {
   patterns: {
-    'edit:ts|coder': { state: 'edit:ts', action: 'coder', q_value: 0.75, visits: 4, last_update: 1793440000000 },
-    'test:ts|tester': { state: 'test:ts', action: 'tester', q_value: 0.5, visits: 1, last_update: 1793440000000 },
+    'edit:ts|coder': { state: 'edit:ts', action: 'coder', q_value: 0.75, visits: 4, last_update: LAST_UPDATE_S },
+    'test:ts|tester': { state: 'test:ts', action: 'tester', q_value: 0.5, visits: 0, last_update: 0 },
   },
   memories: [{ id: 'm1', memory_type: 'file_access', content: 'x', embedding: [0.1, 0.2], metadata: {}, timestamp: 1 }],
   trajectories: [{ id: 't1', state: 's', action: 'a', outcome: 'ok', reward: 1, timestamp: 1 }],
@@ -85,20 +96,40 @@ describe('claude-flow-memory on the real {entries, version} store (#1384)', () =
     expect(records.map(r => r.key)).toEqual(['adr-001', 'agent-route', 'plain-note']);
   });
 
-  it('a record value is the stored payload as JSON, not the entry wrapper', async () => {
+  it('a record value is the stored payload, not the entry wrapper', async () => {
     const records = await reader(defaultSource('claude-flow-memory')).readAll();
-    // JSON text passes through; plain text becomes a JSON string (the JSONB column).
-    expect(records.map(r => r.value)).toEqual(['"first"', '{"agent":"coder"}', '"third"']);
-    expect(records.map(r => JSON.parse(r.value as string))).toEqual(['first', { agent: 'coder' }, 'third']);
+    expect(records.map(r => (r.value as JsonbText).text)).toEqual(['"first"', '"{\\"agent\\":\\"coder\\"}"', '"third"']);
   });
 
-  it('a payload that looks like a date stays text, and an object payload stays an object', async () => {
-    write('.claude-flow/memory/store.json', {
-      entries: { d: { ...entry('d', ''), value: STORED_AT }, o: { ...entry('o', ''), value: { n: 1 } } },
-      version: '3.0.0',
-    });
-    const records = await reader(defaultSource('claude-flow-memory')).readAll();
-    expect(records.map(r => r.value)).toEqual([JSON.stringify(STORED_AT), { n: 1 }]);
+  // Each payload reaches the JSONB column as exactly JSON.stringify(payload):
+  // the writer's per-value heuristics (timestamps, number arrays) never see it.
+  it.each<[string, unknown]>([
+    ['a number', 7],
+    ['a timestamp-like number', 1793440000000],
+    ['a timestamp-like string', '1793440000000'],
+    ['the number 1000000000', 1000000000],
+    ['the string "42"', '42'],
+    ['plain text', 'plain text'],
+    ['an ISO date string', STORED_AT],
+    ['a mixed array', [1, 'a']],
+    ['a nested array', [1, [2, 3]]],
+    ['a number array', [0.1, 0.2]],
+    ['an object', { n: 1, nested: { list: [1, 'x'] } }],
+    ['null', null],
+    ['a boolean', false],
+  ])('%s keeps its JSON type through the cloud writer', async (_what, payload) => {
+    write('.claude-flow/memory/store.json', { entries: { k: { ...entry('k', ''), value: payload } }, version: '3.0.0' });
+    const [record] = await reader(defaultSource('claude-flow-memory')).readAll();
+    const serialized = cloudWriter().serializeValue(record.value, 'value');
+    expect(serialized).toBe(JSON.stringify(payload));
+    expect(JSON.parse(serialized as string)).toEqual(payload);
+  });
+
+  it('a NUL character, which JSONB rejects, is dropped and nothing else changes', async () => {
+    const payload = { text: 'a\u0000b', path: 'C:\\u0000dir' };
+    write('.claude-flow/memory/store.json', { entries: { k: { ...entry('k', ''), value: payload } }, version: '3.0.0' });
+    const [record] = await reader(defaultSource('claude-flow-memory')).readAll();
+    expect(JSON.parse(cloudWriter().serializeValue(record.value, 'value') as string)).toEqual({ text: 'ab', path: 'C:\\u0000dir' });
   });
 
   it('a record has only the columns of aqe.claude_flow_memory', async () => {
@@ -112,7 +143,7 @@ describe('claude-flow-memory on the real {entries, version} store (#1384)', () =
   it('the older flat store still reads one record per key', async () => {
     write('flat.json', { 'memory-1': { content: 'a' }, 'memory-2': 'b', _meta: {} });
     const records = await reader({ ...defaultSource('claude-flow-memory'), path: 'flat.json' }).readAll();
-    expect(records.map(r => [r.key, r.value])).toEqual([['memory-1', { content: 'a' }], ['memory-2', { data: 'b' }]]);
+    expect(records.map(r => [r.key, (r.value as JsonbText).text])).toEqual([['memory-1', '{"content":"a"}'], ['memory-2', '{"data":"b"}']]);
   });
 });
 
@@ -126,9 +157,22 @@ describe('intelligence-qlearning on the real intelligence.json (#1384)', () => {
     expect(records).toHaveLength(2);
     expect(records[0]).toMatchObject({
       state: 'edit:ts', action: 'coder', q_value: 0.75, visits: 4,
-      last_update: new Date(1793440000000).toISOString(), source_env: 'test',
+      last_update: new Date(LAST_UPDATE_S * 1000).toISOString(), source_env: 'test',
     });
     expect(Object.keys(records[0]).sort()).toEqual(['action', 'created_at', 'last_update', 'q_value', 'source_env', 'state', 'visits']);
+  });
+
+  it('last_update is epoch seconds, and a never-updated pattern (0) has no last_update', async () => {
+    const records = await reader(defaultSource('intelligence-qlearning')).readAll();
+    expect(records.map(r => r.last_update)).toEqual(['2026-10-31T09:46:40.000Z', null]);
+  });
+
+  it('a millisecond timestamp still reads as milliseconds', async () => {
+    write('.ruvector/intelligence.json', {
+      ...intelligence, patterns: { 'a|b': { state: 'a', action: 'b', q_value: 1, visits: 1, last_update: LAST_UPDATE_S * 1000 } },
+    });
+    const [record] = await reader(defaultSource('intelligence-qlearning')).readAll();
+    expect(record.last_update).toBe('2026-10-31T09:46:40.000Z');
   });
 
   it('an empty patterns map is a real 0, not an error', async () => {
