@@ -7,8 +7,101 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Test generation applies only patterns it can trust** ([#1388]): before
+  3.15.19, a run without an LLM saved its template scaffolding as a
+  learned pattern with a 100% success rate. Those patterns stayed in
+  `.agentic-qe/memory.db` and were still applied to new generations. They
+  showed up as an `// Applied patterns: generate-tests …` line and under
+  "Patterns Used", and each use counted as another success. Test generation
+  now applies a stored pattern only if it meets one of these conditions:
+  - it is one of AQE's built-in patterns;
+  - you stored it with `aqe hooks learn --curate`;
+  - you imported it from an export that marked it as curated;
+  - you imported it with `--curate`;
+  - its tests have been run with a measured, passing result.
+
+  In practice:
+  - **Automatically learned patterns stay unused for now.** Nothing in this
+    release measures the tests that generation produced. Patterns AQE
+    learned on its own are therefore kept but not applied. That covers
+    patterns from test generation, hooks, session consolidation and dream
+    insights. A measurement path is tracked in [#1412].
+  - **A backup/restore keeps them unused.** `aqe learning export` and
+    `export-full` mark a pattern as curated only if it is applicable when
+    exported. `aqe learning import` and `import-merge` keep that marker and
+    mark nothing else.
+  - **New `--curate` flag on import.** Use `aqe learning import -i <file>
+    --curate` (or `import-merge … --curate`) to vouch for every pattern in a
+    file. This is also how to restore patterns you imported with an earlier
+    version, because those exports carry no marker. Every import prints how
+    many patterns arrived already marked as curated, for example "3 of 20
+    patterns carry a curation marker from the file", so a file that declares
+    its own patterns curated is visible.
+  - **`aqe hooks learn` marks a pattern curated only with `--curate`.** Agent
+    prompts run `aqe hooks learn` as an automatic step, so a pattern stored
+    without the flag is kept but not applied until it is measured.
+  - **A curation marker is permanent.** A later measured failure does not
+    revoke it, and there is no command to remove it yet ([#1426]). An
+    automatic update that changes a curated pattern's template drops the
+    marker, so the changed content has to earn trust again.
+  - **`aqe brain import` copies patterns as they are.** A pattern without a
+    marker stays unused, and a marker in the file is trusted, since
+    importing the file is your choice.
+  - **With an LLM:** the template the LLM starts from no longer carries
+    learned patterns in its "Applied patterns" header, and `patternsUsed`
+    lists only the patterns actually applied. Edge-case hints from memory
+    are still added to the prompt; [#1423] tracks filtering them the same
+    way.
+  - **Nothing in your database is changed or deleted.** No cleanup step is
+    needed.
+- **More MCP tools refuse hardlinked files** ([#1350]): over MCP, a file
+  inside the project that is a hardlink to a file outside it is no longer
+  read by `code_index`, `quality_assess`, `coverage_analyze_sublinear`
+  (static estimate and coverage config), `qe/code/c4`, the dependency check
+  of `security_scan_comprehensive` (`dependencies: true`), and the
+  `security-audit` task (SAST walk and `package.json`).
+  - The dependency check refuses any hardlinked `package.json`, lockfile or
+    `pnpm-workspace.yaml`, including one under `node_modules`, before
+    anything is sent to OSV, so names and versions from an outside file are
+    never looked up. pnpm and bun never hardlink a project's own manifest.
+  - `code_index`, `quality_assess`, compliance checks, contract testing and
+    defect prediction refuse every hardlinked file, including package files
+    under `node_modules`. Their directory walks skip `node_modules`, so a
+    pnpm or bun project's own sources are read as before.
+  - Refused files are listed in `refused` (and in `skipped` with reason
+    `hardlinked` for `code_index`), and the result is reported as partial or
+    incomplete instead of clean. `code_index` gains `scanStatus` and leaves
+    out `projectMetrics` when it refused a file, since the line counters
+    would read it.
+  - The directory scans (`security_scan_comprehensive` SAST and
+    `defect_predict`) still read hardlinks under the project's
+    `node_modules` (pnpm, bun and yarn stores) and list them in
+    `exemptHardlinks`. A scan that read one is now `partial`, not
+    `complete`.
+  - The CLI is unchanged: `aqe code index`, `aqe coverage` and
+    `aqe security --dependencies` still read the operator's own hardlinked
+    files.
+- **Security posture counts secrets and incomplete audits** ([#1350]):
+  exposed secrets from the latest audit count as critical issues, the
+  audit's incomplete checks are returned, and an incomplete audit no longer
+  gets "Maintain current security practices".
+- **Compliance checks name the files they did not read** ([#1350]): the
+  evidence lists unread files with the reason instead of counting them as
+  analysed.
+
 ### Fixed
 
+- **Patterns no longer cross languages** ([#1388]): matching patterns by
+  file extension used a substring search, so for a `.ts` file every learned
+  pattern matched through the word "generate-tests", and Kotlin and Python
+  patterns were applied to TypeScript. A pattern now matches only a file
+  with exactly that extension (in any case, including `.mts` and `.cts`),
+  or its declared language.
+- **`qe/tests/generate` reports `testsGenerated`** ([#1388]): the count of
+  real tests, with scaffolds excluded, so a scaffold-only result can never
+  be learned from.
 - **`aqe sync` uploads each claude-flow memory and your Q-learning
   patterns** ([#1384], [#1402]): sync now reads the real
   `.claude-flow/memory/store.json` and `.ruvector/intelligence.json`
@@ -41,8 +134,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and ruvector's patterns, so verify now checks it once against both
   together, shown as `root-rl-q-values + intelligence-qlearning`.
 
+[#1350]: https://github.com/proffesor-for-testing/agentic-qe/issues/1350
 [#1384]: https://github.com/proffesor-for-testing/agentic-qe/issues/1384
 [#1402]: https://github.com/proffesor-for-testing/agentic-qe/pull/1402
+[#1412]: https://github.com/proffesor-for-testing/agentic-qe/issues/1412
+[#1423]: https://github.com/proffesor-for-testing/agentic-qe/issues/1423
+[#1426]: https://github.com/proffesor-for-testing/agentic-qe/issues/1426
 
 ## [3.15.19] - 2026-11-06
 

@@ -225,9 +225,26 @@ export function calculatePostureScore(
 export function generatePostureRecommendations(
   critical: number,
   high: number,
-  score: number
+  score: number,
+  /**
+   * #1350: secrets found by the latest audit, and the checks it could not
+   * complete. An incomplete audit never gets the "maintain current practices"
+   * verdict: what it did not check is unmeasured, not clean.
+   */
+  latest: { secretsFound?: number; incompleteChecks?: readonly string[] } = {},
 ): string[] {
   const recommendations: string[] = [];
+  const incomplete = latest.incompleteChecks ?? [];
+
+  if (incomplete.length > 0) {
+    recommendations.push(
+      `The latest audit is incomplete (${incomplete.length} check(s): ${incomplete.slice(0, 3).join('; ')}${incomplete.length > 3 ? '; ...' : ''}). Posture is unmeasured for what it did not check.`
+    );
+  }
+
+  if ((latest.secretsFound ?? 0) > 0) {
+    recommendations.push(`Remove ${latest.secretsFound} exposed secrets and rotate credentials`);
+  }
 
   if (critical > 0) {
     recommendations.push('Immediately address all critical vulnerabilities');
@@ -242,7 +259,7 @@ export function generatePostureRecommendations(
     recommendations.push('Implement automated security scanning in CI/CD');
   }
 
-  if (score >= 80) {
+  if (score >= 80 && incomplete.length === 0) {
     recommendations.push('Maintain current security practices');
     recommendations.push('Consider penetration testing for deeper analysis');
   }

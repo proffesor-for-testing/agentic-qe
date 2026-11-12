@@ -18,7 +18,7 @@ import { safeJsonParse } from '../../shared/safe-json.js';
 const EXEC_OPTS = { encoding: 'utf-8' as const };
 
 /**
- * Build args array for npx ruflo / @claude-flow/cli calls.
+ * Build args array for `npx --no-install` ruflo / @claude-flow/cli calls.
  * Uses ruflo first with @claude-flow/cli fallback (matching detect.ts).
  * Using execFileSync with explicit args prevents shell injection.
  */

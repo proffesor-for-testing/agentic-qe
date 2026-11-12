@@ -222,7 +222,7 @@ await Task({
 
 ```bash
 # PRODUCTION: Store risk signal
-npx @claude-flow/cli@latest memory store \
+npx ruflo@3.76.0 memory store \
   --key "risk-signal-2026-Q1-$(date +%s)" \
   --namespace "qcsd-memory/production-patterns/defect-weights" \
   --value '{
@@ -234,12 +234,12 @@ npx @claude-flow/cli@latest memory store \
   }'
 
 # IDEATION: Query risk signals
-npx @claude-flow/cli@latest memory search \
+npx ruflo@3.76.0 memory search \
   --query "risk weights for ideation" \
   --namespace "qcsd-memory/production-patterns"
 
 # Route signals to learning coordinator
-npx @claude-flow/cli@latest hooks route \
+npx ruflo@3.76.0 hooks route \
   --task "Apply production risk weights to ideation" \
   --source "qe-defect-predictor" \
   --target "qe-learning-coordinator"
@@ -657,14 +657,14 @@ hooks:
 
 ```bash
 # Register post-task hook for defect analysis
-npx @claude-flow/cli@latest hooks post-task \
+npx ruflo@3.76.0 hooks post-task \
   --task-id "defect-analysis" \
   --success true \
   --action "store-cross-phase-signal" \
   --target-namespace "qcsd-memory/production-patterns"
 
 # Register pre-task hook for ideation
-npx @claude-flow/cli@latest hooks pre-task \
+npx ruflo@3.76.0 hooks pre-task \
   --description "QCSD Ideation" \
   --action "query-cross-phase-signals" \
   --source-namespaces "qcsd-memory/production-patterns"

@@ -183,16 +183,16 @@ export class V3AgentSpawner extends AgentSpawner {
 
 ```bash
 # Check integration status
-npx claude-flow@v3alpha integration status
+npx ruflo@3.76.0 integration status
 
 # Verify no duplicate code
-npx claude-flow@v3alpha integration check-duplicates
+npx ruflo@3.76.0 integration check-duplicates
 
 # Test extension layer
-npx claude-flow@v3alpha integration test
+npx ruflo@3.76.0 integration test
 
 # Update agentic-flow dependency
-npx claude-flow@v3alpha integration update-base
+npx ruflo@3.76.0 integration update-base
 ```
 
 ## Quality Metrics

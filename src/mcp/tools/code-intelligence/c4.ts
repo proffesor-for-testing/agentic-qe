@@ -42,6 +42,8 @@ export interface C4GenerateResult {
   externalSystemsDetected: number;
   relationshipsDetected: number;
   circularDependencies: number;
+  /** #1350: files not read because they have more than one hardlink. */
+  refused?: Array<{ path: string; reason: 'hardlinked' }>;
 }
 
 export interface C4SearchHit {
@@ -92,6 +94,9 @@ export class CodeC4Tool extends MCPToolBase<CodeC4Params, CodeC4Result> {
         publishEvents: false,
         // ADR-112: embed generated diagrams so `search` can find them.
         enableC4Embeddings: true,
+        // #1350: package.json under an MCP caller's projectPath is read
+        // refusing a hardlink outside node_modules.
+        readHardlinks: 'refuse-outside-node-modules',
         relationshipResolver: createKnowledgeGraphRelationshipResolver(
           (projectPath) => new KnowledgeGraphService(memory, { basePath: projectPath }),
         ),
@@ -151,6 +156,10 @@ export class CodeC4Tool extends MCPToolBase<CodeC4Params, CodeC4Result> {
             externalSystemsDetected: c4.externalSystems.length,
             relationshipsDetected: c4.relationships.length,
             circularDependencies: (c4.couplingAnalysis ?? []).filter((co) => co.isCircular).length,
+            // #1350: a package.json refused as a hardlink is named, not silently defaulted.
+            ...((c4.metadata.analysisMetadata?.refusedFiles?.length ?? 0) > 0 ? {
+              refused: c4.metadata.analysisMetadata!.refusedFiles!.map((p) => ({ path: p, reason: 'hardlinked' as const })),
+            } : {}),
           };
           break;
         }

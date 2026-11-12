@@ -75,7 +75,7 @@ hooks:
     # 4. Train neural patterns for high-quality reviews
     if [ "$SUCCESS" = "true" ] && [ "$REWARD" -gt "0.9" ]; then
       echo "🧠 Training neural pattern from successful code review"
-      npx claude-flow neural train \
+      npx ruflo@3.76.0 neural train \
         --pattern-type "coordination" \
         --training-data "$REVIEW_OUTPUT" \
         --epochs 50
@@ -297,7 +297,7 @@ PR_DATA=$(gh pr view 123 --json files,additions,deletions,title,body)
 PR_DIFF=$(gh pr diff 123)
 
 # Initialize swarm with PR context
-npx claude-flow@v3alpha github review-init \
+npx ruflo@3.76.0 github review-init \
   --pr 123 \
   --pr-data "$PR_DATA" \
   --diff "$PR_DIFF" \
@@ -317,7 +317,7 @@ gh pr comment 123 --body "🔍 Multi-agent code review initiated"
 CHANGED_FILES=$(gh pr view 123 --json files --jq '.files[].path')
 
 # Run security review
-SECURITY_RESULTS=$(npx claude-flow@v3alpha github review-security \
+SECURITY_RESULTS=$(npx ruflo@3.76.0 github review-security \
   --pr 123 \
   --files "$CHANGED_FILES" \
   --check "owasp,cve,secrets,permissions" \

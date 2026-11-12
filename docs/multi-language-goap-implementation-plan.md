@@ -850,7 +850,7 @@ Not included in this execution plan. Deferred to a follow-up after Phase 4 is st
 ### Swarm Configuration
 
 ```bash
-npx @claude-flow/cli@latest swarm init --topology hierarchical --max-agents 8 --strategy specialized
+npx ruflo@3.76.0 swarm init --topology hierarchical --max-agents 8 --strategy specialized
 ```
 
 ### Phase 1 Execution (Sequential -- 1 coordinator + 2 coders max)

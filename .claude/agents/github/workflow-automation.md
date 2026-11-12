@@ -83,7 +83,7 @@ hooks:
     # 4. Train neural patterns for successful workflows
     if [ "$SUCCESS" = "true" ] && [ "$REWARD" -gt "0.9" ]; then
       echo "🧠 Training neural pattern from successful workflow"
-      npx claude-flow neural train \
+      npx ruflo@3.76.0 neural train \
         --pattern-type "coordination" \
         --training-data "$WORKFLOW_OUTPUT" \
         --epochs 50
@@ -330,7 +330,7 @@ jobs:
           
       - name: Analyze Changes
         run: |
-          npx claude-flow@v3alpha actions analyze \
+          npx ruflo@3.76.0 actions analyze \
             --commit ${{ github.sha }} \
             --suggest-tests \
             --optimize-pipeline
@@ -339,7 +339,7 @@ jobs:
 ### 2. Dynamic Workflow Generation
 ```bash
 # Generate workflows based on code analysis
-npx claude-flow@v3alpha actions generate-workflow \
+npx ruflo@3.76.0 actions generate-workflow \
   --analyze-codebase \
   --detect-languages \
   --create-optimal-pipeline
@@ -350,7 +350,7 @@ npx claude-flow@v3alpha actions generate-workflow \
 # Smart test runner
 - name: Swarm Test Selection
   run: |
-    npx claude-flow@v3alpha actions smart-test \
+    npx ruflo@3.76.0 actions smart-test \
       --changed-files ${{ steps.files.outputs.all }} \
       --impact-analysis \
       --parallel-safe
@@ -373,12 +373,12 @@ jobs:
       - name: Detect Languages
         id: detect
         run: |
-          npx claude-flow@v3alpha actions detect-stack \
+          npx ruflo@3.76.0 actions detect-stack \
             --output json > stack.json
             
       - name: Dynamic Build Matrix
         run: |
-          npx claude-flow@v3alpha actions create-matrix \
+          npx ruflo@3.76.0 actions create-matrix \
             --from stack.json \
             --parallel-builds
 ```
@@ -399,7 +399,7 @@ jobs:
       - name: Security Analysis Swarm
         run: |
           # Use gh CLI for issue creation
-          SECURITY_ISSUES=$(npx claude-flow@v3alpha actions security \
+          SECURITY_ISSUES=$(npx ruflo@3.76.0 actions security \
             --deep-scan \
             --format json)
           
@@ -420,7 +420,7 @@ jobs:
 ### Pipeline Optimization
 ```bash
 # Optimize existing workflows
-npx claude-flow@v3alpha actions optimize \
+npx ruflo@3.76.0 actions optimize \
   --workflow ".github/workflows/ci.yml" \
   --suggest-parallelization \
   --reduce-redundancy \
@@ -431,7 +431,7 @@ npx claude-flow@v3alpha actions optimize \
 ```bash
 # Analyze failed runs using gh CLI
 gh run view ${{ github.run_id }} --json jobs,conclusion | \
-  npx claude-flow@v3alpha actions analyze-failure \
+  npx ruflo@3.76.0 actions analyze-failure \
     --suggest-fixes \
     --auto-retry-flaky
 
@@ -447,7 +447,7 @@ fi
 ### Resource Management
 ```bash
 # Optimize resource usage
-npx claude-flow@v3alpha actions resources \
+npx ruflo@3.76.0 actions resources \
   --analyze-usage \
   --suggest-runners \
   --cost-optimize
@@ -468,7 +468,7 @@ jobs:
     steps:
       - name: Diagnose and Fix
         run: |
-          npx claude-flow@v3alpha actions self-heal \
+          npx ruflo@3.76.0 actions self-heal \
             --run-id ${{ github.event.workflow_run.id }} \
             --auto-fix-common \
             --create-pr-complex
@@ -489,13 +489,13 @@ jobs:
       - name: Analyze Risk
         id: risk
         run: |
-          npx claude-flow@v3alpha actions deploy-risk \
+          npx ruflo@3.76.0 actions deploy-risk \
             --changes ${{ github.sha }} \
             --history 30d
             
       - name: Choose Strategy
         run: |
-          npx claude-flow@v3alpha actions deploy-strategy \
+          npx ruflo@3.76.0 actions deploy-strategy \
             --risk ${{ steps.risk.outputs.level }} \
             --auto-execute
 ```
@@ -512,7 +512,7 @@ jobs:
     steps:
       - name: Performance Analysis
         run: |
-          npx claude-flow@v3alpha actions perf-test \
+          npx ruflo@3.76.0 actions perf-test \
             --baseline main \
             --threshold 10% \
             --auto-profile-regression
@@ -558,7 +558,7 @@ jobs:
     steps:
       - id: set-matrix
         run: |
-          MATRIX=$(npx claude-flow@v3alpha actions test-matrix \
+          MATRIX=$(npx ruflo@3.76.0 actions test-matrix \
             --detect-frameworks \
             --optimize-coverage)
           echo "matrix=${MATRIX}" >> $GITHUB_OUTPUT
@@ -572,7 +572,7 @@ jobs:
 ### Intelligent Parallelization
 ```bash
 # Determine optimal parallelization
-npx claude-flow@v3alpha actions parallel-strategy \
+npx ruflo@3.76.0 actions parallel-strategy \
   --analyze-dependencies \
   --time-estimates \
   --cost-aware
@@ -583,7 +583,7 @@ npx claude-flow@v3alpha actions parallel-strategy \
 ### Workflow Analytics
 ```bash
 # Analyze workflow performance
-npx claude-flow@v3alpha actions analytics \
+npx ruflo@3.76.0 actions analytics \
   --workflow "ci.yml" \
   --period 30d \
   --identify-bottlenecks \
@@ -593,7 +593,7 @@ npx claude-flow@v3alpha actions analytics \
 ### Cost Optimization
 ```bash
 # Optimize GitHub Actions costs
-npx claude-flow@v3alpha actions cost-optimize \
+npx ruflo@3.76.0 actions cost-optimize \
   --analyze-usage \
   --suggest-caching \
   --recommend-self-hosted
@@ -602,7 +602,7 @@ npx claude-flow@v3alpha actions cost-optimize \
 ### Failure Patterns
 ```bash
 # Identify failure patterns
-npx claude-flow@v3alpha actions failure-patterns \
+npx ruflo@3.76.0 actions failure-patterns \
   --period 90d \
   --classify-failures \
   --suggest-preventions
@@ -625,7 +625,7 @@ jobs:
           PR_DATA=$(gh pr view ${{ github.event.pull_request.number }} --json files,labels)
           
           # Run validation with swarm
-          RESULTS=$(npx claude-flow@v3alpha actions pr-validate \
+          RESULTS=$(npx ruflo@3.76.0 actions pr-validate \
             --spawn-agents "linter,tester,security,docs" \
             --parallel \
             --pr-data "$PR_DATA")
@@ -648,7 +648,7 @@ jobs:
     steps:
       - name: Release Swarm
         run: |
-          npx claude-flow@v3alpha actions release \
+          npx ruflo@3.76.0 actions release \
             --analyze-changes \
             --generate-notes \
             --create-artifacts \
@@ -668,7 +668,7 @@ jobs:
     steps:
       - name: Documentation Swarm
         run: |
-          npx claude-flow@v3alpha actions update-docs \
+          npx ruflo@3.76.0 actions update-docs \
             --analyze-changes \
             --update-api-docs \
             --check-examples
@@ -699,7 +699,7 @@ jobs:
 ### Predictive Failures
 ```bash
 # Predict potential failures
-npx claude-flow@v3alpha actions predict \
+npx ruflo@3.76.0 actions predict \
   --analyze-history \
   --identify-risks \
   --suggest-preventive
@@ -708,7 +708,7 @@ npx claude-flow@v3alpha actions predict \
 ### Workflow Recommendations
 ```bash
 # Get workflow recommendations
-npx claude-flow@v3alpha actions recommend \
+npx ruflo@3.76.0 actions recommend \
   --analyze-repo \
   --suggest-workflows \
   --industry-best-practices
@@ -717,7 +717,7 @@ npx claude-flow@v3alpha actions recommend \
 ### Automated Optimization
 ```bash
 # Continuously optimize workflows
-npx claude-flow@v3alpha actions auto-optimize \
+npx ruflo@3.76.0 actions auto-optimize \
   --monitor-performance \
   --apply-improvements \
   --track-savings
@@ -729,7 +729,7 @@ npx claude-flow@v3alpha actions auto-optimize \
 ```yaml
 - name: Debug Swarm
   run: |
-    npx claude-flow@v3alpha actions debug \
+    npx ruflo@3.76.0 actions debug \
       --verbose \
       --trace-agents \
       --export-logs
@@ -738,7 +738,7 @@ npx claude-flow@v3alpha actions auto-optimize \
 ### Performance Profiling
 ```bash
 # Profile workflow performance
-npx claude-flow@v3alpha actions profile \
+npx ruflo@3.76.0 actions profile \
   --workflow "ci.yml" \
   --identify-slow-steps \
   --suggest-optimizations

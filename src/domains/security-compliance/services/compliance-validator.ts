@@ -8,6 +8,7 @@ import { Result, ok, err } from '../../../shared/types/index.js';
 import {
   CompliancePatternAnalyzer,
   getCompliancePatternAnalyzer,
+  type UnreadFile,
 } from '../../../shared/security';
 import type { MemoryBackend } from '../../../kernel/interfaces.js';
 import type { FilePath } from '../../../shared/value-objects/index.js';
@@ -1142,10 +1143,14 @@ export class ComplianceValidatorService implements IExtendedComplianceValidation
     const files = await this.getFilesFromContext(context);
 
     if (rule.checkType === 'static' && files.length > 0) {
+      // #1350: files the analyzer could not read (missing, refused as a
+      // hardlink, ...) are reported, not counted as analyzed.
+      let unread: UnreadFile[] = [];
       // Collect evidence based on rule category
       switch (rule.category) {
         case 'encryption': {
           const analysis = await this.patternAnalyzer.analyzeEncryption(files);
+          unread = analysis.unreadFiles ?? [];
           if (analysis.hasEncryption) {
             evidence.push(
               `Encryption detected: ${analysis.encryptionLibraries.join(', ') || 'standard crypto'}`
@@ -1165,6 +1170,7 @@ export class ComplianceValidatorService implements IExtendedComplianceValidation
           const analysis = await this.patternAnalyzer.analyzeAccessControl(
             files
           );
+          unread = analysis.unreadFiles ?? [];
           evidence.push(
             `Auth middleware: ${analysis.hasAuthMiddleware ? 'present' : 'not found'}`
           );
@@ -1178,6 +1184,7 @@ export class ComplianceValidatorService implements IExtendedComplianceValidation
         }
         case 'logging': {
           const analysis = await this.patternAnalyzer.analyzeLogging(files);
+          unread = analysis.unreadFiles ?? [];
           evidence.push(
             `Audit logging: ${analysis.hasAuditLogging ? 'implemented' : 'not found'}`
           );
@@ -1190,6 +1197,7 @@ export class ComplianceValidatorService implements IExtendedComplianceValidation
           const analysis = await this.patternAnalyzer.analyzeDataProtection(
             files
           );
+          unread = analysis.unreadFiles ?? [];
           evidence.push(`PII fields detected: ${analysis.piiFields.length}`);
           evidence.push(
             `Unmasked PII: ${analysis.unmaskedPii.length} instance(s)`
@@ -1203,7 +1211,10 @@ export class ComplianceValidatorService implements IExtendedComplianceValidation
           evidence.push(`Static analysis completed for ${rule.category}`);
           evidence.push(`Code patterns reviewed: ${rule.title}`);
       }
-      evidence.push(`Files analyzed: ${files.length}`);
+      evidence.push(`Files analyzed: ${files.length - unread.length}`);
+      if (unread.length > 0) {
+        evidence.push(`Files not read: ${unread.length} (${unread.slice(0, 5).map((u) => `${u.path}: ${u.code}`).join(', ')}${unread.length > 5 ? ', ...' : ''})`);
+      }
     } else if (rule.checkType === 'dynamic') {
       evidence.push(`Dynamic check required for: ${rule.title}`);
       evidence.push('Evidence collection pending dynamic analysis');

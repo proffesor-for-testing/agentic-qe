@@ -54,14 +54,14 @@ Collect and aggregate results from headless Codex workers stored in shared memor
 
 ```bash
 # List all results
-npx claude-flow@v3alpha memory list --namespace {{namespace}}
+npx ruflo@3.76.0 memory list --namespace {{namespace}}
 
 # Search for specific patterns
-npx claude-flow@v3alpha memory search -q "{{filter}}" -n {{namespace}}
+npx ruflo@3.76.0 memory search -q "{{filter}}" -n {{namespace}}
 
 # Get detailed entries
 {{#each results}}
-npx claude-flow@v3alpha memory get -k "{{this.key}}" -n {{namespace}}
+npx ruflo@3.76.0 memory get -k "{{this.key}}" -n {{namespace}}
 {{/each}}
 ```
 

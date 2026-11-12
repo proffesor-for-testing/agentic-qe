@@ -47,7 +47,7 @@ hooks:
     echo "   Threats warned: $THREATS_WARNED"
 
     # Store session metrics
-    npx claude-flow@v3alpha memory store \
+    npx ruflo@3.76.0 memory store \
       --namespace "security_metrics" \
       --key "$AIDEFENCE_SESSION_ID" \
       --value "{\"scans\": $SCANS_COMPLETED, \"blocked\": $THREATS_BLOCKED, \"warned\": $THREATS_WARNED}" \
@@ -230,7 +230,7 @@ if (result.threats.some(t => t.severity === 'critical')) {
   await guardian.learnFromDetection(input, result);
 
   // Alert
-  npx claude-flow@v3alpha hooks notify \
+  npx ruflo@3.76.0 hooks notify \
     --severity critical \
     --message "Critical threat blocked by AIDefence Guardian"
 
