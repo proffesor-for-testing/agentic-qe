@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.15.20] - 2026-11-12
+
+Test generation applies only patterns it can trust, so automatically
+learned scaffold patterns are no longer applied or counted as successes,
+and patterns no longer cross languages. `aqe sync` uploads each
+claude-flow memory and your Q-learning patterns, and `aqe sync verify`
+matches afterwards. More MCP tools refuse hardlinked files, and the skills,
+commands and agents AQE ships run third-party CLIs at a pinned version
+instead of a floating tag.
+
+### Security
+
+- **Shipped skills, commands and agents pin third-party CLIs** ([#1404]):
+  they told agents to run `npx ruflo@alpha`, `claude-flow@v3alpha`,
+  `@claude-flow/cli@latest`, `agentdb@latest` or unversioned
+  `npx claude-flow …`, so each call ran whatever had been published most
+  recently. Every such call now uses an exact version: `ruflo@3.76.0`
+  (which also replaces `claude-flow` and `@claude-flow/cli`),
+  `agentdb@3.3.0` and `flow-nexus@0.1.128`. This covers the skills and QE
+  agents `aqe init` installs, the `/aqe-*` plugin commands, the `CLAUDE.md`
+  examples and the `aqe status` daemon hint. A test fails if a floating
+  version comes back. Behaviour is unchanged: many of these Ruflo commands
+  are out of date in any version, which [#1417] tracks, and the Ruflo
+  version `aqe init` writes into MCP config is [#1413]. Thanks to
+  @Dimooyoyo for the report.
+- **In-range dependency security update**: `@claude-flow/security` 3.0.7.
+
 ### Changed
 
 - **Test generation applies only patterns it can trust** ([#1388]): before
@@ -137,7 +164,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#1350]: https://github.com/proffesor-for-testing/agentic-qe/issues/1350
 [#1384]: https://github.com/proffesor-for-testing/agentic-qe/issues/1384
 [#1402]: https://github.com/proffesor-for-testing/agentic-qe/pull/1402
+[#1404]: https://github.com/proffesor-for-testing/agentic-qe/issues/1404
 [#1412]: https://github.com/proffesor-for-testing/agentic-qe/issues/1412
+[#1413]: https://github.com/proffesor-for-testing/agentic-qe/issues/1413
+[#1417]: https://github.com/proffesor-for-testing/agentic-qe/issues/1417
 [#1423]: https://github.com/proffesor-for-testing/agentic-qe/issues/1423
 [#1426]: https://github.com/proffesor-for-testing/agentic-qe/issues/1426
 
