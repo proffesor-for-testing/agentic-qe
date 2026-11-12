@@ -23,4 +23,6 @@ export {
   readJSON,
   fileExists,
   listFiles,
+  setDefaultFileReaderHardlinks,
+  getDefaultFileReaderHardlinks,
 } from './file-reader';

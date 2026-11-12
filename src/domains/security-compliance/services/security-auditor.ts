@@ -13,7 +13,7 @@
 import { LoggerFactory } from '../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs/promises';
-import { readConfinedText } from '../../../shared/io/confined-read.js';
+import { ConfinedReadError, readConfinedText } from '../../../shared/io/confined-read.js';
 import * as path from 'path';
 import { Result, ok, err } from '../../../shared/types/index.js';
 import type { MemoryBackend } from '../../../kernel/interfaces.js';
@@ -22,7 +22,7 @@ import { toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { OSVClient, type ParsedVulnerability } from '../../../shared/security/osv-client.js';
 import { lookupKey } from '../../../shared/security/osv-lookup.js';
-import { resolveDependencies } from './scanners/dependency-resolver.js';
+import { resolveDependencies, type DependencyReadOptions } from './scanners/dependency-resolver.js';
 
 import type {
   DependencyScanResult,
@@ -252,11 +252,22 @@ export class SecurityAuditorService implements ISecurityAuditorService {
       let dastResults: DASTResult | undefined;
       let dependencyResults: DependencyScanResult | undefined;
       let secretScanResults: SecretScanResult | undefined;
+      // #1350: the SAST walk and the dependency manifests are read under the
+      // same hardlink policy as the secret scan (MCP: refuse outside node_modules).
+      const hardlinks = options.sourceHardlinks ?? 'allow';
+      const refusedReads = new Set<string>();
+      const exemptReads = new Set<string>();
+      const read: DependencyReadOptions = {
+        hardlinks,
+        onExemptHardlink: (file) => { exemptReads.add(file); },
+        onRefusedHardlink: (file) => { refusedReads.add(file); },
+      };
 
       if (options.includeSAST) {
         sastResults = await performSASTScan(
           (dir) => this.findSourceFiles(dir),
           (fp) => this.shouldExclude(fp),
+          read,
         );
       }
 
@@ -265,7 +276,10 @@ export class SecurityAuditorService implements ISecurityAuditorService {
       }
 
       if (options.includeDependencies) {
-        dependencyResults = await this.performDependencyScan();
+        // #1350: manifest contents go to OSV, so under any refusing policy a
+        // hardlink is refused outright (no node_modules exemption).
+        dependencyResults = await this.performDependencyScan(
+          { ...read, hardlinks: hardlinks === 'allow' ? 'allow' : 'refuse' });
       }
 
       if (options.includeSecrets) {
@@ -309,8 +323,20 @@ export class SecurityAuditorService implements ISecurityAuditorService {
           `${refusedSecrets.length} file(s) were not scanned for secrets because they have more than one hardlink. Secret exposure is unmeasured for them; replace each with a regular file to scan it.`
         );
       }
-      if ((secretScanResults?.exemptHardlinks?.length ?? 0) > 0) {
-        recommendations.unshift(describeExemptHardlinks(secretScanResults!.exemptHardlinks!.length));
+      // #1350: SAST and dependency files refused the same way.
+      if (refusedReads.size > 0) {
+        const names = [...refusedReads].slice(0, 5).join(', ');
+        incompleteChecks.push(`SAST/dependency read partial: ${refusedReads.size} file(s) refused unread because they have more than one hardlink (${names}${refusedReads.size > 5 ? ', ...' : ''})`);
+        recommendations.unshift(
+          `${refusedReads.size} file(s) were not read for SAST or dependency checks because they have more than one hardlink. Their risk is unmeasured; replace each with a regular file to check it.`
+        );
+      }
+      for (const file of secretScanResults?.exemptHardlinks ?? []) exemptReads.add(file);
+      if (exemptReads.size > 0) {
+        // A hardlink read under the node_modules exemption cannot be told apart
+        // from a planted one, so the audit is not reported as complete.
+        incompleteChecks.push(describeExemptHardlinks(exemptReads.size));
+        recommendations.unshift(describeExemptHardlinks(exemptReads.size));
       }
       // #1052: a DAST target that could not be (fully) scanned is not a clean target.
       if (dastResults && dastResults.status !== 'complete') {
@@ -381,12 +407,17 @@ export class SecurityAuditorService implements ISecurityAuditorService {
       const latestAudit = audits[0];
       const previousAudit = audits[1];
 
-      const criticalIssues = countBySeverity(latestAudit, 'critical');
+      // #1350: an exposed secret counts as a critical open issue, and the
+      // checks the latest audit could not complete are reported with it.
+      const secretsFound = latestAudit?.secretScanResults?.secretsFound.length ?? 0;
+      const incompleteChecks = latestAudit?.incompleteChecks ?? [];
+      const criticalIssues = countBySeverity(latestAudit, 'critical') + secretsFound;
       const highIssues = countBySeverity(latestAudit, 'high');
-      const openVulnerabilities = countOpenVulnerabilities(latestAudit);
+      const openVulnerabilities = countOpenVulnerabilities(latestAudit) + secretsFound;
       const trend = calculateTrend(latestAudit, previousAudit);
       const overallScore = calculatePostureScore(criticalIssues, highIssues, openVulnerabilities);
-      const recommendations = generatePostureRecommendations(criticalIssues, highIssues, overallScore);
+      const recommendations = generatePostureRecommendations(criticalIssues, highIssues, overallScore,
+        { secretsFound, incompleteChecks });
 
       return ok({
         overallScore,
@@ -398,6 +429,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
         averageResolutionTime: await this.calculateAverageResolutionTime(),
         lastAuditDate: latestAudit?.timestamp ?? new Date(),
         recommendations,
+        ...(incompleteChecks.length > 0 ? { incompleteChecks: [...incompleteChecks] } : {}),
       });
     } catch (error) {
       return err(toError(error));
@@ -450,13 +482,25 @@ export class SecurityAuditorService implements ISecurityAuditorService {
 
   private async parseDependencies(
     manifest: string,
-    ecosystem: DependencyInfo['ecosystem']
+    ecosystem: DependencyInfo['ecosystem'],
+    read: DependencyReadOptions = {},
   ): Promise<DependencyInfo[]> {
+    // #1350: a manifest refused as a hardlink is reported and rethrown.
+    const readManifest = async (): Promise<string> => {
+      try {
+        return await readConfinedText(manifest, {
+          outsideRoot: 'allow', hardlinks: read.hardlinks ?? 'allow', onExemptHardlink: read.onExemptHardlink,
+        });
+      } catch (error) {
+        if (error instanceof ConfinedReadError && error.reason === 'hardlinked') read.onRefusedHardlink?.(manifest);
+        throw error;
+      }
+    };
     const dependencies: DependencyInfo[] = [];
 
     try {
       if (ecosystem === 'npm') {
-        const content = await readConfinedText(manifest, { outsideRoot: 'allow' }); // #1161
+        const content = await readManifest(); // #1161
         const packageJson: PackageJson = safeJsonParse(content);
         const allDeps: Record<string, string> = {
           ...packageJson.dependencies,
@@ -469,7 +513,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
           dependencies.push({ name, version: versionSpec, ecosystem: 'npm' });
         }
       } else if (ecosystem === 'pip') {
-        const content = await readConfinedText(manifest, { outsideRoot: 'allow' }); // #1161
+        const content = await readManifest(); // #1161
         const lines = content.split('\n');
 
         for (const line of lines) {
@@ -508,12 +552,13 @@ export class SecurityAuditorService implements ISecurityAuditorService {
    */
   private async parseDependenciesForScan(
     manifest: string,
-    ecosystem: DependencyInfo['ecosystem']
+    ecosystem: DependencyInfo['ecosystem'],
+    read: DependencyReadOptions = {},
   ): Promise<{ dependencies: DependencyInfo[]; preUnchecked: UncheckedDependency[] }> {
-    if (ecosystem !== 'npm') return { dependencies: await this.parseDependencies(manifest, ecosystem), preUnchecked: [] };
+    if (ecosystem !== 'npm') return { dependencies: await this.parseDependencies(manifest, ecosystem, read), preUnchecked: [] };
     let resolution: Awaited<ReturnType<typeof resolveDependencies>>;
     try {
-      resolution = await resolveDependencies(manifest);
+      resolution = await resolveDependencies(manifest, read);
     } catch (error) {
       logger.error(`Failed to parse dependencies from ${manifest}:`, error instanceof Error ? error : undefined);
       // #1049: an unreadable manifest is a failed scan, not a project with no dependencies.
@@ -768,12 +813,12 @@ export class SecurityAuditorService implements ISecurityAuditorService {
     });
   }
 
-  private async performDependencyScan(): Promise<DependencyScanResult> {
+  private async performDependencyScan(read: DependencyReadOptions = {}): Promise<DependencyScanResult> {
     const startTime = Date.now();
     const manifestPath = path.join(process.cwd(), 'package.json');
 
     try {
-      const { dependencies, preUnchecked } = await this.parseDependenciesForScan(manifestPath, 'npm');
+      const { dependencies, preUnchecked } = await this.parseDependenciesForScan(manifestPath, 'npm', read);
       const advisories = await this.checkDependencyAdvisories(dependencies, preUnchecked);
       const outdated = await this.checkOutdatedPackages(dependencies);
 

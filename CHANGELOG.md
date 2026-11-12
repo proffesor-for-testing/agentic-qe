@@ -56,6 +56,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     way.
   - **Nothing in your database is changed or deleted.** No cleanup step is
     needed.
+- **More MCP tools refuse hardlinked files** ([#1350]): over MCP, a file
+  inside the project that is a hardlink to a file outside it is no longer
+  read by `code_index`, `quality_assess`, `coverage_analyze_sublinear`
+  (static estimate and coverage config), `qe/code/c4`, the dependency check
+  of `security_scan_comprehensive` (`dependencies: true`), and the
+  `security-audit` task (SAST walk and `package.json`).
+  - The dependency check refuses any hardlinked `package.json`, lockfile or
+    `pnpm-workspace.yaml`, including one under `node_modules`, before
+    anything is sent to OSV, so names and versions from an outside file are
+    never looked up. pnpm and bun never hardlink a project's own manifest.
+  - `code_index`, `quality_assess`, compliance checks, contract testing and
+    defect prediction refuse every hardlinked file, including package files
+    under `node_modules`. Their directory walks skip `node_modules`, so a
+    pnpm or bun project's own sources are read as before.
+  - Refused files are listed in `refused` (and in `skipped` with reason
+    `hardlinked` for `code_index`), and the result is reported as partial or
+    incomplete instead of clean. `code_index` gains `scanStatus` and leaves
+    out `projectMetrics` when it refused a file, since the line counters
+    would read it.
+  - The directory scans (`security_scan_comprehensive` SAST and
+    `defect_predict`) still read hardlinks under the project's
+    `node_modules` (pnpm, bun and yarn stores) and list them in
+    `exemptHardlinks`. A scan that read one is now `partial`, not
+    `complete`.
+  - The CLI is unchanged: `aqe code index`, `aqe coverage` and
+    `aqe security --dependencies` still read the operator's own hardlinked
+    files.
+- **Security posture counts secrets and incomplete audits** ([#1350]):
+  exposed secrets from the latest audit count as critical issues, the
+  audit's incomplete checks are returned, and an incomplete audit no longer
+  gets "Maintain current security practices".
+- **Compliance checks name the files they did not read** ([#1350]): the
+  evidence lists unread files with the reason instead of counting them as
+  analysed.
 
 ### Fixed
 
@@ -69,6 +103,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   real tests, with scaffolds excluded, so a scaffold-only result can never
   be learned from.
 
+[#1350]: https://github.com/proffesor-for-testing/agentic-qe/issues/1350
 [#1412]: https://github.com/proffesor-for-testing/agentic-qe/issues/1412
 [#1423]: https://github.com/proffesor-for-testing/agentic-qe/issues/1423
 [#1426]: https://github.com/proffesor-for-testing/agentic-qe/issues/1426

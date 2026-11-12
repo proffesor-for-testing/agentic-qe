@@ -21,7 +21,20 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { readConfinedTextSync } from '../../shared/io/confined-read.js';
+import { ConfinedReadError, readConfinedTextSync, type HardlinkPolicy } from '../../shared/io/confined-read.js';
+
+/**
+ * How the coverage configs are read (#1350): the MCP coverage handler passes
+ * `hardlinks: 'refuse-outside-node-modules'`, so a config hardlinked to a
+ * file outside the project is not read; its scope is reported as unreadable.
+ * Default 'allow', for the CLI's reads of the operator's own project.
+ */
+export interface ScopeReadOptions {
+  hardlinks?: HardlinkPolicy;
+}
+
+/** A config that exists but was refused (a hardlink): declared, not readable. */
+const REFUSED = Symbol('refused');
 
 export interface CoverageScope {
   /** The config the scope was read from, relative to the project root. */
@@ -180,13 +193,17 @@ function matchingStringEnd(src: string, at: number): number {
 // Readers
 // ============================================================================
 
-function readText(file: string): string | null {
-  try { return readConfinedTextSync(file, { outsideRoot: 'allow' }); } catch { return null; }
+function readText(file: string, read: ScopeReadOptions): string | null | typeof REFUSED {
+  try {
+    return readConfinedTextSync(file, { outsideRoot: 'allow', hardlinks: read.hardlinks ?? 'allow' });
+  } catch (error) {
+    return error instanceof ConfinedReadError && error.reason === 'hardlinked' ? REFUSED : null;
+  }
 }
 
-function readJson(file: string): Record<string, unknown> | null {
-  const text = readText(file);
-  if (text === null) return null;
+function readJson(file: string, read: ScopeReadOptions): Record<string, unknown> | null | typeof REFUSED {
+  const text = readText(file, read);
+  if (text === null || text === REFUSED) return text;
   try {
     const parsed: unknown = JSON.parse(text);
     return typeof parsed === 'object' && parsed !== null ? parsed as Record<string, unknown> : null;
@@ -247,10 +264,15 @@ function fromJsonKeys(name: string, obj: Record<string, unknown> | undefined): C
   return null;
 }
 
-/** The coverage scope configured for the project at `projectRoot`; `null` when none is configured. */
-export function readCoverageScope(projectRoot: string): CoverageScope | null {
+/**
+ * The coverage scope configured for the project at `projectRoot`; `null` when
+ * none is configured. A config refused under `read` (#1350) is reported as an
+ * unreadable scope from that file, never skipped as if it did not exist.
+ */
+export function readCoverageScope(projectRoot: string, read: ScopeReadOptions = {}): CoverageScope | null {
   for (const name of VITEST_CONFIGS) {
-    const text = readText(path.join(projectRoot, name));
+    const text = readText(path.join(projectRoot, name), read);
+    if (text === REFUSED) return scope(name, { include: null });
     if (text !== null) {
       const found = fromVitest(name, text);
       if (found) return found;
@@ -259,17 +281,22 @@ export function readCoverageScope(projectRoot: string): CoverageScope | null {
   for (const name of JEST_CONFIGS) {
     const file = path.join(projectRoot, name);
     if (!fs.existsSync(file)) continue;
+    const content = name.endsWith('.json') ? readJson(file, read) : readText(file, read);
+    if (content === REFUSED) return scope(name, { include: null });
     const found = name.endsWith('.json')
-      ? fromJsonKeys(name, readJson(file) ?? undefined)
-      : fromJestText(name, readText(file) ?? '');
+      ? fromJsonKeys(name, (content as Record<string, unknown> | null) ?? undefined)
+      : fromJestText(name, (content as string | null) ?? '');
     if (found) return found;
   }
-  const pkg = readJson(path.join(projectRoot, 'package.json'));
+  const pkgRead = readJson(path.join(projectRoot, 'package.json'), read);
+  if (pkgRead === REFUSED) return scope('package.json', { include: null });
+  const pkg = pkgRead;
   const fromPkg = fromJsonKeys('package.json "jest"', pkg?.jest as Record<string, unknown> | undefined);
   if (fromPkg) return fromPkg;
   for (const [names, key] of [[NYC_CONFIGS, 'nyc'], [C8_CONFIGS, 'c8']] as const) {
     for (const name of names) {
-      const obj = readJson(path.join(projectRoot, name));
+      const obj = readJson(path.join(projectRoot, name), read);
+      if (obj === REFUSED) return scope(name, { include: null });
       const found = fromJsonKeys(name, obj ?? undefined);
       if (found) return found;
       // A config that exists but is not JSON (e.g. YAML) cannot be read.

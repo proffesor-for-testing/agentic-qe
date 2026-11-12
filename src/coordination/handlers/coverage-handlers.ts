@@ -33,6 +33,7 @@ import {
 } from './coverage-target';
 import { describeEvidence, describeExcludedEntries, type CoverageEvidence } from './coverage-evidence';
 import type { RefusedCoverageReport } from './handler-utils';
+import type { HardlinkPolicy } from '../../shared/io/confined-read.js';
 import { randomUUID } from 'crypto';
 import * as path from 'path';
 import { describeRunFailure, runJsCoverage, testRunStatus } from './coverage-runner';
@@ -132,10 +133,18 @@ function fromEvaluation(
  *      the project's test runner for JS/TS — writing to a temp dir
  *   3. static estimation, explicitly labelled `estimated: true`
  */
+/**
+ * #1350: source files and coverage configs found under the caller's target
+ * are read refusing any hardlink. The estimate has no way to disclose a read
+ * under the node_modules exemption, and its walk skips node_modules, so a
+ * pnpm or bun project's own sources are unaffected.
+ */
+const SOURCE_HARDLINKS: HardlinkPolicy = 'refuse';
+
 async function collectCoverage(targetPath: string): Promise<CollectResult> {
   // #1354: the target is named by an MCP or task caller, so a report that is
   // a hardlink (which no path check can confine) is refused and named.
-  const existing = await resolveExistingCoverage(targetPath, { hardlinks: 'refuse' });
+  const existing = await resolveExistingCoverage(targetPath, { hardlinks: 'refuse', sourceHardlinks: SOURCE_HARDLINKS });
   if (existing.status === 'target-missing') {
     return { collected: null, ranTests: false, noData: 'target-missing', projectRoot: null };
   }
@@ -172,14 +181,14 @@ async function collectWithoutReport(target: string, projectRoot: string): Promis
     // process PATH and will write an empty report even though the crate has no
     // JavaScript tests. Treating that artifact as coverage hides the intended
     // Rust static-estimation fallback and mislabels the result.
-    return { collected: buildEstimatedCoverage(target), ranTests: false, projectRoot };
+    return { collected: buildEstimatedCoverage(target, { hardlinks: SOURCE_HARDLINKS }), ranTests: false, projectRoot };
   }
 
   // Running the project's test suite executes code from the analyzed repository
   // (the tests themselves, plus npm lifecycle scripts via npx). Honor the
   // opt-out before doing that.
   if (isCoverageExecDisabled()) {
-    return { collected: buildEstimatedCoverage(target), ranTests: false, projectRoot };
+    return { collected: buildEstimatedCoverage(target, { hardlinks: SOURCE_HARDLINKS }), ranTests: false, projectRoot };
   }
 
   const pathFilter = packageFilterForTarget(target, projectRoot);
@@ -207,7 +216,7 @@ async function collectWithoutReport(target: string, projectRoot: string): Promis
     run.numTotalTests === null && !run.exitedCleanly;
   if ((run.data && !crashedEmpty) || run.numTotalTests === 0) {
     const evaluation = run.data
-      ? evaluateCoverageForTarget(run.data, projectRoot, target, { numTotalTests: run.numTotalTests })
+      ? evaluateCoverageForTarget(run.data, projectRoot, target, { numTotalTests: run.numTotalTests, scopeHardlinks: SOURCE_HARDLINKS })
       : { status: 'no-data' as const, reason: 'no-tests-ran' as const };
     const result = fromEvaluation(evaluation, run.exitedCleanly || run.data !== null, projectRoot);
     if (result.collected) {
@@ -226,7 +235,7 @@ async function collectWithoutReport(target: string, projectRoot: string): Promis
 
   // No report at all: say exactly what happened to the run (not installed,
   // timed out, crashed with stderr), then fall back to a labelled estimate.
-  const estimate = buildEstimatedCoverage(target);
+  const estimate = buildEstimatedCoverage(target, { hardlinks: SOURCE_HARDLINKS });
   const runNote = describeRunFailure(run, projectRoot);
   if (estimate) {
     estimate.provenance.notes = [
