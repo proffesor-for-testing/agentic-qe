@@ -381,6 +381,9 @@ function printSyncReport(report: SyncReport): void {
       console.log(`      Records: ${result.recordsSynced}`);
       if (result.sourceMissing) console.log(`      ${chalk.gray('Not read: the source file does not exist')}`);
       console.log(`      Duration: ${result.durationMs}ms`);
+      // #1384: entries skipped while reading (the source still succeeded).
+      if (result.success && result.recordsSkipped > 0) console.log(`      Skipped: ${chalk.yellow(result.recordsSkipped)}`);
+      for (const warning of result.warnings ?? []) console.log(`      Note: ${chalk.yellow(warning)}`);
       if (result.error) {
         console.log(`      Error: ${chalk.red(result.error)}`);
       }

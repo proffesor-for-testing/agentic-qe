@@ -149,6 +149,12 @@ export interface SyncSource {
   /** JSON path (for JSON sources) */
   jsonPath?: string;
 
+  /**
+   * #1384: values of the cloud `key` column that `aqe sync verify` leaves out
+   * of both counts, such as rows an earlier version uploaded.
+   */
+  verifyExcludeKeys?: string[];
+
   /** Whether this source is enabled */
   enabled?: boolean;
 }
@@ -254,6 +260,12 @@ export interface DataReader<T = unknown> {
 
   /** Get record count */
   count(): Promise<number>;
+
+  /**
+   * #1384: entries the last read skipped as not records of this source
+   * (reported as skipped; the source still succeeds). Null when none.
+   */
+  skippedOnRead?(): { count: number; reason: string } | null;
 
   /** Close the reader */
   close(): Promise<void>;
@@ -749,9 +761,11 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
         targetTable: 'aqe.claude_flow_memory',
         priority: 'medium',
         mode: 'full',
+        // #1384: before 3.15.20 the whole store was uploaded as these two rows.
+        verifyExcludeKeys: ['entries', 'version'],
         enabled: true,
       },
-      // Intelligence JSON (Q-Learning)
+      // Intelligence JSON: Q-learning patterns, {"state|action": {state, action, q_value, visits, last_update}}
       {
         name: 'intelligence-qlearning',
         type: 'json',
@@ -759,7 +773,7 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
         targetTable: 'aqe.qlearning_patterns',
         priority: 'low',
         mode: 'full',
-        jsonPath: '$.qvalues',
+        jsonPath: '$.patterns', // #1384: real intelligence.json keeps its Q-patterns here
         enabled: true,
       },
     ],

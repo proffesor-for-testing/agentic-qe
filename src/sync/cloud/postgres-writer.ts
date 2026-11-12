@@ -16,6 +16,7 @@ import type { TunnelManager } from './tunnel-manager.js';
 import { validateIdentifier } from '../../shared/sql-safety.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
 import { LoggerFactory } from '../../logging/index.js';
+import { JsonbText } from '../jsonb-text.js';
 
 const logger = LoggerFactory.create('postgres-writer');
 
@@ -392,6 +393,11 @@ export class PostgresWriter implements CloudWriter {
   private serializeValue(value: unknown, columnName?: string): unknown {
     if (value === null || value === undefined) {
       return null;
+    }
+
+    // #1384: already JSON for a JSONB column; no per-value guessing.
+    if (value instanceof JsonbText) {
+      return value.text;
     }
 
     // Handle BLOB embeddings (Buffer)

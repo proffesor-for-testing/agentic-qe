@@ -11,6 +11,8 @@ import * as path from 'path';
 import secureJsonParse from 'secure-json-parse';
 import type { DataReader, SyncSource } from '../interfaces.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
+import { jsonb } from '../jsonb-text.js';
+import { Q_PATTERNS_TABLE, toQPatterns } from './q-patterns.js';
 
 /**
  * JSON reader configuration
@@ -44,6 +46,8 @@ export class JSONReader implements DataReader<JSONRecord> {
   private readonly filePath: string;
   private data: JSONRecord[] | null = null;
   private fileModTime: Date | null = null;
+  /** #1384: entries the last read skipped as not records of this source. */
+  private lastSkipped: { count: number; reason: string } | null = null;
 
   constructor(config: JSONReaderConfig) {
     this.config = config;
@@ -102,6 +106,7 @@ export class JSONReader implements DataReader<JSONRecord> {
    * a corrupt store is a failed source, never an empty successful one.
    */
   async readAll(): Promise<JSONRecord[]> {
+    this.lastSkipped = null;
     if (!this.statFile()) {
       return [];
     }
@@ -143,6 +148,7 @@ export class JSONReader implements DataReader<JSONRecord> {
    * For JSON files, we compare file modification time
    */
   async readChanged(since: Date): Promise<JSONRecord[]> {
+    this.lastSkipped = null;
     const stats = this.statFile();
     if (!stats) {
       return [];
@@ -155,6 +161,14 @@ export class JSONReader implements DataReader<JSONRecord> {
 
     // File has changed, return all records (JSON doesn't have per-record timestamps)
     return this.readAll();
+  }
+
+  /**
+   * #1384: entries the last read skipped (not records of this source), so
+   * the sync can report them without failing the source; null when none.
+   */
+  skippedOnRead(): { count: number; reason: string } | null {
+    return this.lastSkipped;
   }
 
   /**
@@ -185,8 +199,15 @@ export class JSONReader implements DataReader<JSONRecord> {
    */
   private extractRecords(parsed: unknown): JSONRecord[] {
     // Handle JSON path if specified
-    if (this.config.source.jsonPath) {
-      return this.extractByPath(parsed, this.config.source.jsonPath);
+    const jsonPath = this.config.source.jsonPath;
+    if (jsonPath) {
+      const qPatterns = this.config.source.targetTable === Q_PATTERNS_TABLE;
+      const entries = this.extractByPath(parsed, jsonPath, !qPatterns);
+      if (!qPatterns) return entries;
+      // #1384: only the cloud columns; entries that are not Q-patterns are skipped.
+      const { records, skipped } = toQPatterns(entries, jsonPath);
+      this.lastSkipped = skipped;
+      return records;
     }
 
     // Handle different JSON structures based on source name
@@ -222,7 +243,7 @@ export class JSONReader implements DataReader<JSONRecord> {
   /**
    * Extract by JSON path (simplified implementation)
    */
-  private extractByPath(data: unknown, jsonPath: string): JSONRecord[] {
+  private extractByPath(data: unknown, jsonPath: string, keyAsState = true): JSONRecord[] {
     // Handle simple paths like '$.qvalues' or '$.memories'
     const pathParts = jsonPath.replace(/^\$\./, '').split('.');
 
@@ -232,7 +253,8 @@ export class JSONReader implements DataReader<JSONRecord> {
       if (current && typeof current === 'object' && Object.hasOwn(current, part)) {
         current = (current as Record<string, unknown>)[part];
       } else {
-        return [];
+        // #1384: a configured path the file does not have is reported, not 0 records.
+        throw new Error(`Configured JSON path ${jsonPath} not found in source ${this.name}: ${this.filePath}`);
       }
     }
 
@@ -242,42 +264,48 @@ export class JSONReader implements DataReader<JSONRecord> {
 
     if (typeof current === 'object' && current !== null) {
       // Convert object to array of key-value pairs
+      // #1384: Q-patterns carry their own state; the map key ("state|action") is not one.
       return Object.entries(current as Record<string, unknown>).map(([key, value]) => ({
-        state: key, // Assuming state-action pairs for qvalues
+        ...(keyAsState ? { state: key } : {}), // Assuming state-action pairs for qvalues
         ...(typeof value === 'object' ? value : { value }) as Record<string, unknown>,
       }));
     }
 
-    return [];
+    // #1384: a scalar or null at the path has no records to read.
+    const got = current === null ? 'null' : `a ${typeof current}`;
+    throw new Error(`Configured JSON path ${jsonPath} in source ${this.name} is not a list or an object (got ${got}): ${this.filePath}`);
   }
 
   /**
-   * Extract records from Claude-Flow memory store
+   * Extract records from Claude-Flow memory store.
+   *
+   * #1384: the store is `{entries: {key: {key, value, namespace, storedAt, ...}}, version}`;
+   * each entry is one record whose value is the stored payload (as
+   * claude-flow-bridge reads it), not the wrapper. The older flat store
+   * (`{key: value}`) still reads one record per key. A value is JSON for the
+   * JSONB column (see JsonbText), so a payload keeps its JSON type.
    */
   private extractClaudeFlowMemory(parsed: unknown): JSONRecord[] {
     if (!parsed || typeof parsed !== 'object') {
       return [];
     }
 
-    const records: JSONRecord[] = [];
     const store = parsed as Record<string, unknown>;
+    const versioned = isPlainObject(store.entries);
+    const entries = versioned ? store.entries as Record<string, unknown> : store;
 
-    // Handle flat key-value structure
-    for (const [key, value] of Object.entries(store)) {
+    const records: JSONRecord[] = [];
+    for (const [key, value] of Object.entries(entries)) {
       // Skip metadata keys
-      if (key.startsWith('_')) continue;
+      if (key.startsWith('_') || (!versioned && key === 'version')) continue;
 
-      // Determine category from key pattern
-      let category = 'general';
-      if (key.includes('adr')) category = 'adr-analysis';
-      else if (key.includes('agent')) category = 'agent-patterns';
-      else if (key.includes('pattern')) category = 'patterns';
-      else if (key.includes('metric')) category = 'metrics';
-
+      const stored = versioned && isPlainObject(value) && Object.hasOwn(value, 'value') ? value : null;
+      // created_at stays the sync time (transformRecord): incremental pulls
+      // select rows by it, so an old storedAt would hide the row from them.
       records.push({
         key,
-        value: typeof value === 'object' ? value : { data: value },
-        category,
+        value: jsonb(stored ? stored.value : (typeof value === 'object' ? value : { data: value })),
+        category: categorizeMemoryKey(key),
       });
     }
 
@@ -379,7 +407,7 @@ export class JSONReader implements DataReader<JSONRecord> {
     for (const [key, value] of Object.entries(transformed)) {
       if (key.includes('timestamp') || key.endsWith('_at') || key === 'last_update') {
         if (typeof value === 'number') {
-          transformed[key] = new Date(value).toISOString();
+          transformed[key] = epochToIso(value);
         } else if (typeof value === 'string' && !isNaN(Date.parse(value))) {
           transformed[key] = new Date(value).toISOString();
         }
@@ -423,6 +451,31 @@ function describeParseError(error: unknown): string {
   if (!(error instanceof SyntaxError)) return message;
   const where = message.match(/position \d+(?: \(line \d+ column \d+\))?/);
   return `not valid JSON${where ? ` at ${where[0]}` : ''}`;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Category of a claude-flow memory, from its key (the cloud `category` column). */
+function categorizeMemoryKey(key: string): string {
+  if (key.includes('adr')) return 'adr-analysis';
+  if (key.includes('agent')) return 'agent-patterns';
+  if (key.includes('pattern')) return 'patterns';
+  if (key.includes('metric')) return 'metrics';
+  return 'general';
+}
+
+/**
+ * #1384: an epoch timestamp as ISO text, or null for 0 (ruvector's "never").
+ * ruvector writes epoch seconds (Math.floor(Date.now() / 1000)); other stores
+ * write milliseconds. A value below 1e12 is read as seconds: as milliseconds
+ * it would be before September 2001, older than any of these stores, and as
+ * seconds 1e12 is in the year 33658, so the two ranges cannot be confused.
+ */
+function epochToIso(value: number): string | null {
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return new Date(value < 1e12 ? value * 1000 : value).toISOString();
 }
 
 /**
