@@ -3,7 +3,7 @@
 Newest first. One `## <version> — <date>` heading per version, then `feat:`, `fix:`, `breaking:` and `chore:` bullets. Since 3.15.0 the plugin version tracks the `agentic-qe` npm package version (see [ADR-0001](docs/adrs/0001-agentic-qe-fleet-contract.md)). Built from git history.
 
 ## 3.15.20 — 2026-11-12
-- fix: the `/aqe-*` commands run `npx ruflo@3.76.0` instead of the floating `npx claude-flow@alpha` (#1404).
+- fix: the `/aqe-*` commands run `npx ruflo@3.76.0` instead of a floating Claude Flow dist-tag (#1404).
 - chore: MCP server pin and mod version move to `agentic-qe@3.15.20` (test generation applies only trusted patterns, `aqe sync` uploads each claude-flow memory and Q-learning pattern, more MCP tools refuse hardlinked files; see the root CHANGELOG).
 
 ## 3.15.17 — 2026-10-28
