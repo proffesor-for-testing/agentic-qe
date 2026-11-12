@@ -9,6 +9,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Test generation applies only patterns it can trust** ([#1388]): before
+  3.15.19, a run without an LLM saved its template scaffolding as a
+  learned pattern with a 100% success rate. Those patterns stayed in
+  `.agentic-qe/memory.db` and were still applied to new generations. They
+  showed up as an `// Applied patterns: generate-tests …` line and under
+  "Patterns Used", and each use counted as another success. Test generation
+  now applies a stored pattern only if it meets one of these conditions:
+  - it is one of AQE's built-in patterns;
+  - you stored it with `aqe hooks learn --curate`;
+  - you imported it from an export that marked it as curated;
+  - you imported it with `--curate`;
+  - its tests have been run with a measured, passing result.
+
+  In practice:
+  - **Automatically learned patterns stay unused for now.** Nothing in this
+    release measures the tests that generation produced. Patterns AQE
+    learned on its own are therefore kept but not applied. That covers
+    patterns from test generation, hooks, session consolidation and dream
+    insights. A measurement path is tracked in [#1412].
+  - **A backup/restore keeps them unused.** `aqe learning export` and
+    `export-full` mark a pattern as curated only if it is applicable when
+    exported. `aqe learning import` and `import-merge` keep that marker and
+    mark nothing else.
+  - **New `--curate` flag on import.** Use `aqe learning import -i <file>
+    --curate` (or `import-merge … --curate`) to vouch for every pattern in a
+    file. This is also how to restore patterns you imported with an earlier
+    version, because those exports carry no marker. Every import prints how
+    many patterns arrived already marked as curated, for example "3 of 20
+    patterns carry a curation marker from the file", so a file that declares
+    its own patterns curated is visible.
+  - **`aqe hooks learn` marks a pattern curated only with `--curate`.** Agent
+    prompts run `aqe hooks learn` as an automatic step, so a pattern stored
+    without the flag is kept but not applied until it is measured.
+  - **A curation marker is permanent.** A later measured failure does not
+    revoke it, and there is no command to remove it yet ([#1426]). An
+    automatic update that changes a curated pattern's template drops the
+    marker, so the changed content has to earn trust again.
+  - **`aqe brain import` copies patterns as they are.** A pattern without a
+    marker stays unused, and a marker in the file is trusted, since
+    importing the file is your choice.
+  - **With an LLM:** the template the LLM starts from no longer carries
+    learned patterns in its "Applied patterns" header, and `patternsUsed`
+    lists only the patterns actually applied. Edge-case hints from memory
+    are still added to the prompt; [#1423] tracks filtering them the same
+    way.
+  - **Nothing in your database is changed or deleted.** No cleanup step is
+    needed.
 - **More MCP tools refuse hardlinked files** ([#1350]): over MCP, a file
   inside the project that is a hardlink to a file outside it is no longer
   read by `code_index`, `quality_assess`, `coverage_analyze_sublinear`
@@ -44,7 +91,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   evidence lists unread files with the reason instead of counting them as
   analysed.
 
+### Fixed
+
+- **Patterns no longer cross languages** ([#1388]): matching patterns by
+  file extension used a substring search, so for a `.ts` file every learned
+  pattern matched through the word "generate-tests", and Kotlin and Python
+  patterns were applied to TypeScript. A pattern now matches only a file
+  with exactly that extension (in any case, including `.mts` and `.cts`),
+  or its declared language.
+- **`qe/tests/generate` reports `testsGenerated`** ([#1388]): the count of
+  real tests, with scaffolds excluded, so a scaffold-only result can never
+  be learned from.
+
 [#1350]: https://github.com/proffesor-for-testing/agentic-qe/issues/1350
+[#1412]: https://github.com/proffesor-for-testing/agentic-qe/issues/1412
+[#1423]: https://github.com/proffesor-for-testing/agentic-qe/issues/1423
+[#1426]: https://github.com/proffesor-for-testing/agentic-qe/issues/1426
 
 ## [3.15.19] - 2026-11-06
 

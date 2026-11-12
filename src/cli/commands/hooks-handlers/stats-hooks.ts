@@ -226,6 +226,8 @@ export function registerStatsHooks(hooks: Command): void {
     .option('--domain <domain>', 'QE domain')
     .option('--tags <tags...>', 'Pattern tags')
     .option('--json', 'Output as JSON')
+    .option('--curate', 'Vouch for this pattern: test generation applies it without a measured success. '
+      + 'Without it, the pattern is stored but not applied until its tests have a measured, passing run.')
     .action(async (options) => {
       try {
         const { reasoningBank } = await getHooksSystem();
@@ -239,8 +241,11 @@ export function registerStatsHooks(hooks: Command): void {
             content: options.description,
             variables: [],
           },
+          // #1388: agent prompts run `hooks learn` as an automatic step, so only
+          // --curate (a person vouching for it) marks the pattern curated.
           context: {
             tags: options.tags || [],
+            ...(options.curate === true ? { curation: 'user-store' as const } : {}),
           },
         });
 

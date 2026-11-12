@@ -24,6 +24,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AccessibilityTesterService } from '../../../../src/domains/visual-accessibility/services/accessibility-tester';
+import { isLearnableResult } from '../../../../src/learning/learnable-result';
 
 // Mock shared memory backend to prevent real SQLite initialization in unit tests
 vi.mock('../../../../src/mcp/tools/base', async (importOriginal) => {
@@ -77,6 +78,7 @@ describe('TestGenerateTool', () => {
 
     expect(result.success).toBe(true);
     expect(result.data?.tests).toBeDefined();
+    expect(result.data?.testsGenerated).toBe(result.data?.tests.length);
     // #1370: without an LLM the output is scaffolding, returned apart from tests.
     expect((result.data?.tests.length ?? 0) + (result.data?.scaffolds?.length ?? 0)).toBeGreaterThan(0);
   });
@@ -94,6 +96,10 @@ describe('TestGenerateTool', () => {
       expect(result.data?.scaffolds).toHaveLength(1);
       expect(result.data?.scaffolds?.[0]).toMatchObject({ scaffold: true, rejectedBecause: expect.stringMatching(/^Template scaffolding/) });
       expect(result.data?.warning).toMatch(/^No tests generated, only 1 scaffold/);
+      // #1388: the result carries testsGenerated, so a scaffold-only result is
+      // never learnable if this tool is ever wrapped by the learning middleware.
+      expect(result.data?.testsGenerated).toBe(0);
+      expect(isLearnableResult('test-generation', result.data)).toBe(false);
     } finally {
       vi.unstubAllEnvs();
       rmSync(root, { recursive: true, force: true });
