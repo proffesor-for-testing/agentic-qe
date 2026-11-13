@@ -8,7 +8,7 @@ import { columnKind, serializeForKind, toColumnKinds } from '../../../src/sync/c
 import { PostgresWriter } from '../../../src/sync/cloud/postgres-writer.js';
 import { jsonb } from '../../../src/sync/jsonb-text.js';
 import {
-  convertBeforeQUpload, convertQPatternRows, convertedPair, pairKey, unquote,
+  convertBeforeQUpload, convertQPatternRows, convertedPair, pairKey, unquote, MISSING_STORE,
 } from '../../../src/sync/q-patterns-cloud-migration.js';
 import { toQPatterns, RUVECTOR_STATE_PREFIX } from '../../../src/sync/readers/q-patterns.js';
 import type { DataReader, SyncSource } from '../../../src/sync/interfaces.js';
@@ -157,7 +157,7 @@ describe('converting existing cloud rows (#1407/#1415)', () => {
       ['shared', 'agent', '2', 'env1'],
     ]);
     expect(cloud.statements.every(s => /^UPDATE /.test(s.sql) && s.sql.includes('source_env = $4'))).toBe(true);
-    expect(cloud.query).toHaveBeenCalledWith(expect.stringContaining('WHERE source_env = $1'), ['env1']);
+    expect(cloud.query).toHaveBeenCalledWith(expect.stringContaining('WHERE source_env = $1'), ['env1', ['edit:ts'], ['coder']]);
   });
 
   it('counts a rewrite that would collide and leaves that row as it was', async () => {
@@ -185,26 +185,64 @@ describe('converting existing cloud rows (#1407/#1415)', () => {
     } as unknown as DataReader;
   }
 
+  const stores = (map: Record<string, DataReader | typeof MISSING_STORE | null>) =>
+    async (s: SyncSource) => map[s.name] ?? null;
+  const Q_WRITERS = [source('intelligence-qlearning', 'json'), source('root-rl-q-values', 'sqlite')];
+
   it('does not prefix when AQE\'s own Q-values cannot be read (a shared pair could not be told apart)', async () => {
     const cloud = cloudWith([{ id: '1', state: '"edit:ts"', action: '"coder"' }]);
-    const note = await convertBeforeQUpload(cloud, 'e',
-      [source('intelligence-qlearning', 'json'), source('root-rl-q-values', 'sqlite')],
-      new Map([
-        ['intelligence-qlearning', reader([{ state: 'ruvector:edit:ts', action: 'coder' }])],
-        ['root-rl-q-values', reader(new Error('db locked'))],
-      ]));
+    const note = await convertBeforeQUpload(cloud, 'e', Q_WRITERS, stores({
+      'intelligence-qlearning': reader([{ state: 'ruvector:edit:ts', action: 'coder' }]),
+      'root-rl-q-values': reader(new Error('db locked')),
+    }));
     expect(cloud.statements[0].params).toEqual(['edit:ts', 'coder', '1', 'e']);
     expect(note).toMatch(/unquoted 1 existing row/);
   });
 
+  it('does not prefix when the AQE store could not be opened (review of #1431: --sources intelligence-qlearning)', async () => {
+    const cloud = cloudWith([{ id: '1', state: 'a|b', action: 'qe-x' }]);
+    await convertBeforeQUpload(cloud, 'e', Q_WRITERS, stores({
+      'intelligence-qlearning': reader([{ state: 'ruvector:a|b', action: 'qe-x' }]),
+      'root-rl-q-values': null,
+    }));
+    expect(cloud.execute).not.toHaveBeenCalled();
+  });
+
+  it('keeps a pair AQE also holds as an AQE row, even when only the ruvector source was selected', async () => {
+    // The conversion is given every Q writer and reads the unselected AQE store itself.
+    const cloud = cloudWith([{ id: '1', state: 'a|b', action: 'qe-x' }]);
+    await convertBeforeQUpload(cloud, 'e', Q_WRITERS, stores({
+      'intelligence-qlearning': reader([{ state: 'ruvector:a|b', action: 'qe-x' }]),
+      'root-rl-q-values': reader([{ state: 'a|b', action: 'qe-x' }]),
+    }));
+    expect(cloud.execute).not.toHaveBeenCalled();
+  });
+
+  it('treats a missing AQE store as holding no pairs, so ruvector rows are still prefixed', async () => {
+    const cloud = cloudWith([{ id: '1', state: '"edit:ts"', action: '"coder"' }]);
+    await convertBeforeQUpload(cloud, 'e', Q_WRITERS, stores({
+      'intelligence-qlearning': reader([{ state: 'ruvector:edit:ts', action: 'coder' }]),
+      'root-rl-q-values': MISSING_STORE,
+    }));
+    expect(cloud.statements[0].params).toEqual(['ruvector:edit:ts', 'coder', '1', 'e']);
+  });
+
+  it('asks the cloud only for rows that can change', async () => {
+    const cloud = cloudWith([]);
+    await convertQPatternRows(cloud, 'e', ruvector, aqe);
+    const [sql, params] = cloud.query.mock.calls[0] as unknown as [string, unknown[]];
+    expect(sql).toMatch(/state LIKE '"%' OR action LIKE '"%'/);
+    expect(sql).toMatch(/state NOT LIKE 'ruvector:%'/);
+    // Only the ruvector-only pair is a prefix candidate; the shared pair is not.
+    expect(params).toEqual(['e', ['edit:ts'], ['coder']]);
+  });
+
   it('reads ruvector pairs without their upload prefix', async () => {
     const cloud = cloudWith([{ id: '1', state: '"edit:ts"', action: '"coder"' }]);
-    const note = await convertBeforeQUpload(cloud, 'e',
-      [source('intelligence-qlearning', 'json'), source('root-rl-q-values', 'sqlite')],
-      new Map([
-        ['intelligence-qlearning', reader([{ state: 'ruvector:edit:ts', action: 'coder' }])],
-        ['root-rl-q-values', reader([{ state: 'a|b', action: 'qe-x' }])],
-      ]));
+    const note = await convertBeforeQUpload(cloud, 'e', Q_WRITERS, stores({
+      'intelligence-qlearning': reader([{ state: 'ruvector:edit:ts', action: 'coder' }]),
+      'root-rl-q-values': reader([{ state: 'a|b', action: 'qe-x' }]),
+    }));
     expect(cloud.statements[0].params).toEqual(['ruvector:edit:ts', 'coder', '1', 'e']);
     expect(note).toMatch(/marked 1 existing ruvector row/);
   });

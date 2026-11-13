@@ -174,3 +174,24 @@ describe('a sync result counts read skips and write rejects together (#1384)', (
     });
   });
 });
+
+describe('a failed Q-row conversion fails every Q source (#1407/#1415, review of #1431)', () => {
+  it('uploads nothing to aqe.qlearning_patterns after the conversion failed', async () => {
+    const sources = [defaultSource('root-rl-q-values'), defaultSource('intelligence-qlearning')];
+    local['root-rl-q-values'] = [{ state: 'a|b', action: 'qe-x', q_value: 0.5 }];
+    local['intelligence-qlearning'] = [{ state: 'ruvector:edit:ts', action: 'coder', q_value: 0.7 }];
+    (createSQLiteReader as Mock).mockImplementation(readerFor);
+    (createJSONReader as Mock).mockImplementation(readerFor);
+    const w = cloud({});
+    w.query.mockRejectedValue(Object.assign(new Error('connection reset'), { code: '08006' }));
+    (createPostgresWriter as Mock).mockReturnValue(w);
+    const agent = new CloudSyncAgent({ environment: 'test', sync: { ...DEFAULT_SYNC_CONFIG.sync, sources, dryRun: false } });
+    await agent.initialize();
+    const report = await agent.syncAll();
+    expect(report.results.map(r => [r.source, r.success])).toEqual([
+      ['root-rl-q-values', false], ['intelligence-qlearning', false],
+    ]);
+    expect(report.results.every(r => /connection reset/.test(r.error ?? ''))).toBe(true);
+    expect(w.upsert).not.toHaveBeenCalled();
+  });
+});

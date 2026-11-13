@@ -75,8 +75,14 @@ export async function convertQPatternRows(
   aqePairs: ReadonlySet<PairKey>,
 ): Promise<QRowConversion> {
   const result: QRowConversion = { unquoted: 0, prefixed: 0, conflicts: 0 };
+  // Only rows that can change: JSON-quoted ones, and unprefixed rows whose
+  // pair is a ruvector-only pair. Once converted, a sync reads no rows.
+  const toPrefix = [...ruvectorPairs].filter(key => !aqePairs.has(key)).map(key => key.split('\u0000'));
   const rows = await writer.query<{ id: string; state: string; action: string }>(
-    `SELECT id, state, action FROM ${Q_PATTERNS_TABLE} WHERE source_env = $1`, [environment],
+    `SELECT id, state, action FROM ${Q_PATTERNS_TABLE} WHERE source_env = $1 AND (` +
+      `state LIKE '"%' OR action LIKE '"%' OR (state NOT LIKE '${RUVECTOR_STATE_PREFIX}%' AND ` +
+      '(state, action) IN (SELECT * FROM unnest($2::text[], $3::text[]))))',
+    [environment, toPrefix.map(([state]) => state), toPrefix.map(([, action]) => action)],
   );
   for (const row of rows) {
     if (typeof row.state !== 'string' || typeof row.action !== 'string') continue;
@@ -100,10 +106,22 @@ export async function convertQPatternRows(
   return result;
 }
 
+/**
+ * How the conversion reaches a local store: its reader, MISSING_STORE when
+ * the store does not exist (so it has no pairs), or null when it exists but
+ * cannot be opened.
+ */
+export const MISSING_STORE = Symbol('missing-store');
+export type QStoreReader = (source: SyncSource) => Promise<DataReader | typeof MISSING_STORE | null>;
+
 /** The local (state, action) pairs of one store, or null when it cannot be read. */
-async function readPairs(reader: DataReader | undefined, stripPrefix: boolean): Promise<Set<PairKey> | null> {
+async function readPairs(
+  reader: DataReader | typeof MISSING_STORE | null, stripPrefix: boolean,
+): Promise<Set<PairKey> | null> {
+  if (reader === MISSING_STORE) return new Set();
   if (!reader) return null;
   try {
+    if ((reader as { exists?: () => boolean }).exists?.() === false) return new Set();
     const pairs = new Set<PairKey>();
     for (const record of await reader.readAll() as Array<Record<string, unknown>>) {
       if (typeof record.state !== 'string' || typeof record.action !== 'string') continue;
@@ -119,23 +137,25 @@ async function readPairs(reader: DataReader | undefined, stripPrefix: boolean): 
 
 /**
  * Run the conversion before the first Q upload of a sync. The local pairs
- * come from every enabled source that writes the table: JSON sources are
- * ruvector stores, the others AQE's own. When AQE's pairs cannot be read, no
- * row is prefixed (a shared pair could not be told apart), only unquoted.
+ * come from every store that writes the table, whether or not it was
+ * selected for this sync (`aqe sync --sources` narrows the upload, not the
+ * conversion): JSON sources are ruvector stores, the others AQE's own. When
+ * AQE's pairs cannot be read, no row is prefixed (a shared pair could not be
+ * told apart), only unquoted.
  * Returns a note for the sync report, or null when nothing changed.
  */
 export async function convertBeforeQUpload(
   writer: Pick<CloudWriter, 'query' | 'execute'>,
   environment: string,
-  sources: readonly SyncSource[],
-  readers: ReadonlyMap<string, DataReader>,
+  qWriters: readonly SyncSource[],
+  storeReader: QStoreReader,
 ): Promise<string | null> {
-  const writers = sources.filter(s => s.enabled !== false && s.targetTable === Q_PATTERNS_TABLE);
   let ruvectorPairs: Set<PairKey> | null = new Set();
   let aqePairs: Set<PairKey> | null = new Set();
-  for (const source of writers) {
+  for (const source of qWriters) {
+    if (source.enabled === false || source.targetTable !== Q_PATTERNS_TABLE) continue;
     const ruvector = source.type === 'json';
-    const pairs = await readPairs(readers.get(source.name), ruvector);
+    const pairs = await readPairs(await storeReader(source), ruvector);
     if (ruvector) ruvectorPairs = ruvectorPairs && pairs ? new Set([...ruvectorPairs, ...pairs]) : null;
     else aqePairs = aqePairs && pairs ? new Set([...aqePairs, ...pairs]) : null;
   }
