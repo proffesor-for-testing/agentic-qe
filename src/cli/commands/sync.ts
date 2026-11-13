@@ -18,6 +18,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
+import { subcommandOptions } from './sync-subcommand-options.js';
 import {
   createSyncAgent,
   syncToCloud,
@@ -145,13 +146,21 @@ export function createSyncCommands(): Command {
     .option('--dry-run', 'Preview pull without writing to local DB')
     .option('--target <path>', 'Custom target SQLite database path')
     .option('--since <date>', 'Pull changes since date (ISO 8601)')
+    .option('--local-env <environment>', "This machine's sync environment: its own claude-flow memories and Q-values are not pulled back (default: AQE_ENV, or devpod)")
     .option('-v, --verbose', 'Enable verbose output')
-    .action(async (options) => {
+    .action(async (_options, command: Command) => {
+      // #1409: --full/--env/--since given after `pull` reached the parent command.
+      const options = subcommandOptions<{
+        full?: boolean; env: string; tables?: string; dryRun?: boolean; target?: string; since?: string; verbose?: boolean;
+        localEnv?: string;
+      }>(command);
       const pullConfig: Partial<PullAgentConfig> = {
         environment: options.env,
         verbose: options.verbose,
         dryRun: options.dryRun,
         targetDb: options.target,
+        // #1409: set it when you push with `aqe sync --env X` rather than AQE_ENV.
+        ...(options.localEnv ? { localEnvironment: options.localEnv } : {}),
       };
 
       // Filter tables if specified
@@ -195,7 +204,8 @@ export function createSyncCommands(): Command {
     .command('status')
     .description('Show sync status and data source information')
     .option('-e, --env <environment>', 'Environment identifier', process.env.AQE_ENV || 'devpod')
-    .action(async (options) => {
+    .action(async (_options, command: Command) => {
+      const options = subcommandOptions<{ env: string }>(command); // #1409
       const spinner = ora('Checking sync status...').start();
 
       try {
@@ -217,7 +227,8 @@ export function createSyncCommands(): Command {
     .command('verify')
     .description('Verify sync integrity between local and cloud')
     .option('-e, --env <environment>', 'Environment identifier', process.env.AQE_ENV || 'devpod')
-    .action(async (options) => {
+    .action(async (_options, command: Command) => {
+      const options = subcommandOptions<{ env: string }>(command); // #1409
       const spinner = ora('Verifying sync integrity...').start();
 
       try {
@@ -512,6 +523,8 @@ function printPullReport(report: SyncReport): void {
       if (result.recordsSkipped > 0) {
         console.log(`      Skipped: ${chalk.yellow(result.recordsSkipped)}`);
       }
+      // #1409: rows kept as they were, and rows not pulled by design.
+      for (const warning of result.warnings ?? []) console.log(`      Note: ${chalk.yellow(warning)}`);
       if (result.error) {
         console.log(`      Error: ${chalk.red(result.error)}`);
       }

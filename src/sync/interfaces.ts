@@ -380,8 +380,30 @@ export interface PullSource {
   /** Columns to strip from cloud records before local insert */
   dropColumns?: string[];
 
-  /** Type transforms for specific columns */
-  transforms?: Record<string, 'boolean-to-int' | 'jsonb-to-text' | 'timestamptz-to-text'>;
+  /**
+   * Type transforms for specific columns. #1409: `json-string-to-text`
+   * unquotes a value an earlier version stored JSON-quoted (#1407).
+   */
+  transforms?: Record<string, 'boolean-to-int' | 'jsonb-to-text' | 'timestamptz-to-text' | 'json-string-to-text' | 'timestamptz-to-epoch-ms'>;
+
+  /**
+   * #1409: values for local NOT NULL columns the cloud table has no column
+   * for. `{env}` is replaced with the row's source_env.
+   */
+  fill?: Record<string, string>;
+
+  /**
+   * #1409: skip rows this machine uploaded itself (source_env equal to the
+   * local environment), so a pull never copies local data back as a
+   * second row.
+   */
+  excludeOwnEnvironment?: boolean;
+
+  /** #1409: skip cloud rows whose `column` starts with `prefix`. */
+  excludePrefix?: { column: string; prefix: string };
+
+  /** #1409: insert new rows only; a row already in the local table is kept as it is. */
+  insertOnly?: boolean;
 }
 
 /**
@@ -408,7 +430,19 @@ export interface PullConfig {
 
   /** Only pull specific tables */
   tables?: string[];
+
+  /**
+   * #1409: this machine's environment, the one `aqe sync` uploads as
+   * (AQE_ENV, default 'devpod'). Sources with excludeOwnEnvironment skip it.
+   */
+  localEnvironment?: string;
 }
+
+/** #1409: rl_q_values.algorithm of Q-values pulled from another environment. */
+export const PULLED_Q_ALGORITHM = 'cloud-sync';
+
+/** #1409: kv_store namespace prefix of claude-flow memories pulled from another environment. */
+export const PULLED_CLAUDE_FLOW_NAMESPACE_PREFIX = 'claude-flow-cloud:';
 
 /**
  * Default pull configuration
@@ -426,6 +460,7 @@ export const DEFAULT_PULL_CONFIG: PullConfig = {
     tunnelPort: parseInt(process.env.GCP_TUNNEL_PORT || '15432', 10),
   },
   environment: process.env.AQE_ENV || 'all',
+  localEnvironment: process.env.AQE_ENV || 'devpod',
   batchSize: 1000,
   sources: [
     // QE Patterns (cloud 0 records, but may grow)
@@ -523,6 +558,16 @@ export const DEFAULT_PULL_CONFIG: PullConfig = {
         action: 'action_key',
         last_update: 'updated_at',
       },
+      // #1409: rl_q_values needs algorithm and agent_id, which the cloud does
+      // not keep. Pulled rows are marked as copies from another environment:
+      // AQE's routing and Q updates leave cloud-sync rows out, and so does the
+      // push of root-rl-q-values.
+      fill: { algorithm: PULLED_Q_ALGORITHM, agent_id: '{env}' },
+      transforms: { state: 'json-string-to-text', action: 'json-string-to-text' },
+      // #1415: ruvector rows belong to ruvector, not AQE's Q-table.
+      excludePrefix: { column: 'state', prefix: 'ruvector:' },
+      excludeOwnEnvironment: true,
+      insertOnly: true,
     },
     // Routing outcomes (186 records)
     {
@@ -564,7 +609,14 @@ export const DEFAULT_PULL_CONFIG: PullConfig = {
       priority: 'low',
       mode: 'incremental',
       dropColumns: ['source_env', 'sync_version'],
-      columnMap: { partition: 'namespace' },
+      // #1409: the cloud has no namespace column; kv_store.namespace is
+      // NOT NULL. Each environment's memories get their own namespace, which
+      // the push of root-kv-store leaves out.
+      fill: { namespace: `${PULLED_CLAUDE_FLOW_NAMESPACE_PREFIX}{env}` },
+      // kv_store.created_at is epoch milliseconds, not the cloud's TIMESTAMPTZ.
+      transforms: { created_at: 'timestamptz-to-epoch-ms' },
+      excludeOwnEnvironment: true,
+      insertOnly: true,
     },
     // NOTE: intelligence-qlearning (JSON push source) is NOT pulled back —
     // the cloud qlearning_patterns table is already pulled via the qlearning-patterns source above.
@@ -682,7 +734,8 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
         targetTable: 'aqe.memory_entries',
         priority: 'high',
         mode: 'incremental',
-        query: "SELECT key, namespace as partition, CASE WHEN json_valid(value) THEN value ELSE json_quote(value) END as value, created_at, expires_at FROM kv_store WHERE json_valid(value) OR json_valid(json_quote(value))",
+        // #1409: claude-flow memories pulled from other environments are not uploaded again.
+        query: "SELECT key, namespace as partition, CASE WHEN json_valid(value) THEN value ELSE json_quote(value) END as value, created_at, expires_at FROM kv_store WHERE (json_valid(value) OR json_valid(json_quote(value))) AND namespace NOT LIKE 'claude-flow-cloud:%'",
         enabled: true,
       },
       // Captured experiences → cloud learning_experiences (854+ records)
@@ -717,7 +770,8 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
         targetTable: 'aqe.qlearning_patterns',
         priority: 'medium',
         mode: 'incremental',
-        query: "SELECT DISTINCT state_key as state, action_key as action, q_value, visits, updated_at as last_update, created_at FROM rl_q_values GROUP BY state_key, action_key",
+        // #1409: Q-values pulled from other environments are not uploaded again.
+        query: "SELECT DISTINCT state_key as state, action_key as action, q_value, visits, updated_at as last_update, created_at FROM rl_q_values WHERE algorithm <> 'cloud-sync' GROUP BY state_key, action_key",
         enabled: true,
       },
       // Routing outcomes (184+ records) - model routing decisions

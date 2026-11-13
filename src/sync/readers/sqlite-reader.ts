@@ -10,7 +10,7 @@ import { openDatabase } from '../../shared/safe-db.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import type { DataReader, SyncSource } from '../interfaces.js';
-import { validateTableName } from '../../shared/sql-safety.js';
+import { validateIdentifier, validateTableName } from '../../shared/sql-safety.js';
 import { safeJsonParse } from '../../shared/safe-json.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
 import { LoggerFactory } from '../../logging/index.js';
@@ -117,24 +117,29 @@ export class SQLiteReader implements DataReader<SQLiteRecord> {
       throw new Error('Reader not initialized');
     }
 
-    // Try to find a timestamp column
-    const timestampCol = this.findTimestampColumn();
-    if (!timestampCol) {
-      console.warn(`[SQLiteReader:${this.name}] No timestamp column found, falling back to readAll`);
-      return this.readAll();
-    }
-
     const tableName = this.getTableName();
     if (!this.tableExists(tableName)) {
       return [];
     }
 
-    const sinceStr = since.toISOString();
-    const query = `SELECT * FROM ${validateTableName(tableName)} WHERE ${timestampCol} > ?`;
+    // #1409: a source with a query is read through that query, so its column
+    // names and filters (e.g. leaving pulled rows out) apply to incremental
+    // syncs too. Before, an incremental read ran SELECT * on the table.
+    const sourceQuery = this.config.source.query;
+    const timestampCol = sourceQuery ? this.findQueryTimestampColumn(sourceQuery) : this.findTimestampColumn();
+    if (!timestampCol) {
+      console.warn(`[SQLiteReader:${this.name}] No timestamp column found, falling back to readAll`);
+      return this.readAll();
+    }
+
+    const changed = changedSince(validateIdentifier(timestampCol));
+    const query = sourceQuery
+      ? `SELECT * FROM (${sourceQuery}) AS source_rows WHERE ${changed}`
+      : `SELECT * FROM ${validateTableName(tableName)} WHERE ${changed}`;
 
     try {
       const stmt = this.db.prepare(query);
-      const rows = stmt.all(sinceStr) as SQLiteRecord[];
+      const rows = stmt.all({ sinceMs: since.getTime(), sinceIso: since.toISOString() }) as SQLiteRecord[];
       return rows.map(row => this.transformRecord(row));
     } catch (error) {
       // If the column doesn't exist or query fails, fall back to readAll
@@ -157,7 +162,11 @@ export class SQLiteReader implements DataReader<SQLiteRecord> {
     }
 
     try {
-      const stmt = this.db.prepare(`SELECT COUNT(*) as count FROM ${validateTableName(tableName)}`);
+      // #1409: count what the source uploads (its query), so verify compares like with like.
+      const sourceQuery = this.config.source.query;
+      const stmt = this.db.prepare(sourceQuery
+        ? `SELECT COUNT(*) as count FROM (${sourceQuery}) AS source_rows`
+        : `SELECT COUNT(*) as count FROM ${validateTableName(tableName)}`);
       const result = stmt.get() as { count: number };
       return result.count;
     } catch (error) {
@@ -241,6 +250,19 @@ export class SQLiteReader implements DataReader<SQLiteRecord> {
     return null;
   }
 
+  /** #1409: the timestamp column among a source query's output columns. */
+  private findQueryTimestampColumn(query: string): string | null {
+    if (!this.db) return null;
+    const candidates = ['updated_at', 'last_update', 'created_at', 'timestamp', 'last_used_at', 'modified_at'];
+    try {
+      const names = this.db.prepare(query).columns().map(c => c.name.toLowerCase());
+      return candidates.find(c => names.includes(c)) ?? null;
+    } catch (e) {
+      logger.debug('Query timestamp column detection failed', { source: this.name, error: toErrorMessage(e) });
+      return null;
+    }
+  }
+
   /**
    * Transform a record for cloud sync
    */
@@ -317,6 +339,21 @@ export class SQLiteReader implements DataReader<SQLiteRecord> {
 
     return { path: this.dbPath, exists, tables };
   }
+}
+
+/**
+ * #1409: "changed after ?" for a timestamp column, whatever it stores.
+ * Local tables keep epoch milliseconds (kv_store), epoch seconds, ISO
+ * strings or SQLite `datetime('now')` text ('2026-11-13 10:00:00'). Before,
+ * the column was compared with the ISO string as text: a number always sorts
+ * below text, so epoch columns never matched, and 'YYYY-MM-DD HH:MM:SS' sorted
+ * below the ISO form of a moment earlier the same day. Named parameters:
+ * @sinceMs (epoch milliseconds) and @sinceIso.
+ */
+function changedSince(column: string): string {
+  return `(CASE WHEN typeof(${column}) IN ('integer', 'real') ` +
+    `THEN (CASE WHEN ${column} > 100000000000 THEN ${column} ELSE ${column} * 1000 END) > @sinceMs ` +
+    `ELSE datetime(${column}) > datetime(@sinceIso) END)`;
 }
 
 /**
