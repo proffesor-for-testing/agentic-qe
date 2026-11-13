@@ -17,6 +17,7 @@ import { validateIdentifier } from '../../shared/sql-safety.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
 import { LoggerFactory } from '../../logging/index.js';
 import { JsonbText } from '../jsonb-text.js';
+import { columnTypesQuery, serializeForKind, toColumnKinds, type ColumnKind } from './column-types.js';
 
 const logger = LoggerFactory.create('postgres-writer');
 
@@ -78,6 +79,8 @@ const PG_REINSTALL_HINT = 'Reinstall agentic-qe (or run `npm install` in the pro
  */
 export class PostgresWriter implements CloudWriter {
   private client: PgClient | null = null;
+  /** #1407: column kinds per table, read once per connection. */
+  private columnKinds = new Map<string, Map<string, ColumnKind>>();
   private readonly config: PostgresWriterConfig;
   private inTransaction = false;
   private connected = false;
@@ -220,6 +223,7 @@ export class PostgresWriter implements CloudWriter {
     // Get columns from first record
     const firstRecord = records[0] as Record<string, unknown>;
     const columns = Object.keys(firstRecord);
+    const kinds = await this.columnKindsFor(table);
 
     // Build upsert SQL
     const conflictColumns = options?.conflictColumns || this.inferConflictColumns(table, columns);
@@ -232,7 +236,7 @@ export class PostgresWriter implements CloudWriter {
     for (let i = 0; i < records.length; i += batchSize) {
       const batch = records.slice(i, i + batchSize);
       try {
-        const inserted = await this.upsertBatch(table, batch, columns, conflictColumns, updateColumns, options?.skipIfExists);
+        const inserted = await this.upsertBatch(table, batch, columns, conflictColumns, updateColumns, options?.skipIfExists, kinds);
         totalInserted += inserted;
       } catch (error) {
         // Retry failed batch with individual inserts (handles oversized batches and isolated bad records)
@@ -244,7 +248,7 @@ export class PostgresWriter implements CloudWriter {
         let firstReason = '';
         for (const record of batch) {
           try {
-            const inserted = await this.upsertBatch(table, [record], columns, conflictColumns, updateColumns, options?.skipIfExists);
+            const inserted = await this.upsertBatch(table, [record], columns, conflictColumns, updateColumns, options?.skipIfExists, kinds);
             recovered += inserted;
           } catch (retryError) {
             // Skip this individual record, and report it (#1361)
@@ -274,7 +278,8 @@ export class PostgresWriter implements CloudWriter {
     columns: string[],
     conflictColumns: string[],
     updateColumns: string[],
-    skipIfExists?: boolean
+    skipIfExists?: boolean,
+    kinds: Map<string, ColumnKind> = new Map()
   ): Promise<number> {
     if (!this.client) return 0;
 
@@ -288,7 +293,7 @@ export class PostgresWriter implements CloudWriter {
       for (const col of columns) {
         const value = (record as Record<string, unknown>)[col];
         recordValues.push(`$${paramIndex++}`);
-        params.push(this.serializeValue(value, col));
+        params.push(this.serializeValue(value, col, kinds.get(col)));
       }
       valuePlaceholders.push(`(${recordValues.join(', ')})`);
     }
@@ -360,6 +365,7 @@ export class PostgresWriter implements CloudWriter {
     const stopTunnel = this.startedTunnel;
     this.client = null;
     this.connected = false;
+    this.columnKinds.clear();
     this.inTransaction = false;
     this.startedTunnel = false;
 
@@ -390,9 +396,15 @@ export class PostgresWriter implements CloudWriter {
   /**
    * Serialize value for PostgreSQL
    */
-  private serializeValue(value: unknown, columnName?: string): unknown {
+  private serializeValue(value: unknown, columnName?: string, kind?: ColumnKind): unknown {
     if (value === null || value === undefined) {
       return null;
+    }
+
+    // #1407: the column's real type decides; the name-based guesses below
+    // only apply to a column whose type could not be read.
+    if (kind) {
+      return serializeForKind(value, kind);
     }
 
     // #1384: already JSON for a JSONB column; no per-value guessing.
@@ -487,6 +499,25 @@ export class PostgresWriter implements CloudWriter {
     }
 
     return value;
+  }
+
+  /**
+   * #1407: the kinds of a table's columns, from information_schema. Empty
+   * (name-based fallback) when they cannot be read.
+   */
+  private async columnKindsFor(table: string): Promise<Map<string, ColumnKind>> {
+    const cached = this.columnKinds.get(table);
+    if (cached) return cached;
+    let kinds = new Map<string, ColumnKind>();
+    try {
+      const { sql, params } = columnTypesQuery(table);
+      const result = await this.client!.query(sql, params);
+      kinds = toColumnKinds(result.rows as Array<{ column_name: string; data_type: string; udt_name: string }>);
+    } catch (error) {
+      logger.debug(`Column types unavailable for ${table}; using name-based serialization`, { error: toErrorMessage(error) });
+    }
+    this.columnKinds.set(table, kinds);
+    return kinds;
   }
 
   /**

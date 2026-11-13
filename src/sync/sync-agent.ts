@@ -46,6 +46,10 @@ import { createConnectionManager } from './cloud/tunnel-manager.js';
 import { createPostgresWriter } from './cloud/postgres-writer.js';
 import { toErrorMessage, toError } from '../shared/error-utils.js';
 import { planVerifyGroups, cloudCountQuery, localCount as countLocal, type VerifyGroup } from './verify-plan.js';
+import { convertBeforeQUpload, MISSING_STORE } from './q-patterns-cloud-migration.js';
+import { existsSync } from 'fs';
+import { resolve as resolvePath } from 'path';
+import { Q_PATTERNS_TABLE } from './readers/q-patterns.js';
 
 /**
  * Sync agent configuration
@@ -70,6 +74,10 @@ export class CloudSyncAgent {
   /** #1361: why a source has no reader, so a sync can report it instead of dropping it. */
   private readonly readerErrors: Map<string, string> = new Map();
   private writer: CloudWriter | null = null;
+  /** #1407/#1415: existing Q rows are converted once per sync; a failure fails every Q source. */
+  private qRowsConversion: Promise<string | null> | null = null;
+  /** Q-store readers opened only for the conversion. */
+  private qOnlyReaders: DataReader[] = [];
   private report: SyncReport | null = null;
 
   constructor(config: Partial<SyncAgentConfig> = {}) {
@@ -224,6 +232,7 @@ export class CloudSyncAgent {
 
       // Write to cloud (no wrapping transaction — postgres-writer handles per-batch recovery)
       if (this.writer && !this.config.sync.dryRun) {
+        await this.convertQRowsOnce(source, result);
         const skipped = { count: 0, reason: '' };
         const written = await this.writer.upsert(source.targetTable, records, {
           skipIfExists: source.mode === 'append',
@@ -286,6 +295,7 @@ export class CloudSyncAgent {
 
       // Write to cloud (no wrapping transaction — postgres-writer handles per-batch recovery)
       if (this.writer && !this.config.sync.dryRun) {
+        await this.convertQRowsOnce(source, result);
         const skipped = { count: 0, reason: '' };
         const written = await this.writer.upsert(source.targetTable, records, {
           onSkipped: (count, reason) => { skipped.count += count; skipped.reason ||= reason; },
@@ -306,6 +316,45 @@ export class CloudSyncAgent {
 
     result.durationMs = Date.now() - startTime;
     return result;
+  }
+
+  /** #1407/#1415: convert this environment's existing Q rows before the first Q upload. */
+  private async convertQRowsOnce(source: SyncSource, result: SyncResult): Promise<void> {
+    if (source.targetTable !== Q_PATTERNS_TABLE || !this.writer) return;
+    const first = this.qRowsConversion === null;
+    // The same promise for every Q source: if the conversion failed, the
+    // next Q source fails too instead of uploading next to unconverted rows.
+    this.qRowsConversion ??= convertBeforeQUpload(
+      this.writer, this.config.environment, this.qPatternWriters(), s => this.qStoreReader(s),
+    );
+    const note = await this.qRowsConversion;
+    if (first && note) (result.warnings ??= []).push(note);
+  }
+
+  /** Every source that writes the Q table: the configured ones and the defaults. */
+  private qPatternWriters(): SyncSource[] {
+    const byName = new Map<string, SyncSource>();
+    for (const s of [...DEFAULT_SYNC_CONFIG.sync.sources, ...this.config.sync.sources]) {
+      if (s.targetTable === Q_PATTERNS_TABLE) byName.set(s.name, s);
+    }
+    return [...byName.values()];
+  }
+
+  /** A reader for a Q store, opened on demand when the sync did not select it. */
+  private async qStoreReader(source: SyncSource): Promise<DataReader | typeof MISSING_STORE | null> {
+    const existing = this.readers.get(source.name);
+    if (existing) return existing;
+    if (!existsSync(resolvePath(process.cwd(), source.path))) return MISSING_STORE;
+    const reader = this.createReader(source);
+    if (!reader) return null;
+    try {
+      await reader.initialize();
+      // Closed in close(), with the others.
+      this.qOnlyReaders.push(reader);
+      return reader;
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -464,6 +513,9 @@ export class CloudSyncAgent {
     }
 
     this.readers.clear();
+    for (const reader of this.qOnlyReaders.splice(0)) {
+      try { await reader.close(); } catch { /* best effort */ }
+    }
     this.log('Sync agent closed');
   }
 

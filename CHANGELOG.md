@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`aqe sync` stores Q-learning states and actions as plain text** ([#1407]):
+  every `state` and `action` in `aqe.qlearning_patterns` was stored
+  JSON-quoted (`"edit:ts"` with the quotes), and a state that was a 13-digit
+  number was rewritten to a date. Sync now writes each value according to
+  the cloud column's real type: TEXT unchanged, JSONB as valid JSON (an
+  ISO-looking string in a JSONB column was rejected before), and
+  timestamps converted only for timestamp columns.
+- **AQE's and ruvector's Q-learning rows no longer overwrite each other**
+  ([#1415]): both are stored in `aqe.qlearning_patterns`, keyed by
+  `(state, action)`, so when both stores had the same pair the cloud kept
+  only whichever synced last, and `aqe sync verify` reported a mismatch.
+  ruvector states are now uploaded as `ruvector:<state>`.
+- **Your existing cloud rows are converted once:** on the first sync after
+  the upgrade, and only for that machine's environment, AQE rewrites
+  existing rows in place. It unquotes `state` and `action`, and adds the
+  `ruvector:` prefix to rows that match one of your local ruvector
+  patterns. A pair both stores have stays an AQE row, and the ruvector
+  pattern is uploaded next to it. The sync report shows what was converted.
+  No row is deleted. A row whose converted form already exists is left as
+  it was and counted. A state that an earlier version rewrote to a date
+  cannot be restored and stays as an extra row.
+
 ## [3.15.20] - 2026-11-12
 
 Test generation applies only patterns it can trust, so automatically
@@ -160,6 +184,9 @@ instead of a floating tag.
   `aqe.qlearning_patterns` is filled from two places, AQE's own Q-values
   and ruvector's patterns, so verify now checks it once against both
   together, shown as `root-rl-q-values + intelligence-qlearning`.
+
+[#1407]: https://github.com/proffesor-for-testing/agentic-qe/issues/1407
+[#1415]: https://github.com/proffesor-for-testing/agentic-qe/issues/1415
 
 [#1350]: https://github.com/proffesor-for-testing/agentic-qe/issues/1350
 [#1384]: https://github.com/proffesor-for-testing/agentic-qe/issues/1384
