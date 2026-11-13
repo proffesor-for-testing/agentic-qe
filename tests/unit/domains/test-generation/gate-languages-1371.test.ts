@@ -197,6 +197,22 @@ describe('#1390 source imports must identify and exercise the actual module', ()
       { sourceFilePath: join(packageRoot, 'src', 'calc.ts'), testFilePath: join(packageRoot, 'tests', 'calc.test.ts'), sourceCode: 'export function add(a: number, b: number) { return a + b; }' },
     )).toBe('found');
   });
+  it('matches NodeNext .js imports to their TypeScript source file', () => {
+    const sourcePath = join(root, 'src', 'calc.ts');
+    const testPath = join(root, 'tests', 'calc.test.ts');
+    expect(sourceImportVerdict(
+      "import { add } from '../src/calc.js';\nit('adds', () => { expect(add(2, 3)).toBe(5); });\n",
+      { sourceFilePath: sourcePath, testFilePath: testPath, sourceCode: 'export function add(a: number, b: number) { return a + b; }' },
+    )).toBe('found');
+  });
+
+  it('normalizes Windows separators in a relative source path', () => {
+    const testPath = join(root, 'tests', 'calc.test.ts');
+    expect(sourceImportVerdict(
+      "import { add } from '../src/calc';\nit('adds', () => { expect(add(2, 3)).toBe(5); });\n",
+      { sourceFilePath: 'src\\calc.ts', testFilePath: testPath, sourceCode: 'export function add(a: number, b: number) { return a + b; }' },
+    )).toBe('found');
+  });
 });
 
 describe('#1390 assertion-like identifiers are not assertions', () => {

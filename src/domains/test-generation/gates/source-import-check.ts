@@ -36,8 +36,7 @@ export interface SourceImportSubject {
 }
 
 const JS_EXT = /\.(?:d\.)?(?:tsx?|jsx?|mjs|cjs|mts|cts)$/i;
-
-const stripSlashComments = (code: string) => code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+const normalizePathSeparators = (value: string): string => value.replace(/\\/g, '/');
 
 /** Longest specifier or path the checks look at; longer input is not a real module path. */
 const MAX_PATH_LENGTH = 4096;
@@ -133,20 +132,20 @@ function aliasTargets(spec: string, tsPaths: TsPaths): string[] {
 
 function javascriptVerdict(testCode: string, subject: SourceImportSubject): SourceImportVerdict {
   const root = path.resolve(findProjectRoot());
-  const target = subject.importTarget || subject.sourceFilePath;
+  const target = normalizePathSeparators(subject.importTarget || subject.sourceFilePath);
   const sourceNoExt = path.resolve(root, target).replace(JS_EXT, '');
   const normalizeModulePath = (value: string): string => {
-    const withoutExt = value.replace(JS_EXT, '');
+    const withoutExt = normalizePathSeparators(value).replace(JS_EXT, '');
     return path.basename(withoutExt) === 'index' ? path.dirname(withoutExt) : withoutExt;
   };
   const sourceModulePath = normalizeModulePath(sourceNoExt);
   const tsPaths = readTsPaths(root, sourceNoExt);
 
   const matches = (spec: string): boolean => {
-    const clean = spec.replace(/[?#].*$/, '').replace(JS_EXT, '').replace(/\/index$/, '');
+    const clean = normalizePathSeparators(spec.replace(/[?#].*$/, '')).replace(JS_EXT, '').replace(/\/index$/, '');
     if (spec.startsWith('.') || path.isAbsolute(spec)) {
       if (subject.testFilePath) {
-        return normalizeModulePath(path.resolve(path.dirname(subject.testFilePath), clean)) === sourceModulePath;
+        return normalizeModulePath(path.resolve(path.dirname(normalizePathSeparators(subject.testFilePath)), clean)) === sourceModulePath;
       }
       // Older direct gate callers do not provide the generated test path. Keep
       // their source-relative and conventional tests/ resolution, while still
@@ -171,6 +170,24 @@ function javascriptVerdict(testCode: string, subject: SourceImportSubject): Sour
         importedNames.add(clause.namedBindings.name.text);
       } else if (clause?.namedBindings && ts.isNamedImports(clause.namedBindings)) {
         for (const element of clause.namedBindings.elements) importedNames.add(element.name.text);
+      }
+    }
+    if (ts.isCallExpression(node)
+      && ts.isIdentifier(node.expression)
+      && node.expression.text === 'require'
+      && node.arguments.length === 1
+      && ts.isStringLiteral(node.arguments[0])
+      && matches(node.arguments[0].text)
+      && ts.isVariableDeclaration(node.parent)
+      && node.parent.initializer === node) {
+      const declaration = node.parent;
+      importNodes.add(declaration);
+      if (ts.isIdentifier(declaration.name)) {
+        importedNames.add(declaration.name.text);
+      } else if (ts.isObjectBindingPattern(declaration.name)) {
+        for (const element of declaration.name.elements) {
+          if (ts.isIdentifier(element.name)) importedNames.add(element.name.text);
+        }
       }
     }
     ts.forEachChild(node, visitImports);

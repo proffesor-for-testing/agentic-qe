@@ -217,7 +217,7 @@ const RULES: Array<[RegExp, LanguageRule]> = [
     name: 'Java/Kotlin', example: 'assert*, assertThat, verify(, should*',
     // #1371: an `import ...assertTrue` line names an assertion, it does not make one.
     comments: (code, file) => dropImportLines(stripCode(code, codeLanguageOf(file) === 'kotlin' ? 'kotlin' : 'java')),
-    assertion: /\bassert(?:\w*\s*\(|\s+)|\bverify\s*\(|\bfail\s*\(|\bshould(?:Be|Equal|Contain|Throw|NotBe|NotEqual|NotContain|Have|Match|StartWith|EndWith)\w*\s*\(|\bexpect\w*\s*\(/g,
+    assertion: /\bassert(?:\w*\s*\(|\s+)|\bverify\s*\(|\bfail\s*\(|\bshould(?:Be|Equal|Contain|Throw|NotBe|NotEqual|NotContain|Have|Match|StartWith|EndWith)\w*\s*\(|(?:\b[A-Za-z_]\w*|\)|\]|\})\s+should(?:Be|Equal|Contain|Throw|NotBe|NotEqual|NotContain|Have|Match|StartWith|EndWith)\w*\s+|\bexpect\w*\s*\(/g,
     tautology: /\bassertTrue\s*\(\s*true\s*\)|\bassertThat\s*\(\s*true\s*\)\s*\.\s*isTrue\s*\(\s*\)|\bassertEquals\s*\(\s*([\w.'"]+)\s*,\s*\1\s*\)|\bassert\s+true\b/g,
     allSkipped: annotatedTestsAllSkipped,
   }],
