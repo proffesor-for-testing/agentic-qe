@@ -30,6 +30,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   No row is deleted. A row whose converted form already exists is left as
   it was and counted. A state that an earlier version rewrote to a date
   cannot be restored and stays as an extra row.
+- **`aqe sync pull` works** ([#1409]): `--full`, `--env` and `--since`
+  after `pull` were taken by the parent `sync` command, so every pull ran
+  incremental (last 24 hours) from all environments. `aqe sync verify --env`
+  and `aqe sync status --env` had the same problem. All three now use the
+  options you give them.
+  - Claude-flow memories are no longer rejected (`NOT NULL constraint
+    failed: kv_store.namespace`). Each environment's memories go into
+    `kv_store` under namespace `claude-flow-cloud:<environment>`.
+  - Q-learning rows are no longer rejected (`rl_q_values.algorithm`). They
+    are stored with algorithm `cloud-sync` and the source environment as
+    `agent_id`, so AQE's own routing, which reads only its own algorithms,
+    is not changed by them. ruvector rows are not pulled into AQE's
+    Q-values.
+  - These two tables are pulled insert-only: a row you already have locally
+    is kept as it is, and the report says how many were kept. Rows your own
+    machine uploaded (`AQE_ENV`, default `devpod`) are not pulled back.
+  - `aqe sync` does not upload pulled memories or Q-values again under your
+    environment.
 
 ## [3.15.20] - 2026-11-12
 
@@ -185,6 +203,7 @@ instead of a floating tag.
   and ruvector's patterns, so verify now checks it once against both
   together, shown as `root-rl-q-values + intelligence-qlearning`.
 
+[#1409]: https://github.com/proffesor-for-testing/agentic-qe/issues/1409
 [#1407]: https://github.com/proffesor-for-testing/agentic-qe/issues/1407
 [#1415]: https://github.com/proffesor-for-testing/agentic-qe/issues/1415
 
