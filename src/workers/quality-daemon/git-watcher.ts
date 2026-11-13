@@ -46,7 +46,8 @@ export class GitWatcher {
   private _running = false;
   private _polling = false;
   /** Ref changes to read again after git timed out on them (fs.watch mode). */
-  private readonly retryTimers = new Set<NodeJS.Timeout>();
+  private readonly retryTimers = new Map<string, NodeJS.Timeout>();
+  private readonly processingRefs = new Set<string>();
 
   constructor(
     private readonly queue: PriorityQueue,
@@ -112,7 +113,7 @@ export class GitWatcher {
       this.watcher.close();
       this.watcher = undefined;
     }
-    for (const timer of this.retryTimers) clearTimeout(timer);
+    for (const timer of this.retryTimers.values()) clearTimeout(timer);
     this.retryTimers.clear();
     this._running = false;
   }
@@ -172,32 +173,50 @@ export class GitWatcher {
 
   private async processRefChange(filename: string): Promise<void> {
     const branch = filename.replace(/\\/g, '/');
-    const refsDir = resolve(this.options.repoRoot, '.git', 'refs', 'heads');
-    const refFile = join(refsDir, filename);
-
-    let newHash: string;
-    try {
-      newHash = readFileSync(refFile, 'utf-8').trim();
-    } catch {
-      return; // ref deleted or unreadable
-    }
-
-    const lastHash = this.lastKnownHeads.get(branch);
-    if (lastHash === newHash) return; // no change
-
-    if (!(await this.enqueueCommitAnalysis(branch, newHash, lastHash))) {
-      // #1165: git timed out; keep the old head and read the ref again later.
-      const timer = setTimeout(() => {
-        this.retryTimers.delete(timer);
-        this.processRefChange(filename).catch((err) => {
-          console.debug('[GitWatcher] Error processing ref change:', err);
-        });
-      }, this.options.pollIntervalMs);
-      timer.unref?.();
-      this.retryTimers.add(timer);
+    if (this.processingRefs.has(branch)) {
+      this.scheduleRefRetry(filename, branch);
       return;
     }
-    this.lastKnownHeads.set(branch, newHash);
+    this.processingRefs.add(branch);
+
+    try {
+      const refsDir = resolve(this.options.repoRoot, '.git', 'refs', 'heads');
+      const refFile = join(refsDir, filename);
+
+      let newHash: string;
+      try {
+        newHash = readFileSync(refFile, 'utf-8').trim();
+      } catch {
+        return; // ref deleted or unreadable
+      }
+
+      const lastHash = this.lastKnownHeads.get(branch);
+      if (lastHash === newHash) return; // no change
+
+      if (!(await this.enqueueCommitAnalysis(branch, newHash, lastHash))) {
+        // #1165: git timed out; keep the old head and read the ref again later.
+        this.scheduleRefRetry(filename, branch);
+        return;
+      }
+      this.lastKnownHeads.set(branch, newHash);
+    } finally {
+      this.processingRefs.delete(branch);
+    }
+  }
+
+  private scheduleRefRetry(filename: string, branch: string): void {
+    const previous = this.retryTimers.get(branch);
+    if (previous) clearTimeout(previous);
+
+    const timer = setTimeout(() => {
+      if (this.retryTimers.get(branch) !== timer) return;
+      this.retryTimers.delete(branch);
+      this.processRefChange(filename).catch((err) => {
+        console.debug('[GitWatcher] Error processing ref change:', err);
+      });
+    }, this.options.pollIntervalMs);
+    timer.unref?.();
+    this.retryTimers.set(branch, timer);
   }
 
   /**
