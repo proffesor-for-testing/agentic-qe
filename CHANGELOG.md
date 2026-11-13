@@ -7,6 +7,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`aqe sync` stores Q-learning states and actions as plain text** ([#1407]):
+  every `state` and `action` in `aqe.qlearning_patterns` was stored
+  JSON-quoted (`"edit:ts"` with the quotes), and a state that was a 13-digit
+  number was rewritten to a date. Sync now writes each value according to
+  the cloud column's real type: TEXT unchanged, JSONB as valid JSON (an
+  ISO-looking string in a JSONB column was rejected before), and
+  timestamps converted only for timestamp columns.
+- **AQE's and ruvector's Q-learning rows no longer overwrite each other**
+  ([#1415]): both are stored in `aqe.qlearning_patterns`, keyed by
+  `(state, action)`, so when both stores had the same pair the cloud kept
+  only whichever synced last, and `aqe sync verify` reported a mismatch.
+  ruvector states are now uploaded as `ruvector:<state>`.
+- **Your existing cloud rows are converted once:** on the first sync after
+  the upgrade, and only for that machine's environment, AQE rewrites
+  existing rows in place. It unquotes `state` and `action`, and adds the
+  `ruvector:` prefix to rows that match one of your local ruvector
+  patterns. A pair both stores have stays an AQE row, and the ruvector
+  pattern is uploaded next to it. The sync report shows what was converted.
+  No row is deleted. A row whose converted form already exists is left as
+  it was and counted. A state that an earlier version rewrote to a date
+  cannot be restored and stays as an extra row.
+- **`aqe sync pull` works** ([#1409]): `--full`, `--env` and `--since`
+  after `pull` were taken by the parent `sync` command, so every pull ran
+  incremental (last 24 hours) from all environments. `aqe sync verify --env`
+  and `aqe sync status --env` had the same problem. All three now use the
+  options you give them.
+  - Claude-flow memories are no longer rejected (`NOT NULL constraint
+    failed: kv_store.namespace`). Each environment's memories go into
+    `kv_store` under namespace `claude-flow-cloud:<environment>`.
+  - Q-learning rows are no longer rejected (`rl_q_values.algorithm`). They
+    are stored with algorithm `cloud-sync` and the source environment as
+    `agent_id`, so AQE's own routing, which reads only its own algorithms,
+    is not changed by them. ruvector rows are not pulled into AQE's
+    Q-values.
+  - These two tables are pulled insert-only: a row you already have locally
+    is kept as it is, and the report says how many were kept. Rows your own
+    machine uploaded (`AQE_ENV`, default `devpod`) are not pulled back. If
+    you sync with `aqe sync --env X` instead of `AQE_ENV`, pass
+    `aqe sync pull --local-env X`.
+  - `aqe sync` does not upload pulled memories or Q-values again under your
+    environment, and AQE's own Q-learning updates and metrics leave them
+    out.
+- **Plain `aqe sync` (incremental) uploads what changed** ([#1409]): an
+  incremental sync read whole local tables instead of each source's query,
+  and compared times as text.
+  - Changed Q-values failed to upload (`column "algorithm" of relation
+    "qlearning_patterns" does not exist`).
+  - `kv_store` entries were never uploaded, because their epoch-millisecond
+    times never compared as newer.
+  - A `datetime('now')` time from earlier the same day could be missed.
+  - Incremental syncs now read through each source's query and compare
+    epoch numbers and date text as times. `aqe sync verify` counts the same
+    rows a sync uploads.
+
 ## [3.15.20] - 2026-11-12
 
 Test generation applies only patterns it can trust, so automatically
@@ -160,6 +216,10 @@ instead of a floating tag.
   `aqe.qlearning_patterns` is filled from two places, AQE's own Q-values
   and ruvector's patterns, so verify now checks it once against both
   together, shown as `root-rl-q-values + intelligence-qlearning`.
+
+[#1409]: https://github.com/proffesor-for-testing/agentic-qe/issues/1409
+[#1407]: https://github.com/proffesor-for-testing/agentic-qe/issues/1407
+[#1415]: https://github.com/proffesor-for-testing/agentic-qe/issues/1415
 
 [#1350]: https://github.com/proffesor-for-testing/agentic-qe/issues/1350
 [#1384]: https://github.com/proffesor-for-testing/agentic-qe/issues/1384

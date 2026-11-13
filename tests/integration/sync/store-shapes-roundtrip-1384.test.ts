@@ -118,11 +118,12 @@ describeWithPg('store shapes round trip through PostgresWriter (#1384)', () => {
     expect(await writer.upsert('aqe.qlearning_patterns', records)).toBe(2);
     expect(await writer.upsert('aqe.qlearning_patterns', records)).toBe(2);
 
-    const rows = await writer.query<{ action: string; last_update: Date | null }>(
-      'SELECT action, last_update FROM aqe.qlearning_patterns WHERE source_env = $1 ORDER BY q_value DESC', [ENV]);
-    // The writer stores TEXT state/action JSON-quoted (#1407); this changes
-    // deliberately when #1407 is fixed.
+    const rows = await writer.query<{ state: string; action: string; last_update: Date | null }>(
+      'SELECT state, action, last_update FROM aqe.qlearning_patterns WHERE source_env = $1 ORDER BY q_value DESC', [ENV]);
+    // #1407: TEXT state/action are stored as plain text, not JSON-quoted.
+    // #1415: ruvector states carry the ruvector: prefix.
     expect(rows.map(r => [r.action, r.last_update?.toISOString() ?? null]))
-      .toEqual([['"coder"', new Date(LAST_UPDATE_S * 1000).toISOString()], ['"tester"', null]]);
+      .toEqual([['coder', new Date(LAST_UPDATE_S * 1000).toISOString()], ['tester', null]]);
+    expect(rows.every(r => r.state.startsWith('ruvector:') && !r.state.includes('"'))).toBe(true);
   });
 });

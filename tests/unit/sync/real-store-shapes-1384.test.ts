@@ -165,7 +165,7 @@ describe('intelligence-qlearning on the real intelligence.json (#1384)', () => {
     const records = await reader(defaultSource('intelligence-qlearning')).readAll();
     expect(records).toHaveLength(2);
     expect(records[0]).toMatchObject({
-      state: 'edit:ts', action: 'coder', q_value: 0.75, visits: 4,
+      state: 'ruvector:edit:ts', action: 'coder', q_value: 0.75, visits: 4, // #1415 prefix
       last_update: new Date(LAST_UPDATE_S * 1000).toISOString(), source_env: 'test',
     });
     expect(Object.keys(records[0]).sort()).toEqual(['action', 'created_at', 'last_update', 'q_value', 'source_env', 'state', 'visits']);

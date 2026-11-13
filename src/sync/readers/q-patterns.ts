@@ -14,6 +14,14 @@ import type { JSONRecord } from './json-reader.js';
 /** The cloud table these patterns are written to. */
 export const Q_PATTERNS_TABLE = 'aqe.qlearning_patterns';
 
+/**
+ * #1415: AQE's own Q-values (root-rl-q-values) share this table and its
+ * UNIQUE(state, action, source_env). ruvector states are uploaded with this
+ * prefix, so an AQE row and a ruvector row with the same (state, action)
+ * never overwrite each other.
+ */
+export const RUVECTOR_STATE_PREFIX = 'ruvector:';
+
 export interface QPatternRead {
   records: JSONRecord[];
   /** Entries that were not Q-patterns, or null when there were none. */
@@ -32,7 +40,7 @@ export function toQPatterns(entries: JSONRecord[], jsonPath: string): QPatternRe
       continue;
     }
     records.push({
-      state, action, q_value: qValue,
+      state: RUVECTOR_STATE_PREFIX + state, action, q_value: qValue,
       visits: typeof visits === 'number' ? visits : 0,
       last_update: typeof lastUpdate === 'number' || typeof lastUpdate === 'string' ? lastUpdate : null,
     });

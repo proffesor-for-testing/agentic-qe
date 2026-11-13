@@ -21,6 +21,9 @@ export interface PostgresReaderConfig {
 
   /** Environment to filter by (or 'all' for all environments) */
   environment: string;
+
+  /** #1409: this machine's environment, skipped for sources with excludeOwnEnvironment */
+  localEnvironment?: string;
 }
 
 /**
@@ -31,10 +34,31 @@ export interface PostgresReaderConfig {
 export class PostgresReader {
   private readonly writer: CloudWriter;
   private readonly environment: string;
+  private readonly localEnvironment: string | undefined;
 
   constructor(config: PostgresReaderConfig) {
     this.writer = config.writer;
     this.environment = config.environment;
+    this.localEnvironment = config.localEnvironment;
+  }
+
+  /**
+   * The WHERE clause for a source: the environment filter, plus #1409's
+   * own-environment and prefix exclusions; parameters are appended to `params`.
+   */
+  private filters(source: PullSource, params: unknown[]): string {
+    const conditions: string[] = [];
+    const param = (value: unknown) => { params.push(value); return `$${params.length}`; };
+    if (this.environment !== 'all') conditions.push(`source_env = ${param(this.environment)}`);
+    if (source.excludeOwnEnvironment && this.localEnvironment) {
+      conditions.push(`source_env <> ${param(this.localEnvironment)}`);
+    }
+    if (source.excludePrefix) {
+      // LIKE wildcards in the prefix are matched literally.
+      const escaped = source.excludePrefix.prefix.replace(/[\\%_]/g, c => `\\${c}`);
+      conditions.push(`${validateIdentifier(source.excludePrefix.column)} NOT LIKE ${param(`${escaped}%`)}`);
+    }
+    return conditions.length === 0 ? '' : ` WHERE ${conditions.join(' AND ')}`;
   }
 
   /**
@@ -59,16 +83,8 @@ export class PostgresReader {
   async readAll(source: PullSource): Promise<Record<string, unknown>[]> {
     const safeTable = this.sanitizeCloudTable(source.cloudTable);
 
-    let sql: string;
-    let params: unknown[];
-
-    if (this.environment !== 'all') {
-      sql = `SELECT * FROM ${safeTable} WHERE source_env = $1`;
-      params = [this.environment];
-    } else {
-      sql = `SELECT * FROM ${safeTable}`;
-      params = [];
-    }
+    const params: unknown[] = [];
+    const sql = `SELECT * FROM ${safeTable}${this.filters(source, params)}`;
 
     try {
       const rows = await this.writer.query<Record<string, unknown>>(sql, params);
@@ -96,16 +112,10 @@ export class PostgresReader {
       return this.readAll(source);
     }
 
-    let sql: string;
-    let params: unknown[];
-
-    if (this.environment !== 'all') {
-      sql = `SELECT * FROM ${safeTable} WHERE ${validateIdentifier(timestampCol)} > $1 AND source_env = $2`;
-      params = [since.toISOString(), this.environment];
-    } else {
-      sql = `SELECT * FROM ${safeTable} WHERE ${validateIdentifier(timestampCol)} > $1`;
-      params = [since.toISOString()];
-    }
+    const params: unknown[] = [since.toISOString()];
+    const where = this.filters(source, params);
+    const sql = `SELECT * FROM ${safeTable} WHERE ${validateIdentifier(timestampCol)} > $1` +
+      (where ? ` AND ${where.slice(' WHERE '.length)}` : '');
 
     try {
       const rows = await this.writer.query<Record<string, unknown>>(sql, params);
@@ -124,16 +134,8 @@ export class PostgresReader {
   async count(source: PullSource): Promise<number> {
     const safeTable = this.sanitizeCloudTable(source.cloudTable);
 
-    let sql: string;
-    let params: unknown[];
-
-    if (this.environment !== 'all') {
-      sql = `SELECT COUNT(*) as count FROM ${safeTable} WHERE source_env = $1`;
-      params = [this.environment];
-    } else {
-      sql = `SELECT COUNT(*) as count FROM ${safeTable}`;
-      params = [];
-    }
+    const params: unknown[] = [];
+    const sql = `SELECT COUNT(*) as count FROM ${safeTable}${this.filters(source, params)}`;
 
     try {
       // Wrap in transaction with SET LOCAL to avoid HNSW index-only scan bug.
@@ -177,6 +179,11 @@ export class PostgresReader {
       result[localKey] = this.transformValue(value, key, source.transforms);
     }
 
+    // #1409: local NOT NULL columns the cloud has no column for.
+    for (const [column, template] of Object.entries(source.fill ?? {})) {
+      result[column] = template.replace('{env}', String(row.source_env ?? 'unknown'));
+    }
+
     return result;
   }
 
@@ -203,6 +210,26 @@ export class PostgresReader {
 
     if (transform === 'jsonb-to-text') {
       if (typeof value === 'object') return JSON.stringify(value);
+      return value;
+    }
+
+    if (transform === 'json-string-to-text') {
+      // #1407: a value an earlier writer stored JSON-quoted ("edit:ts").
+      if (typeof value === 'string' && value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
+        try {
+          const parsed: unknown = JSON.parse(value);
+          if (typeof parsed === 'string') return parsed;
+        } catch { /* not a JSON string literal; keep it */ }
+      }
+      return value;
+    }
+
+    if (transform === 'timestamptz-to-epoch-ms') {
+      if (value instanceof Date) return value.getTime();
+      if (typeof value === 'string') {
+        const ms = Date.parse(value);
+        return Number.isNaN(ms) ? null : ms;
+      }
       return value;
     }
 
