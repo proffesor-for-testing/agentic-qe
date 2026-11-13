@@ -45,9 +45,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     Q-values.
   - These two tables are pulled insert-only: a row you already have locally
     is kept as it is, and the report says how many were kept. Rows your own
-    machine uploaded (`AQE_ENV`, default `devpod`) are not pulled back.
+    machine uploaded (`AQE_ENV`, default `devpod`) are not pulled back. If
+    you sync with `aqe sync --env X` instead of `AQE_ENV`, pass
+    `aqe sync pull --local-env X`.
   - `aqe sync` does not upload pulled memories or Q-values again under your
-    environment.
+    environment, and AQE's own Q-learning updates and metrics leave them
+    out.
+- **Plain `aqe sync` (incremental) uploads what changed** ([#1409]): an
+  incremental sync read whole local tables instead of each source's query,
+  and compared times as text.
+  - Changed Q-values failed to upload (`column "algorithm" of relation
+    "qlearning_patterns" does not exist`).
+  - `kv_store` entries were never uploaded, because their epoch-millisecond
+    times never compared as newer.
+  - A `datetime('now')` time from earlier the same day could be missed.
+  - Incremental syncs now read through each source's query and compare
+    epoch numbers and date text as times. `aqe sync verify` counts the same
+    rows a sync uploads.
 
 ## [3.15.20] - 2026-11-12
 
