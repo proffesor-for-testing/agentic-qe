@@ -45,6 +45,8 @@ function readerFor({ source }: { source: SyncSource }) {
 /** A cloud whose COUNT(*) answers from `counts`, keyed by table, honouring a `key <> ALL($2)` exclusion. */
 function cloud(rows: Record<string, Array<{ key?: string }>>) {
   const query = vi.fn(async (sql: string, params: unknown[]) => {
+    // #1407/#1415: the Q-row conversion reads rows; this cloud has none to convert.
+    if (!/COUNT\(\*\)/.test(sql)) return [];
     const table = /FROM\s+(\S+)/.exec(sql)![1];
     const excluded = (params[1] as string[] | undefined) ?? [];
     return [{ count: String((rows[table] ?? []).filter(r => !excluded.includes(r.key ?? '')).length) }];

@@ -46,6 +46,8 @@ import { createConnectionManager } from './cloud/tunnel-manager.js';
 import { createPostgresWriter } from './cloud/postgres-writer.js';
 import { toErrorMessage, toError } from '../shared/error-utils.js';
 import { planVerifyGroups, cloudCountQuery, localCount as countLocal, type VerifyGroup } from './verify-plan.js';
+import { convertBeforeQUpload } from './q-patterns-cloud-migration.js';
+import { Q_PATTERNS_TABLE } from './readers/q-patterns.js';
 
 /**
  * Sync agent configuration
@@ -70,6 +72,8 @@ export class CloudSyncAgent {
   /** #1361: why a source has no reader, so a sync can report it instead of dropping it. */
   private readonly readerErrors: Map<string, string> = new Map();
   private writer: CloudWriter | null = null;
+  /** #1407/#1415: existing Q rows are converted once per sync. */
+  private qRowsConverted = false;
   private report: SyncReport | null = null;
 
   constructor(config: Partial<SyncAgentConfig> = {}) {
@@ -224,6 +228,7 @@ export class CloudSyncAgent {
 
       // Write to cloud (no wrapping transaction — postgres-writer handles per-batch recovery)
       if (this.writer && !this.config.sync.dryRun) {
+        await this.convertQRowsOnce(source, result);
         const skipped = { count: 0, reason: '' };
         const written = await this.writer.upsert(source.targetTable, records, {
           skipIfExists: source.mode === 'append',
@@ -286,6 +291,7 @@ export class CloudSyncAgent {
 
       // Write to cloud (no wrapping transaction — postgres-writer handles per-batch recovery)
       if (this.writer && !this.config.sync.dryRun) {
+        await this.convertQRowsOnce(source, result);
         const skipped = { count: 0, reason: '' };
         const written = await this.writer.upsert(source.targetTable, records, {
           onSkipped: (count, reason) => { skipped.count += count; skipped.reason ||= reason; },
@@ -306,6 +312,14 @@ export class CloudSyncAgent {
 
     result.durationMs = Date.now() - startTime;
     return result;
+  }
+
+  /** #1407/#1415: convert this environment's existing Q rows before the first Q upload. */
+  private async convertQRowsOnce(source: SyncSource, result: SyncResult): Promise<void> {
+    if (source.targetTable !== Q_PATTERNS_TABLE || this.qRowsConverted || !this.writer) return;
+    this.qRowsConverted = true;
+    const note = await convertBeforeQUpload(this.writer, this.config.environment, this.config.sync.sources, this.readers);
+    if (note) (result.warnings ??= []).push(note);
   }
 
   /**
