@@ -17,6 +17,7 @@ import { createSyncCommands } from '../../../src/cli/commands/sync.js';
 import { subcommandOptions } from '../../../src/cli/commands/sync-subcommand-options.js';
 import { PostgresReader } from '../../../src/sync/cloud/postgres-reader.js';
 import { SQLiteWriter } from '../../../src/sync/writers/sqlite-writer.js';
+import { createSQLiteReader } from '../../../src/sync/readers/sqlite-reader.js';
 import { openDatabase } from '../../../src/shared/safe-db.js';
 import {
   DEFAULT_PULL_CONFIG, DEFAULT_SYNC_CONFIG, PULLED_Q_ALGORITHM, type CloudWriter, type PullSource,
@@ -43,6 +44,10 @@ describe('pull/verify/status options reach the subcommand (#1409)', () => {
 
   it('pull keeps its own default (all environments) when --env is not given', async () => {
     expect((await resolved('pull', [])).env).toBe('all');
+  });
+
+  it('pull --local-env X (review of #1433: pushing with --env instead of AQE_ENV)', async () => {
+    expect((await resolved('pull', ['--local-env', 'laptop'])).localEnv).toBe('laptop');
   });
 
   it('verify --env X and status --env X', async () => {
@@ -94,6 +99,13 @@ describe('cloud reads for the two pulled tables (#1409)', () => {
     const { reader } = readerWith('all', [{ key: 'k', value: { a: 1 }, source_env: 'laptop', created_at: null }]);
     const [row] = await reader.readAll(pullSource('claude-flow-memory'));
     expect(row).toMatchObject({ key: 'k', namespace: 'claude-flow-cloud:laptop', value: '{"a":1}' });
+  });
+
+  it('stores a pulled claude-flow created_at as epoch milliseconds, like local kv_store rows', async () => {
+    const created = new Date('2026-11-01T10:00:00Z');
+    const { reader } = readerWith('all', [{ key: 'k', value: 1, source_env: 'laptop', created_at: created }]);
+    const [row] = await reader.readAll(pullSource('claude-flow-memory'));
+    expect(row.created_at).toBe(created.getTime());
   });
 
   it('counts with the same filters', async () => {
@@ -165,5 +177,36 @@ describe('local writes are insert-only and pulled rows are not uploaded again (#
     db.close();
     expect(kv.map(r => r.key)).toEqual(['own']);
     expect(q.map(r => r.state)).toEqual(['s']);
+  });
+
+  // Review of #1433: plain `aqe sync` is incremental, and readChanged used to
+  // run SELECT * on the table, without the source query that leaves pulled rows out.
+  it('an incremental push reads through the source query, so pulled rows stay out', async () => {
+    const db = openDatabase(dbPath);
+    const now = Date.now();
+    db.exec(`
+      INSERT INTO kv_store (key, namespace, value, created_at) VALUES ('fresh', 'test-generation', '{"y":2}', ${now});
+      INSERT INTO kv_store (key, namespace, value, created_at) VALUES ('pulled', 'claude-flow-cloud:laptop', '{"z":3}', ${now});
+      UPDATE rl_q_values SET updated_at = '2999-01-01T00:00:00.000Z';
+      INSERT INTO rl_q_values (id, algorithm, agent_id, state_key, action_key, q_value, updated_at)
+        VALUES ('b', '${PULLED_Q_ALGORITHM}', 'laptop', 's2', 'act', 0.1, '2999-01-01T00:00:00.000Z');
+    `);
+    db.close();
+    const source = (name: string) => ({ ...DEFAULT_SYNC_CONFIG.sync.sources.find(s => s.name === name)!, path: dbPath });
+    const kv = createSQLiteReader({ source: source('root-kv-store'), baseDir: dir, environment: 'me' });
+    const q = createSQLiteReader({ source: source('root-rl-q-values'), baseDir: dir, environment: 'me' });
+    await kv.initialize();
+    await q.initialize();
+    const since = new Date(now - 60_000);
+    const kvRows = await kv.readChanged(since) as Array<Record<string, unknown>>;
+    const qRows = await q.readChanged(since) as Array<Record<string, unknown>>;
+    // The query's column names (partition, state), not the table's (namespace, state_key).
+    expect(kvRows.map(r => [r.key, r.partition])).toEqual([['fresh', 'test-generation']]);
+    expect(qRows.map(r => r.state)).toEqual(['s']);
+    // verify counts what the query uploads.
+    expect(await kv.count()).toBe(2);
+    expect(await q.count()).toBe(1);
+    await kv.close();
+    await q.close();
   });
 });

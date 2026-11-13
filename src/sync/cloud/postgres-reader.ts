@@ -224,6 +224,15 @@ export class PostgresReader {
       return value;
     }
 
+    if (transform === 'timestamptz-to-epoch-ms') {
+      if (value instanceof Date) return value.getTime();
+      if (typeof value === 'string') {
+        const ms = Date.parse(value);
+        return Number.isNaN(ms) ? null : ms;
+      }
+      return value;
+    }
+
     if (transform === 'timestamptz-to-text') {
       if (value instanceof Date) return value.toISOString();
       return value;

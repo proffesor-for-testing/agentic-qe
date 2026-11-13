@@ -384,7 +384,7 @@ export interface PullSource {
    * Type transforms for specific columns. #1409: `json-string-to-text`
    * unquotes a value an earlier version stored JSON-quoted (#1407).
    */
-  transforms?: Record<string, 'boolean-to-int' | 'jsonb-to-text' | 'timestamptz-to-text' | 'json-string-to-text'>;
+  transforms?: Record<string, 'boolean-to-int' | 'jsonb-to-text' | 'timestamptz-to-text' | 'json-string-to-text' | 'timestamptz-to-epoch-ms'>;
 
   /**
    * #1409: values for local NOT NULL columns the cloud table has no column
@@ -559,9 +559,9 @@ export const DEFAULT_PULL_CONFIG: PullConfig = {
         last_update: 'updated_at',
       },
       // #1409: rl_q_values needs algorithm and agent_id, which the cloud does
-      // not keep. Pulled rows are marked as copies from another environment;
-      // AQE's own routing reads only its own algorithms, and the push of
-      // root-rl-q-values leaves cloud-sync rows out.
+      // not keep. Pulled rows are marked as copies from another environment:
+      // AQE's routing and Q updates leave cloud-sync rows out, and so does the
+      // push of root-rl-q-values.
       fill: { algorithm: PULLED_Q_ALGORITHM, agent_id: '{env}' },
       transforms: { state: 'json-string-to-text', action: 'json-string-to-text' },
       // #1415: ruvector rows belong to ruvector, not AQE's Q-table.
@@ -613,6 +613,8 @@ export const DEFAULT_PULL_CONFIG: PullConfig = {
       // NOT NULL. Each environment's memories get their own namespace, which
       // the push of root-kv-store leaves out.
       fill: { namespace: `${PULLED_CLAUDE_FLOW_NAMESPACE_PREFIX}{env}` },
+      // kv_store.created_at is epoch milliseconds, not the cloud's TIMESTAMPTZ.
+      transforms: { created_at: 'timestamptz-to-epoch-ms' },
       excludeOwnEnvironment: true,
       insertOnly: true,
     },

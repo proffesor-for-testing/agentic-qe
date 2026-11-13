@@ -146,17 +146,21 @@ export function createSyncCommands(): Command {
     .option('--dry-run', 'Preview pull without writing to local DB')
     .option('--target <path>', 'Custom target SQLite database path')
     .option('--since <date>', 'Pull changes since date (ISO 8601)')
+    .option('--local-env <environment>', "This machine's sync environment: its own claude-flow memories and Q-values are not pulled back (default: AQE_ENV, or devpod)")
     .option('-v, --verbose', 'Enable verbose output')
     .action(async (_options, command: Command) => {
       // #1409: --full/--env/--since given after `pull` reached the parent command.
       const options = subcommandOptions<{
         full?: boolean; env: string; tables?: string; dryRun?: boolean; target?: string; since?: string; verbose?: boolean;
+        localEnv?: string;
       }>(command);
       const pullConfig: Partial<PullAgentConfig> = {
         environment: options.env,
         verbose: options.verbose,
         dryRun: options.dryRun,
         targetDb: options.target,
+        // #1409: set it when you push with `aqe sync --env X` rather than AQE_ENV.
+        ...(options.localEnv ? { localEnvironment: options.localEnv } : {}),
       };
 
       // Filter tables if specified

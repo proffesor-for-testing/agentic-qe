@@ -787,7 +787,7 @@ export async function updateHookRouterQValue(opts: {
     const oldQ = (existing && typeof existing.q_value === 'number') ? existing.q_value : 0;
 
     const futureRow = db.prepare(`
-      SELECT MAX(q_value) AS m FROM rl_q_values WHERE state_key = ?
+      SELECT MAX(q_value) AS m FROM rl_q_values WHERE state_key = ? AND algorithm <> 'cloud-sync'
     `).get(stateKey) as { m: number | null } | undefined;
     const futureMaxQ = (futureRow && typeof futureRow.m === 'number') ? futureRow.m : 0;
 

@@ -401,7 +401,7 @@ export class LearningMetricsTracker {
     if (!tableExists) return { total: 0 };
 
     const stats = this.db.prepare(`
-      SELECT COUNT(*) as total FROM rl_q_values
+      SELECT COUNT(*) as total FROM rl_q_values WHERE algorithm <> 'cloud-sync'
     `).get() as { total: number };
 
     return { total: stats.total || 0 };
