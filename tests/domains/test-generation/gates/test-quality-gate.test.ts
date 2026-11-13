@@ -84,6 +84,7 @@ describe('TestQualityGate - no-source-import detection', () => {
   it('should match source file with .js extension in import path', () => {
     const testCode = `
       import { foo } from '../utils/helper.js';
+      foo();
     `;
     const result = gate.validate(testCode, 'utils/helper.ts');
     const importIssues = result.issues.filter(i => i.type === 'no-source-import');
@@ -93,6 +94,7 @@ describe('TestQualityGate - no-source-import detection', () => {
   it('should handle Windows-style path separators in sourceFilePath', () => {
     const testCode = `
       import { bar } from '../src/my-module';
+      bar();
     `;
     const result = gate.validate(testCode, 'src\\my-module.ts');
     const importIssues = result.issues.filter(i => i.type === 'no-source-import');

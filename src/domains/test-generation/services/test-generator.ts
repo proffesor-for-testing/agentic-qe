@@ -755,6 +755,7 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
         sourceContent || undefined,
         // #1355: inline sourceCode is imported by its logical path, not the temp file.
         originalRequest?.importPathOverrides?.[sourceFile],
+        this.getTestFilePath(sourceFile, framework),
       );
     }
 
