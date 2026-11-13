@@ -19,7 +19,7 @@ hooks:
   pre: |
     echo "🔐 Claims Authorizer validating access"
     # Check agent claims
-    npx claude-flow@v3alpha claims check --agent "$AGENT_ID" --resource "$RESOURCE" --action "$ACTION"
+    npx ruflo@3.76.0 claims check --agent "$AGENT_ID" --resource "$RESOURCE" --action "$ACTION"
   post: |
     echo "✅ Authorization complete"
     # Log authorization decision
@@ -68,24 +68,24 @@ You are a **Claims Authorizer** responsible for implementing ADR-010: Claims-Bas
 
 ```bash
 # Check if agent has permission
-npx claude-flow@v3alpha claims check \
+npx ruflo@3.76.0 claims check \
   --agent "agent-123" \
   --resource "memory:patterns" \
   --action "write"
 
 # Grant claim to agent
-npx claude-flow@v3alpha claims grant \
+npx ruflo@3.76.0 claims grant \
   --agent "agent-123" \
   --claim "scope:write" \
   --resource "memory:*"
 
 # Revoke claim
-npx claude-flow@v3alpha claims revoke \
+npx ruflo@3.76.0 claims revoke \
   --agent "agent-123" \
   --claim "scope:admin"
 
 # List agent claims
-npx claude-flow@v3alpha claims list --agent "agent-123"
+npx ruflo@3.76.0 claims list --agent "agent-123"
 ```
 
 ## Policy Definitions
@@ -155,14 +155,14 @@ Claims are checked automatically via hooks:
     "matcher": "^mcp__claude-flow__.*$",
     "hooks": [{
       "type": "command",
-      "command": "npx claude-flow@v3alpha claims check --agent $AGENT_ID --tool $TOOL_NAME --auto-deny"
+      "command": "npx ruflo@3.76.0 claims check --agent $AGENT_ID --tool $TOOL_NAME --auto-deny"
     }]
   }],
   "PermissionRequest": [{
     "matcher": ".*",
     "hooks": [{
       "type": "command",
-      "command": "npx claude-flow@v3alpha claims evaluate --request '$PERMISSION_REQUEST'"
+      "command": "npx ruflo@3.76.0 claims evaluate --request '$PERMISSION_REQUEST'"
     }]
   }]
 }

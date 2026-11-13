@@ -31,6 +31,7 @@ import { resetSharedRvfAdapter } from '../integrations/ruvector/shared-rvf-adapt
 import { resetSharedRvfDualWriter } from '../integrations/ruvector/shared-rvf-dual-writer.js';
 import { claimProcessLifecycle, closeRegisteredStores } from '../kernel/process-lifecycle.js';
 import { INTERACTIVE_LOCK_WAIT_MS, isLockedMessage, retryOnceWhenLocked, setLockWaitCap } from '../shared/sqlite-lock-wait.js';
+import { setDefaultFileReaderHardlinks } from '../shared/io/file-reader.js';
 import { getBackgroundWorkersState, startBackgroundWorkers } from './background-workers.js';
 import {
   DAEMON_HEARTBEAT_ENV, DAEMON_LOG_MAX_SIZE_ENV, DAEMON_LOG_PATH_ENV, DAEMON_MODE_ENV,
@@ -84,6 +85,10 @@ async function main(): Promise<void> {
   // #1263: a write waiting on another process's lock blocks the event loop, so
   // memory writes wait briefly per attempt and retry asynchronously instead.
   setLockWaitCap(INTERACTIVE_LOCK_WAIT_MS);
+  // #1350: every FileReader in this process serves MCP callers, who name the
+  // paths read, so a file with more than one hardlink is refused. FileReader
+  // reads cannot disclose a node_modules exemption, so there is none.
+  setDefaultFileReaderHardlinks('refuse');
   initFeatureFlagsFromEnv();
   // Output startup message BEFORE suppressing stderr (Claude Code health check needs this)
   const version = pkg.version;

@@ -22,7 +22,7 @@ import type {
   UncheckedDependency,
   LocalDependency,
 } from './scanner-types.js';
-import { resolveDependencies, resolveFromRecord, type ResolvedDependency } from './dependency-resolver.js';
+import { resolveDependencies, resolveFromRecord, type DependencyReadOptions, type ResolvedDependency } from './dependency-resolver.js';
 
 /** What a scan will do with each declared dependency, plus provenance. */
 interface ScanPlan {
@@ -93,10 +93,12 @@ export class DependencyScanner {
    * Scan a package.json: its direct dependencies, at the versions the lockfile
    * resolves. A manifest with no dependencies is a complete scan of nothing; a
    * workspace root is never complete, since its members are not scanned (#1057).
+   * `read` (#1350): how package.json and the lockfile are read; a manifest
+   * refused as a hardlink is an error (ConfinedReadError), nothing is sent.
    */
-  async scanPackageJson(packageJsonPath: string): Promise<Result<DependencyScanResult>> {
+  async scanPackageJson(packageJsonPath: string, read: DependencyReadOptions = {}): Promise<Result<DependencyScanResult>> {
     try {
-      const resolution = await resolveDependencies(packageJsonPath);
+      const resolution = await resolveDependencies(packageJsonPath, read);
       return this.runScan({
         dependencies: resolution.dependencies,
         lockfile: resolution.lockfile,

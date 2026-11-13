@@ -173,6 +173,20 @@ function ftsTokens(text: string): string[] {
 }
 
 /**
+ * #1388: the upsert replaces context_json, but keeps an existing curation
+ * marker (a person imported or stored the pattern) when the incoming context
+ * has none and the template is unchanged, so a later automatic store of the
+ * same content cannot silently uncurate it. Changed content drops the marker
+ * and must earn its trust again. (SET expressions read the row's old values.)
+ */
+const UPSERT_CONTEXT_SQL = `CASE
+  WHEN json_valid(qe_patterns.context_json) AND json_extract(qe_patterns.context_json, '$.curation') IS NOT NULL
+   AND qe_patterns.template_json IS excluded.template_json
+   AND json_valid(excluded.context_json) AND json_extract(excluded.context_json, '$.curation') IS NULL
+  THEN json_set(excluded.context_json, '$.curation', json_extract(qe_patterns.context_json, '$.curation'))
+  ELSE excluded.context_json END`;
+
+/**
  * SQLite-based pattern persistence
  */
 export class SQLitePatternStore {
@@ -403,13 +417,13 @@ export class SQLitePatternStore {
         confidence = excluded.confidence,
         tier = excluded.tier,
         template_json = excluded.template_json,
-        context_json = excluded.context_json,
+        context_json = ${UPSERT_CONTEXT_SQL},
         updated_at = datetime('now')
       ON CONFLICT(name, qe_domain, pattern_type) DO UPDATE SET
         confidence = excluded.confidence,
         tier = excluded.tier,
         template_json = excluded.template_json,
-        context_json = excluded.context_json,
+        context_json = ${UPSERT_CONTEXT_SQL},
         updated_at = datetime('now')
     `));
 

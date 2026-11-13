@@ -35,13 +35,39 @@ export interface FileReaderOptions {
   /**
    * #1350: how an in-root read (`projectRoot` set) treats a file with more
    * than one hardlink, which, like a symlink, can expose an outside file but
-   * cannot be seen by a path check. 'refuse-outside-node-modules' refuses
-   * one (FileReadError code HARDLINKED) unless it lies under the project's
-   * node_modules, where pnpm and bun hardlink every package file; for a
-   * reader serving MCP callers. Default 'allow', as the CLI reads the
+   * cannot be seen by a path check. 'refuse' refuses one (FileReadError
+   * code HARDLINKED); 'refuse-outside-node-modules' accepts one under the
+   * project's node_modules, where pnpm and bun hardlink every package file.
+   * Default: the process default (see setDefaultFileReaderHardlinks), which
+   * is 'allow' except in the MCP server ('refuse'), as the CLI reads the
    * operator's own files. Paths outside the root are unaffected.
    */
   hardlinks?: HardlinkPolicy;
+}
+
+/**
+ * #1350: the hardlink policy of a FileReader that names none. FileReaders
+ * live in domain services (code index, code metrics, compliance patterns,
+ * contract testing, defect prediction) that a process builds once and every
+ * caller in it shares, so the policy is the process's: the MCP server sets
+ * 'refuse' at startup (src/mcp/entry.ts), and the CLI keeps 'allow' for the
+ * operator's own files. Not settable by a tool call. 'refuse', not
+ * 'refuse-outside-node-modules': a FileReader read returns only the content,
+ * so a read under the node_modules exemption could not be disclosed, and
+ * most of these reads are of files a caller names. The directory walks that
+ * use a FileReader skip node_modules, so pnpm and bun store links under it
+ * are not reached by them.
+ */
+let defaultHardlinks: HardlinkPolicy = 'allow';
+
+/** Set the hardlink policy of every FileReader that names none (#1350). */
+export function setDefaultFileReaderHardlinks(policy: HardlinkPolicy): void {
+  defaultHardlinks = policy;
+}
+
+/** The hardlink policy of a FileReader that names none (#1350). */
+export function getDefaultFileReaderHardlinks(): HardlinkPolicy {
+  return defaultHardlinks;
 }
 
 /** Extensions never read, inside or outside the project root. */
@@ -317,7 +343,8 @@ export class FileReader {
   private readonly cache: LRUCache<string>;
   private readonly enableCache: boolean;
   private readonly projectRoot?: string;
-  private readonly hardlinks: HardlinkPolicy;
+  /** Explicit policy; undefined follows the process default at read time (#1350). */
+  private readonly hardlinks?: HardlinkPolicy;
   private projectRootReal?: Promise<string | null>;
   private stats: FileReaderStats = {
     cacheHits: 0,
@@ -331,7 +358,7 @@ export class FileReader {
     this.basePath = options.basePath ?? process.cwd();
     this.enableCache = options.enableCache ?? true;
     this.projectRoot = options.projectRoot ? path.resolve(options.projectRoot) : undefined;
-    this.hardlinks = options.hardlinks ?? 'allow';
+    this.hardlinks = options.hardlinks;
     this.cache = new LRUCache<string>(
       options.maxCacheSize ?? 100,
       options.cacheTtlMs ?? 5 * 60 * 1000 // 5 minutes default
@@ -433,7 +460,7 @@ export class FileReader {
       // #1186: the caller's spelling, not `lexical`, so `link/../x` resolves
       // through the link the way the kernel and the payload guard resolve it.
       const raw = path.isAbsolute(filePath) ? filePath : `${path.resolve(this.basePath)}${path.sep}${filePath}`;
-      return ok(await readConfinedText(raw, { projectRoot: this.projectRoot ?? rootReal, hardlinks: this.hardlinks }));
+      return ok(await readConfinedText(raw, { projectRoot: this.projectRoot ?? rootReal, hardlinks: this.hardlinks ?? defaultHardlinks }));
     } catch (error) {
       if (!(error instanceof ConfinedReadError)) return err(readError(error, lexical));
       if (error.reason === 'outside-project-root') {

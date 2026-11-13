@@ -7,13 +7,15 @@ import { afterEach, describe, expect, it } from 'vitest';
 const wrapper = resolve(import.meta.dirname, '../../../scripts/ci-vitest-run.sh');
 // The wrapper is used by Ubuntu CI. Stock macOS and Windows do not ship all
 // of its shell tools; qualify those local runs without letting Linux CI skip.
-const timeoutVersion = spawnSync('timeout', ['--version'], { encoding: 'utf8', timeout: 2000 });
-const shellToolsAvailable = existsSync('/bin/bash') && timeoutVersion.status === 0
-  && timeoutVersion.stdout.includes('GNU coreutils');
+// Probe the behaviour the wrapper relies on (`timeout --foreground` exits 124
+// when it fires) instead of the vendor string: Ubuntu 26.04 runners ship the
+// uutils `timeout`, which behaves the same but does not say "GNU coreutils".
+const timeoutProbe = spawnSync('timeout', ['--foreground', '0.2', 'sleep', '5'], { encoding: 'utf8', timeout: 10000 });
+const shellToolsAvailable = existsSync('/bin/bash') && timeoutProbe.status === 124;
 if (process.platform === 'linux' && !shellToolsAvailable) {
-  throw new Error('CI Vitest wrapper tests require /bin/bash and GNU timeout on Linux; this CI prerequisite must not be skipped.');
+  throw new Error(`CI Vitest wrapper tests require /bin/bash and a timeout(1) whose --foreground exits 124 on Linux; this CI prerequisite must not be skipped (probe status ${timeoutProbe.status}, error ${timeoutProbe.error?.message ?? 'none'}).`);
 }
-const skipReason = !shellToolsAvailable ? ' (requires Bash and GNU timeout on this platform)' : '';
+const skipReason = !shellToolsAvailable ? ' (requires Bash and timeout --foreground on this platform)' : '';
 const fixtures: string[] = [];
 
 afterEach(() => {

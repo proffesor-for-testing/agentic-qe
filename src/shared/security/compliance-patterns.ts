@@ -19,6 +19,17 @@ export interface PatternMatch {
   severity: 'info' | 'warning' | 'critical';
 }
 
+/**
+ * #1350: a file the analyzer was given but did not read (missing, outside
+ * the project, refused as a hardlink, ...). It is reported, never silently
+ * counted as analyzed.
+ */
+export interface UnreadFile {
+  path: string;
+  /** The read error code (ENOENT, HARDLINKED, ...) or 'PATH_REJECTED'. */
+  code: string;
+}
+
 export interface CompliancePatternResult {
   category: string;
   passed: boolean;
@@ -31,6 +42,8 @@ export interface EncryptionAnalysis {
   encryptionLibraries: string[];
   unencryptedDataHandling: PatternMatch[];
   weakCrypto: PatternMatch[];
+  /** #1350: files that were not read; absent when every file was read. */
+  unreadFiles?: UnreadFile[];
 }
 
 export interface AccessControlAnalysis {
@@ -38,18 +51,24 @@ export interface AccessControlAnalysis {
   unprotectedRoutes: PatternMatch[];
   missingRoleChecks: PatternMatch[];
   hardcodedCredentials: PatternMatch[];
+  /** #1350: files that were not read; absent when every file was read. */
+  unreadFiles?: UnreadFile[];
 }
 
 export interface LoggingAnalysis {
   hasAuditLogging: boolean;
   sensitiveOperationsWithoutLogging: PatternMatch[];
   sensitiveDataInLogs: PatternMatch[];
+  /** #1350: files that were not read; absent when every file was read. */
+  unreadFiles?: UnreadFile[];
 }
 
 export interface DataProtectionAnalysis {
   piiFields: PatternMatch[];
   unmaskedPii: PatternMatch[];
   missingValidation: PatternMatch[];
+  /** #1350: files that were not read; absent when every file was read. */
+  unreadFiles?: UnreadFile[];
 }
 
 export interface SecurityControlsAnalysis {
@@ -59,6 +78,8 @@ export interface SecurityControlsAnalysis {
   hasInputValidation: boolean;
   missingControls: string[];
   vulnerabilities: PatternMatch[];
+  /** #1350: files that were not read; absent when every file was read. */
+  unreadFiles?: UnreadFile[];
 }
 
 // ============================================================================
@@ -218,6 +239,11 @@ const SECURITY_CONTROLS_PATTERNS = {
 // Compliance Pattern Analyzer
 // ============================================================================
 
+function unreadFile(file: string, error: Error): UnreadFile {
+  const code = (error as { code?: unknown }).code;
+  return { path: file, code: typeof code === 'string' && code !== '' ? code : 'PATH_REJECTED' };
+}
+
 export class CompliancePatternAnalyzer {
   private readonly fileReader: FileReader;
 
@@ -230,6 +256,7 @@ export class CompliancePatternAnalyzer {
    * Analyze encryption patterns in files
    */
   async analyzeEncryption(files: string[]): Promise<EncryptionAnalysis> {
+    const unread: UnreadFile[] = [];
     const encryptionLibraries: string[] = [];
     const unencryptedDataHandling: PatternMatch[] = [];
     const weakCrypto: PatternMatch[] = [];
@@ -237,7 +264,7 @@ export class CompliancePatternAnalyzer {
 
     for (const file of files) {
       const result = await this.fileReader.readFile(file);
-      if (!result.success) continue;
+      if (!result.success) { unread.push(unreadFile(file, result.error)); continue; }
 
       const content = result.value;
       const lines = content.split('\n');
@@ -294,6 +321,7 @@ export class CompliancePatternAnalyzer {
     }
 
     return {
+      ...(unread.length > 0 ? { unreadFiles: unread } : {}),
       hasEncryption,
       encryptionLibraries,
       unencryptedDataHandling,
@@ -305,6 +333,7 @@ export class CompliancePatternAnalyzer {
    * Analyze access control patterns
    */
   async analyzeAccessControl(files: string[]): Promise<AccessControlAnalysis> {
+    const unread: UnreadFile[] = [];
     const unprotectedRoutes: PatternMatch[] = [];
     const missingRoleChecks: PatternMatch[] = [];
     const hardcodedCredentials: PatternMatch[] = [];
@@ -312,7 +341,7 @@ export class CompliancePatternAnalyzer {
 
     for (const file of files) {
       const result = await this.fileReader.readFile(file);
-      if (!result.success) continue;
+      if (!result.success) { unread.push(unreadFile(file, result.error)); continue; }
 
       const content = result.value;
       const lines = content.split('\n');
@@ -372,6 +401,7 @@ export class CompliancePatternAnalyzer {
     }
 
     return {
+      ...(unread.length > 0 ? { unreadFiles: unread } : {}),
       hasAuthMiddleware,
       unprotectedRoutes,
       missingRoleChecks,
@@ -383,13 +413,14 @@ export class CompliancePatternAnalyzer {
    * Analyze logging patterns
    */
   async analyzeLogging(files: string[]): Promise<LoggingAnalysis> {
+    const unread: UnreadFile[] = [];
     const sensitiveOperationsWithoutLogging: PatternMatch[] = [];
     const sensitiveDataInLogs: PatternMatch[] = [];
     let hasAuditLogging = false;
 
     for (const file of files) {
       const result = await this.fileReader.readFile(file);
-      if (!result.success) continue;
+      if (!result.success) { unread.push(unreadFile(file, result.error)); continue; }
 
       const content = result.value;
       const lines = content.split('\n');
@@ -445,6 +476,7 @@ export class CompliancePatternAnalyzer {
     }
 
     return {
+      ...(unread.length > 0 ? { unreadFiles: unread } : {}),
       hasAuditLogging,
       sensitiveOperationsWithoutLogging,
       sensitiveDataInLogs,
@@ -455,13 +487,14 @@ export class CompliancePatternAnalyzer {
    * Analyze data protection patterns
    */
   async analyzeDataProtection(files: string[]): Promise<DataProtectionAnalysis> {
+    const unread: UnreadFile[] = [];
     const piiFields: PatternMatch[] = [];
     const unmaskedPii: PatternMatch[] = [];
     const missingValidation: PatternMatch[] = [];
 
     for (const file of files) {
       const result = await this.fileReader.readFile(file);
-      if (!result.success) continue;
+      if (!result.success) { unread.push(unreadFile(file, result.error)); continue; }
 
       const content = result.value;
       const lines = content.split('\n');
@@ -522,6 +555,7 @@ export class CompliancePatternAnalyzer {
     }
 
     return {
+      ...(unread.length > 0 ? { unreadFiles: unread } : {}),
       piiFields,
       unmaskedPii,
       missingValidation,
@@ -532,6 +566,7 @@ export class CompliancePatternAnalyzer {
    * Analyze security controls
    */
   async analyzeSecurityControls(files: string[]): Promise<SecurityControlsAnalysis> {
+    const unread: UnreadFile[] = [];
     const vulnerabilities: PatternMatch[] = [];
     const missingControls: string[] = [];
     let hasRateLimiting = false;
@@ -541,7 +576,7 @@ export class CompliancePatternAnalyzer {
 
     for (const file of files) {
       const result = await this.fileReader.readFile(file);
-      if (!result.success) continue;
+      if (!result.success) { unread.push(unreadFile(file, result.error)); continue; }
 
       const content = result.value;
 
@@ -573,6 +608,7 @@ export class CompliancePatternAnalyzer {
     if (!hasInputValidation) missingControls.push('Input Validation/Sanitization');
 
     return {
+      ...(unread.length > 0 ? { unreadFiles: unread } : {}),
       hasRateLimiting,
       hasCsrfProtection,
       hasCors,
@@ -587,7 +623,9 @@ export class CompliancePatternAnalyzer {
    */
   async scanForDataTypes(
     files: string[],
-    dataTypes: Array<'pii' | 'phi' | 'financial' | 'credentials' | 'biometric'>
+    dataTypes: Array<'pii' | 'phi' | 'financial' | 'credentials' | 'biometric'>,
+    /** #1350: collects the files that were not read, with why. */
+    unread?: UnreadFile[],
   ): Promise<Map<string, PatternMatch[]>> {
     const results = new Map<string, PatternMatch[]>();
 
@@ -623,7 +661,7 @@ export class CompliancePatternAnalyzer {
 
     for (const file of files) {
       const readResult = await this.fileReader.readFile(file);
-      if (!readResult.success) continue;
+      if (!readResult.success) { unread?.push(unreadFile(file, readResult.error)); continue; }
 
       const lines = readResult.value.split('\n');
 

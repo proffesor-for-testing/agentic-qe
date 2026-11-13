@@ -8,7 +8,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import ts from 'typescript';
-import { ConfinedReadError, readConfinedTextSync } from '../../../shared/io/confined-read.js';
+import { ConfinedReadError, readConfinedTextSync, type HardlinkPolicy } from '../../../shared/io/confined-read.js';
 import * as path from 'path';
 import { Result, ok, err } from '../../../shared/types';
 import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces';
@@ -621,9 +621,10 @@ export class PatternMatcherService implements IPatternMatchingService {
     try {
       const { testFiles, depth } = request;
       const patterns: Pattern[] = [];
+      const refused: Array<{ path: string; reason: 'hardlinked' }> = [];
 
       for (const file of testFiles) {
-        const filePatterns = await this.extractPatternsFromFile(file, depth);
+        const filePatterns = await this.extractPatternsFromFile(file, depth, request.sourceHardlinks ?? 'allow', refused);
         patterns.push(...filePatterns);
       }
 
@@ -645,6 +646,7 @@ export class PatternMatcherService implements IPatternMatchingService {
       return ok({
         patterns: uniquePatterns,
         confidence,
+        ...(refused.length > 0 ? { refused } : {}),
       });
     } catch (error) {
       return err(toError(error));
@@ -973,7 +975,9 @@ export class PatternMatcherService implements IPatternMatchingService {
 
   private async extractPatternsFromFile(
     file: string,
-    depth: 'shallow' | 'deep'
+    depth: 'shallow' | 'deep',
+    hardlinks: HardlinkPolicy = 'allow',
+    refused: Array<{ path: string; reason: 'hardlinked' }> = [],
   ): Promise<Pattern[]> {
     const patterns: Pattern[] = [];
 
@@ -981,9 +985,10 @@ export class PatternMatcherService implements IPatternMatchingService {
       // Read the file content
       let content: string;
       try {
-        content = readConfinedTextSync(file, { outsideRoot: 'allow' }); // #1161
-      } catch {
-        // File doesn't exist or can't be read, return empty
+        content = readConfinedTextSync(file, { outsideRoot: 'allow', hardlinks }); // #1161, #1350
+      } catch (error) {
+        // File doesn't exist or can't be read, return empty; a refused hardlink is reported.
+        if (error instanceof ConfinedReadError && error.reason === 'hardlinked') refused.push({ path: file, reason: 'hardlinked' });
         return patterns;
       }
 

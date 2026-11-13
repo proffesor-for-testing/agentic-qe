@@ -600,34 +600,34 @@ const resourceIntegration = {
 ### Resource Management Commands
 ```bash
 # Analyze resource usage
-npx claude-flow metrics-collect --components ["cpu", "memory", "network"]
+npx ruflo@3.76.0 metrics-collect --components ["cpu", "memory", "network"]
 
 # Optimize resource allocation
-npx claude-flow daa-resource-alloc --resources <resource-config>
+npx ruflo@3.76.0 daa-resource-alloc --resources <resource-config>
 
 # Predictive scaling
-npx claude-flow swarm-scale --swarm-id <id> --target-size <size>
+npx ruflo@3.76.0 swarm-scale --swarm-id <id> --target-size <size>
 
 # Performance profiling
-npx claude-flow performance-report --format detailed --timeframe 24h
+npx ruflo@3.76.0 performance-report --format detailed --timeframe 24h
 
 # Circuit breaker configuration
-npx claude-flow fault-tolerance --strategy circuit-breaker --config <config>
+npx ruflo@3.76.0 fault-tolerance --strategy circuit-breaker --config <config>
 ```
 
 ### Optimization Commands
 ```bash
 # Run performance optimization
-npx claude-flow optimize-performance --swarm-id <id> --strategy adaptive
+npx ruflo@3.76.0 optimize-performance --swarm-id <id> --strategy adaptive
 
 # Generate resource forecasts
-npx claude-flow forecast-resources --time-horizon 3600 --confidence 0.95
+npx ruflo@3.76.0 forecast-resources --time-horizon 3600 --confidence 0.95
 
 # Profile system performance
-npx claude-flow profile-performance --duration 60000 --components all
+npx ruflo@3.76.0 profile-performance --duration 60000 --components all
 
 # Analyze bottlenecks
-npx claude-flow bottleneck-analyze --component swarm-coordination
+npx ruflo@3.76.0 bottleneck-analyze --component swarm-coordination
 ```
 
 ## Integration Points
