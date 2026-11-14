@@ -21,7 +21,7 @@ vi.mock('../../../../src/cli/commands/learning-helpers.js', async (importOrigina
 }));
 
 import { createLearningCommand } from '../../../../src/cli/commands/learning.js';
-import { ImportTargets, importedDomain, readPatternsReadOnly } from '../../../../src/cli/commands/learning-export-read.js';
+import { ImportTargets, importedDomain, readImportTargets, readPatternsReadOnly, EXPORT_PATTERN_LIMIT, MIN_STORE_CONFIDENCE } from '../../../../src/cli/commands/learning-export-read.js';
 
 const dir = mkdtempSync(join(tmpdir(), 'aqe-1421-'));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
@@ -135,6 +135,30 @@ describe('import keeps the exported domain (#1421)', () => {
     expect(targets.resolve('Coverage gap template', 'test-template', undefined))
       .toEqual({ qeDomain: 'coverage-analysis', exists: true, tier: 'short-term', confidence: 0.5 });
     expect(targets.resolve('new pattern', 'test-template', 'coverage-analysis')).toEqual({ qeDomain: 'coverage-analysis', exists: false });
+  });
+
+  it('raises a decayed confidence to the store minimum, so the update is not rejected', () => {
+    const db = projectDb();
+    const raw = new Database(db);
+    raw.prepare("UPDATE qe_patterns SET confidence = 0.2 WHERE id = 'p3'").run();
+    raw.close();
+    expect(readImportTargets(db).resolve('coder-general-2026-10', 'workflow', 'general'))
+      .toMatchObject({ exists: true, tier: 'long-term', confidence: MIN_STORE_CONFIDENCE });
+  });
+
+  it('matches rows beyond the export limit', () => {
+    const db = projectDb();
+    const raw = new Database(db);
+    const insert = raw.prepare(`INSERT INTO qe_patterns (id, pattern_type, qe_domain, domain, name, quality_score, tier, confidence)
+                                VALUES (?, 'workflow', 'general', 'general', ?, ?, ?, 0.8)`);
+    raw.transaction(() => {
+      for (let i = 0; i < EXPORT_PATTERN_LIMIT; i++) insert.run(`bulk-${i}`, `bulk ${i}`, 0.9, 'short-term');
+      insert.run('lowest', 'lowest quality long-term', 0, 'long-term');
+    })();
+    raw.close();
+    expect(readPatternsReadOnly(db).some(p => p.name === 'lowest quality long-term')).toBe(false);
+    expect(readImportTargets(db).resolve('lowest quality long-term', 'workflow', 'general'))
+      .toEqual({ qeDomain: 'general', exists: true, tier: 'long-term', confidence: 0.8 });
   });
 
   it('leaves a name and type that match several rows to the derived domain', () => {

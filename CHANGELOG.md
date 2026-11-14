@@ -106,7 +106,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   at confidence 0.5. New patterns still start short-term, whatever the file
   says. Files from older versions without a domain update the one existing
   row with the same name and type. `import-merge` counts a pattern as
-  updated only when the same name, domain and type already exist.
+  updated only when the same name, domain and type already exist, and
+  `--skip-duplicates` skips only those (before, any pattern with the same
+  name). A row whose confidence decayed below 0.3, the lowest the pattern
+  store accepts, is updated at 0.3 instead of being skipped.
 
 ## [3.15.20] - 2026-11-12
 

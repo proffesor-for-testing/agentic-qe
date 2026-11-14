@@ -22,7 +22,7 @@ import { stat, unlink } from 'node:fs/promises';
 import type { QEDomain, QEPatternType, QEPatternTemplate, QEPatternContext } from '../../learning/qe-patterns.js';
 import { countCuratedInFile, curationSummary, exportContext, importContext, selectMeasuredSuccessIds } from '../../learning/curated-patterns.js';
 import { QE_DOMAIN_LIST } from '../../learning/qe-patterns.js';
-import { ImportTargets, readPatternsReadOnly, type ImportTarget } from './learning-export-read.js';
+import { readImportTargets, readPatternsReadOnly, type ImportTarget, type ImportTargets } from './learning-export-read.js';
 import {
   createLearningMetricsTracker,
 } from '../../learning/metrics-tracker.js';
@@ -540,7 +540,7 @@ function registerImportCommand(learning: Command): void {
           // #1422: only a real import starts the learning system (it writes).
           const reasoningBank = await initializeLearningSystem();
           // #1421: read after start-up, so seeded rows are matched too.
-          const targets = new ImportTargets(readPatternsReadOnly(getDbPath()));
+          const targets = readImportTargets(getDbPath());
           for (const pattern of importData.patterns) {
             try {
               const result = await reasoningBank.storePattern({
@@ -1093,9 +1093,9 @@ function registerImportMergeCommand(learning: Command): void {
         // after start-up, so seeded rows count as existing.
         let existingCount = 0;
         const existingTargets = (): ImportTargets => {
-          const existing = readPatternsReadOnly(getDbPath());
-          existingCount = existing.length;
-          return new ImportTargets(existing);
+          const targets = readImportTargets(getDbPath());
+          existingCount = targets.size;
+          return targets;
         };
 
         if (!options.dryRun) {

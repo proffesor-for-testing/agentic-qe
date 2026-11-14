@@ -47,6 +47,47 @@ export function importedDomain(value: unknown): QEDomain | undefined {
   return typeof value === 'string' && /^[a-z][a-z0-9-]{0,63}$/.test(value) ? value as QEDomain : undefined;
 }
 
+/**
+ * The lowest confidence PatternStore and RvfPatternStore accept (their
+ * default `minConfidence`). An update sends the existing row's confidence
+ * through that check, so a row that decayed below it is raised to it;
+ * otherwise the import would skip the row.
+ */
+export const MIN_STORE_CONFIDENCE = 0.3;
+
+/** The columns an import needs to match a stored row (the upsert key, tier and confidence). */
+export interface StoredPatternKey {
+  name: string;
+  qeDomain: string;
+  patternType: string;
+  tier: unknown;
+  confidence: number;
+}
+
+/**
+ * #1421: every stored row's key, without the export's row limit: a row the
+ * import does not see would be stored as new, and the upsert would reset its
+ * tier and confidence.
+ */
+export function readImportTargets(dbPath: string): ImportTargets {
+  if (!existsSync(dbPath)) return new ImportTargets([]);
+  const db = openDatabase(dbPath, { readonly: true, fileMustExist: true });
+  try {
+    const table = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'qe_patterns'").get();
+    if (!table) return new ImportTargets([]);
+    // A column an older schema lacks reads as NULL (tier and confidence then fall back).
+    const present = new Set((db.prepare('PRAGMA table_info(qe_patterns)').all() as Array<{ name: string }>).map(c => c.name));
+    const column = (name: string, as: string) => `${present.has(name) ? name : 'NULL'} AS ${as}`;
+    const rows = db.prepare(`SELECT ${[
+      column('name', 'name'), column('qe_domain', 'qeDomain'), column('pattern_type', 'patternType'),
+      column('tier', 'tier'), column('confidence', 'confidence'),
+    ].join(', ')} FROM qe_patterns`).all() as StoredPatternKey[];
+    return new ImportTargets(rows);
+  } finally {
+    db.close();
+  }
+}
+
 /** What storePattern needs so an imported pattern updates the row it matches. */
 export interface ImportTarget {
   qeDomain?: QEDomain;
@@ -63,15 +104,20 @@ export interface ImportTarget {
  * matches the one existing row with that name and type, if there is exactly one.
  */
 export class ImportTargets {
-  private readonly byKey = new Map<string, QEPattern>();
-  private readonly byNameType = new Map<string, QEPattern[]>();
+  private readonly byKey = new Map<string, StoredPatternKey>();
+  private readonly byNameType = new Map<string, StoredPatternKey[]>();
 
-  constructor(existing: QEPattern[]) {
+  constructor(existing: StoredPatternKey[]) {
     for (const p of existing) {
       this.byKey.set(key(p.name, p.qeDomain, p.patternType), p);
       const nameType = key(p.name, '', p.patternType);
       this.byNameType.set(nameType, [...(this.byNameType.get(nameType) ?? []), p]);
     }
+  }
+
+  /** How many stored rows the import can match. */
+  get size(): number {
+    return this.byKey.size;
   }
 
   resolve(name: unknown, patternType: unknown, exportedDomain: unknown): ImportTarget {
@@ -80,7 +126,9 @@ export class ImportTargets {
       ? this.byKey.get(key(name, domain, patternType))
       : singleOrNone(this.byNameType.get(key(name, '', patternType)));
     if (!match) return { qeDomain: domain, exists: false };
-    return { qeDomain: match.qeDomain, exists: true, tier: tierOf(match.tier), confidence: match.confidence };
+    const confidence = typeof match.confidence === 'number' && Number.isFinite(match.confidence)
+      ? Math.max(match.confidence, MIN_STORE_CONFIDENCE) : undefined;
+    return { qeDomain: match.qeDomain as QEDomain, exists: true, tier: tierOf(match.tier), confidence };
   }
 }
 
