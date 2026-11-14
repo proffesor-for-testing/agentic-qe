@@ -22,6 +22,7 @@ import { stat, unlink } from 'node:fs/promises';
 import type { QEDomain, QEPatternType, QEPatternTemplate, QEPatternContext } from '../../learning/qe-patterns.js';
 import { countCuratedInFile, curationSummary, exportContext, importContext, selectMeasuredSuccessIds } from '../../learning/curated-patterns.js';
 import { QE_DOMAIN_LIST } from '../../learning/qe-patterns.js';
+import { importedDomain, readPatternsReadOnly } from './learning-export-read.js';
 import {
   createLearningMetricsTracker,
 } from '../../learning/metrics-tracker.js';
@@ -445,11 +446,9 @@ function registerExportCommand(learning: Command): void {
     .option('--json', 'Output as JSON (to stdout)')
     .action(async (options) => {
       try {
-        const reasoningBank = await initializeLearningSystem();
-        const searchResult = await reasoningBank.searchPatterns('', { limit: 10000, domain: options.domain as QEDomain });
-        if (!searchResult.success) throw new Error(searchResult.error.message);
-
-        const patterns = searchResult.value.map(m => m.pattern).filter(p => !options.longTermOnly || p.tier === 'long-term');
+        // #1422: read-only. Starting the learning system seeded patterns into memory.db.
+        const patterns = readPatternsReadOnly(getDbPath(), options.domain)
+          .filter(p => !options.longTermOnly || p.tier === 'long-term');
         const measuredIds = measuredSuccessIdsAt(getDbPath());
         const exportData = {
           version: '3.0.0', exportedAt: new Date().toISOString(), source: process.cwd(),
@@ -522,18 +521,21 @@ function registerImportCommand(learning: Command): void {
         // #1388: make a self-declared curated pack visible.
         const curatedInFile = countCuratedInFile(importData.patterns as Array<{ context?: unknown }>);
 
-        const reasoningBank = await initializeLearningSystem();
         let imported = 0;
         let skipped = 0;
         let pendingIndex = 0;
         const errors: string[] = [];
 
         if (!options.dryRun) {
+          // #1422: only a real import starts the learning system (it writes).
+          const reasoningBank = await initializeLearningSystem();
           for (const pattern of importData.patterns) {
             try {
               const result = await reasoningBank.storePattern({
                 patternType: pattern.patternType, name: pattern.name,
                 description: pattern.description, template: pattern.template,
+                // #1421: keep the exported domain, so a round trip updates the row.
+                qeDomain: importedDomain(pattern.qeDomain),
                 // #1388: keep the export's curation marker; --curate vouches for every row.
                 context: importContext(pattern.context, options.curate === true),
               });
@@ -959,6 +961,12 @@ function registerVerifyCommand(learning: Command): void {
 // Subcommand: export-full
 // ============================================================================
 
+/** An ISO time for the export, or nothing when the stored time is missing or not a date. */
+function isoTime(value: Date | string | undefined): string | undefined {
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? undefined : value.toISOString();
+  return value || undefined;
+}
+
 function registerExportFullCommand(learning: Command): void {
   learning
     .command('export-full')
@@ -973,20 +981,17 @@ function registerExportFullCommand(learning: Command): void {
         const dbPath = getDbPath();
         if (!existsSync(dbPath)) throw new Error('No learning database found. Run "aqe init --auto" first.');
 
-        const reasoningBank = await initializeLearningSystem();
         const schemaVersion = await getSchemaVersion(dbPath);
-        const searchResult = await reasoningBank.searchPatterns('', { limit: 10000 });
-        if (!searchResult.success) throw new Error(searchResult.error.message);
-
+        // #1422: read-only. Starting the learning system seeded patterns into memory.db.
         const measuredIds = measuredSuccessIdsAt(dbPath);
-        const patterns = searchResult.value.map(m => ({
-          id: m.pattern.id, name: m.pattern.name, description: m.pattern.description,
-          patternType: m.pattern.patternType, qeDomain: m.pattern.qeDomain, tier: m.pattern.tier,
-          confidence: m.pattern.confidence, successRate: m.pattern.successRate,
-          successfulUses: m.pattern.successfulUses, qualityScore: m.pattern.qualityScore,
-          template: m.pattern.template, context: exportContext(m.pattern, measuredIds),
-          createdAt: m.pattern.createdAt instanceof Date ? m.pattern.createdAt.toISOString() : m.pattern.createdAt || undefined,
-          lastUsedAt: m.pattern.lastUsedAt instanceof Date ? m.pattern.lastUsedAt.toISOString() : m.pattern.lastUsedAt || undefined,
+        const patterns = readPatternsReadOnly(dbPath).map(p => ({
+          id: p.id, name: p.name, description: p.description,
+          patternType: p.patternType, qeDomain: p.qeDomain, tier: p.tier,
+          confidence: p.confidence, successRate: p.successRate,
+          successfulUses: p.successfulUses, qualityScore: p.qualityScore,
+          template: p.template, context: exportContext(p, measuredIds),
+          createdAt: isoTime(p.createdAt),
+          lastUsedAt: isoTime(p.lastUsedAt),
         }));
 
         const exportData: LearningExportData = {
@@ -1070,20 +1075,20 @@ function registerImportMergeCommand(learning: Command): void {
         // #1388: make a self-declared curated pack visible.
         const curatedInFile = countCuratedInFile(importData.patterns as Array<{ context?: unknown }>);
 
-        const reasoningBank = await initializeLearningSystem();
-        const existingResult = await reasoningBank.searchPatterns('', { limit: 10000 });
-        const existingNames = new Set<string>();
-        if (existingResult.success) for (const m of existingResult.value) existingNames.add(m.pattern.name);
+        // #1422: the duplicate check reads memory.db without writing to it.
+        const existingNames = new Set(readPatternsReadOnly(getDbPath()).map(p => p.name));
 
         let imported = 0, skipped = 0, updated = 0;
         const errors: string[] = [];
 
         if (!options.dryRun) {
+          const reasoningBank = await initializeLearningSystem();
           for (const pattern of importData.patterns) {
             const isDuplicate = existingNames.has(pattern.name);
             if (isDuplicate && options.skipDuplicates) { skipped++; continue; }
             try {
-              const result = await reasoningBank.storePattern({ patternType: pattern.patternType as QEPatternType, name: pattern.name, description: pattern.description, template: pattern.template as Omit<QEPatternTemplate, 'example'>, context: importContext(pattern.context as Partial<QEPatternContext> | undefined, options.curate === true) });
+              // #1421: keep the exported domain, so a round trip updates the row.
+              const result = await reasoningBank.storePattern({ patternType: pattern.patternType as QEPatternType, name: pattern.name, description: pattern.description, template: pattern.template as Omit<QEPatternTemplate, 'example'>, qeDomain: importedDomain(pattern.qeDomain), context: importContext(pattern.context as Partial<QEPatternContext> | undefined, options.curate === true) });
               // #981: a committed row with a pending vector index is imported.
               if (result.success || committedPendingIndexPatternId(result.error)) { if (isDuplicate) updated++; else imported++; }
               else { skipped++; errors.push(`${pattern.name}: ${result.error.message}`); }

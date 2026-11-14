@@ -1,14 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import Database from 'better-sqlite3';
 
 const mocks = vi.hoisted(() => ({
   initializeLearningSystem: vi.fn(),
   printJson: vi.fn(),
+  getDbPath: vi.fn(),
 }));
 
 vi.mock('../../../../src/cli/commands/learning-helpers.js', async (importOriginal) => ({
   ...await importOriginal<typeof import('../../../../src/cli/commands/learning-helpers.js')>(),
   initializeLearningSystem: mocks.initializeLearningSystem,
   printJson: mocks.printJson,
+  getDbPath: mocks.getDbPath,
 }));
 
 import { createLearningCommand } from '../../../../src/cli/commands/learning.js';
@@ -134,22 +140,27 @@ describe('learning consolidate and export regression (#618)', () => {
   });
 
   it('should_exportCompleteStoredMetadata_when_exportRuns', async () => {
-    const bank = {
-      searchPatterns: vi.fn().mockResolvedValue({
-        success: true,
-        value: [{ pattern: { ...promotablePattern, tier: 'long-term' } }],
-      }),
-    };
-    mocks.initializeLearningSystem.mockResolvedValue(bank);
+    // #1422: export reads memory.db read-only instead of starting the learning system.
+    const dbPath = join(mkdtempSync(join(tmpdir(), 'aqe-618-')), 'memory.db');
+    const db = new Database(dbPath);
+    db.exec(`CREATE TABLE qe_patterns (
+      id TEXT PRIMARY KEY, pattern_type TEXT, qe_domain TEXT, domain TEXT, name TEXT, description TEXT,
+      confidence REAL, usage_count INTEGER, success_rate REAL, quality_score REAL, tier TEXT,
+      template_json TEXT, context_json TEXT, created_at TEXT, last_used_at TEXT, successful_uses INTEGER)`);
+    db.prepare(`INSERT INTO qe_patterns VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'long-term', ?, ?, '2026-11-01T00:00:00Z', NULL, ?)`).run(
+      promotablePattern.id, promotablePattern.patternType, promotablePattern.qeDomain, promotablePattern.qeDomain,
+      promotablePattern.name, promotablePattern.description, promotablePattern.confidence, promotablePattern.successRate,
+      promotablePattern.qualityScore, JSON.stringify(promotablePattern.template), JSON.stringify(promotablePattern.context),
+      promotablePattern.successfulUses,
+    );
+    db.close();
+    mocks.getDbPath.mockReturnValue(dbPath);
 
     await createLearningCommand().exitOverride().parseAsync([
       'node', 'learning', 'export', '--json',
     ]);
 
-    expect(bank.searchPatterns).toHaveBeenCalledWith('', {
-      limit: 10000,
-      domain: undefined,
-    });
+    expect(mocks.initializeLearningSystem).not.toHaveBeenCalled();
     expect(mocks.printJson).toHaveBeenCalledWith(expect.objectContaining({
       patternCount: 1,
       patterns: [expect.objectContaining({

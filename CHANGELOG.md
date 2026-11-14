@@ -90,6 +90,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   an exact repeat is uploaded once and counted in the report. Naming any
   source in `--sources` turns it on. `aqe sync status` shows the source as
   off (○), not as failed.
+- **`aqe learning export` no longer writes to your learning database**
+  ([#1422]): `export` and `export-full` started the learning system, which
+  on a database it had not seen yet loads the built-in patterns and runs
+  cross-domain seeding, so exporting a fresh project wrote 70 patterns.
+  Both now read `memory.db` read-only and export exactly what it holds.
+  The `--dry-run` of `import` and `import-merge` no longer writes either.
+- **Importing your own export no longer duplicates patterns** ([#1421]):
+  `import` and `import-merge` ignored the exported domain and re-derived it
+  from the pattern type, so a pattern came back in another domain as a new
+  row (70 patterns became 100). The exported domain is now kept when it is
+  a valid one, and a round trip updates the existing rows.
 
 ## [3.15.20] - 2026-11-12
 
@@ -247,6 +258,8 @@ instead of a floating tag.
 
 [#1409]: https://github.com/proffesor-for-testing/agentic-qe/issues/1409
 [#1432]: https://github.com/proffesor-for-testing/agentic-qe/issues/1432
+[#1421]: https://github.com/proffesor-for-testing/agentic-qe/issues/1421
+[#1422]: https://github.com/proffesor-for-testing/agentic-qe/issues/1422
 [#1408]: https://github.com/proffesor-for-testing/agentic-qe/issues/1408
 [#1407]: https://github.com/proffesor-for-testing/agentic-qe/issues/1407
 [#1415]: https://github.com/proffesor-for-testing/agentic-qe/issues/1415

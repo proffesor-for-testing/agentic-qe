@@ -76,7 +76,7 @@ export const DEFAULT_SQLITE_CONFIG: SQLitePersistenceConfig = {
 /**
  * Database row structure for pattern queries
  */
-interface PatternRow {
+export interface PatternRow {
   id: string;
   pattern_type: string;
   qe_domain: string;
@@ -105,6 +105,45 @@ interface PatternRow {
   reuse_count?: number;
   average_token_savings?: number;
   total_tokens_saved?: number;
+}
+
+/** A qe_patterns row as a QEPattern (also used by read-only readers, #1422). */
+export function patternFromRow(row: PatternRow): QEPattern {
+  let embedding: number[] | undefined;
+  if (row.embedding) {
+    embedding = Array.from(
+      new Float32Array(row.embedding.buffer, row.embedding.byteOffset, row.dimension)
+    );
+  }
+
+  return {
+    id: row.id,
+    patternType: row.pattern_type as QEPatternType,
+    qeDomain: row.qe_domain as QEDomain,
+    domain: row.domain as import('../shared/types/index.js').DomainName,
+    name: row.name,
+    description: row.description,
+    confidence: row.confidence,
+    usageCount: row.usage_count,
+    successRate: row.success_rate,
+    qualityScore: row.quality_score,
+    tier: row.tier as 'short-term' | 'long-term',
+    template: safeJsonParse(row.template_json || '{}'),
+    context: safeJsonParse(row.context_json || '{}'),
+    createdAt: new Date(row.created_at),
+    lastUsedAt: row.last_used_at ? new Date(row.last_used_at) : new Date(row.created_at),
+    successfulUses: row.successful_uses,
+    embedding,
+    // Token tracking fields (ADR-042)
+    tokensUsed: row.tokens_used,
+    inputTokens: row.input_tokens,
+    outputTokens: row.output_tokens,
+    latencyMs: row.latency_ms,
+    reusable: row.reusable === 1,
+    reuseCount: row.reuse_count || 0,
+    averageTokenSavings: row.average_token_savings || 0,
+    totalTokensSaved: row.total_tokens_saved,
+  };
 }
 
 /**
@@ -997,41 +1036,7 @@ export class SQLitePatternStore {
    * Convert database row to QEPattern
    */
   private rowToPattern(row: PatternRow): QEPattern {
-    let embedding: number[] | undefined;
-    if (row.embedding) {
-      embedding = Array.from(
-        new Float32Array(row.embedding.buffer, row.embedding.byteOffset, row.dimension)
-      );
-    }
-
-    return {
-      id: row.id,
-      patternType: row.pattern_type as QEPatternType,
-      qeDomain: row.qe_domain as QEDomain,
-      domain: row.domain as import('../shared/types/index.js').DomainName,
-      name: row.name,
-      description: row.description,
-      confidence: row.confidence,
-      usageCount: row.usage_count,
-      successRate: row.success_rate,
-      qualityScore: row.quality_score,
-      tier: row.tier as 'short-term' | 'long-term',
-      template: safeJsonParse(row.template_json || '{}'),
-      context: safeJsonParse(row.context_json || '{}'),
-      createdAt: new Date(row.created_at),
-      lastUsedAt: row.last_used_at ? new Date(row.last_used_at) : new Date(row.created_at),
-      successfulUses: row.successful_uses,
-      embedding,
-      // Token tracking fields (ADR-042)
-      tokensUsed: row.tokens_used,
-      inputTokens: row.input_tokens,
-      outputTokens: row.output_tokens,
-      latencyMs: row.latency_ms,
-      reusable: row.reusable === 1,
-      reuseCount: row.reuse_count || 0,
-      averageTokenSavings: row.average_token_savings || 0,
-      totalTokensSaved: row.total_tokens_saved,
-    };
+    return patternFromRow(row);
   }
 
   /**
