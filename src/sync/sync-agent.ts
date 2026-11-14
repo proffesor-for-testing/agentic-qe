@@ -237,6 +237,7 @@ export class CloudSyncAgent {
         const written = await this.writer.upsert(source.targetTable, records, {
           skipIfExists: source.mode === 'append',
           onSkipped: (count, reason) => { skipped.count += count; skipped.reason ||= reason; },
+          onMissingColumns: columns => noteMissingColumns(result, source.targetTable, columns),
         });
         result.recordsSynced = written;
         // #1361: records the cloud rejected fail the source, never a silent 0.
@@ -299,6 +300,7 @@ export class CloudSyncAgent {
         const skipped = { count: 0, reason: '' };
         const written = await this.writer.upsert(source.targetTable, records, {
           onSkipped: (count, reason) => { skipped.count += count; skipped.reason ||= reason; },
+          onMissingColumns: columns => noteMissingColumns(result, source.targetTable, columns),
         });
         result.recordsSynced = written;
         if (rejectSkipped(result, skipped, records.length, source.targetTable)) {
@@ -670,6 +672,18 @@ function noteReadSkips(result: SyncResult, reader: DataReader): void {
   if (!skipped || skipped.count === 0) return;
   result.recordsSkipped += skipped.count;
   (result.warnings ??= []).push(skipped.reason);
+}
+
+/**
+ * #1432: local columns the cloud table lacks were not uploaded. A warning,
+ * not a failure: the rows were written, and re-applying the cloud schema adds
+ * the columns that AQE knows about.
+ */
+function noteMissingColumns(result: SyncResult, table: string, columns: string[]): void {
+  (result.warnings ??= []).push(
+    `${table} has no column ${columns.join(', ')}; those values were not uploaded. ` +
+    'Re-apply the cloud schema (aqe sync init --output cloud-schema.sql, then run it with psql) to add them.',
+  );
 }
 
 /**

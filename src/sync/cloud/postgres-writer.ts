@@ -222,8 +222,14 @@ export class PostgresWriter implements CloudWriter {
 
     // Get columns from first record
     const firstRecord = records[0] as Record<string, unknown>;
-    const columns = Object.keys(firstRecord);
     const kinds = await this.columnKindsFor(table);
+    // #1432: a column the cloud table does not have would reject every row
+    // ("column ... does not exist"). It is left out and reported instead, so
+    // the rest of the row is uploaded. Kept when the table's columns are unknown.
+    const recordColumns = Object.keys(firstRecord);
+    const columns = kinds.size > 0 ? recordColumns.filter(c => kinds.has(c)) : recordColumns;
+    const missing = recordColumns.filter(c => !columns.includes(c));
+    if (missing.length > 0) options?.onMissingColumns?.(missing);
 
     // Build upsert SQL
     const conflictColumns = options?.conflictColumns || this.inferConflictColumns(table, columns);

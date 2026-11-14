@@ -319,6 +319,12 @@ export interface UpsertOptions {
    * a successful sync of fewer records (the writer still skips them).
    */
   onSkipped?: (count: number, reason: string) => void;
+
+  /**
+   * #1432: called with the record columns the cloud table does not have.
+   * Their values are not uploaded; the rest of each record is.
+   */
+  onMissingColumns?: (columns: string[]) => void;
 }
 
 /**
@@ -829,6 +835,29 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
         mode: 'full',
         jsonPath: '$.patterns', // #1384: real intelligence.json keeps its Q-patterns here
         enabled: true,
+      },
+      // #1408: daemon worker stats (run/success/failure counts and timings, no content).
+      {
+        name: 'claude-flow-daemon-workers',
+        type: 'json',
+        path: './.claude-flow/daemon-state.json',
+        targetTable: 'aqe.claude_flow_workers',
+        priority: 'low',
+        mode: 'full',
+        enabled: true,
+      },
+      // #1408: intelligence.json memories hold what was read, run and edited
+      // (content and embeddings), so they are not uploaded unless asked for:
+      // `aqe sync --sources intelligence-memories`.
+      {
+        name: 'intelligence-memories',
+        type: 'json',
+        path: './.ruvector/intelligence.json',
+        targetTable: 'aqe.intelligence_memories',
+        priority: 'low',
+        mode: 'full',
+        jsonPath: '$.memories',
+        enabled: false,
       },
     ],
   },
