@@ -13,6 +13,7 @@ import type { DataReader, SyncSource } from '../interfaces.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
 import { jsonb } from '../jsonb-text.js';
 import { Q_PATTERNS_TABLE, toQPatterns } from './q-patterns.js';
+import { INTELLIGENCE_MEMORIES_TABLE, toIntelligenceMemories } from './intelligence-memories.js';
 
 /**
  * JSON reader configuration
@@ -203,6 +204,12 @@ export class JSONReader implements DataReader<JSONRecord> {
     if (jsonPath) {
       const qPatterns = this.config.source.targetTable === Q_PATTERNS_TABLE;
       const entries = this.extractByPath(parsed, jsonPath, !qPatterns);
+      if (this.config.source.targetTable === INTELLIGENCE_MEMORIES_TABLE) {
+        // #1408: ids that stay distinct in the cloud; exact repeats are counted.
+        const { records, skipped } = toIntelligenceMemories(entries, this.config.environment);
+        this.lastSkipped = skipped;
+        return records;
+      }
       if (!qPatterns) return entries;
       // #1384: only the cloud columns; entries that are not Q-patterns are skipped.
       const { records, skipped } = toQPatterns(entries, jsonPath);
@@ -349,7 +356,8 @@ export class JSONReader implements DataReader<JSONRecord> {
           const mem = memory as Record<string, unknown>;
           records.push({
             id: mem.id || `mem_${Date.now()}_${randomUUID().slice(0, 12)}`,
-            memory_type: mem.type || 'file_access',
+            // #1408: real intelligence.json memories use memory_type.
+            memory_type: mem.memory_type || mem.type || 'file_access',
             content: mem.content || mem.path,
             embedding: mem.embedding,
             metadata: mem.metadata,
@@ -386,6 +394,8 @@ export class JSONReader implements DataReader<JSONRecord> {
             failure_count: workerStats.failureCount || workerStats.failures || 0,
             avg_duration_ms: workerStats.avgDuration || workerStats.averageDurationMs,
             last_run: workerStats.lastRun,
+            // #1408: aqe.claude_flow_workers has captured_at, not created_at.
+            captured_at: new Date().toISOString(),
           });
         }
       }
@@ -420,8 +430,8 @@ export class JSONReader implements DataReader<JSONRecord> {
       }
     }
 
-    // Add created_at if missing
-    if (!transformed.created_at) {
+    // Add created_at if missing (worker stats carry captured_at instead)
+    if (!transformed.created_at && !transformed.captured_at) {
       transformed.created_at = new Date().toISOString();
     }
 

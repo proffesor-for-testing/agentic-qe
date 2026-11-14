@@ -319,6 +319,12 @@ export interface UpsertOptions {
    * a successful sync of fewer records (the writer still skips them).
    */
   onSkipped?: (count: number, reason: string) => void;
+
+  /**
+   * #1432: called with the record columns the cloud table does not have.
+   * Their values are not uploaded; the rest of each record is.
+   */
+  onMissingColumns?: (columns: string[]) => void;
 }
 
 /**
@@ -391,6 +397,12 @@ export interface PullSource {
    * for. `{env}` is replaced with the row's source_env.
    */
   fill?: Record<string, string>;
+
+  /**
+   * #1432: values for local NOT NULL columns that are NULL in the cloud, e.g.
+   * a column added to the cloud table after its rows were uploaded.
+   */
+  defaults?: Record<string, unknown>;
 
   /**
    * #1409: skip rows this machine uploaded itself (source_env equal to the
@@ -578,6 +590,8 @@ export const DEFAULT_PULL_CONFIG: PullConfig = {
       priority: 'medium',
       mode: 'append',
       dropColumns: ['source_env', 'sync_version'],
+      // #1432: cloud rows uploaded before migration 003 have no exploration value.
+      defaults: { exploration: 0 },
     },
     // QE trajectories (0 records in cloud currently)
     {
@@ -829,6 +843,29 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
         mode: 'full',
         jsonPath: '$.patterns', // #1384: real intelligence.json keeps its Q-patterns here
         enabled: true,
+      },
+      // #1408: daemon worker stats (run/success/failure counts and timings, no content).
+      {
+        name: 'claude-flow-daemon-workers',
+        type: 'json',
+        path: './.claude-flow/daemon-state.json',
+        targetTable: 'aqe.claude_flow_workers',
+        priority: 'low',
+        mode: 'full',
+        enabled: true,
+      },
+      // #1408: intelligence.json memories hold what was read, run and edited
+      // (content and embeddings), so they are not uploaded unless asked for:
+      // `aqe sync --full --sources intelligence-memories`.
+      {
+        name: 'intelligence-memories',
+        type: 'json',
+        path: './.ruvector/intelligence.json',
+        targetTable: 'aqe.intelligence_memories',
+        priority: 'low',
+        mode: 'full',
+        jsonPath: '$.memories',
+        enabled: false,
       },
     ],
   },

@@ -62,6 +62,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Incremental syncs now read through each source's query and compare
     epoch numbers and date text as times. `aqe sync verify` counts the same
     rows a sync uploads.
+- **Routing outcomes upload again** ([#1432]): every row was rejected
+  (`column "model_tier" of relation "routing_outcomes" does not exist`),
+  most likely since v3.7, because the local table has five columns the
+  cloud table lacked. A local column the cloud table does not have is now
+  left out and named in the sync report, and the rest of the row is
+  uploaded. The cloud schema adds the five columns (`model_tier`,
+  `advisor_consultation_json`, `exploration`, `criticality`, `q_weight`):
+  re-apply it with `aqe sync init --output cloud-schema.sql` and `psql`,
+  or run `src/sync/schema/migration-003.sql`. Both are safe to run again.
+  Then run `aqe sync --full`: rows uploaded before the schema change get
+  the new values. Append-only tables still never overwrite a cloud value;
+  they now fill one that is empty.
+- **`aqe sync init` works from the npm package** ([#1432]): the schema
+  files were not included in the package, so the command failed with
+  `Could not locate cloud-schema.sql`. `aqe sync init --dry-run` now prints
+  the schema; before, the parent `sync` command took `--dry-run`.
+- **Daemon worker stats upload** ([#1408]): `aqe sync --full` now sends
+  each worker's run, success and failure counts and timings from
+  `.claude-flow/daemon-state.json` to `aqe.claude_flow_workers`. They hold
+  no file or command content.
+- **intelligence.json memories can be uploaded, if you ask** ([#1408]):
+  they record what was read, run and edited, so they are off by default.
+  `aqe sync --full --sources intelligence-memories` uploads them to
+  `aqe.intelligence_memories`. Memories made in the same second share a
+  ruvector id, so each one gets a cloud id with a hash of its content, and
+  an exact repeat is uploaded once and counted in the report. Naming any
+  source in `--sources` turns it on. `aqe sync status` shows the source as
+  off (○), not as failed.
 
 ## [3.15.20] - 2026-11-12
 
@@ -218,6 +246,8 @@ instead of a floating tag.
   together, shown as `root-rl-q-values + intelligence-qlearning`.
 
 [#1409]: https://github.com/proffesor-for-testing/agentic-qe/issues/1409
+[#1432]: https://github.com/proffesor-for-testing/agentic-qe/issues/1432
+[#1408]: https://github.com/proffesor-for-testing/agentic-qe/issues/1408
 [#1407]: https://github.com/proffesor-for-testing/agentic-qe/issues/1407
 [#1415]: https://github.com/proffesor-for-testing/agentic-qe/issues/1415
 
