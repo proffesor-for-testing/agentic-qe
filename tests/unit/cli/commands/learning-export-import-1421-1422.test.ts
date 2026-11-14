@@ -21,7 +21,7 @@ vi.mock('../../../../src/cli/commands/learning-helpers.js', async (importOrigina
 }));
 
 import { createLearningCommand } from '../../../../src/cli/commands/learning.js';
-import { importedDomain, readPatternsReadOnly } from '../../../../src/cli/commands/learning-export-read.js';
+import { ImportTargets, importedDomain, readPatternsReadOnly } from '../../../../src/cli/commands/learning-export-read.js';
 
 const dir = mkdtempSync(join(tmpdir(), 'aqe-1421-'));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
@@ -42,15 +42,17 @@ const SCHEMA = `
 const ROWS = [
   { id: 'p1', type: 'test-template', domain: 'coverage-analysis', name: 'Coverage gap template', quality: 0.9 },
   { id: 'p2', type: 'test-template', domain: 'test-generation', name: 'AAA Unit Test', quality: 0.5 },
+  // Agent and hook paths store domains outside the QE domain list.
+  { id: 'p3', type: 'workflow', domain: 'general', name: 'coder-general-2026-10', quality: 0.3, tier: 'long-term', confidence: 0.99 },
 ];
 
 function projectDb(): string {
   const file = join(dir, `memory-${Math.random().toString(36).slice(2)}.db`);
   const db = new Database(file);
   db.exec(SCHEMA);
-  const insert = db.prepare(`INSERT INTO qe_patterns (id, pattern_type, qe_domain, domain, name, description, quality_score, template_json, context_json)
-                             VALUES (?, ?, ?, ?, ?, 'd', ?, '{"type":"code","content":"x","variables":[]}', '{"tags":[]}')`);
-  for (const r of ROWS) insert.run(r.id, r.type, r.domain, r.domain, r.name, r.quality);
+  const insert = db.prepare(`INSERT INTO qe_patterns (id, pattern_type, qe_domain, domain, name, description, quality_score, tier, confidence, template_json, context_json)
+                             VALUES (?, ?, ?, ?, ?, 'd', ?, ?, ?, '{"type":"code","content":"x","variables":[]}', '{"tags":[]}')`);
+  for (const r of ROWS) insert.run(r.id, r.type, r.domain, r.domain, r.name, r.quality, r.tier ?? 'short-term', r.confidence ?? 0.5);
   db.close();
   return file;
 }
@@ -78,7 +80,7 @@ describe('export does not write to memory.db (#1422)', () => {
     expect(digest(db)).toBe(before);
     const exported = JSON.parse(readFileSync(out, 'utf8')) as { patterns: Array<{ name: string; qeDomain: string }> };
     expect(exported.patterns.map(p => [p.name, p.qeDomain])).toEqual([
-      ['Coverage gap template', 'coverage-analysis'], ['AAA Unit Test', 'test-generation'],
+      ['Coverage gap template', 'coverage-analysis'], ['AAA Unit Test', 'test-generation'], ['coder-general-2026-10', 'general'],
     ]);
   });
 
@@ -114,26 +116,84 @@ describe('export does not write to memory.db (#1422)', () => {
 });
 
 describe('import keeps the exported domain (#1421)', () => {
-  it('accepts only real QE domains', () => {
+  it('accepts any domain name, including ones outside the QE domain list', () => {
     expect(importedDomain('coverage-analysis')).toBe('coverage-analysis');
-    expect(importedDomain('not-a-domain')).toBeUndefined();
+    expect(importedDomain('general')).toBe('general');
+    expect(importedDomain('Not A Domain!')).toBeUndefined();
+    expect(importedDomain('')).toBeUndefined();
     expect(importedDomain(undefined)).toBeUndefined();
     expect(importedDomain(42)).toBeUndefined();
   });
 
-  it.each([['import'], ['import-merge']])('%s passes qeDomain to storePattern', async (command) => {
+  it('matches existing rows by name, domain and type, and keeps their tier and confidence', () => {
+    const targets = new ImportTargets(readPatternsReadOnly(projectDb()));
+    expect(targets.resolve('coder-general-2026-10', 'workflow', 'general'))
+      .toEqual({ qeDomain: 'general', exists: true, tier: 'long-term', confidence: 0.99 });
+    // Same name in another domain is another row.
+    expect(targets.resolve('coder-general-2026-10', 'workflow', 'test-generation')).toEqual({ qeDomain: 'test-generation', exists: false });
+    // An older export without a domain matches the single row with that name and type.
+    expect(targets.resolve('Coverage gap template', 'test-template', undefined))
+      .toEqual({ qeDomain: 'coverage-analysis', exists: true, tier: 'short-term', confidence: 0.5 });
+    expect(targets.resolve('new pattern', 'test-template', 'coverage-analysis')).toEqual({ qeDomain: 'coverage-analysis', exists: false });
+  });
+
+  it('leaves a name and type that match several rows to the derived domain', () => {
+    const db = projectDb();
+    const raw = new Database(db);
+    raw.prepare(`INSERT INTO qe_patterns (id, pattern_type, qe_domain, domain, name) VALUES ('p4', 'test-template', 'test-execution', 'test-execution', 'AAA Unit Test')`).run();
+    raw.close();
+    expect(new ImportTargets(readPatternsReadOnly(db)).resolve('AAA Unit Test', 'test-template', undefined)).toEqual({ qeDomain: undefined, exists: false });
+  });
+
+  it.each([['import'], ['import-merge']])('%s passes the domain, and an existing row\'s tier and confidence, to storePattern', async (command) => {
     const storePattern = vi.fn(async () => ({ success: true as const, value: { id: 'x', embedding: [0.1] } }));
     mocks.initializeLearningSystem.mockResolvedValue({ storePattern });
     mocks.getDbPath.mockReturnValue(projectDb());
     const file = join(dir, `domains-${command}.json`);
     writeFileSync(file, JSON.stringify({ patterns: [
-      { name: 'kept', patternType: 'test-template', qeDomain: 'coverage-analysis', description: 'd', template: {} },
-      { name: 'derived', patternType: 'test-template', qeDomain: 'bogus', description: 'd', template: {} },
+      { name: 'coder-general-2026-10', patternType: 'workflow', qeDomain: 'general', tier: 'short-term', confidence: 0.1, description: 'd', template: {} },
+      { name: 'new one', patternType: 'test-template', qeDomain: 'coverage-analysis', tier: 'long-term', confidence: 1, description: 'd', template: {} },
+      { name: 'derived', patternType: 'test-template', qeDomain: 'Bogus Domain', description: 'd', template: {} },
     ] }));
 
     await run([command, '-i', file, '--json']);
 
-    expect(storePattern.mock.calls.map(([o]) => [(o as { name: string }).name, (o as { qeDomain?: string }).qeDomain]))
-      .toEqual([['kept', 'coverage-analysis'], ['derived', undefined]]);
+    const pick = (o: Record<string, unknown>) => [o.name, o.qeDomain, o.tier, o.confidence];
+    expect(storePattern.mock.calls.map(([o]) => pick(o as Record<string, unknown>))).toEqual([
+      // updates keep the row's own tier and confidence, not the file's
+      ['coder-general-2026-10', 'general', 'long-term', 0.99],
+      // a new row starts short-term at the default confidence, whatever the file says
+      ['new one', 'coverage-analysis', undefined, undefined],
+      ['derived', undefined, undefined, undefined],
+    ]);
+  });
+
+  it('import-merge counts an update only for a row with the same name, domain and type', async () => {
+    mocks.initializeLearningSystem.mockResolvedValue({ storePattern: vi.fn(async () => ({ success: true as const, value: { id: 'x', embedding: [0.1] } })) });
+    mocks.getDbPath.mockReturnValue(projectDb());
+    const file = join(dir, 'merge-counts.json');
+    writeFileSync(file, JSON.stringify({ patterns: [
+      { name: 'coder-general-2026-10', patternType: 'workflow', qeDomain: 'general', description: 'd', template: {} },
+      { name: 'coder-general-2026-10', patternType: 'workflow', qeDomain: 'test-generation', description: 'd', template: {} },
+    ] }));
+
+    await run(['import-merge', '-i', file, '--json']);
+
+    expect(mocks.printJson).toHaveBeenCalledWith(expect.objectContaining({ imported: 1, updated: 1, skipped: 0 }));
+  });
+});
+
+describe('PatternStore.create keeps a passed tier (#1421)', () => {
+  it('stores the tier an import passes for an existing row', async () => {
+    const { PatternStore } = await import('../../../../src/learning/pattern-store.js');
+    const memory = { get: vi.fn(async () => undefined), set: vi.fn(async () => {}), delete: vi.fn(async () => true), search: vi.fn(async () => []), has: vi.fn(async () => false) };
+    const store = new PatternStore(memory as never, { enableHNSW: false } as never);
+    const created = await store.create({
+      patternType: 'workflow', name: 'kept', description: 'd', template: { type: 'code', content: 'x', variables: [] },
+      qeDomain: 'general' as never, tier: 'long-term', confidence: 0.99,
+    });
+    expect(created.success && created.value).toMatchObject({ tier: 'long-term', confidence: 0.99, qeDomain: 'general' });
+    const defaults = await store.create({ patternType: 'workflow', name: 'new', description: 'd', template: { type: 'code', content: 'x', variables: [] } });
+    expect(defaults.success && defaults.value.tier).toBe('short-term');
   });
 });

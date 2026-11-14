@@ -99,8 +99,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Importing your own export no longer duplicates patterns** ([#1421]):
   `import` and `import-merge` ignored the exported domain and re-derived it
   from the pattern type, so a pattern came back in another domain as a new
-  row (70 patterns became 100). The exported domain is now kept when it is
-  a valid one, and a round trip updates the existing rows.
+  row (70 patterns became 100). The exported domain is now kept, including
+  domains such as `general` that agent and hook paths store, and a round
+  trip updates the existing rows. An update keeps the row's own tier and
+  confidence; before, re-importing a long-term pattern made it short-term
+  at confidence 0.5. New patterns still start short-term, whatever the file
+  says. Files from older versions without a domain update the one existing
+  row with the same name and type. `import-merge` counts a pattern as
+  updated only when the same name, domain and type already exist.
 
 ## [3.15.20] - 2026-11-12
 

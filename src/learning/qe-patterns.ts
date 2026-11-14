@@ -291,6 +291,11 @@ export interface CreateQEPatternOptions {
   confidence?: number;
   /** Explicit QE domain override. When provided, bypasses auto-detection from patternType. */
   qeDomain?: QEDomain;
+  /**
+   * #1421: tier to store. Defaults to short-term. Import passes the existing
+   * row's tier, because the upsert on (name, qe_domain, pattern_type) writes it.
+   */
+  tier?: 'short-term' | 'long-term';
 }
 
 /**

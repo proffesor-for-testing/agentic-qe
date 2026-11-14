@@ -22,7 +22,7 @@ import { stat, unlink } from 'node:fs/promises';
 import type { QEDomain, QEPatternType, QEPatternTemplate, QEPatternContext } from '../../learning/qe-patterns.js';
 import { countCuratedInFile, curationSummary, exportContext, importContext, selectMeasuredSuccessIds } from '../../learning/curated-patterns.js';
 import { QE_DOMAIN_LIST } from '../../learning/qe-patterns.js';
-import { importedDomain, readPatternsReadOnly } from './learning-export-read.js';
+import { ImportTargets, readPatternsReadOnly, type ImportTarget } from './learning-export-read.js';
 import {
   createLearningMetricsTracker,
 } from '../../learning/metrics-tracker.js';
@@ -502,6 +502,16 @@ function measuredSuccessIdsAt(dbPath: string): Set<string> {
   }
 }
 
+/**
+ * #1421: storePattern options for an import target. An update keeps the
+ * existing row's tier and confidence; a new row starts as before.
+ */
+function storeTarget(target: ImportTarget): { qeDomain?: QEDomain; tier?: 'short-term' | 'long-term'; confidence?: number } {
+  return target.exists
+    ? { qeDomain: target.qeDomain, tier: target.tier, confidence: target.confidence }
+    : { qeDomain: target.qeDomain };
+}
+
 function registerImportCommand(learning: Command): void {
   learning
     .command('import')
@@ -529,13 +539,15 @@ function registerImportCommand(learning: Command): void {
         if (!options.dryRun) {
           // #1422: only a real import starts the learning system (it writes).
           const reasoningBank = await initializeLearningSystem();
+          // #1421: read after start-up, so seeded rows are matched too.
+          const targets = new ImportTargets(readPatternsReadOnly(getDbPath()));
           for (const pattern of importData.patterns) {
             try {
               const result = await reasoningBank.storePattern({
                 patternType: pattern.patternType, name: pattern.name,
                 description: pattern.description, template: pattern.template,
-                // #1421: keep the exported domain, so a round trip updates the row.
-                qeDomain: importedDomain(pattern.qeDomain),
+                // #1421: the exported domain, and an existing row's tier and confidence.
+                ...storeTarget(targets.resolve(pattern.name, pattern.patternType, pattern.qeDomain)),
                 // #1388: keep the export's curation marker; --curate vouches for every row.
                 context: importContext(pattern.context, options.curate === true),
               });
@@ -1051,7 +1063,7 @@ function registerImportMergeCommand(learning: Command): void {
     .command('import-merge')
     .description('Import and merge patterns from export file (preserves existing data)')
     .requiredOption('-i, --input <file>', 'Input file path')
-    .option('--skip-duplicates', 'Skip patterns with matching names (default: update)')
+    .option('--skip-duplicates', 'Skip patterns that already exist (same name, domain and type; default: update)')
     .option('--dry-run', 'Show what would be imported without making changes')
     .option('--json', 'Output as JSON')
     .option('--curate', CURATE_HELP)
@@ -1075,20 +1087,27 @@ function registerImportMergeCommand(learning: Command): void {
         // #1388: make a self-declared curated pack visible.
         const curatedInFile = countCuratedInFile(importData.patterns as Array<{ context?: unknown }>);
 
-        // #1422: the duplicate check reads memory.db without writing to it.
-        const existingNames = new Set(readPatternsReadOnly(getDbPath()).map(p => p.name));
-
         let imported = 0, skipped = 0, updated = 0;
         const errors: string[] = [];
+        // #1421/#1422: existing rows are read read-only; a real import reads them
+        // after start-up, so seeded rows count as existing.
+        let existingCount = 0;
+        const existingTargets = (): ImportTargets => {
+          const existing = readPatternsReadOnly(getDbPath());
+          existingCount = existing.length;
+          return new ImportTargets(existing);
+        };
 
         if (!options.dryRun) {
           const reasoningBank = await initializeLearningSystem();
+          const targets = existingTargets();
           for (const pattern of importData.patterns) {
-            const isDuplicate = existingNames.has(pattern.name);
+            const target = targets.resolve(pattern.name, pattern.patternType, pattern.qeDomain);
+            const isDuplicate = target.exists;
             if (isDuplicate && options.skipDuplicates) { skipped++; continue; }
             try {
-              // #1421: keep the exported domain, so a round trip updates the row.
-              const result = await reasoningBank.storePattern({ patternType: pattern.patternType as QEPatternType, name: pattern.name, description: pattern.description, template: pattern.template as Omit<QEPatternTemplate, 'example'>, qeDomain: importedDomain(pattern.qeDomain), context: importContext(pattern.context as Partial<QEPatternContext> | undefined, options.curate === true) });
+              // #1421: the exported domain, and an existing row's tier and confidence.
+              const result = await reasoningBank.storePattern({ patternType: pattern.patternType as QEPatternType, name: pattern.name, description: pattern.description, template: pattern.template as Omit<QEPatternTemplate, 'example'>, ...storeTarget(target), context: importContext(pattern.context as Partial<QEPatternContext> | undefined, options.curate === true) });
               // #981: a committed row with a pending vector index is imported.
               if (result.success || committedPendingIndexPatternId(result.error)) { if (isDuplicate) updated++; else imported++; }
               else { skipped++; errors.push(`${pattern.name}: ${result.error.message}`); }
@@ -1098,8 +1117,9 @@ function registerImportMergeCommand(learning: Command): void {
 
         let wouldImport = 0, wouldSkip = 0, wouldUpdate = 0;
         if (options.dryRun) {
+          const targets = existingTargets();
           for (const pattern of importData.patterns) {
-            const isDuplicate = existingNames.has(pattern.name);
+            const isDuplicate = targets.resolve(pattern.name, pattern.patternType, pattern.qeDomain).exists;
             if (isDuplicate && options.skipDuplicates) wouldSkip++;
             else if (isDuplicate) wouldUpdate++;
             else wouldImport++;
@@ -1113,7 +1133,7 @@ function registerImportMergeCommand(learning: Command): void {
           console.log(`  Source: ${inputPath}`);
           console.log(`  Export version: ${importData.version || 'unknown'}`);
           console.log(`  Total patterns: ${importData.patterns.length}`);
-          console.log(`  Existing patterns: ${existingNames.size}`);
+          console.log(`  Existing patterns: ${existingCount}`);
           console.log(`  ${curationSummary(curatedInFile, importData.patterns.length, options.curate === true)}`);
 
           if (options.dryRun) {

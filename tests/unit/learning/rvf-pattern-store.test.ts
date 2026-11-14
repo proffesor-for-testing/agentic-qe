@@ -503,6 +503,24 @@ describe('RvfPatternStore', () => {
         expect(result.value.confidence).toBe(0.5); // default
       }
     });
+
+    it('keeps a tier and confidence passed by the caller (#1421 import update)', async () => {
+      const result = await store.create({
+        patternType: 'workflow',
+        name: 'Existing long-term',
+        description: 'updated by an import',
+        template: { type: 'code', content: 'x', variables: [] },
+        embedding: Array.from({ length: 384 }, () => Math.random()),
+        qeDomain: 'general' as never,
+        tier: 'long-term',
+        confidence: 0.99,
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.value).toMatchObject({ tier: 'long-term', confidence: 0.99, qeDomain: 'general' });
+      }
+    });
   });
 });
 
