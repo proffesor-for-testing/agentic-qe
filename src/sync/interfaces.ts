@@ -399,6 +399,12 @@ export interface PullSource {
   fill?: Record<string, string>;
 
   /**
+   * #1432: values for local NOT NULL columns that are NULL in the cloud, e.g.
+   * a column added to the cloud table after its rows were uploaded.
+   */
+  defaults?: Record<string, unknown>;
+
+  /**
    * #1409: skip rows this machine uploaded itself (source_env equal to the
    * local environment), so a pull never copies local data back as a
    * second row.
@@ -584,6 +590,8 @@ export const DEFAULT_PULL_CONFIG: PullConfig = {
       priority: 'medium',
       mode: 'append',
       dropColumns: ['source_env', 'sync_version'],
+      // #1432: cloud rows uploaded before migration 003 have no exploration value.
+      defaults: { exploration: 0 },
     },
     // QE trajectories (0 records in cloud currently)
     {
@@ -848,7 +856,7 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
       },
       // #1408: intelligence.json memories hold what was read, run and edited
       // (content and embeddings), so they are not uploaded unless asked for:
-      // `aqe sync --sources intelligence-memories`.
+      // `aqe sync --full --sources intelligence-memories`.
       {
         name: 'intelligence-memories',
         type: 'json',

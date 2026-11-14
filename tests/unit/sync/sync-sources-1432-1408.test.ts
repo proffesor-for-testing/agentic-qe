@@ -10,7 +10,9 @@ import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PostgresWriter } from '../../../src/sync/cloud/postgres-writer.js';
 import { createJSONReader } from '../../../src/sync/readers/json-reader.js';
-import { DEFAULT_SYNC_CONFIG, type SyncSource } from '../../../src/sync/interfaces.js';
+import { DEFAULT_SYNC_CONFIG, DEFAULT_PULL_CONFIG, type CloudWriter, type SyncSource } from '../../../src/sync/interfaces.js';
+import { createPostgresReader } from '../../../src/sync/cloud/postgres-reader.js';
+import { CloudSyncAgent } from '../../../src/sync/sync-agent.js';
 
 const ROOT = path.resolve(__dirname, '../../..');
 const LOCAL_ONLY = ['model_tier', 'advisor_consultation_json', 'exploration', 'criticality', 'q_weight'];
@@ -57,6 +59,20 @@ describe('PostgresWriter leaves out columns the cloud table lacks (#1432)', () =
     const insert = sent.find(q => q.sql.includes('INSERT INTO'))!;
     expect(insert.sql).not.toMatch(/model_tier|q_weight/);
     expect(insert.params).toEqual(['r1', 'coder', 'e', '2026-11-14T10:00:00Z']);
+  });
+
+  it('an append source fills cloud columns that are still NULL and never overwrites a value', async () => {
+    // Rows uploaded before migration 003 have NULL in the new columns; the
+    // next full sync must fill them, or they stay empty for good.
+    const { writer, sent } = writerWith([...CLOUD, 'model_tier', 'q_weight']);
+    await writer.connect();
+    await writer.upsert('aqe.routing_outcomes', [outcome], { skipIfExists: true });
+    const insert = sent.find(q => q.sql.includes('INSERT INTO'))!.sql.replace(/\s+/g, ' ');
+    expect(insert).toContain('INSERT INTO aqe.routing_outcomes AS existing');
+    expect(insert).toContain('ON CONFLICT (id) DO UPDATE SET');
+    expect(insert).toContain('model_tier = COALESCE(existing.model_tier, EXCLUDED.model_tier)');
+    expect(insert).toContain('WHERE (existing.used_agent IS NULL AND EXCLUDED.used_agent IS NOT NULL) OR');
+    expect(insert).not.toContain('DO NOTHING');
   });
 
   it('reports nothing when every column exists', async () => {
@@ -148,7 +164,7 @@ describe('#1408 sources', () => {
     expect(records.map(m => m.content).sort()).toEqual(['Reading: src/a.ts', 'Running: npm test']);
     expect(r.skippedOnRead()).toEqual({
       count: 2,
-      reason: '1 memory repeats an earlier one exactly (same id, type, content and time) and was uploaded once; ' +
+      reason: '1 memory repeats an earlier one exactly (every field the same) and was uploaded once; ' +
         '1 entry has no string id or memory_type and was skipped',
     });
   });
@@ -187,5 +203,43 @@ describe('aqe sync init --dry-run (#1432)', () => {
     const printed = out.join('\n');
     expect(printed).toMatch(/ALTER TABLE aqe\.routing_outcomes ADD COLUMN IF NOT EXISTS model_tier/);
     expect(printed).toMatch(/Dry run - no changes made/);
+  });
+});
+
+describe('opt-in sources in aqe sync status (#1408)', () => {
+  it('lists a source that is off as off, not as a failed reader', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-1408-status-'));
+    try {
+      const memories = DEFAULT_SYNC_CONFIG.sync.sources.find(s => s.name === 'intelligence-memories')!;
+      const agent = new CloudSyncAgent({
+        environment: 'e',
+        local: { ...DEFAULT_SYNC_CONFIG.local },
+        sync: { ...DEFAULT_SYNC_CONFIG.sync, sources: [{ ...memories, path: path.join(dir, 'intelligence.json') }] },
+      });
+      await agent.initialize();
+      const { sources } = await agent.getStatus();
+      expect(sources).toEqual([expect.objectContaining({ name: 'intelligence-memories', enabled: false })]);
+      expect(sources[0]).not.toHaveProperty('error');
+      await agent.close();
+    } finally {
+      vi.restoreAllMocks();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('pulling routing outcomes uploaded before migration 003 (#1432)', () => {
+  it('gives a NULL cloud exploration the local default 0', async () => {
+    const source = DEFAULT_PULL_CONFIG.sources.find(s => s.name === 'routing-outcomes')!;
+    expect(source.defaults).toEqual({ exploration: 0 });
+    const rows = [
+      { id: 'old', used_agent: 'coder', exploration: null, source_env: 'laptop' },
+      { id: 'new', used_agent: 'coder', exploration: 1, source_env: 'laptop' },
+    ];
+    const writer = { query: vi.fn().mockResolvedValue(rows) } as unknown as CloudWriter;
+    const read = await createPostgresReader({ writer, environment: 'all' }).readAll(source);
+    expect(read.map(r => [r.id, r.exploration])).toEqual([['old', 0], ['new', 1]]);
   });
 });

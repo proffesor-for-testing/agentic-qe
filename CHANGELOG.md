@@ -71,6 +71,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `advisor_consultation_json`, `exploration`, `criticality`, `q_weight`):
   re-apply it with `aqe sync init --output cloud-schema.sql` and `psql`,
   or run `src/sync/schema/migration-003.sql`. Both are safe to run again.
+  Then run `aqe sync --full`: rows uploaded before the schema change get
+  the new values. Append-only tables still never overwrite a cloud value;
+  they now fill one that is empty.
 - **`aqe sync init` works from the npm package** ([#1432]): the schema
   files were not included in the package, so the command failed with
   `Could not locate cloud-schema.sql`. `aqe sync init --dry-run` now prints
@@ -85,7 +88,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `aqe.intelligence_memories`. Memories made in the same second share a
   ruvector id, so each one gets a cloud id with a hash of its content, and
   an exact repeat is uploaded once and counted in the report. Naming any
-  source in `--sources` turns it on.
+  source in `--sources` turns it on. `aqe sync status` shows the source as
+  off (○), not as failed.
 
 ## [3.15.20] - 2026-11-12
 

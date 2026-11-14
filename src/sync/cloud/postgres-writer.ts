@@ -313,7 +313,15 @@ export class PostgresWriter implements CloudWriter {
     // Build ON CONFLICT clause (only when conflict columns are inferred/specified)
     let conflictClause = '';
     if (safeConflictColumns.length > 0) {
-      if (skipIfExists) {
+      if (skipIfExists && safeUpdateColumns.length > 0) {
+        // #1432: an append source never overwrites a cloud value, but fills
+        // one that is still NULL, e.g. a column added to the cloud table after
+        // the row was uploaded without it. Rows with nothing to fill are left
+        // alone (and not counted).
+        const fillSet = safeUpdateColumns.map(col => `${col} = COALESCE(existing.${col}, EXCLUDED.${col})`).join(', ');
+        const needsFill = safeUpdateColumns.map(col => `(existing.${col} IS NULL AND EXCLUDED.${col} IS NOT NULL)`).join(' OR ');
+        conflictClause = `ON CONFLICT (${safeConflictColumns.join(', ')}) DO UPDATE SET ${fillSet} WHERE ${needsFill}`;
+      } else if (skipIfExists) {
         conflictClause = `ON CONFLICT (${safeConflictColumns.join(', ')}) DO NOTHING`;
       } else if (safeUpdateColumns.length > 0) {
         const updateSet = safeUpdateColumns.map(col => `${col} = EXCLUDED.${col}`).join(', ');
@@ -323,7 +331,7 @@ export class PostgresWriter implements CloudWriter {
     // No ON CONFLICT for tables without a matching constraint (plain INSERT)
 
     const sql = `
-      INSERT INTO ${safeTable} (${safeColumns.join(', ')})
+      INSERT INTO ${safeTable} AS existing (${safeColumns.join(', ')})
       VALUES ${valuePlaceholders.join(', ')}
       ${conflictClause}
     `;

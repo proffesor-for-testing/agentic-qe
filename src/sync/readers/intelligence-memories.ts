@@ -4,8 +4,8 @@
  * ruvector names a memory `mem_<epoch seconds>`, so memories made in the same
  * second share an id, and the cloud table's key is `id` alone. Uploaded under
  * that id, a later memory replaced an earlier one, and the same id from another
- * environment would too. The cloud id adds a hash of the environment, type,
- * content and time, so distinct memories stay distinct and an exact repeat is
+ * environment would too. The cloud id adds a hash of the environment and
+ * every field, so distinct memories stay distinct and an exact repeat is
  * uploaded once.
  */
 import { createHash } from 'crypto';
@@ -22,7 +22,7 @@ export interface MemoryRead {
 /** The cloud id of a memory: the ruvector id plus a hash of what it holds. */
 export function memoryCloudId(environment: string, entry: JSONRecord): string {
   const hash = createHash('sha256')
-    .update(JSON.stringify([environment, entry.memory_type, entry.content, entry.timestamp]))
+    .update(JSON.stringify([environment, entry.memory_type, entry.content, entry.timestamp, entry.metadata ?? null, entry.embedding ?? null]))
     .digest('hex')
     .slice(0, 12);
   return `${String(entry.id)}-${hash}`;
@@ -55,7 +55,7 @@ export function toIntelligenceMemories(entries: JSONRecord[], environment: strin
   }
   const reasons: string[] = [];
   if (repeats > 0) {
-    reasons.push(`${repeats} ${repeats === 1 ? 'memory repeats' : 'memories repeat'} an earlier one exactly (same id, type, content and time) and ${repeats === 1 ? 'was' : 'were'} uploaded once`);
+    reasons.push(`${repeats} ${repeats === 1 ? 'memory repeats' : 'memories repeat'} an earlier one exactly (every field the same) and ${repeats === 1 ? 'was' : 'were'} uploaded once`);
   }
   if (notMemories > 0) {
     reasons.push(`${notMemories} ${notMemories === 1 ? 'entry has' : 'entries have'} no string id or memory_type and ${notMemories === 1 ? 'was' : 'were'} skipped`);

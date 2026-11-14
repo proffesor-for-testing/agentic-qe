@@ -386,13 +386,24 @@ export class CloudSyncAgent {
           priority: source.priority,
           ...(error ? { error } : {}),
         });
+      } else if (source.enabled === false) {
+        // #1408: a source that is off (e.g. opt-in intelligence-memories) has
+        // no reader by design; it is not a failure.
+        sources.push({
+          name: source.name,
+          type: source.type,
+          targetTable: source.targetTable,
+          recordCount: 0,
+          enabled: false,
+          priority: source.priority,
+        });
       } else {
         sources.push({
           name: source.name,
           type: source.type,
           targetTable: source.targetTable,
           recordCount: 0,
-          enabled: source.enabled !== false,
+          enabled: true,
           priority: source.priority,
           // #1378: say why the reader could not be opened (e.g. EACCES).
           error: this.readerErrors.get(source.name) ?? 'Reader not initialized',
@@ -676,13 +687,14 @@ function noteReadSkips(result: SyncResult, reader: DataReader): void {
 
 /**
  * #1432: local columns the cloud table lacks were not uploaded. A warning,
- * not a failure: the rows were written, and re-applying the cloud schema adds
- * the columns that AQE knows about.
+ * not a failure: the rows were written, and after the cloud schema is
+ * re-applied a full sync fills the new columns (append sources fill NULLs).
  */
 function noteMissingColumns(result: SyncResult, table: string, columns: string[]): void {
   (result.warnings ??= []).push(
     `${table} has no column ${columns.join(', ')}; those values were not uploaded. ` +
-    'Re-apply the cloud schema (aqe sync init --output cloud-schema.sql, then run it with psql) to add them.',
+    'Re-apply the cloud schema (aqe sync init --output cloud-schema.sql, then run it with psql) ' +
+    'and run aqe sync --full to add them to the rows already uploaded.',
   );
 }
 
