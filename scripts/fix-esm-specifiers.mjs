@@ -31,6 +31,9 @@ export function resolveRelativeSpecifier(importerPath, specifier) {
   if (/\.(?:[cm]?js|json|node)$/.test(cleanSpecifier)) return specifier;
 
   const resolved = path.resolve(path.dirname(importerPath), cleanSpecifier);
+  // Only a declaration may import a declaration-only module: at runtime a
+  // JavaScript importer needs the .js file to exist.
+  const isModule = importerPath.endsWith('.d.ts') ? isTypedModule : isRuntimeModule;
   // A directory specifier (`.`, `..`, `./dir/`) can only mean its index.
   if (/(?:^|\/)\.{1,2}$|\/$/.test(cleanSpecifier)) {
     const dir = cleanSpecifier.replace(/\/$/, '');
@@ -42,9 +45,13 @@ export function resolveRelativeSpecifier(importerPath, specifier) {
   return specifier;
 }
 
+function isRuntimeModule(base) {
+  return fs.existsSync(`${base}.js`);
+}
+
 /** A module emitted as JavaScript, or as a declaration only (#1439). */
-function isModule(base) {
-  return fs.existsSync(`${base}.js`) || fs.existsSync(`${base}.d.ts`);
+function isTypedModule(base) {
+  return isRuntimeModule(base) || fs.existsSync(`${base}.d.ts`);
 }
 
 export function normalizeEmittedESM(distDir) {
@@ -68,8 +75,8 @@ export function normalizeEmittedESM(distDir) {
       (match, prefix, quote, specifier, alias) => {
         const target = path.join(distDir, alias, specifier.slice(alias.length + 2));
         const targetExists = fs.existsSync(target)
-          || isModule(target)
-          || isModule(path.join(target, 'index'))
+          || isTypedModule(target)
+          || isTypedModule(path.join(target, 'index'))
           || fs.existsSync(`${target}.json`);
         if (!targetExists) return match;
         let relative = path.relative(path.dirname(file), target).split(path.sep).join('/');

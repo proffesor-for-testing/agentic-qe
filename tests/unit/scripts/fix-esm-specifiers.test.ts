@@ -185,6 +185,52 @@ describe('normalizeEmittedESM', () => {
       );
     });
 
+    it('should_keepJavaScriptImporters_onRuntimeFilesOnly', () => {
+      // Arrange: a declaration-only module has no file a .js import could load.
+      const distDir = makeDist();
+      fs.mkdirSync(path.join(distDir, 'lib'));
+      fs.writeFileSync(path.join(distDir, 'shapes.d.ts'), 'export type Shape = string;\n');
+      fs.writeFileSync(path.join(distDir, 'lib', 'index.js'), 'export const lib = 1;\n');
+      fs.writeFileSync(path.join(distDir, 'lib', 'util.js'), "import './shapes';\nexport { lib } from '.';\n");
+      fs.writeFileSync(path.join(distDir, 'a.js'), "import './shapes';\nexport { lib } from './lib/';\n");
+
+      // Act
+      normalizeEmittedESM(distDir);
+
+      // Assert
+      expect(fs.readFileSync(path.join(distDir, 'a.js'), 'utf8')).toBe(
+        "import './shapes';\nexport { lib } from './lib/index.js';\n",
+      );
+      expect(fs.readFileSync(path.join(distDir, 'lib', 'util.js'), 'utf8')).toBe(
+        "import './shapes';\nexport { lib } from './index.js';\n",
+      );
+    });
+
+    it('should_beIdempotent_andKeepSuffixes', () => {
+      // Arrange
+      const distDir = makeDist();
+      fs.mkdirSync(path.join(distDir, 'feature'));
+      fs.writeFileSync(path.join(distDir, 'feature', 'index.js'), 'export const f = 1;\n');
+      fs.writeFileSync(path.join(distDir, 'feature', 'index.d.ts'), 'export declare const f: number;\n');
+      fs.writeFileSync(path.join(distDir, 'dep.d.ts'), 'export type D = 1;\n');
+      fs.writeFileSync(
+        path.join(distDir, 'index.d.ts'),
+        "export * from './feature/?raw';\nexport * from './feature';\nexport type { D } from './dep';\n",
+      );
+
+      // Act
+      normalizeEmittedESM(distDir);
+      const once = fs.readFileSync(path.join(distDir, 'index.d.ts'), 'utf8');
+      const second = normalizeEmittedESM(distDir);
+
+      // Assert
+      expect(once).toBe(
+        "export * from './feature/index.js?raw';\nexport * from './feature/index.js';\nexport type { D } from './dep.js';\n",
+      );
+      expect(fs.readFileSync(path.join(distDir, 'index.d.ts'), 'utf8')).toBe(once);
+      expect(second.rewrittenSpecifiers).toBe(0);
+    });
+
     it('should_leaveUnresolvedAndPackageSpecifiersAlone', () => {
       // Arrange
       const distDir = makeDist();

@@ -23,7 +23,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err } from '../../shared/types/index.js';
 import { MemoryBackend } from '../../kernel/interfaces.js';
-import type { WorkflowOrchestrator, WorkflowContext } from '../../../src/coordination/workflow-orchestrator.js';
+import type { WorkflowOrchestrator, WorkflowContext } from '../../coordination/workflow-orchestrator.js';
 import { toErrorMessage, toError } from '../../shared/error-utils.js';
 import { secureRandom } from '../../shared/utils/crypto-random.js';
 
