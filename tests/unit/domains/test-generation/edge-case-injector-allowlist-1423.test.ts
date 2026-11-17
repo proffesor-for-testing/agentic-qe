@@ -115,6 +115,14 @@ describe('#1423 findInjectablePatterns', () => {
     expect(found.get('dup')?.description).toBe('HIGH');
   });
 
+  it('#1426: a curated pattern whose family mostly fails its measured runs is not injected', () => {
+    addPattern({ id: 'c', name: 'team-edge', description: 'Curated text', context: curated });
+    addPattern({ id: 'copy', name: 'team-edge (from test-generation)', description: 'x', context: curated, domain: 'test-execution' });
+    expect(findInjectablePatterns(db, ['team-edge']).size).toBe(1);
+    for (let i = 0; i < 3; i++) addRun('copy', 'measured', false);
+    expect(findInjectablePatterns(db, ['team-edge']).size).toBe(0);
+  });
+
   it('a fake curation marker does not count', () => {
     addPattern({ id: 'fake', name: 'fake-curated', description: 'x', context: { curation: 'agent' } });
     expect(findInjectablePatterns(db, ['fake']).size).toBe(0);

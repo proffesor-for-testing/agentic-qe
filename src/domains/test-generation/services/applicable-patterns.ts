@@ -19,6 +19,7 @@
 import type { Database } from 'better-sqlite3';
 import type { Pattern } from '../interfaces';
 import { MEASURED_USAGE_SQL, USAGE_RUN_SQL } from '../../../learning/usage-outcome.js';
+import { revokedAmong } from '../../../learning/curation-revocation.js';
 import { isBuiltinSeedName, isUserCurated } from '../../../learning/curated-patterns.js';
 import { getLanguageFromExtension } from '../../../shared/types/test-frameworks.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
@@ -26,17 +27,45 @@ import { safeJsonParse } from '../../../shared/safe-json.js';
 interface CandidateRow {
   id: string;
   name: string;
+  qe_domain: string;
   pattern_type: string;
   usage_count: number;
   quality_score: number;
   context_json: string | null;
   measured_success: number;
+  /** #1426: 1 when the pattern's family mostly fails its measured runs (set by withRevocation). */
+  measured_revoked?: number;
 }
 
 /** Candidate columns over `qe_patterns p`, with whether a measured success exists. */
-const COLUMNS = `p.id, p.name, p.pattern_type, p.usage_count, p.quality_score, p.context_json,
+const COLUMNS = `p.id, p.name, p.qe_domain, p.pattern_type, p.usage_count, p.quality_score, p.context_json,
   EXISTS (SELECT 1 FROM qe_pattern_usage u
           WHERE u.pattern_id = p.id AND u.success = 1 AND ${MEASURED_USAGE_SQL} = 1) AS measured_success`;
+
+/**
+ * #1426: mark the rows whose family (the pattern and its cross-domain copies)
+ * mostly fails its measured runs. One lookup for all the given rows.
+ */
+function withRevocation<T extends CandidateRow>(db: Database, rows: T[]): T[] {
+  const revoked = revokedAmong(db, rows);
+  return rows.map((row) => ({ ...row, measured_revoked: revoked.has(row.id) ? 1 : 0 }));
+}
+
+/**
+ * #1426: the first `limit` applicable rows, in order, that are not revoked.
+ * Revocation is looked up only for rows that pass every other check, a few at
+ * a time, so a large candidate list costs no more than the rows it needs.
+ */
+function firstApplicable(db: Database, rows: CandidateRow[], limit: number): CandidateRow[] {
+  const eligible = rows.filter(isApplicableToGeneration);
+  const picked: CandidateRow[] = [];
+  for (let i = 0; i < eligible.length && picked.length < limit; i += limit) {
+    for (const row of withRevocation(db, eligible.slice(i, i + limit))) {
+      if (picked.length < limit && isApplicableToGeneration(row)) picked.push(row);
+    }
+  }
+  return picked;
+}
 
 /** Extensions the shared language map does not list. */
 const EXTRA_LANGUAGES: Readonly<Record<string, string>> = { mts: 'typescript', cts: 'typescript' };
@@ -53,8 +82,15 @@ function parseContext(row: CandidateRow): Record<string, unknown> {
   }
 }
 
-/** #1388: seed, person-curated, or measured success. Everything else is unproven. */
-export function isApplicableToGeneration(row: Pick<CandidateRow, 'name' | 'context_json' | 'measured_success'>): boolean {
+/**
+ * #1388: seed, person-curated, or measured success. Everything else is unproven.
+ * #1426: none of these counts once the pattern's family mostly fails its
+ * measured runs (curation-revocation.ts); `measured_revoked` carries that.
+ */
+export function isApplicableToGeneration(
+  row: Pick<CandidateRow, 'name' | 'context_json' | 'measured_success' | 'measured_revoked'>,
+): boolean {
+  if (row.measured_revoked === 1) return false;
   if (row.measured_success === 1) return true;
   if (isBuiltinSeedName(row.name)) return true;
   return isUserCurated(parseContext(row as CandidateRow));
@@ -131,7 +167,8 @@ export function findInjectablePatterns(db: Database, refs: readonly string[]): M
        ORDER BY p.quality_score DESC, p.id`
     ).all(...chunk, ...chunk) as EvidenceRow[]);
   }
-  const injectable = rows.filter(isInjectable);
+  // #1426: a pattern whose family mostly fails its measured runs is not injected either.
+  const injectable = withRevocation(db, rows).filter(isInjectable);
   const result = new Map<string, ApplicablePatternEvidence>();
   for (const ref of unique) {
     const row = injectable.find((r) => r.id === ref) ?? injectable.find((r) => r.name === ref);
@@ -173,13 +210,11 @@ function queryExtensionPatterns(db: Database, sourceFile: string): CandidateRow[
      ORDER BY p.quality_score DESC`
   ).all(`%.${extension}%`, language) as CandidateRow[];
 
-  return candidates
+  return firstApplicable(db, candidates
     .filter((row) => {
       const declared = parseContext(row).language;
       return (language !== null && declared === language) || fileReference.test(row.context_json ?? '');
-    })
-    .filter(isApplicableToGeneration)
-    .slice(0, EXTENSION_MATCH_LIMIT);
+    }), EXTENSION_MATCH_LIMIT);
 }
 
 /**
@@ -193,8 +228,7 @@ export function queryApplicablePatterns(
   const patterns: Pattern[] = [];
   const byIdOrName = db.prepare(`SELECT ${COLUMNS} FROM qe_patterns p WHERE p.id = ? OR p.name = ?`);
   for (const requested of requestedPatterns) {
-    const rows = byIdOrName.all(requested, requested) as CandidateRow[];
-    const row = rows.find(isApplicableToGeneration);
+    const [row] = firstApplicable(db, byIdOrName.all(requested, requested) as CandidateRow[], 1);
     if (row && !patterns.some((p) => p.id === row.id)) patterns.push(toPattern(row));
   }
 

@@ -21,6 +21,7 @@ import { safeJsonParse } from '../../shared/safe-json.js';
 import { stat, unlink } from 'node:fs/promises';
 import type { QEDomain, QEPatternType, QEPatternTemplate, QEPatternContext } from '../../learning/qe-patterns.js';
 import { countCuratedInFile, curationSummary, exportContext, importContext, selectMeasuredSuccessIds } from '../../learning/curated-patterns.js';
+import { selectRevokedIds } from '../../learning/curation-revocation.js';
 import { QE_DOMAIN_LIST } from '../../learning/qe-patterns.js';
 import { readImportTargets, readPatternsReadOnly, type ImportTarget, type ImportTargets } from './learning-export-read.js';
 import {
@@ -33,6 +34,7 @@ import {
 import { openDatabase } from '../../shared/safe-db.js';
 import { backupLearningDatabase, restoreLearningDatabase } from './learning-snapshot.js';
 import { registerPruneCommand } from './learning-prune.js';
+import { curationCountsAt, formatCurationCounts, registerUnmarkCommand } from './learning-curation.js';
 import { describeDreamRetention } from '../../learning/learning-retention.js';
 import { createSQLitePatternStore } from '../../learning/sqlite-persistence.js';
 import { getActiveEmbeddingSpaceIdentity } from '../../learning/real-embeddings.js';
@@ -109,6 +111,7 @@ Examples:
   registerHealthCommand(learning);
   registerLoopHealthCommand(learning);
   registerPruneCommand(learning);
+  registerUnmarkCommand(learning);
 
   return learning;
 }
@@ -264,9 +267,11 @@ function registerStatsCommand(learning: Command): void {
       try {
         const reasoningBank = await initializeLearningSystem();
         const stats = await reasoningBank.getStats();
+        // #1426: curated patterns stay visible after import, with their origin.
+        const curation = curationCountsAt(getDbPath());
 
         if (options.json) {
-          printJson(stats);
+          printJson({ ...stats, curation });
         } else {
           console.log(chalk.bold('\n📊 AQE Learning System Statistics\n'));
           console.log(chalk.bold('Patterns:'));
@@ -275,6 +280,7 @@ function registerStatsCommand(learning: Command): void {
           console.log(`  Long-term: ${stats.patternStoreStats.byTier.longTerm}`);
           console.log(`  Avg Confidence: ${(stats.patternStoreStats.avgConfidence * 100).toFixed(1)}%`);
           console.log(`  Avg Quality: ${(stats.patternStoreStats.avgQualityScore * 100).toFixed(1)}%`);
+          console.log(`  Curated: ${formatCurationCounts(curation)}`);
 
           console.log(chalk.bold('\nBy Domain:'));
           const domainsWithPatterns = Object.entries(stats.byDomain)
@@ -449,7 +455,7 @@ function registerExportCommand(learning: Command): void {
         // #1422: read-only. Starting the learning system seeded patterns into memory.db.
         const patterns = readPatternsReadOnly(getDbPath(), options.domain)
           .filter(p => !options.longTermOnly || p.tier === 'long-term');
-        const measuredIds = measuredSuccessIdsAt(getDbPath());
+        const measuredIds = measuredEvidenceAt(getDbPath());
         const exportData = {
           version: '3.0.0', exportedAt: new Date().toISOString(), source: process.cwd(),
           patternCount: patterns.length,
@@ -459,7 +465,7 @@ function registerExportCommand(learning: Command): void {
             successfulUses: p.successfulUses, qualityScore: p.qualityScore, template: p.template,
             // #1388: a curation marker only for rows applicable now, so a round trip
             // does not turn unproven patterns into curated ones.
-            context: exportContext(p, measuredIds),
+            context: exportContext(p, measuredIds.success, measuredIds.revoked),
           })),
         };
 
@@ -491,14 +497,18 @@ const CURATE_HELP = 'Vouch for every pattern in the file: test generation applie
   + 'Without it, only patterns the export marked as curated (built-in, imported with --curate, stored with "aqe hooks learn", '
   + 'or with a measured success) are applied.';
 
-/** Ids with a measured successful usage in the project's memory.db; empty when it cannot be read (fail-closed). */
-function measuredSuccessIdsAt(dbPath: string): Set<string> {
+/**
+ * Ids with a measured successful usage, and (#1426) ids whose measured failures
+ * outweigh their successes, in the project's memory.db. Empty when it cannot be
+ * read: no success counts, so nothing is exported as curated without evidence.
+ */
+function measuredEvidenceAt(dbPath: string): { success: Set<string>; revoked: Set<string> } {
   try {
-    if (!existsSync(dbPath)) return new Set();
+    if (!existsSync(dbPath)) return { success: new Set(), revoked: new Set() };
     const db = openDatabase(dbPath, { readonly: true, fileMustExist: true });
-    try { return selectMeasuredSuccessIds(db); } finally { db.close(); }
+    try { return { success: selectMeasuredSuccessIds(db), revoked: selectRevokedIds(db) }; } finally { db.close(); }
   } catch {
-    return new Set();
+    return { success: new Set(), revoked: new Set() };
   }
 }
 
@@ -995,13 +1005,13 @@ function registerExportFullCommand(learning: Command): void {
 
         const schemaVersion = await getSchemaVersion(dbPath);
         // #1422: read-only. Starting the learning system seeded patterns into memory.db.
-        const measuredIds = measuredSuccessIdsAt(dbPath);
+        const measuredIds = measuredEvidenceAt(dbPath);
         const patterns = readPatternsReadOnly(dbPath).map(p => ({
           id: p.id, name: p.name, description: p.description,
           patternType: p.patternType, qeDomain: p.qeDomain, tier: p.tier,
           confidence: p.confidence, successRate: p.successRate,
           successfulUses: p.successfulUses, qualityScore: p.qualityScore,
-          template: p.template, context: exportContext(p, measuredIds),
+          template: p.template, context: exportContext(p, measuredIds.success, measuredIds.revoked),
           createdAt: isoTime(p.createdAt),
           lastUsedAt: isoTime(p.lastUsedAt),
         }));
