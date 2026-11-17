@@ -179,6 +179,11 @@ export class PostgresReader {
       result[localKey] = this.transformValue(value, key, source.transforms);
     }
 
+    // #1432: local NOT NULL columns whose cloud value is NULL.
+    for (const [column, value] of Object.entries(source.defaults ?? {})) {
+      if (result[column] === null || result[column] === undefined) result[column] = value;
+    }
+
     // #1409: local NOT NULL columns the cloud has no column for.
     for (const [column, template] of Object.entries(source.fill ?? {})) {
       result[column] = template.replace('{env}', String(row.source_env ?? 'unknown'));

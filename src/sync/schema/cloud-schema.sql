@@ -259,6 +259,16 @@ CREATE TABLE IF NOT EXISTS aqe.routing_outcomes (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- #1432: columns the local table gained after this table was created.
+-- ADD COLUMN IF NOT EXISTS, so re-applying this file adds them to an existing table.
+ALTER TABLE aqe.routing_outcomes ADD COLUMN IF NOT EXISTS model_tier TEXT;
+ALTER TABLE aqe.routing_outcomes ADD COLUMN IF NOT EXISTS advisor_consultation_json JSONB;
+ALTER TABLE aqe.routing_outcomes ADD COLUMN IF NOT EXISTS exploration INTEGER;
+-- Default for new rows only: rows uploaded before stay NULL until a full sync fills them.
+ALTER TABLE aqe.routing_outcomes ALTER COLUMN exploration SET DEFAULT 0;
+ALTER TABLE aqe.routing_outcomes ADD COLUMN IF NOT EXISTS criticality REAL;
+ALTER TABLE aqe.routing_outcomes ADD COLUMN IF NOT EXISTS q_weight REAL;
+
 -- QE trajectories (execution traces)
 -- Source: .agentic-qe/memory.db → qe_trajectories
 CREATE TABLE IF NOT EXISTS aqe.qe_trajectories (

@@ -107,9 +107,11 @@ export function createSyncCommands(): Command {
           process.exitCode = 1;
           return;
         }
-        config.sync!.sources = DEFAULT_SYNC_CONFIG.sync.sources.filter(
-          s => sourceNames.includes(s.name)
-        );
+        // #1408: naming a source turns it on, so an opt-in source (one that is
+        // off by default, such as intelligence-memories) runs only when asked for.
+        config.sync!.sources = DEFAULT_SYNC_CONFIG.sync.sources
+          .filter(s => sourceNames.includes(s.name))
+          .map(s => ({ ...s, enabled: true }));
       }
 
       const spinner = ora('Initializing sync agent...').start();
@@ -256,7 +258,9 @@ export function createSyncCommands(): Command {
     .description('Initialize cloud schema (requires GCP credentials)')
     .option('--dry-run', 'Print schema without executing')
     .option('-o, --output <file>', 'Save schema to file')
-    .action(async (options) => {
+    .action(async (_options, command: Command) => {
+      // #1432: the parent's --dry-run took the flag, so init --dry-run did not print the schema.
+      const options = subcommandOptions<{ dryRun?: boolean; output?: string }>(command);
       // Read schema file.
       // fix/init-v3-9-4: same chunk-split bundle regression as
       // governance-installer. Walk up to the agentic-qe package root

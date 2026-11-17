@@ -7,8 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`aqe learning unmark`** ([#1426]): removes the curation marker that makes
+  test generation apply a pattern without a measured success (set by `aqe hooks
+  learn --curate`, `aqe learning import --curate` or a marked export). Name
+  patterns by id or name, or use `--all`, optionally with `--domain`; the
+  cross-domain copies of a named pattern are included. It is a dry run unless
+  `--apply`, which backs up `memory.db` first and removes only the marker.
+- **`aqe learning stats` shows curated patterns** ([#1426]) by origin
+  (imported, or stored with `aqe hooks learn`), and how many are no longer
+  applied because of measured failures.
+
 ### Fixed
 
+- **Measured failures revoke curation** ([#1426]): a pattern whose measured
+  test runs fail more often than they pass, over at least 3 runs, is no longer
+  applied by test generation, whether it is curated, a built-in seed, or had
+  an earlier measured success, and an export no longer marks it as curated.
+  The runs of its cross-domain copies count too, since test runs record their
+  outcome on the test-execution copy. Nothing is rewritten: it is applied
+  again once passing runs catch up.
+- **Unproven memory entries no longer reach the test-generation LLM prompt**
+  ([#1423]): with an LLM configured, test generation added an "edge cases"
+  section built from any memory entry under `edge-case:` or `pattern:`, which
+  any agent can write with `memory_store` or `aqe memory store`, and labelled it
+  "from patterns that caught real bugs". An entry is now used only when it
+  names a stored test-generation pattern that you curated or that has a
+  measured success, and the prompt shows that pattern's own text. The section
+  is now titled "Edge Cases from stored patterns". A built-in seed's name is
+  not enough, because anyone storing a pattern can choose it.
+- **The package's types work under `moduleResolution: node16` and `nodenext`**
+  ([#1439]): the published `.d.ts` files imported other files without an
+  extension (`export * from './shared/types'`), so with those settings most
+  exports, such as `QEKernelImpl` and `ok`, were missing or typed as `any`, on
+  the main entrypoint and on subpaths such as `agentic-qe/kernel`. The build
+  now writes each declaration import with its full path, as it already did
+  for the JavaScript files, and also replaces the `@shared/...` path aliases
+  that 15 declaration files still contained.
 - **`aqe sync` stores Q-learning states and actions as plain text** ([#1407]):
   every `state` and `action` in `aqe.qlearning_patterns` was stored
   JSON-quoted (`"edit:ts"` with the quotes), and a state that was a 13-digit
@@ -62,6 +98,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Incremental syncs now read through each source's query and compare
     epoch numbers and date text as times. `aqe sync verify` counts the same
     rows a sync uploads.
+- **Routing outcomes upload again** ([#1432]): every row was rejected
+  (`column "model_tier" of relation "routing_outcomes" does not exist`),
+  most likely since v3.7, because the local table has five columns the
+  cloud table lacked. A local column the cloud table does not have is now
+  left out and named in the sync report, and the rest of the row is
+  uploaded. The cloud schema adds the five columns (`model_tier`,
+  `advisor_consultation_json`, `exploration`, `criticality`, `q_weight`):
+  re-apply it with `aqe sync init --output cloud-schema.sql` and `psql`,
+  or run `src/sync/schema/migration-003.sql`. Both are safe to run again.
+  Then run `aqe sync --full`: rows uploaded before the schema change get
+  the new values. Append-only tables still never overwrite a cloud value;
+  they now fill one that is empty.
+- **`aqe sync init` works from the npm package** ([#1432]): the schema
+  files were not included in the package, so the command failed with
+  `Could not locate cloud-schema.sql`. `aqe sync init --dry-run` now prints
+  the schema; before, the parent `sync` command took `--dry-run`.
+- **Daemon worker stats upload** ([#1408]): `aqe sync --full` now sends
+  each worker's run, success and failure counts and timings from
+  `.claude-flow/daemon-state.json` to `aqe.claude_flow_workers`. They hold
+  no file or command content.
+- **intelligence.json memories can be uploaded, if you ask** ([#1408]):
+  they record what was read, run and edited, so they are off by default.
+  `aqe sync --full --sources intelligence-memories` uploads them to
+  `aqe.intelligence_memories`. Memories made in the same second share a
+  ruvector id, so each one gets a cloud id with a hash of its content, and
+  an exact repeat is uploaded once and counted in the report. Naming any
+  source in `--sources` turns it on. `aqe sync status` shows the source as
+  off (○), not as failed.
+- **`aqe learning export` no longer writes to your learning database**
+  ([#1422]): `export` and `export-full` started the learning system, which
+  on a database it had not seen yet loads the built-in patterns and runs
+  cross-domain seeding, so exporting a fresh project wrote 70 patterns.
+  Both now read `memory.db` read-only and export exactly what it holds.
+  The `--dry-run` of `import` and `import-merge` no longer writes either.
+- **Importing your own export no longer duplicates patterns** ([#1421]):
+  `import` and `import-merge` ignored the exported domain and re-derived it
+  from the pattern type, so a pattern came back in another domain as a new
+  row (70 patterns became 100). The exported domain is now kept, including
+  domains such as `general` that agent and hook paths store, and a round
+  trip updates the existing rows. An update keeps the row's own tier and
+  confidence; before, re-importing a long-term pattern made it short-term
+  at confidence 0.5. New patterns still start short-term, whatever the file
+  says. Files from older versions without a domain update the one existing
+  row with the same name and type. `import-merge` counts a pattern as
+  updated only when the same name, domain and type already exist, and
+  `--skip-duplicates` skips only those (before, any pattern with the same
+  name). A row whose confidence decayed below 0.3, the lowest the pattern
+  store accepts, is updated at 0.3 instead of being skipped.
 
 ## [3.15.20] - 2026-11-12
 
@@ -218,6 +302,11 @@ instead of a floating tag.
   together, shown as `root-rl-q-values + intelligence-qlearning`.
 
 [#1409]: https://github.com/proffesor-for-testing/agentic-qe/issues/1409
+[#1439]: https://github.com/proffesor-for-testing/agentic-qe/issues/1439
+[#1432]: https://github.com/proffesor-for-testing/agentic-qe/issues/1432
+[#1421]: https://github.com/proffesor-for-testing/agentic-qe/issues/1421
+[#1422]: https://github.com/proffesor-for-testing/agentic-qe/issues/1422
+[#1408]: https://github.com/proffesor-for-testing/agentic-qe/issues/1408
 [#1407]: https://github.com/proffesor-for-testing/agentic-qe/issues/1407
 [#1415]: https://github.com/proffesor-for-testing/agentic-qe/issues/1415
 

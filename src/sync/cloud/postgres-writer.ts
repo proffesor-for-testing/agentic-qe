@@ -222,8 +222,14 @@ export class PostgresWriter implements CloudWriter {
 
     // Get columns from first record
     const firstRecord = records[0] as Record<string, unknown>;
-    const columns = Object.keys(firstRecord);
     const kinds = await this.columnKindsFor(table);
+    // #1432: a column the cloud table does not have would reject every row
+    // ("column ... does not exist"). It is left out and reported instead, so
+    // the rest of the row is uploaded. Kept when the table's columns are unknown.
+    const recordColumns = Object.keys(firstRecord);
+    const columns = kinds.size > 0 ? recordColumns.filter(c => kinds.has(c)) : recordColumns;
+    const missing = recordColumns.filter(c => !columns.includes(c));
+    if (missing.length > 0) options?.onMissingColumns?.(missing);
 
     // Build upsert SQL
     const conflictColumns = options?.conflictColumns || this.inferConflictColumns(table, columns);
@@ -307,7 +313,15 @@ export class PostgresWriter implements CloudWriter {
     // Build ON CONFLICT clause (only when conflict columns are inferred/specified)
     let conflictClause = '';
     if (safeConflictColumns.length > 0) {
-      if (skipIfExists) {
+      if (skipIfExists && safeUpdateColumns.length > 0) {
+        // #1432: an append source never overwrites a cloud value, but fills
+        // one that is still NULL, e.g. a column added to the cloud table after
+        // the row was uploaded without it. Rows with nothing to fill are left
+        // alone (and not counted).
+        const fillSet = safeUpdateColumns.map(col => `${col} = COALESCE(existing.${col}, EXCLUDED.${col})`).join(', ');
+        const needsFill = safeUpdateColumns.map(col => `(existing.${col} IS NULL AND EXCLUDED.${col} IS NOT NULL)`).join(' OR ');
+        conflictClause = `ON CONFLICT (${safeConflictColumns.join(', ')}) DO UPDATE SET ${fillSet} WHERE ${needsFill}`;
+      } else if (skipIfExists) {
         conflictClause = `ON CONFLICT (${safeConflictColumns.join(', ')}) DO NOTHING`;
       } else if (safeUpdateColumns.length > 0) {
         const updateSet = safeUpdateColumns.map(col => `${col} = EXCLUDED.${col}`).join(', ');
@@ -317,7 +331,7 @@ export class PostgresWriter implements CloudWriter {
     // No ON CONFLICT for tables without a matching constraint (plain INSERT)
 
     const sql = `
-      INSERT INTO ${safeTable} (${safeColumns.join(', ')})
+      INSERT INTO ${safeTable} AS existing (${safeColumns.join(', ')})
       VALUES ${valuePlaceholders.join(', ')}
       ${conflictClause}
     `;

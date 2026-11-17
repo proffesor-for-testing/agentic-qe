@@ -26,7 +26,14 @@ import { MEASURED_USAGE_SQL } from './usage-outcome.js';
 
 /** How a person curated a pattern. */
 export type PatternCuration = 'user-import' | 'user-store';
-const CURATIONS: ReadonlySet<string> = new Set<PatternCuration>(['user-import', 'user-store']);
+export const PATTERN_CURATIONS: readonly PatternCuration[] = ['user-import', 'user-store'];
+const CURATIONS: ReadonlySet<string> = new Set<string>(PATTERN_CURATIONS);
+
+/** #1426: how `aqe learning stats` names each origin. */
+export const CURATION_LABELS: Readonly<Record<PatternCuration, string>> = {
+  'user-import': 'imported',
+  'user-store': 'stored with "aqe hooks learn"',
+};
 
 /** The context field that carries the curation marker. */
 export const CURATION_FIELD = 'curation';
@@ -95,13 +102,16 @@ export function selectMeasuredSuccessIds(db: QueryableDb): Set<string> {
 
 /**
  * The context an export writes for one pattern: a curation marker only when
- * the pattern is applicable now (seed, curated, or measured success), and no
+ * the pattern is applicable now (seed, curated, or measured success, and not
+ * revoked by measured failures, see curation-revocation.ts, #1426), and no
  * marker otherwise.
  */
 export function exportContext<T extends object>(
   pattern: { id: string; name: string; context?: T },
-  measuredSuccessIds: ReadonlySet<string>
+  measuredSuccessIds: ReadonlySet<string>,
+  revokedIds: ReadonlySet<string> = new Set(),
 ): T {
+  if (revokedIds.has(pattern.id)) return withoutCuration(pattern.context);
   const applicable = isBuiltinSeedName(pattern.name) || isUserCurated(pattern.context) || measuredSuccessIds.has(pattern.id);
   if (!applicable) return withoutCuration(pattern.context);
   return markUserCurated(pattern.context, curationOf(pattern.context) ?? 'user-import');
