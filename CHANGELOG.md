@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Unproven memory entries no longer reach the test-generation LLM prompt**
+  ([#1423]): with an LLM configured, test generation added an "edge cases"
+  section built from any memory entry under `edge-case:` or `pattern:`, which
+  any agent can write with `memory_store` or `aqe memory store`, and labelled it
+  "from patterns that caught real bugs". An entry is now used only when it
+  names a stored test-generation pattern that you curated or that has a
+  measured success, and the prompt shows that pattern's own text. The section
+  is now titled "Edge Cases from stored patterns". A built-in seed's name is
+  not enough, because anyone storing a pattern can choose it.
 - **The package's types work under `moduleResolution: node16` and `nodenext`**
   ([#1439]): the published `.d.ts` files imported other files without an
   extension (`export * from './shared/types'`), so with those settings most

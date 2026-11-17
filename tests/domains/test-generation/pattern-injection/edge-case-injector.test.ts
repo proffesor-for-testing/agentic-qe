@@ -56,6 +56,36 @@ function createPatternData(overrides: Record<string, unknown> = {}): Record<stri
   };
 }
 
+/**
+ * #1423: the injector only uses entries that name an applicable stored
+ * pattern. These tests are about ranking and formatting, so this resolver
+ * treats every fixture entry as one: it reads the entry back through the
+ * memory mock and matches the reference to its name or key segment.
+ */
+function storedAsApplicable(memory: MemoryBackend) {
+  return async (refs: readonly string[]) => {
+    const found = new Map<string, { id: string; name: string; description: string; confidence: number; successRate: number; usageCount: number }>();
+    const keys = (await memory.search('*', 100)) as string[];
+    for (const key of keys) {
+      let value: Record<string, unknown> | undefined;
+      try { value = await memory.get<Record<string, unknown>>(key); } catch { continue; }
+      if (!value || typeof value !== 'object') continue;
+      const name = typeof value.name === 'string' ? value.name : key.split(':').pop() ?? key;
+      const evidence = {
+        id: key, name,
+        description: typeof value.description === 'string' ? value.description : '',
+        confidence: typeof value.confidence === 'number' ? value.confidence : 0.5,
+        successRate: typeof value.successRate === 'number' ? value.successRate : 0,
+        usageCount: typeof value.usageCount === 'number' ? value.usageCount : 0,
+      };
+      for (const ref of refs) {
+        if (!found.has(ref) && (ref === name || ref === key.split(':').pop())) found.set(ref, evidence);
+      }
+    }
+    return found;
+  };
+}
+
 const SAMPLE_SOURCE = `
 import { UserService } from './user-service';
 import { Database } from '../database';
@@ -158,11 +188,11 @@ describe('EdgeCaseInjector', () => {
       // Override search to return keys for any query
       vi.mocked(mockMemory.search).mockResolvedValue(patternKeys);
 
-      const injector = new EdgeCaseInjector(mockMemory);
+      const injector = new EdgeCaseInjector(mockMemory, undefined, storedAsApplicable(mockMemory));
       const result = await injector.getInjectionContext(SAMPLE_SOURCE, 'test-generation');
 
       expect(result.patternsUsed).toBeGreaterThan(0);
-      expect(result.promptContext).toContain('Historical Edge Cases');
+      expect(result.promptContext).toContain('Edge Cases from stored patterns');
       expect(result.promptContext).toContain('null-check');
     });
 
@@ -170,7 +200,7 @@ describe('EdgeCaseInjector', () => {
       const mockMemory = createMockMemory();
       vi.mocked(mockMemory.search).mockResolvedValue([]);
 
-      const injector = new EdgeCaseInjector(mockMemory);
+      const injector = new EdgeCaseInjector(mockMemory, undefined, storedAsApplicable(mockMemory));
       const result = await injector.getInjectionContext(SAMPLE_SOURCE);
 
       expect(result.promptContext).toBe('');
@@ -196,7 +226,7 @@ describe('EdgeCaseInjector', () => {
       const mockMemory = createMockMemory({}, getResults);
       vi.mocked(mockMemory.search).mockResolvedValue(keys);
 
-      const injector = new EdgeCaseInjector(mockMemory, { topN: 3 });
+      const injector = new EdgeCaseInjector(mockMemory, { topN: 3 }, storedAsApplicable(mockMemory));
       const result = await injector.getInjectionContext(SAMPLE_SOURCE);
 
       expect(result.patternsUsed).toBe(3);
@@ -219,7 +249,7 @@ describe('EdgeCaseInjector', () => {
       });
       vi.mocked(mockMemory.search).mockResolvedValue(keys);
 
-      const injector = new EdgeCaseInjector(mockMemory, { minConfidence: 0.5 });
+      const injector = new EdgeCaseInjector(mockMemory, { minConfidence: 0.5 }, storedAsApplicable(mockMemory));
       const result = await injector.getInjectionContext(SAMPLE_SOURCE);
 
       expect(result.patternsUsed).toBe(1);
@@ -244,10 +274,10 @@ describe('EdgeCaseInjector', () => {
       });
       vi.mocked(mockMemory.search).mockResolvedValue(keys);
 
-      const injector = new EdgeCaseInjector(mockMemory);
+      const injector = new EdgeCaseInjector(mockMemory, undefined, storedAsApplicable(mockMemory));
       const result = await injector.getInjectionContext(SAMPLE_SOURCE);
 
-      expect(result.promptContext).toMatch(/^## Historical Edge Cases/);
+      expect(result.promptContext).toMatch(/^## Edge Cases from stored patterns/);
       expect(result.promptContext).toMatch(/1\. \[null-check\] Test null inputs/);
       expect(result.promptContext).toMatch(/2\. \[boundary\] Test empty arrays/);
     });
@@ -272,7 +302,7 @@ describe('EdgeCaseInjector', () => {
       });
       vi.mocked(mockMemory.search).mockResolvedValue(keys);
 
-      const injector = new EdgeCaseInjector(mockMemory);
+      const injector = new EdgeCaseInjector(mockMemory, undefined, storedAsApplicable(mockMemory));
       const result = await injector.getInjectionContext(SAMPLE_SOURCE);
 
       // high-relevance should be first (item 1)
@@ -284,7 +314,7 @@ describe('EdgeCaseInjector', () => {
       const mockMemory = createMockMemory();
       vi.mocked(mockMemory.search).mockRejectedValue(new Error('DB connection failed'));
 
-      const injector = new EdgeCaseInjector(mockMemory);
+      const injector = new EdgeCaseInjector(mockMemory, undefined, storedAsApplicable(mockMemory));
       const result = await injector.getInjectionContext(SAMPLE_SOURCE);
 
       expect(result.promptContext).toBe('');
@@ -306,7 +336,7 @@ describe('EdgeCaseInjector', () => {
         return undefined;
       });
 
-      const injector = new EdgeCaseInjector(mockMemory);
+      const injector = new EdgeCaseInjector(mockMemory, undefined, storedAsApplicable(mockMemory));
       const result = await injector.getInjectionContext(SAMPLE_SOURCE);
 
       expect(result.patternsUsed).toBe(1);
@@ -317,7 +347,7 @@ describe('EdgeCaseInjector', () => {
       const mockMemory = createMockMemory();
       vi.mocked(mockMemory.search).mockResolvedValue([]);
 
-      const injector = new EdgeCaseInjector(mockMemory);
+      const injector = new EdgeCaseInjector(mockMemory, undefined, storedAsApplicable(mockMemory));
       await injector.getInjectionContext(SAMPLE_SOURCE, 'coverage-analysis');
 
       const searchCalls = vi.mocked(mockMemory.search).mock.calls;
@@ -336,7 +366,7 @@ describe('EdgeCaseInjector', () => {
       });
       vi.mocked(mockMemory.search).mockResolvedValue(keys);
 
-      const injector = new EdgeCaseInjector(mockMemory);
+      const injector = new EdgeCaseInjector(mockMemory, undefined, storedAsApplicable(mockMemory));
       const result = await injector.getInjectionContext(SAMPLE_SOURCE);
 
       expect(result.promptContext).toContain('[null-check]');
@@ -355,7 +385,7 @@ describe('EdgeCaseInjector', () => {
       });
       vi.mocked(mockMemory.search).mockResolvedValue(keys);
 
-      const injector = new EdgeCaseInjector(mockMemory);
+      const injector = new EdgeCaseInjector(mockMemory, undefined, storedAsApplicable(mockMemory));
       const result = await injector.getInjectionContext(SAMPLE_SOURCE);
 
       // Pattern with name inferred from key should still be included
@@ -370,7 +400,7 @@ describe('EdgeCaseInjector', () => {
       });
       vi.mocked(mockMemory.search).mockResolvedValue(keys);
 
-      const injector = new EdgeCaseInjector(mockMemory);
+      const injector = new EdgeCaseInjector(mockMemory, undefined, storedAsApplicable(mockMemory));
       const result = await injector.getInjectionContext(SAMPLE_SOURCE);
 
       expect(result.patternsUsed).toBe(0);
