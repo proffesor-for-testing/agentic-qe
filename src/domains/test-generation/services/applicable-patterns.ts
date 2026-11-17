@@ -167,7 +167,8 @@ export function findInjectablePatterns(db: Database, refs: readonly string[]): M
        ORDER BY p.quality_score DESC, p.id`
     ).all(...chunk, ...chunk) as EvidenceRow[]);
   }
-  const injectable = rows.filter(isInjectable);
+  // #1426: a pattern whose family mostly fails its measured runs is not injected either.
+  const injectable = withRevocation(db, rows).filter(isInjectable);
   const result = new Map<string, ApplicablePatternEvidence>();
   for (const ref of unique) {
     const row = injectable.find((r) => r.id === ref) ?? injectable.find((r) => r.name === ref);
