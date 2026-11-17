@@ -60,6 +60,43 @@ export function isApplicableToGeneration(row: Pick<CandidateRow, 'name' | 'conte
   return isUserCurated(parseContext(row as CandidateRow));
 }
 
+/** #1423: what the edge-case injector may put into an LLM prompt, read from the row. */
+export interface ApplicablePatternEvidence {
+  id: string;
+  name: string;
+  description: string;
+  confidence: number;
+  successRate: number;
+  usageCount: number;
+}
+
+interface EvidenceRow extends CandidateRow {
+  description: string | null;
+  confidence: number | null;
+  success_rate: number | null;
+}
+
+/**
+ * #1423: the stored pattern a reference (id or name) names, when test
+ * generation may apply it (seed, person-curated, or measured success). Its
+ * text and numbers come from qe_patterns, never from the caller. Read-only.
+ */
+export function findApplicablePattern(db: Database, ref: string): ApplicablePatternEvidence | null {
+  const rows = db.prepare(
+    `SELECT ${COLUMNS}, p.description, p.confidence, p.success_rate FROM qe_patterns p WHERE p.id = ? OR p.name = ?`
+  ).all(ref, ref) as EvidenceRow[];
+  const row = rows.find(isApplicableToGeneration);
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description ?? '',
+    confidence: row.confidence ?? 0,
+    successRate: row.success_rate ?? 0,
+    usageCount: row.usage_count ?? 0,
+  };
+}
+
 function toPattern(row: CandidateRow): Pattern {
   return {
     id: row.id,

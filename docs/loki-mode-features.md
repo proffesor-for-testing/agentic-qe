@@ -117,10 +117,10 @@ const feedback = createRoutingFeedbackCollector(10000, {
 **Problem**: Test generators don't learn from past bugs. The same edge cases get missed repeatedly.
 
 **How it works**:
-1. Before test generation, queries the pattern store for historical edge-case patterns matching the domain
-2. Ranks patterns by `successRate * applicationCount`
-3. Formats top-N patterns as prompt context
-4. Prepends to the LLM prompt: `"## Edge cases that caught real bugs in similar code: ..."`
+1. Before test generation, looks up memory entries (`edge-case:*`, `pattern:*`) matching the domain and the code's names
+2. Keeps an entry only when it names a stored pattern that test generation may apply: a built-in seed, a pattern curated by a person, or one with a measured success (#1423, the same rule as #1388). The prompt shows that pattern's own text, confidence and success rate, never the entry's
+3. Ranks them by success rate, confidence and usage, and formats the top N as prompt context
+4. Prepends to the LLM prompt: `"## Edge Cases from stored patterns (built-in, curated by a person, or with a measured success): ..."`
 
 **Enable**:
 ```typescript

@@ -2,18 +2,26 @@
  * Edge Case Injector - Pre-task Pattern Injection
  * Inspired by loki-mode compound learning loop
  *
- * Queries historical edge-case patterns from the MemoryBackend that
- * caught real bugs in similar code, formats them as prompt context,
- * and injects them before test generation LLM calls.
+ * Looks up edge-case entries in the MemoryBackend for the code under test,
+ * formats the stored patterns they name as prompt context, and injects them
+ * before test generation LLM calls.
  *
  * This creates a continuously improving test generation system where
  * patterns discovered in past testing inform future test generation.
+ *
+ * #1423: the same rule as the rest of test generation (#1388). A memory entry
+ * is only a pointer: it is injected when it names (by patternId, id, name or
+ * its key) a stored pattern that test generation may apply: a built-in seed,
+ * a pattern a person curated, or one with a measured success. The text and
+ * numbers in the prompt come from that qe_patterns row, never from the memory
+ * entry, which any agent can write through `memory_store`.
  */
 
 import { LoggerFactory } from '../../../logging/index.js';
 import type { MemoryBackend } from '../../../kernel/interfaces.js';
 import { generateRemediationHints } from '../../../learning/opd-remediation.js';
 import type { RemediationHint } from '../../../learning/opd-remediation.js';
+import type { ApplicablePatternEvidence } from '../services/applicable-patterns.js';
 
 // ============================================================================
 // Types
@@ -41,7 +49,26 @@ export interface InjectionContext {
   patternsUsed: number;
   /** Total patterns considered before filtering */
   totalConsidered: number;
+  /** #1423: memory entries left out because they name no applicable stored pattern */
+  withoutEvidence?: number;
 }
+
+/**
+ * #1423: resolve a reference (pattern id or name) to a stored pattern test
+ * generation may apply, or null. Fails closed.
+ */
+export type ApplicablePatternResolver = (ref: string) => Promise<ApplicablePatternEvidence | null>;
+
+/** Reads qe_patterns through the unified memory database (read-only). */
+export const resolveFromUnifiedMemory: ApplicablePatternResolver = async (ref) => {
+  try {
+    const { getUnifiedMemory } = await import('../../../kernel/unified-memory.js');
+    const { findApplicablePattern } = await import('../services/applicable-patterns.js');
+    return findApplicablePattern(getUnifiedMemory().getDatabase(), ref);
+  } catch {
+    return null;
+  }
+};
 
 /**
  * Internal representation of a retrieved pattern for ranking and formatting
@@ -130,7 +157,8 @@ export class EdgeCaseInjector {
 
   constructor(
     private readonly memory: MemoryBackend,
-    config?: Partial<EdgeCaseInjectionConfig>
+    config?: Partial<EdgeCaseInjectionConfig>,
+    private readonly resolvePattern: ApplicablePatternResolver = resolveFromUnifiedMemory,
   ) {
     this.config = { ...DEFAULT_INJECTION_CONFIG, ...config };
   }
@@ -149,11 +177,11 @@ export class EdgeCaseInjector {
 
     try {
       const keywords = extractKeywords(sourceCode);
-      const retrieved = await this.searchPatterns(keywords, domain);
+      const { patterns: retrieved, considered, withoutEvidence } = await this.searchPatterns(keywords, domain);
 
-      if (retrieved.length === 0) return emptyResult;
+      if (considered === 0) return emptyResult;
 
-      const totalConsidered = retrieved.length;
+      const totalConsidered = considered;
 
       // Filter by minimum confidence
       const filtered = retrieved.filter(p => p.confidence >= this.config.minConfidence);
@@ -169,7 +197,7 @@ export class EdgeCaseInjector {
       const selected = filtered.slice(0, this.config.topN);
 
       if (selected.length === 0) {
-        return { promptContext: '', patternsUsed: 0, totalConsidered };
+        return { promptContext: '', patternsUsed: 0, totalConsidered, withoutEvidence };
       }
 
       const promptContext = this.formatPromptContext(selected);
@@ -178,6 +206,7 @@ export class EdgeCaseInjector {
         promptContext,
         patternsUsed: selected.length,
         totalConsidered,
+        withoutEvidence,
       };
     } catch (error) {
       // Non-blocking: injection failure should never break test generation
@@ -189,8 +218,14 @@ export class EdgeCaseInjector {
   /**
    * Search memory backend for relevant patterns using keywords and domain.
    */
-  private async searchPatterns(keywords: string[], domain?: string): Promise<RetrievedPattern[]> {
+  private async searchPatterns(
+    keywords: string[],
+    domain?: string,
+  ): Promise<{ patterns: RetrievedPattern[]; considered: number; withoutEvidence: number }> {
     const patterns: RetrievedPattern[] = [];
+    const seenPatternIds = new Set<string>();
+    let considered = 0;
+    let withoutEvidence = 0;
 
     // Build search queries from keywords and domain
     const searchQueries: string[] = [];
@@ -218,8 +253,25 @@ export class EdgeCaseInjector {
             const value = await this.memory.get<Record<string, unknown>>(key);
             if (!value || typeof value !== 'object') continue;
 
-            const pattern = this.parsePattern(key, value);
-            if (pattern) patterns.push(pattern);
+            if (!this.parsePattern(key, value)) continue;
+            considered++;
+            // #1423: only a stored pattern test generation may apply, with its own text.
+            const evidence = await this.findEvidence(key, value);
+            if (!evidence) {
+              withoutEvidence++;
+              continue;
+            }
+            if (seenPatternIds.has(evidence.id)) continue;
+            seenPatternIds.add(evidence.id);
+            patterns.push({
+              key: evidence.id,
+              name: evidence.name,
+              description: evidence.description,
+              confidence: evidence.confidence,
+              successRate: evidence.successRate,
+              usageCount: evidence.usageCount,
+              tags: [],
+            });
           } catch {
             // Skip individual pattern retrieval failures
           }
@@ -229,7 +281,33 @@ export class EdgeCaseInjector {
       }
     }
 
-    return patterns;
+    if (withoutEvidence > 0) {
+      logger.debug(`Left out ${withoutEvidence} edge-case memory entries that name no applicable stored pattern (#1423)`);
+    }
+    return { patterns, considered, withoutEvidence };
+  }
+
+  /**
+   * #1423: the applicable stored pattern a memory entry names, if any. The
+   * entry may name it by patternId, id or name, or by the last segment of its key.
+   */
+  private async findEvidence(key: string, value: Record<string, unknown>): Promise<ApplicablePatternEvidence | null> {
+    const refs = new Set<string>();
+    for (const field of ['patternId', 'id', 'name'] as const) {
+      const ref = value[field];
+      if (typeof ref === 'string' && ref.trim()) refs.add(ref.trim());
+    }
+    const keySegment = key.split(':').pop();
+    if (keySegment) refs.add(keySegment);
+    for (const ref of refs) {
+      try {
+        const evidence = await this.resolvePattern(ref);
+        if (evidence) return evidence;
+      } catch {
+        // Fail closed: an unreadable reference is no evidence.
+      }
+    }
+    return null;
   }
 
   /**
@@ -257,7 +335,8 @@ export class EdgeCaseInjector {
    * Appends OPD remediation hints for patterns with low success rates.
    */
   private formatPromptContext(patterns: RetrievedPattern[]): string {
-    const lines: string[] = ['## Historical Edge Cases (from patterns that caught real bugs):'];
+    // #1423: say what the evidence is: built-in, curated, or measured (#1388).
+    const lines: string[] = ['## Edge Cases from stored patterns (built-in, curated by a person, or with a measured success):'];
 
     for (let i = 0; i < patterns.length; i++) {
       const p = patterns[i];
