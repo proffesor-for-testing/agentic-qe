@@ -118,9 +118,9 @@ const feedback = createRoutingFeedbackCollector(10000, {
 
 **How it works**:
 1. Before test generation, looks up memory entries (`edge-case:*`, `pattern:*`) matching the domain and the code's names
-2. Keeps an entry only when it names a stored pattern that test generation may apply: a built-in seed, a pattern curated by a person, or one with a measured success (#1423, the same rule as #1388). The prompt shows that pattern's own text, confidence and success rate, never the entry's
-3. Ranks them by success rate, confidence and usage, and formats the top N as prompt context
-4. Prepends to the LLM prompt: `"## Edge Cases from stored patterns (built-in, curated by a person, or with a measured success): ..."`
+2. Keeps an entry only when it names a stored test-generation pattern that a person curated or that has a measured success, and that test generation may apply (#1423, #1388). The prompt shows that pattern's own description, never the entry's text
+3. Ranks them by their measured success rate and number of measured runs, and their stored confidence, and formats the top N as prompt context
+4. Prepends to the LLM prompt: `"## Edge Cases from stored patterns (curated by a person, or with a measured success): ..."`
 
 **Enable**:
 ```typescript

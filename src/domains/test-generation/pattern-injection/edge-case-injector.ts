@@ -9,12 +9,12 @@
  * This creates a continuously improving test generation system where
  * patterns discovered in past testing inform future test generation.
  *
- * #1423: the same rule as the rest of test generation (#1388). A memory entry
- * is only a pointer: it is injected when it names (by patternId, id, name or
- * its key) a stored pattern that test generation may apply: a built-in seed,
- * a pattern a person curated, or one with a measured success. The text and
- * numbers in the prompt come from that qe_patterns row, never from the memory
- * entry, which any agent can write through `memory_store`.
+ * #1423: a memory entry is only a pointer, since any agent can write one
+ * through `memory_store` or `aqe memory store`. It is injected when it names
+ * (by patternId, id, name or its key) a stored test-generation pattern that a
+ * person curated or that has a measured success, and that test generation may
+ * apply (#1388). The prompt text comes from that qe_patterns row, and the
+ * ranking from its measured runs, never from the memory entry.
  */
 
 import { LoggerFactory } from '../../../logging/index.js';
@@ -54,19 +54,24 @@ export interface InjectionContext {
 }
 
 /**
- * #1423: resolve a reference (pattern id or name) to a stored pattern test
- * generation may apply, or null. Fails closed.
+ * #1423: resolve references (pattern ids or names) to the stored patterns that
+ * may be injected; a reference without one is absent from the map. Fails closed.
  */
-export type ApplicablePatternResolver = (ref: string) => Promise<ApplicablePatternEvidence | null>;
+export type ApplicablePatternResolver = (refs: readonly string[]) => Promise<Map<string, ApplicablePatternEvidence>>;
 
-/** Reads qe_patterns through the unified memory database (read-only). */
-export const resolveFromUnifiedMemory: ApplicablePatternResolver = async (ref) => {
+/**
+ * Reads qe_patterns through the already-open unified memory database
+ * (read-only). It never creates or opens one: without it, nothing is injected.
+ */
+export const resolveFromUnifiedMemory: ApplicablePatternResolver = async (refs) => {
   try {
-    const { getUnifiedMemory } = await import('../../../kernel/unified-memory.js');
-    const { findApplicablePattern } = await import('../services/applicable-patterns.js');
-    return findApplicablePattern(getUnifiedMemory().getDatabase(), ref);
+    const { getOpenUnifiedMemoryDatabase } = await import('../../../kernel/unified-memory.js');
+    const db = getOpenUnifiedMemoryDatabase();
+    if (!db) return new Map();
+    const { findInjectablePatterns } = await import('../services/applicable-patterns.js');
+    return findInjectablePatterns(db, refs);
   } catch {
-    return null;
+    return new Map();
   }
 };
 
@@ -241,6 +246,7 @@ export class EdgeCaseInjector {
     searchQueries.push(`${this.config.namespace}:*`);
 
     const seenKeys = new Set<string>();
+    const entries: Array<{ key: string; refs: string[] }> = [];
 
     for (const query of searchQueries) {
       try {
@@ -252,26 +258,8 @@ export class EdgeCaseInjector {
           try {
             const value = await this.memory.get<Record<string, unknown>>(key);
             if (!value || typeof value !== 'object') continue;
-
             if (!this.parsePattern(key, value)) continue;
-            considered++;
-            // #1423: only a stored pattern test generation may apply, with its own text.
-            const evidence = await this.findEvidence(key, value);
-            if (!evidence) {
-              withoutEvidence++;
-              continue;
-            }
-            if (seenPatternIds.has(evidence.id)) continue;
-            seenPatternIds.add(evidence.id);
-            patterns.push({
-              key: evidence.id,
-              name: evidence.name,
-              description: evidence.description,
-              confidence: evidence.confidence,
-              successRate: evidence.successRate,
-              usageCount: evidence.usageCount,
-              tags: [],
-            });
+            entries.push({ key, refs: this.referencesOf(key, value) });
           } catch {
             // Skip individual pattern retrieval failures
           }
@@ -281,6 +269,35 @@ export class EdgeCaseInjector {
       }
     }
 
+    // #1423: one lookup for every reference; only patterns with evidence, with their own text.
+    let resolved = new Map<string, ApplicablePatternEvidence>();
+    if (entries.length > 0) {
+      try {
+        resolved = await this.resolvePattern(entries.flatMap((e) => e.refs));
+      } catch {
+        // Fail closed: an unreadable store is no evidence.
+      }
+    }
+    for (const entry of entries) {
+      considered++;
+      const evidence = entry.refs.map((ref) => resolved.get(ref)).find((e) => e !== undefined);
+      if (!evidence) {
+        withoutEvidence++;
+        continue;
+      }
+      if (seenPatternIds.has(evidence.id)) continue;
+      seenPatternIds.add(evidence.id);
+      patterns.push({
+        key: evidence.id,
+        name: evidence.name,
+        description: evidence.description,
+        confidence: evidence.confidence,
+        successRate: evidence.successRate,
+        usageCount: evidence.usageCount,
+        tags: [],
+      });
+    }
+
     if (withoutEvidence > 0) {
       logger.debug(`Left out ${withoutEvidence} edge-case memory entries that name no applicable stored pattern (#1423)`);
     }
@@ -288,10 +305,10 @@ export class EdgeCaseInjector {
   }
 
   /**
-   * #1423: the applicable stored pattern a memory entry names, if any. The
-   * entry may name it by patternId, id or name, or by the last segment of its key.
+   * #1423: the references a memory entry may name its pattern by: patternId,
+   * id, name, then the last segment of its key.
    */
-  private async findEvidence(key: string, value: Record<string, unknown>): Promise<ApplicablePatternEvidence | null> {
+  private referencesOf(key: string, value: Record<string, unknown>): string[] {
     const refs = new Set<string>();
     for (const field of ['patternId', 'id', 'name'] as const) {
       const ref = value[field];
@@ -299,15 +316,7 @@ export class EdgeCaseInjector {
     }
     const keySegment = key.split(':').pop();
     if (keySegment) refs.add(keySegment);
-    for (const ref of refs) {
-      try {
-        const evidence = await this.resolvePattern(ref);
-        if (evidence) return evidence;
-      } catch {
-        // Fail closed: an unreadable reference is no evidence.
-      }
-    }
-    return null;
+    return [...refs];
   }
 
   /**
@@ -335,12 +344,13 @@ export class EdgeCaseInjector {
    * Appends OPD remediation hints for patterns with low success rates.
    */
   private formatPromptContext(patterns: RetrievedPattern[]): string {
-    // #1423: say what the evidence is: built-in, curated, or measured (#1388).
-    const lines: string[] = ['## Edge Cases from stored patterns (built-in, curated by a person, or with a measured success):'];
+    // #1423: say what the evidence is.
+    const lines: string[] = ['## Edge Cases from stored patterns (curated by a person, or with a measured success):'];
 
     for (let i = 0; i < patterns.length; i++) {
       const p = patterns[i];
-      const tag = p.tags.length > 0 ? p.tags[0] : this.inferTag(p);
+      // #1423: the tag is inferred from the stored name, never taken from a memory entry.
+      const tag = this.inferTag(p);
       const desc = p.description || p.name;
       lines.push(`${i + 1}. [${tag}] ${desc}`);
     }

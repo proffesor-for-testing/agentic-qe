@@ -63,23 +63,26 @@ function createPatternData(overrides: Record<string, unknown> = {}): Record<stri
  * memory mock and matches the reference to its name or key segment.
  */
 function storedAsApplicable(memory: MemoryBackend) {
-  return async (ref: string) => {
+  return async (refs: readonly string[]) => {
+    const found = new Map<string, { id: string; name: string; description: string; confidence: number; successRate: number; usageCount: number }>();
     const keys = (await memory.search('*', 100)) as string[];
     for (const key of keys) {
       let value: Record<string, unknown> | undefined;
       try { value = await memory.get<Record<string, unknown>>(key); } catch { continue; }
       if (!value || typeof value !== 'object') continue;
       const name = typeof value.name === 'string' ? value.name : key.split(':').pop() ?? key;
-      if (ref !== name && ref !== key.split(':').pop()) continue;
-      return {
+      const evidence = {
         id: key, name,
         description: typeof value.description === 'string' ? value.description : '',
         confidence: typeof value.confidence === 'number' ? value.confidence : 0.5,
         successRate: typeof value.successRate === 'number' ? value.successRate : 0,
         usageCount: typeof value.usageCount === 'number' ? value.usageCount : 0,
       };
+      for (const ref of refs) {
+        if (!found.has(ref) && (ref === name || ref === key.split(':').pop())) found.set(ref, evidence);
+      }
     }
-    return null;
+    return found;
   };
 }
 
