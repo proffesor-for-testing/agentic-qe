@@ -14,6 +14,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync }
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Command } from 'commander';
+import { spawn } from 'node:child_process';
 
 const state = vi.hoisted(() => ({ dbPath: '', json: [] as unknown[] }));
 vi.mock('../../../../src/cli/commands/learning-helpers.js', async (importOriginal) => ({
@@ -26,7 +27,8 @@ import {
   applyUnmark, curationCountsAt, formatCurationCounts, registerUnmarkCommand, selectUnmark,
 } from '../../../../src/cli/commands/learning-curation';
 import { queryApplicablePatterns } from '../../../../src/domains/test-generation/services/applicable-patterns';
-import { exportContext, selectMeasuredSuccessIds, selectRevokedIds } from '../../../../src/learning/curated-patterns';
+import { exportContext, selectMeasuredSuccessIds } from '../../../../src/learning/curated-patterns';
+import { selectRevokedIds } from '../../../../src/learning/curation-revocation';
 
 let dir: string;
 let db: Database.Database;
@@ -75,15 +77,19 @@ const applied = (ref: string) => queryApplicablePatterns(db, 'src/x.ts', [ref]).
 const contextOf = (id: string) => JSON.parse((db.prepare('SELECT context_json FROM qe_patterns WHERE id = ?').get(id) as { context_json: string }).context_json);
 
 describe('#1426 measured failures revoke curation (read time, nothing written)', () => {
-  it('a curated pattern is not applied once failed runs outnumber successful runs', () => {
+  it('a curated pattern is not applied once failed runs outnumber passing runs, over at least 3 runs', () => {
     addPattern('c', 'curated', { curation: 'user-store' });
     expect(applied('c')).toEqual(['c']);
     measuredRun('c', false);
-    expect(applied('c')).toEqual([]);
-    measuredRun('c', true);
-    expect(applied('c')).toEqual(['c']); // 1 failed, 1 passed: not outweighed
     measuredRun('c', false);
-    expect(applied('c')).toEqual([]);
+    expect(applied('c')).toEqual(['c']); // 2 runs: below the minimum
+    measuredRun('c', false);
+    expect(applied('c')).toEqual([]); // 0 pass, 3 fail
+    measuredRun('c', true);
+    measuredRun('c', true);
+    expect(applied('c')).toEqual([]); // 2 pass, 3 fail
+    measuredRun('c', true);
+    expect(applied('c')).toEqual(['c']); // 3 pass, 3 fail: not outweighed
     expect(contextOf('c')).toEqual({ curation: 'user-store' });
   });
 
@@ -98,10 +104,12 @@ describe('#1426 measured failures revoke curation (read time, nothing written)',
 
   it('a run with any failed row is a failed run', () => {
     addPattern('c', 'curated', { curation: 'user-import' });
-    db.prepare('INSERT INTO qe_pattern_usage (pattern_id, success, metrics_json) VALUES (?, ?, ?)')
-      .run('c', 1, JSON.stringify({ outcome: 'measured', runId: 'mixed' }));
-    db.prepare('INSERT INTO qe_pattern_usage (pattern_id, success, metrics_json) VALUES (?, ?, ?)')
-      .run('c', 0, JSON.stringify({ outcome: 'measured', runId: 'mixed' }));
+    for (const runId of ['m1', 'm2', 'm3']) {
+      for (const success of [1, 0]) {
+        db.prepare('INSERT INTO qe_pattern_usage (pattern_id, success, metrics_json) VALUES (?, ?, ?)')
+          .run('c', success, JSON.stringify({ outcome: 'measured', runId }));
+      }
+    }
     expect(applied('c')).toEqual([]);
   });
 
@@ -111,18 +119,51 @@ describe('#1426 measured failures revoke curation (read time, nothing written)',
     expect(applied('c')).toEqual(['c']);
   });
 
+  it('measured runs of a test-execution copy revoke the test-generation pattern (the production shape)', () => {
+    // execute-tests records measured outcomes on the patterns it used: the
+    // test-execution copies cross-domain seeding made, with their own ids.
+    addPattern('orig', 'team-cart', { curation: 'user-store', language: 'typescript' });
+    addPattern('copy', 'team-cart (from test-generation)', { curation: 'user-store' }, 'test-execution');
+    addPattern('other', 'team-cart (from security-compliance)', {}, 'test-execution');
+    for (let i = 0; i < 3; i++) measuredRun('copy', false);
+
+    expect(applied('orig')).toEqual([]);
+    expect(queryApplicablePatterns(db, 'src/cart.ts', []).map((p) => p.id)).toEqual([]);
+    expect([...selectRevokedIds(db)].sort()).toEqual(['copy', 'orig']);
+  });
+
+  it('a run that wrote a row for the pattern and its copy counts once', () => {
+    addPattern('orig', 'team-cart', { curation: 'user-store' });
+    addPattern('copy', 'team-cart (from test-generation)', { curation: 'user-store' }, 'test-execution');
+    for (const runId of ['r1', 'r2']) {
+      for (const id of ['orig', 'copy']) {
+        db.prepare('INSERT INTO qe_pattern_usage (pattern_id, success, metrics_json) VALUES (?, 0, ?)')
+          .run(id, JSON.stringify({ outcome: 'measured', runId }));
+      }
+    }
+    expect(applied('orig')).toEqual(['orig']); // 2 distinct runs: below the minimum
+  });
+
+  it('a same-named pattern in another domain is a different family', () => {
+    addPattern('tg', 'shared-name', { curation: 'user-store' });
+    addPattern('te', 'shared-name', {}, 'test-execution');
+    for (let i = 0; i < 3; i++) measuredRun('te', false);
+    expect(applied('tg')).toEqual(['tg']);
+  });
+
   it('an earlier measured success no longer applies a pattern that mostly fails', () => {
     addPattern('m', 'learned', {});
     measuredRun('m', true);
     expect(applied('m')).toEqual(['m']);
-    measuredRun('m', false);
-    measuredRun('m', false);
+    for (let i = 0; i < 3; i++) measuredRun('m', false);
     expect(applied('m')).toEqual([]);
   });
 
-  it('a built-in seed whose tests mostly fail is not applied either', () => {
+  it('a built-in seed whose tests mostly fail is not applied either; one red run is not enough', () => {
     addPattern('s', 'unit-test-generation', {});
+    measuredRun('s', false);
     expect(applied('s')).toEqual(['s']);
+    measuredRun('s', false);
     measuredRun('s', false);
     expect(applied('s')).toEqual([]);
   });
@@ -130,13 +171,13 @@ describe('#1426 measured failures revoke curation (read time, nothing written)',
   it('applies to the file-extension lookup too', () => {
     addPattern('k', 'kotlin-curated', { curation: 'user-import', language: 'kotlin' });
     expect(queryApplicablePatterns(db, 'src/Calc.kt', []).map((p) => p.id)).toEqual(['k']);
-    measuredRun('k', false);
+    for (let i = 0; i < 3; i++) measuredRun('k', false);
     expect(queryApplicablePatterns(db, 'src/Calc.kt', []).map((p) => p.id)).toEqual([]);
   });
 
   it('export writes no marker for a revoked pattern', () => {
     addPattern('c', 'curated', { curation: 'user-store', tags: ['t'] });
-    measuredRun('c', false);
+    for (let i = 0; i < 3; i++) measuredRun('c', false);
     const pattern = { id: 'c', name: 'curated', context: { curation: 'user-store', tags: ['t'] } };
     expect(exportContext(pattern, selectMeasuredSuccessIds(db), selectRevokedIds(db))).toEqual({ tags: ['t'] });
     expect(exportContext(pattern, selectMeasuredSuccessIds(db))).toEqual({ curation: 'user-store', tags: ['t'] });
@@ -187,6 +228,36 @@ describe('#1426 selectUnmark and applyUnmark', () => {
     expect((db.prepare('SELECT updated_at FROM qe_patterns WHERE id = ?').get('a') as { updated_at: string }).updated_at).toBeTruthy();
     expect(contextOf('b')).toEqual({ curation: 'user-store' });
     expect(applied('a')).toEqual([]);
+  });
+
+  it('changes only the marker in the stored JSON (large numbers, key order kept)', () => {
+    db.prepare('UPDATE qe_patterns SET context_json = ? WHERE id = ?')
+      .run('{"big":12345678901234567890,"curation":"user-import","z":[1,{"a":2}]}', 'a');
+    applyUnmark(db, selectUnmark(db, ['a'], {}).curated);
+    expect((db.prepare('SELECT context_json FROM qe_patterns WHERE id = ?').get('a') as { context_json: string }).context_json)
+      .toBe('{"big":12345678901234567890,"z":[1,{"a":2}]}');
+  });
+
+  it('waits for another process\'s write lock instead of failing at once', async () => {
+    db.pragma('journal_mode = WAL');
+    // Another process (an MCP server, a hook) holds the write lock for 600 ms.
+    const holder = spawn(process.execPath, ['-e', `
+      const Database = require(${JSON.stringify(require.resolve('better-sqlite3'))});
+      const db = new Database(${JSON.stringify(state.dbPath)});
+      db.exec('BEGIN IMMEDIATE');
+      process.stdout.write('locked\\n');
+      setTimeout(() => { db.exec('COMMIT'); db.close(); }, 600);
+    `]);
+    await new Promise<void>((resolve) => holder.stdout.once('data', () => resolve()));
+    const writer = new Database(state.dbPath, { timeout: 5000 });
+    const started = Date.now();
+    const changed = applyUnmark(writer, selectUnmark(writer, ['a'], {}).curated);
+    const waited = Date.now() - started;
+    writer.close();
+    await new Promise((resolve) => holder.once('exit', resolve));
+    expect(changed).toEqual(['a']);
+    expect(waited).toBeGreaterThan(200);
+    expect(contextOf('a')).toEqual({ tags: ['x'], language: 'kotlin' });
   });
 
   it('leaves a row alone when it is no longer curated when written', () => {
@@ -250,9 +321,12 @@ describe('#1426 aqe learning unmark (command)', () => {
     expect(existsSync(join(dir, '.agentic-qe', 'backups'))).toBe(false);
   });
 
-  it('a name that matches nothing exits with an error code', async () => {
+  it('a name that matches nothing exits with an error code, even beside found ones', async () => {
     const out = await run('missing');
     expect(out.notFound).toEqual(['missing']);
+    expect(process.exitCode).toBe(1);
+    const mixed = await run('missing', 'alpha', 'plain');
+    expect(mixed).toMatchObject({ notFound: ['missing'], notCurated: ['plain'] });
     expect(process.exitCode).toBe(1);
   });
 
@@ -276,7 +350,7 @@ describe('#1426 curation counts for aqe learning stats', () => {
     addPattern('s1', 'stored-1', { curation: 'user-store' });
     addPattern('x', 'fake', { curation: 'automatic' });
     addPattern('n', 'plain', { tags: ['curation'] });
-    measuredRun('i2', false);
+    for (let i = 0; i < 3; i++) measuredRun('i2', false);
     db.close();
 
     const counts = curationCountsAt(state.dbPath);

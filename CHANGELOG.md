@@ -22,10 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Measured failures revoke curation** ([#1426]): a pattern whose measured
-  test runs fail more often than they pass is no longer applied by test
-  generation, whether it is curated, a built-in seed, or had an earlier
-  measured success, and an export no longer marks it as curated. Nothing is
-  rewritten: it is applied again once passing runs catch up.
+  test runs fail more often than they pass, over at least 3 runs, is no longer
+  applied by test generation, whether it is curated, a built-in seed, or had
+  an earlier measured success, and an export no longer marks it as curated.
+  The runs of its cross-domain copies count too, since test runs record their
+  outcome on the test-execution copy. Nothing is rewritten: it is applied
+  again once passing runs catch up.
 - **Unproven memory entries no longer reach the test-generation LLM prompt**
   ([#1423]): with an LLM configured, test generation added an "edge cases"
   section built from any memory entry under `edge-case:` or `pattern:`, which

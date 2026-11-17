@@ -9,10 +9,10 @@
  * (the rest of the context is kept), after a verified backup of memory.db
  * unless `--no-backup`.
  *
- * Measured failures revoke curation without a write: once a pattern's
- * measured failed runs outnumber its measured successful runs, test generation
- * stops applying it (applicable-patterns.ts) and an export no longer marks it.
- * `stats` reports those patterns as revoked.
+ * Measured failures revoke curation without a write (curation-revocation.ts):
+ * once a pattern's family (the pattern and its cross-domain copies) mostly
+ * fails its measured runs, test generation stops applying it and an export no
+ * longer marks it. `stats` reports those patterns as revoked.
  */
 
 import path from 'node:path';
@@ -24,8 +24,9 @@ import chalk from 'chalk';
 import { openDatabase } from '../../shared/safe-db.js';
 import { safeJsonParse } from '../../shared/safe-json.js';
 import {
-  CURATION_LABELS, PATTERN_CURATIONS, curationOf, selectRevokedIds, withoutCuration, type PatternCuration,
+  CURATION_FIELD, CURATION_LABELS, PATTERN_CURATIONS, curationOf, type PatternCuration,
 } from '../../learning/curated-patterns.js';
+import { selectRevokedIds } from '../../learning/curation-revocation.js';
 import { backupLearningDatabase } from './learning-snapshot.js';
 import { getDbPath, printError, printJson } from './learning-helpers.js';
 
@@ -122,25 +123,26 @@ export function selectUnmark(db: Database, refs: readonly string[], options: { d
 }
 
 /**
- * Remove the curation field from the selected rows, in one transaction. A row
- * whose context changed since it was read is left alone. Returns the ids changed.
+ * Remove the curation field from the selected rows, in one transaction. Only
+ * that field changes (json_remove: the rest of the stored JSON is kept as
+ * written). A row no longer curated when written is left alone. The
+ * transaction takes the write lock first, so it waits out the busy timeout
+ * while another process (an MCP server, a hook) is writing. Returns the ids changed.
  */
 export function applyUnmark(db: Database, candidates: readonly UnmarkCandidate[]): string[] {
   const read = db.prepare('SELECT context_json FROM qe_patterns WHERE id = ?');
   const write = db.prepare(
-    `UPDATE qe_patterns SET context_json = ?, updated_at = datetime('now') WHERE id = ? AND context_json IS ?`
+    `UPDATE qe_patterns SET context_json = json_remove(context_json, '$.${CURATION_FIELD}'), updated_at = datetime('now')
+     WHERE id = ? AND context_json IS ? AND json_valid(context_json)`
   );
   const changed: string[] = [];
   db.transaction(() => {
     for (const candidate of candidates) {
       const row = read.get(candidate.id) as { context_json: string | null } | undefined;
-      if (!row) continue;
-      const context = parseContext(row.context_json);
-      if (!curationOf(context)) continue;
-      const next = JSON.stringify(withoutCuration(context));
-      if (write.run(next, candidate.id, row.context_json).changes === 1) changed.push(candidate.id);
+      if (!row || !curationOf(parseContext(row.context_json))) continue;
+      if (write.run(candidate.id, row.context_json).changes === 1) changed.push(candidate.id);
     }
-  })();
+  }).immediate();
   return changed;
 }
 
@@ -271,9 +273,8 @@ Examples:
           if (dryRun && selection.curated.length > 0) console.log(chalk.gray('\n  Re-run with --apply to remove the markers.'));
           console.log('');
         }
-        if (selection.notFound.length > 0 && selection.curated.length === 0 && selection.notCurated.length === 0) {
-          process.exitCode = 1;
-        }
+        // A name that matches nothing is an error, whatever else was found.
+        if (selection.notFound.length > 0) process.exitCode = 1;
       } catch (error) {
         printError(`unmark failed: ${error instanceof Error ? error.message : String(error)}`);
         process.exitCode = 1;

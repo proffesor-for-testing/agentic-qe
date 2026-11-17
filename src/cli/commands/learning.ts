@@ -20,7 +20,8 @@ import { existsSync, writeFileSync, readFileSync, copyFileSync, renameSync } fro
 import { safeJsonParse } from '../../shared/safe-json.js';
 import { stat, unlink } from 'node:fs/promises';
 import type { QEDomain, QEPatternType, QEPatternTemplate, QEPatternContext } from '../../learning/qe-patterns.js';
-import { countCuratedInFile, curationSummary, exportContext, importContext, selectMeasuredSuccessIds, selectRevokedIds } from '../../learning/curated-patterns.js';
+import { countCuratedInFile, curationSummary, exportContext, importContext, selectMeasuredSuccessIds } from '../../learning/curated-patterns.js';
+import { selectRevokedIds } from '../../learning/curation-revocation.js';
 import { QE_DOMAIN_LIST } from '../../learning/qe-patterns.js';
 import { readImportTargets, readPatternsReadOnly, type ImportTarget, type ImportTargets } from './learning-export-read.js';
 import {

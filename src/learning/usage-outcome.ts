@@ -89,20 +89,6 @@ export const MEASURED_USAGE_SQL =
 export const USAGE_RUN_SQL =
   `COALESCE(CASE WHEN json_valid(metrics_json) THEN json_extract(metrics_json, '$.runId') END, 'row:' || id)`;
 
-/**
- * #1426: SQL that is 1 when a pattern's measured failed runs outnumber its
- * measured successful runs, else 0. `patternIdSql` is the pattern id
- * expression of the enclosing query (e.g. `p.id`). A run fails when any of
- * its rows failed. Then measured evidence outweighs any declaration (seed,
- * curation, an earlier success) and test generation stops applying it.
- */
-export function measuredFailuresOutweighSql(patternIdSql: string): string {
-  return `(SELECT CASE WHEN SUM(1 - r.ok) > SUM(r.ok) THEN 1 ELSE 0 END FROM (
-    SELECT MIN(CASE WHEN u.success = 1 THEN 1 ELSE 0 END) AS ok FROM qe_pattern_usage u
-    WHERE u.pattern_id = ${patternIdSql} AND ${MEASURED_USAGE_SQL} = 1
-    GROUP BY ${USAGE_RUN_SQL}) r)`;
-}
-
 /** Fields of the reasoning-bank stats that describe usage outcomes. */
 interface OutcomeStats {
   learningOutcomes: number;

@@ -22,7 +22,7 @@
  */
 
 import { PRETRAINED_PATTERNS } from './pretrained-patterns.js';
-import { MEASURED_USAGE_SQL, USAGE_RUN_SQL } from './usage-outcome.js';
+import { MEASURED_USAGE_SQL } from './usage-outcome.js';
 
 /** How a person curated a pattern. */
 export type PatternCuration = 'user-import' | 'user-store';
@@ -101,23 +101,10 @@ export function selectMeasuredSuccessIds(db: QueryableDb): Set<string> {
 }
 
 /**
- * #1426: ids of patterns whose measured failed runs outnumber their measured
- * successful runs (the rule of measuredFailuresOutweighSql). Read-only.
- */
-export function selectRevokedIds(db: QueryableDb): Set<string> {
-  const rows = db.prepare(
-    `SELECT pattern_id AS id FROM (
-       SELECT pattern_id, MIN(CASE WHEN success = 1 THEN 1 ELSE 0 END) AS ok FROM qe_pattern_usage
-       WHERE ${MEASURED_USAGE_SQL} = 1 GROUP BY pattern_id, ${USAGE_RUN_SQL})
-     GROUP BY pattern_id HAVING SUM(1 - ok) > SUM(ok)`
-  ).all() as Array<{ id: string }>;
-  return new Set(rows.map((row) => row.id));
-}
-
-/**
  * The context an export writes for one pattern: a curation marker only when
  * the pattern is applicable now (seed, curated, or measured success, and not
- * revoked by measured failures, #1426), and no marker otherwise.
+ * revoked by measured failures, see curation-revocation.ts, #1426), and no
+ * marker otherwise.
  */
 export function exportContext<T extends object>(
   pattern: { id: string; name: string; context?: T },
