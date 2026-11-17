@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The package's types work under `moduleResolution: node16` and `nodenext`**
+  ([#1439]): the published `.d.ts` files imported other files without an
+  extension (`export * from './shared/types'`), so with those settings most
+  exports, such as `QEKernelImpl` and `ok`, were missing or typed as `any`, on
+  the main entrypoint and on subpaths such as `agentic-qe/kernel`. The build
+  now writes each declaration import with its full path, as it already did
+  for the JavaScript files, and also replaces the `@shared/...` path aliases
+  that 15 declaration files still contained.
 - **`aqe sync` stores Q-learning states and actions as plain text** ([#1407]):
   every `state` and `action` in `aqe.qlearning_patterns` was stored
   JSON-quoted (`"edit:ts"` with the quotes), and a state that was a 13-digit
@@ -266,6 +274,7 @@ instead of a floating tag.
   together, shown as `root-rl-q-values + intelligence-qlearning`.
 
 [#1409]: https://github.com/proffesor-for-testing/agentic-qe/issues/1409
+[#1439]: https://github.com/proffesor-for-testing/agentic-qe/issues/1439
 [#1432]: https://github.com/proffesor-for-testing/agentic-qe/issues/1432
 [#1421]: https://github.com/proffesor-for-testing/agentic-qe/issues/1421
 [#1422]: https://github.com/proffesor-for-testing/agentic-qe/issues/1422

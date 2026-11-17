@@ -7,13 +7,21 @@
  * CLI/MCP bundles resolve those, but package exports point at raw `dist/` ESM,
  * where Node requires an explicit file or directory index. This post-emit pass
  * keeps source churn contained while making the published artifact valid ESM.
+ *
+ * The emitted declaration files (.d.ts) get the same rewrite (#1439). The
+ * package is `"type": "module"`, so TypeScript reads them as ES modules, and
+ * under `moduleResolution: node16/nodenext` an extensionless relative import
+ * or a path alias does not resolve: the export goes missing or becomes `any`.
+ * A declaration imports its sibling by the runtime name (`./dep.js`), which
+ * TypeScript maps to `./dep.d.ts`.
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const SPECIFIER_RE = /(from\s*|import\s*\(\s*|import\s+)(['"])(\.{1,2}\/[^'"\n]+)\2/g;
+// `.` and `..` alone too: TypeScript writes `import("..").Type` into inferred declarations.
+const SPECIFIER_RE = /(from\s*|import\s*\(\s*|import\s+)(['"])(\.{1,2}(?:\/[^'"\n]*)?)\2/g;
 const ALIAS_SPECIFIER_RE = /(from\s*|import\s*\(\s*|import\s+)(['"])(@(shared|kernel|domains|coordination|adapters|integrations)\/[^'"\n]+)\2/g;
 
 export function resolveRelativeSpecifier(importerPath, specifier) {
@@ -23,10 +31,20 @@ export function resolveRelativeSpecifier(importerPath, specifier) {
   if (/\.(?:[cm]?js|json|node)$/.test(cleanSpecifier)) return specifier;
 
   const resolved = path.resolve(path.dirname(importerPath), cleanSpecifier);
-  if (fs.existsSync(`${resolved}.js`)) return `${cleanSpecifier}.js${suffix}`;
-  if (fs.existsSync(path.join(resolved, 'index.js'))) return `${cleanSpecifier}/index.js${suffix}`;
+  // A directory specifier (`.`, `..`, `./dir/`) can only mean its index.
+  if (/(?:^|\/)\.{1,2}$|\/$/.test(cleanSpecifier)) {
+    const dir = cleanSpecifier.replace(/\/$/, '');
+    return isModule(path.join(resolved, 'index')) ? `${dir}/index.js${suffix}` : specifier;
+  }
+  if (isModule(resolved)) return `${cleanSpecifier}.js${suffix}`;
+  if (isModule(path.join(resolved, 'index'))) return `${cleanSpecifier}/index.js${suffix}`;
   if (fs.existsSync(`${resolved}.json`)) return `${cleanSpecifier}.json${suffix}`;
   return specifier;
+}
+
+/** A module emitted as JavaScript, or as a declaration only (#1439). */
+function isModule(base) {
+  return fs.existsSync(`${base}.js`) || fs.existsSync(`${base}.d.ts`);
 }
 
 export function normalizeEmittedESM(distDir) {
@@ -50,8 +68,8 @@ export function normalizeEmittedESM(distDir) {
       (match, prefix, quote, specifier, alias) => {
         const target = path.join(distDir, alias, specifier.slice(alias.length + 2));
         const targetExists = fs.existsSync(target)
-          || fs.existsSync(`${target}.js`)
-          || fs.existsSync(path.join(target, 'index.js'))
+          || isModule(target)
+          || isModule(path.join(target, 'index'))
           || fs.existsSync(`${target}.json`);
         if (!targetExists) return match;
         let relative = path.relative(path.dirname(file), target).split(path.sep).join('/');
@@ -79,7 +97,8 @@ function listJavaScriptFiles(root) {
     for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
       const resolved = path.join(current, entry.name);
       if (entry.isDirectory()) pending.push(resolved);
-      else if (entry.isFile() && entry.name.endsWith('.js')) files.push(resolved);
+      // #1439: declarations too, so their imports resolve under node16/nodenext.
+      else if (entry.isFile() && (entry.name.endsWith('.js') || entry.name.endsWith('.d.ts'))) files.push(resolved);
     }
   }
   return files;
