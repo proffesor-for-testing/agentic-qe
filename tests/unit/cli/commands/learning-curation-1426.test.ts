@@ -159,6 +159,16 @@ describe('#1426 selectUnmark and applyUnmark', () => {
     expect(selection.notFound).toEqual(['missing']);
   });
 
+  it('includes the cross-domain copies seeding made of a named pattern', () => {
+    addPattern('a-exec', 'alpha (from test-generation)', { curation: 'user-import' }, 'test-execution');
+    addPattern('a-cov', 'alpha (from test-generation)', { curation: 'user-import' }, 'coverage-analysis');
+    addPattern('a-plain', 'alpha (from test-generation)', {}, 'quality-assessment');
+    addPattern('other', 'alpha (from security-compliance)', { curation: 'user-import' }, 'test-execution');
+
+    expect(selectUnmark(db, ['alpha'], {}).curated.map((c) => c.id).sort()).toEqual(['a', 'a-cov', 'a-exec']);
+    expect(selectUnmark(db, ['a'], { domain: 'test-execution' }).notFound).toEqual(['a']);
+  });
+
   it('narrows to one domain', () => {
     const selection = selectUnmark(db, ['beta', 'alpha'], { domain: 'security-compliance' });
     expect(selection.curated.map((c) => c.id)).toEqual(['b']);

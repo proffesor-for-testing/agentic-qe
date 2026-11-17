@@ -69,8 +69,9 @@ function hasPatternTable(db: Database): boolean {
 }
 
 /**
- * Select the curated patterns that `refs` (ids or names) name, or every
- * curated pattern with `all`, optionally in one domain. Read-only.
+ * Select the curated patterns that `refs` (ids or names) name, with their
+ * cross-domain copies, or every curated pattern with `all`, optionally in one
+ * domain. Read-only.
  */
 export function selectUnmark(db: Database, refs: readonly string[], options: { domain?: string; all?: boolean }): UnmarkSelection {
   const selection: UnmarkSelection = { curated: [], notCurated: [], notFound: [] };
@@ -102,10 +103,20 @@ export function selectUnmark(db: Database, refs: readonly string[], options: { d
   const byRef = db.prepare(
     `SELECT id, name, qe_domain, context_json FROM qe_patterns WHERE (id = ? OR name = ?)${inDomain} ORDER BY qe_domain, name`
   );
+  // Cross-domain seeding copies a pattern, marker included, as `<name> (from <domain>)`.
+  const copiesOf = db.prepare(
+    `SELECT id, name, qe_domain, context_json FROM qe_patterns WHERE name = ?${inDomain} ORDER BY qe_domain, name`
+  );
   for (const ref of refs) {
     const rows = byRef.all(ref, ref, ...domainArgs) as PatternRow[];
-    if (rows.length === 0) selection.notFound.push(ref);
-    else if (!rows.map(take).some(Boolean)) selection.notCurated.push(ref);
+    if (rows.length === 0) {
+      selection.notFound.push(ref);
+      continue;
+    }
+    if (!rows.map(take).some(Boolean)) selection.notCurated.push(ref);
+    for (const row of rows) {
+      for (const copy of copiesOf.all(`${row.name} (from ${row.qe_domain})`, ...domainArgs) as PatternRow[]) take(copy);
+    }
   }
   return selection;
 }
