@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.15.21] - 2026-11-17
+
+You can take back a pattern you curated with `aqe learning unmark`, and
+patterns whose measured test runs mostly fail are no longer applied.
+Unproven memory entries no longer reach the test-generation LLM prompt. The
+package's types work under `moduleResolution: node16` and `nodenext`.
+`aqe sync` uploads Q-learning rows as plain text, routing outcomes and
+daemon worker stats again, and `aqe sync pull` works. `aqe learning export`
+no longer writes to your database, and re-importing an export no longer
+duplicates patterns.
+
 ### Added
 
 - **`aqe learning unmark`** ([#1426]): removes the curation marker that makes
