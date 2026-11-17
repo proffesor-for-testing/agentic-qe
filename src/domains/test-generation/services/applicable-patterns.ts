@@ -18,7 +18,7 @@
 
 import type { Database } from 'better-sqlite3';
 import type { Pattern } from '../interfaces';
-import { MEASURED_USAGE_SQL, USAGE_RUN_SQL } from '../../../learning/usage-outcome.js';
+import { MEASURED_USAGE_SQL, USAGE_RUN_SQL, measuredFailuresOutweighSql } from '../../../learning/usage-outcome.js';
 import { isBuiltinSeedName, isUserCurated } from '../../../learning/curated-patterns.js';
 import { getLanguageFromExtension } from '../../../shared/types/test-frameworks.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
@@ -31,12 +31,15 @@ interface CandidateRow {
   quality_score: number;
   context_json: string | null;
   measured_success: number;
+  /** #1426: 1 when measured failed runs outnumber measured successful runs. */
+  measured_revoked?: number;
 }
 
 /** Candidate columns over `qe_patterns p`, with whether a measured success exists. */
 const COLUMNS = `p.id, p.name, p.pattern_type, p.usage_count, p.quality_score, p.context_json,
   EXISTS (SELECT 1 FROM qe_pattern_usage u
-          WHERE u.pattern_id = p.id AND u.success = 1 AND ${MEASURED_USAGE_SQL} = 1) AS measured_success`;
+          WHERE u.pattern_id = p.id AND u.success = 1 AND ${MEASURED_USAGE_SQL} = 1) AS measured_success,
+  ${measuredFailuresOutweighSql('p.id')} AS measured_revoked`;
 
 /** Extensions the shared language map does not list. */
 const EXTRA_LANGUAGES: Readonly<Record<string, string>> = { mts: 'typescript', cts: 'typescript' };
@@ -53,8 +56,15 @@ function parseContext(row: CandidateRow): Record<string, unknown> {
   }
 }
 
-/** #1388: seed, person-curated, or measured success. Everything else is unproven. */
-export function isApplicableToGeneration(row: Pick<CandidateRow, 'name' | 'context_json' | 'measured_success'>): boolean {
+/**
+ * #1388: seed, person-curated, or measured success. Everything else is unproven.
+ * #1426: none of these counts once the pattern's measured failed runs
+ * outnumber its measured successful runs.
+ */
+export function isApplicableToGeneration(
+  row: Pick<CandidateRow, 'name' | 'context_json' | 'measured_success' | 'measured_revoked'>,
+): boolean {
+  if (row.measured_revoked === 1) return false;
   if (row.measured_success === 1) return true;
   if (isBuiltinSeedName(row.name)) return true;
   return isUserCurated(parseContext(row as CandidateRow));
