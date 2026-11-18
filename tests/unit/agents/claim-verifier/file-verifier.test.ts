@@ -13,8 +13,9 @@ vi.mock('node:fs/promises', () => ({
   stat: vi.fn(),
 }));
 
-vi.mock('tinyglobby', () => ({
-  glob: vi.fn(),
+vi.mock('../../../../src/shared/safe-glob', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../../src/shared/safe-glob')>()),
+  safeGlob: vi.fn(),
 }));
 
 vi.mock('../../../../src/agents/claim-verifier/index', () => ({
@@ -22,7 +23,7 @@ vi.mock('../../../../src/agents/claim-verifier/index', () => ({
 }));
 
 import { readFile, stat } from 'node:fs/promises';
-import { glob } from 'tinyglobby';
+import { safeGlob as glob, UnsafeGlobError } from '../../../../src/shared/safe-glob';
 import { FileBasedVerifier } from '../../../../src/agents/claim-verifier/verifiers/file-verifier';
 
 const mockedStat = vi.mocked(stat);
@@ -184,6 +185,20 @@ describe('FileBasedVerifier', () => {
 
       // Assert
       expect(result.verified).toBe(false);
+      expect(result.reasoning).toContain('not found');
+    });
+  });
+
+  describe('unsupported glob patterns (#1458)', () => {
+    it('should_recordUnverifiedEvidenceInsteadOfThrowing_when_theGlobIsRejected', async () => {
+      const claim = makeClaim({ statement: 'All database queries use parameterized queries', evidence: [] });
+      mockedGlob.mockRejectedValue(new UnsafeGlobError('+(a|b)', 'extglob syntax is not supported'));
+
+      const result = await verifier.verify(claim);
+
+      expect(result.verified).toBe(false);
+      expect(result.instancesChecked).toBe(1);
+      expect(result.instancesPassed).toBe(0);
       expect(result.reasoning).toContain('not found');
     });
   });

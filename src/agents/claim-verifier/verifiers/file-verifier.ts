@@ -12,7 +12,7 @@
 
 import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { glob } from 'tinyglobby';
+import { safeGlob, UnsafeGlobError } from '../../../shared/safe-glob.js';
 import type {
   Claim,
   Evidence,
@@ -320,12 +320,27 @@ export class FileBasedVerifier {
 
     for (const { pattern, fileGlob } of patterns) {
       const searchGlob = fileGlob ?? '**/*.{ts,js,tsx,jsx}';
-      const files = await glob(searchGlob, {
-        cwd: this.config.rootDir,
-        ignore: this.config.excludePatterns,
-        absolute: true,
-        expandDirectories: false,
-      });
+      let files: string[];
+      try {
+        // #1458: the glob comes from the claim; safeGlob rejects extglobs and `..`.
+        files = await safeGlob(searchGlob, {
+          cwd: this.config.rootDir,
+          ignore: this.config.excludePatterns,
+          absolute: true,
+        });
+      } catch (error) {
+        if (!(error instanceof UnsafeGlobError)) throw error;
+        // The rejected pattern may be the search glob or one of excludePatterns.
+        evidence.push({
+          type: 'file-reference',
+          location: error.pattern,
+          content: error.message,
+          verified: false,
+          timestamp: new Date(),
+        });
+        totalFiles++;
+        continue;
+      }
 
       const filesToCheck = maxInstances && !checkAll
         ? files.slice(0, maxInstances)

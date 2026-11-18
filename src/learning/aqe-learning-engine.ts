@@ -1009,7 +1009,7 @@ export class AQELearningEngine {
     depth: 'shallow' | 'medium' | 'deep'
   ): Promise<PretrainResult> {
     try {
-      const { glob } = await import('tinyglobby');
+      const { safeGlob: glob } = await import('../shared/safe-glob.js');
       const { existsSync, readFileSync } = await import('fs');
       const { join } = await import('path');
 
@@ -1025,8 +1025,6 @@ export class AQELearningEngine {
       const files = await glob(patterns, {
         cwd: targetPath,
         ignore,
-        expandDirectories: false,
-        onlyFiles: true,
       });
 
       // Detect languages and frameworks
