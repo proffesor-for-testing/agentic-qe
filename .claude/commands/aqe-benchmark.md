@@ -186,17 +186,22 @@ npx ruflo@3.76.0 memory store \
 ### Pre-Task Hook
 
 ```bash
+# One id per run; post-task below records the outcome against it
+BENCH_ID="aqe-benchmark-$(date +%s)"
 npx ruflo@3.76.0 hooks pre-task \
-  --description "Benchmark: ${target}" \
-  --agent "qe-performance-tester"
+  --task-id "${BENCH_ID}" \
+  --description "Benchmark: ${target}"
 ```
 
 ### Post-Task Hook
 
 ```bash
+# Set TASK_SUCCEEDED to true or false from the actual result; results go to `memory store` above
 npx ruflo@3.76.0 hooks post-task \
-  --task-id "${BENCH_ID}" \
-  --results "${BENCH_RESULTS}"
+  --task-id "${BENCH_ID:?run the pre-task block first, in the same shell}" \
+  --success "${TASK_SUCCEEDED:?set to true or false}" \
+  --agent "qe-performance-tester" \
+  --task "Benchmark: ${target}"
 ```
 
 ### Notify Fleet

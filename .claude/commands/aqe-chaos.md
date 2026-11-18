@@ -186,9 +186,11 @@ npx ruflo@3.76.0 memory store \
 ### Pre-Task Hook
 
 ```bash
+# One id per run; post-task below records the outcome against it
+CHAOS_ID="aqe-chaos-$(date +%s)"
 npx ruflo@3.76.0 hooks pre-task \
-  --description "Chaos test: ${scenario}" \
-  --agent "qe-test-executor"
+  --task-id "${CHAOS_ID}" \
+  --description "Chaos test: ${scenario}"
 ```
 
 ### During Chaos (monitoring)
@@ -201,9 +203,12 @@ npx ruflo@3.76.0 hooks notify \
 ### Post-Task Hook
 
 ```bash
+# Set TASK_SUCCEEDED to true or false from the actual result; results go to `memory store` above
 npx ruflo@3.76.0 hooks post-task \
-  --task-id "${CHAOS_ID}" \
-  --results "${CHAOS_RESULTS}"
+  --task-id "${CHAOS_ID:?run the pre-task block first, in the same shell}" \
+  --success "${TASK_SUCCEEDED:?set to true or false}" \
+  --agent "qe-chaos-engineer" \
+  --task "Chaos test: ${scenario}"
 ```
 
 ## Expected Outputs

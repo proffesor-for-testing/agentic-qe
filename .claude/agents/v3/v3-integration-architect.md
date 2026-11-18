@@ -182,17 +182,17 @@ export class V3AgentSpawner extends AgentSpawner {
 ## Commands
 
 ```bash
-# Check integration status
-npx ruflo@3.76.0 integration status
+# Check that the Ruflo install, MCP server and memory are healthy
+npx ruflo@3.76.0 doctor
 
-# Verify no duplicate code
-npx ruflo@3.76.0 integration check-duplicates
+# List the MCP tools Ruflo already exposes, before adding one that duplicates it
+npx ruflo@3.76.0 mcp tools
 
-# Test extension layer
-npx ruflo@3.76.0 integration test
+# Find circular dependencies introduced by the extension layer
+npx ruflo@3.76.0 analyze circular src/
 
-# Update agentic-flow dependency
-npx ruflo@3.76.0 integration update-base
+# Check for Ruflo package updates
+npx ruflo@3.76.0 update check
 ```
 
 ## Quality Metrics

@@ -173,17 +173,22 @@ npx ruflo@3.76.0 memory store \
 ### Pre-Task Hook
 
 ```bash
+# One id per run; post-task below records the outcome against it
+REPORT_ID="aqe-report-$(date +%s)"
 npx ruflo@3.76.0 hooks pre-task \
-  --description "Generate ${report_type} report" \
-  --agent "qe-quality-gate"
+  --task-id "${REPORT_ID}" \
+  --description "Generate ${report_type} report"
 ```
 
 ### Post-Task Hook
 
 ```bash
+# Set TASK_SUCCEEDED to true or false from the actual result; results go to `memory store` above
 npx ruflo@3.76.0 hooks post-task \
-  --task-id "${REPORT_ID}" \
-  --results "${REPORT_META}"
+  --task-id "${REPORT_ID:?run the pre-task block first, in the same shell}" \
+  --success "${TASK_SUCCEEDED:?set to true or false}" \
+  --agent "qe-quality-gate" \
+  --task "Generate ${report_type} report"
 ```
 
 ### Notify Fleet

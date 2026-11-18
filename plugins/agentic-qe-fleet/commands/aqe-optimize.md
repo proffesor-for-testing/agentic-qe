@@ -180,17 +180,22 @@ npx ruflo@3.76.0 memory store \
 ### Pre-Task Hook
 
 ```bash
+# One id per run; post-task below records the outcome against it
+OPT_ID="aqe-optimize-$(date +%s)"
 npx ruflo@3.76.0 hooks pre-task \
-  --description "Optimize ${target} with ${algorithm}" \
-  --agent "qe-coverage-analyzer"
+  --task-id "${OPT_ID}" \
+  --description "Optimize ${target} with ${algorithm}"
 ```
 
 ### Post-Task Hook
 
 ```bash
+# Set TASK_SUCCEEDED to true or false from the actual result; results go to `memory store` above
 npx ruflo@3.76.0 hooks post-task \
-  --task-id "${OPT_ID}" \
-  --results "${OPT_RESULTS}"
+  --task-id "${OPT_ID:?run the pre-task block first, in the same shell}" \
+  --success "${TASK_SUCCEEDED:?set to true or false}" \
+  --agent "qe-coverage-specialist" \
+  --task "Optimize ${target} with ${algorithm}"
 ```
 
 ### Notify Fleet

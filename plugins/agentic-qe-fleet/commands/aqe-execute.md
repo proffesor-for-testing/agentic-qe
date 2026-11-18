@@ -178,9 +178,11 @@ npx ruflo@3.76.0 memory store \
 ### Pre-Task Hook
 
 ```bash
+# One id per run; post-task below records the outcome against it
+RUN_ID="aqe-execute-$(date +%s)"
 npx ruflo@3.76.0 hooks pre-task \
-  --description "Execute test suite: ${suite}" \
-  --agent "qe-test-executor"
+  --task-id "${RUN_ID}" \
+  --description "Execute test suite: ${suite}"
 ```
 
 ### During Execution (real-time updates)
@@ -194,9 +196,12 @@ npx ruflo@3.76.0 hooks notify \
 ### Post-Task Hook
 
 ```bash
+# Set TASK_SUCCEEDED to true or false from the actual result; results go to `memory store` above
 npx ruflo@3.76.0 hooks post-task \
-  --task-id "${RUN_ID}" \
-  --results "${EXECUTION_RESULTS}"
+  --task-id "${RUN_ID:?run the pre-task block first, in the same shell}" \
+  --success "${TASK_SUCCEEDED:?set to true or false}" \
+  --agent "qe-parallel-executor" \
+  --task "Execute test suite: ${suite}"
 ```
 
 ## Expected Outputs
