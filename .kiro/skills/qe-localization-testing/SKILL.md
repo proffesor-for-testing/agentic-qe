@@ -198,9 +198,9 @@ const l10nFleet = await FleetManager.coordinate({
 ---
 
 ## Related Skills
-- [accessibility-testing](../accessibility-testing/) - Language accessibility
-- [compatibility-testing](../compatibility-testing/) - Cross-platform i18n
-- [visual-testing-advanced](../visual-testing-advanced/) - RTL visual regression
+- [accessibility-testing](../qe-accessibility-testing/) - Language accessibility
+- [compatibility-testing](../qe-compatibility-testing/) - Cross-platform i18n
+- [visual-testing-advanced](../qe-visual-testing-advanced/) - RTL visual regression
 
 ---
 

@@ -21,7 +21,7 @@ When assessing testability:
 TEST_URL='https://example.com/' npx playwright test tests/testability-scoring/testability-scoring.spec.js --project=chromium --workers=1
 
 # Or use shell script wrapper
-.claude/skills/testability-scoring/scripts/run-assessment.sh https://example.com/
+.kiro/skills/qe-testability-scoring/scripts/run-assessment.sh https://example.com/
 ```
 
 **The 10 Principles at a Glance:**
@@ -112,7 +112,7 @@ tests/reports/
 # GitHub Actions
 - name: Testability Assessment
   run: |
-    timeout 180 .claude/skills/testability-scoring/scripts/run-assessment.sh ${{ env.APP_URL }}
+    timeout 180 .kiro/skills/qe-testability-scoring/scripts/run-assessment.sh ${{ env.APP_URL }}
 
 - name: Upload Reports
   uses: actions/upload-artifact@v3
@@ -298,9 +298,9 @@ const testabilityFleet = await FleetManager.coordinate({
 ---
 
 ## Related Skills
-- [accessibility-testing](../accessibility-testing/) - WCAG compliance (overlaps with Explainability)
-- [visual-testing-advanced](../visual-testing-advanced/) - UI consistency
-- [performance-testing](../performance-testing/) - Load time metrics
+- [accessibility-testing](../qe-accessibility-testing/) - WCAG compliance (overlaps with Explainability)
+- [visual-testing-advanced](../qe-visual-testing-advanced/) - UI consistency
+- [performance-testing](../qe-performance-testing/) - Load time metrics
 
 ---
 

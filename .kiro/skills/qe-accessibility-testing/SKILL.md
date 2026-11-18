@@ -193,9 +193,9 @@ const a11yFleet = await FleetManager.coordinate({
 ---
 
 ## Related Skills
-- [visual-testing-advanced](../visual-testing-advanced/) - Visual a11y checks
-- [mobile-testing](../mobile-testing/) - Mobile a11y (VoiceOver, TalkBack)
-- [compliance-testing](../compliance-testing/) - Legal compliance
+- [visual-testing-advanced](../qe-visual-testing-advanced/) - Visual a11y checks
+- [mobile-testing](../qe-mobile-testing/) - Mobile a11y (VoiceOver, TalkBack)
+- [compliance-testing](../qe-compliance-testing/) - Legal compliance
 
 ---
 

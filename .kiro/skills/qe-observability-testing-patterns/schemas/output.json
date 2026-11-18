@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentic-qe.dev/schemas/observability-testing-patterns-output.json",
+  "title": "Observability Testing Patterns Output Schema",
+  "description": "Schema for observability testing output. Covers dashboards, alerting, logging, tracing, and SLO verification.",
+  "type": "object",
+  "required": ["skillName", "version", "timestamp", "status", "trustTier", "output"],
+  "properties": {
+    "skillName": {
+      "type": "string",
+      "const": "observability-testing-patterns"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9]+)?$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["success", "partial", "failed", "skipped"]
+    },
+    "trustTier": {
+      "type": "integer",
+      "const": 3
+    },
+    "output": {
+      "type": "object",
+      "required": ["summary", "testStrategy"],
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 100
+        },
+        "testStrategy": {
+          "type": "object",
+          "properties": {
+            "dashboardTests": { "type": "array", "items": { "type": "object" } },
+            "alertTests": { "type": "array", "items": { "type": "object" } },
+            "logTests": { "type": "array", "items": { "type": "object" } },
+            "traceTests": { "type": "array", "items": { "type": "object" } },
+            "sloTests": { "type": "array", "items": { "type": "object" } }
+          }
+        },
+        "findings": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "recommendations": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

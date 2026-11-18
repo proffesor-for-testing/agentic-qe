@@ -420,10 +420,10 @@ const n8nFleet = await FleetManager.coordinate({
 ---
 
 ## Related Skills
-- [n8n-expression-testing](../n8n-expression-testing/) - Expression validation
-- [n8n-trigger-testing-strategies](../n8n-trigger-testing-strategies/) - Trigger testing
-- [n8n-integration-testing-patterns](../n8n-integration-testing-patterns/) - Integration testing
-- [n8n-security-testing](../n8n-security-testing/) - Security validation
+- [n8n-expression-testing](../qe-n8n-expression-testing/) - Expression validation
+- [n8n-trigger-testing-strategies](../qe-n8n-trigger-testing-strategies/) - Trigger testing
+- [n8n-integration-testing-patterns](../qe-n8n-integration-testing-patterns/) - Integration testing
+- [n8n-security-testing](../qe-n8n-security-testing/) - Security validation
 
 ---
 

@@ -210,9 +210,9 @@ aqe/rewriting/
 
 ## Related Skills
 
-- [sfdipot-product-factors](../sfdipot-product-factors/) - Assessment generation
-- [test-design-techniques](../test-design-techniques/) - Proper test structuring
-- [brutal-honesty-review](../brutal-honesty-review/) - Quality validation
+- [sfdipot-product-factors](../qe-sfdipot-product-factors/) - Assessment generation
+- [test-design-techniques](../qe-test-design-techniques/) - Proper test structuring
+- [brutal-honesty-review](../qe-brutal-honesty-review/) - Quality validation
 
 ---
 

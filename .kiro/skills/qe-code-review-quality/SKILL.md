@@ -206,9 +206,9 @@ const reviewFleet = await FleetManager.coordinate({
 ---
 
 ## Related Skills
-- [agentic-quality-engineering](../agentic-quality-engineering/) - Agent coordination
-- [security-testing](../security-testing/) - Security review depth
-- [refactoring-patterns](../refactoring-patterns/) - Maintainability patterns
+- [agentic-quality-engineering](../qe-agentic-quality-engineering/) - Agent coordination
+- [security-testing](../qe-security-testing/) - Security review depth
+- [refactoring-patterns](../qe-refactoring-patterns/) - Maintainability patterns
 
 ---
 

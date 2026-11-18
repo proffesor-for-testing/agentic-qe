@@ -173,9 +173,9 @@ const refactoringFleet = await FleetManager.coordinate({
 ---
 
 ## Related Skills
-- [tdd-london-chicago](../tdd-london-chicago/) - TDD refactor phase
-- [code-review-quality](../code-review-quality/) - Review refactored code
-- [xp-practices](../xp-practices/) - Collective ownership
+- [tdd-london-chicago](../qe-tdd-london-chicago/) - TDD refactor phase
+- [code-review-quality](../qe-code-review-quality/) - Review refactored code
+- [xp-practices](../qe-xp-practices/) - Collective ownership
 
 ---
 

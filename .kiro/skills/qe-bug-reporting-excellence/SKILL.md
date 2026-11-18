@@ -204,9 +204,9 @@ const bugFleet = await FleetManager.coordinate({
 ---
 
 ## Related Skills
-- [technical-writing](../technical-writing/) - Clear bug documentation
-- [exploratory-testing-advanced](../exploratory-testing-advanced/) - Finding bugs
-- [sherlock-review](../sherlock-review/) - Root cause investigation
+- [technical-writing](../qe-technical-writing/) - Clear bug documentation
+- [exploratory-testing-advanced](../qe-exploratory-testing-advanced/) - Finding bugs
+- [sherlock-review](../qe-sherlock-review/) - Root cause investigation
 
 ---
 

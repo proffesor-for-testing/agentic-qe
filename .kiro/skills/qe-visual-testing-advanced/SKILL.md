@@ -196,9 +196,9 @@ const visualFleet = await FleetManager.coordinate({
 ---
 
 ## Related Skills
-- [accessibility-testing](../accessibility-testing/) - Visual a11y checks
-- [compatibility-testing](../compatibility-testing/) - Cross-browser visuals
-- [regression-testing](../regression-testing/) - Regression suite
+- [accessibility-testing](../qe-accessibility-testing/) - Visual a11y checks
+- [compatibility-testing](../qe-compatibility-testing/) - Cross-browser visuals
+- [regression-testing](../qe-regression-testing/) - Regression suite
 
 ---
 

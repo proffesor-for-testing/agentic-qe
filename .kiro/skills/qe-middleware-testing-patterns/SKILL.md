@@ -770,11 +770,11 @@ await middlewareFleet.execute({
 ---
 
 ## Related Skills
-- [api-testing-patterns](../api-testing-patterns/) - REST/GraphQL API testing fundamentals
-- [contract-testing](../contract-testing/) - Consumer-driven contract testing with Pact
-- [enterprise-integration-testing](../enterprise-integration-testing/) - Orchestrating all enterprise agents
-- [chaos-engineering-resilience](../chaos-engineering-resilience/) - Fault injection and resilience testing
-- [wms-testing-patterns](../wms-testing-patterns/) - Warehouse system integration testing
+- [api-testing-patterns](../qe-api-testing-patterns/) - REST/GraphQL API testing fundamentals
+- [contract-testing](../../../.claude/skills/contract-testing/) - Consumer-driven contract testing with Pact
+- [enterprise-integration-testing](../qe-enterprise-integration-testing/) - Orchestrating all enterprise agents
+- [chaos-engineering-resilience](../qe-chaos-engineering-resilience/) - Fault injection and resilience testing
+- [wms-testing-patterns](../qe-wms-testing-patterns/) - Warehouse system integration testing
 
 ---
 

@@ -208,10 +208,10 @@ const automationFleet = await FleetManager.coordinate({
 ---
 
 ## Related Skills
-- [tdd-london-chicago](../tdd-london-chicago/) - TDD for unit tests
-- [api-testing-patterns](../api-testing-patterns/) - Integration patterns
-- [cicd-pipeline-qe-orchestrator](../cicd-pipeline-qe-orchestrator/) - Pipeline integration
-- [shift-left-testing](../shift-left-testing/) - Early automation
+- [tdd-london-chicago](../qe-tdd-london-chicago/) - TDD for unit tests
+- [api-testing-patterns](../qe-api-testing-patterns/) - Integration patterns
+- [cicd-pipeline-qe-orchestrator](../qe-cicd-pipeline-qe-orchestrator/) - Pipeline integration
+- [shift-left-testing](../qe-shift-left-testing/) - Early automation
 
 ---
 

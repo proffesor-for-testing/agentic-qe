@@ -18,6 +18,11 @@ import { fileURLToPath } from 'url';
 import { toErrorMessage } from '../shared/error-utils.js';
 import { findPackageRoot } from './find-package-root.js';
 import {
+  copySkillSupportFiles,
+  rewriteOwnSkillPaths,
+  rewriteSiblingSkillLinks,
+} from './skill-support-files.js';
+import {
   DEFAULT_HAIKU_MODEL,
   DEFAULT_OPUS_MODEL,
   DEFAULT_SONNET_MODEL,
@@ -526,24 +531,57 @@ export class KiroInstaller {
       }
     }
 
+    // Resolve Claude sources up front so links between skills (../<skill>/)
+    // follow renames (../api-testing-patterns/ -> ../qe-api-testing-patterns/),
+    // and links to Claude skills with no Kiro counterpart point at the Claude copy.
+    const claudeSources = new Map<string, ReturnType<KiroInstaller['findClaudeSkillSource']>>();
+    const siblingTargets = new Map<string, string>();
+    const converted = new Set<string>();
+    for (const skillName of openCodeSkills) {
+      const source = this.findClaudeSkillSource(claudeSkillsDir, skillName);
+      claudeSources.set(skillName, source);
+      if (source) {
+        converted.add(source.sourceName);
+        if (source.sourceName !== skillName) siblingTargets.set(source.sourceName, `../${skillName}`);
+      }
+    }
+    if (existsSync(claudeSkillsDir)) {
+      for (const name of readdirSync(claudeSkillsDir)) {
+        if (!converted.has(name) && !openCodeSkills.has(name) && existsSync(join(claudeSkillsDir, name, 'SKILL.md'))) {
+          siblingTargets.set(name, `../../../.claude/skills/${name}`);
+        }
+      }
+    }
+
     // For each OpenCode skill, try Claude Code source first (full content)
     for (const skillName of openCodeSkills) {
       const kiroSkillDir = join(targetSkillsDir, skillName);
       const targetFile = join(kiroSkillDir, 'SKILL.md');
-
-      if (existsSync(targetFile) && !this.options.overwrite) {
-        continue;
-      }
+      const skillMdExists = existsSync(targetFile) && !this.options.overwrite;
 
       try {
         // Try Claude Code source (full rich content)
-        const claudeSource = this.findClaudeSkillSource(claudeSkillsDir, skillName);
+        const claudeSource = claudeSources.get(skillName);
         if (claudeSource) {
-          const kiroMd = this.convertClaudeSkillToKiro(claudeSource, skillName);
-          mkdirSync(kiroSkillDir, { recursive: true });
-          writeFileSync(targetFile, kiroMd, { mode: 0o644 });
-          installed.push(skillName);
-        } else {
+          const rewrite = (md: string): string =>
+            rewriteSiblingSkillLinks(
+              rewriteOwnSkillPaths(md, claudeSource.sourceName, '.kiro/skills', skillName),
+              siblingTargets,
+            );
+          if (!skillMdExists) {
+            const kiroMd = rewrite(this.convertClaudeSkillToKiro(claudeSource.content, skillName));
+            mkdirSync(kiroSkillDir, { recursive: true });
+            writeFileSync(targetFile, kiroMd, { mode: 0o644 });
+            installed.push(skillName);
+          }
+          // Supporting files (steps/, schemas/, scripts/, ...) that SKILL.md
+          // references (#1414). Missing files are filled in even when SKILL.md
+          // is kept, so re-running init repairs earlier SKILL.md-only installs.
+          copySkillSupportFiles(claudeSource.dir, kiroSkillDir, {
+            overwrite: this.options.overwrite,
+            transformMarkdown: rewrite,
+          });
+        } else if (!skillMdExists) {
           // Fallback: convert from OpenCode YAML (thin content)
           const yamlPath = join(openCodeSkillsDir, `${skillName}.yaml`);
           if (existsSync(yamlPath)) {
@@ -567,22 +605,21 @@ export class KiroInstaller {
    * Find the Claude Code source SKILL.md for a given OpenCode skill name.
    * OpenCode skills use `qe-` prefix; Claude Code may use bare name or `qe-` prefix.
    */
-  private findClaudeSkillSource(claudeSkillsDir: string, skillName: string): string | null {
+  private findClaudeSkillSource(
+    claudeSkillsDir: string,
+    skillName: string,
+  ): { dir: string; sourceName: string; content: string } | null {
     if (!existsSync(claudeSkillsDir)) return null;
 
     // Try direct match: qe-database-testing -> .claude/skills/qe-database-testing/SKILL.md
-    const directPath = join(claudeSkillsDir, skillName, 'SKILL.md');
-    if (existsSync(directPath)) return readFileSync(directPath, 'utf-8');
-
-    // Try without qe- prefix: qe-database-testing -> .claude/skills/database-testing/SKILL.md
-    const bareName = skillName.replace(/^qe-/, '');
-    const barePath = join(claudeSkillsDir, bareName, 'SKILL.md');
-    if (existsSync(barePath)) return readFileSync(barePath, 'utf-8');
-
-    // Try QCSD skills: qcsd-ideation-swarm -> .claude/skills/qcsd-ideation-swarm/SKILL.md
-    if (skillName.startsWith('qcsd-')) {
-      const qcsdPath = join(claudeSkillsDir, skillName, 'SKILL.md');
-      if (existsSync(qcsdPath)) return readFileSync(qcsdPath, 'utf-8');
+    // (also covers QCSD skills: qcsd-ideation-swarm -> .claude/skills/qcsd-ideation-swarm/)
+    // then without qe- prefix: qe-database-testing -> .claude/skills/database-testing/SKILL.md
+    for (const sourceName of [skillName, skillName.replace(/^qe-/, '')]) {
+      const dir = join(claudeSkillsDir, sourceName);
+      const skillMd = join(dir, 'SKILL.md');
+      if (existsSync(skillMd)) {
+        return { dir, sourceName, content: readFileSync(skillMd, 'utf-8') };
+      }
     }
 
     return null;

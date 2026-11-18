@@ -1,0 +1,13 @@
+{
+  "$schema": "./config-schema.json",
+  "_description": "Security Testing configuration. Auto-created on first run. Edit to customize.",
+  "severity_threshold": "high",
+  "scan_types": ["sast", "deps"],
+  "owasp_version": "2021",
+  "options": {
+    "includeDevDependencies": false,
+    "autoFix": false,
+    "reportFormat": "json"
+  },
+  "_setupPrompt": "If severity_threshold is default, ask: 'What minimum severity should block deployment? (critical/high/medium/low)'. If scan_types only has defaults, ask: 'Which scan types to run? (sast/dast/deps/secrets — comma-separated)'."
+}
