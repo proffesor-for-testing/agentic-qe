@@ -1,14 +1,14 @@
 ---
 inclusion: auto
 name: qe-verification-quality
-description: Comprehensive truth scoring, code quality verification, and automatic rollback system with 0.95 accuracy threshold for ensuring high-quality agent outputs and codebase reliability.
+description: Verify agent-written changes before they are kept: run the tests, measure coverage, scan for vulnerabilities, apply AQE's fail-closed quality gate, and revert with git when the verdict is a failure.
 ---
 
 # qe-verification-quality
 
-Comprehensive truth scoring, code quality verification, and automatic rollback system with 0.95 accuracy threshold for ensuring high-quality agent outputs and codebase reliability.
+Verify agent-written changes before they are kept: run the tests, measure coverage, scan for vulnerabilities, apply AQE's fail-closed quality gate, and revert with git when the verdict is a failure.
 
-**Tags:** verification, truth-scoring, quality, rollback, metrics, ci-cd, qe, quality-engineering, quality-assurance
+**Tags:** verification, quality-gate, quality, rollback, metrics, ci-cd, qe, quality-engineering, quality-assurance
 
 ## Prerequisites
 
@@ -18,35 +18,27 @@ This skill requires the AQE MCP server. Ensure it is configured in `.kiro/settin
 
 ### 1. What This Skill Does
 
-This skill provides a comprehensive verification and quality assurance system that ensures code quality and correctness through:
+Turn "the agent says it works" into a measured verdict: run the tests, measure coverage, scan the change, then ask `aqe quality --gate` for a verdict. A missing metric is insufficient evidence, never a pass.
 
-### 2. Complete Guide
+### 2. Quick Start
 
-Complete Guide
+Produce evidence, scan, and ask for a verdict
 
-### 3. Truth Scoring System
+### 3. Quality Gate
 
-Truth Scoring System
+Read the gate's exit code: 0 pass, 1 failed, 2 narrow pass, 3 not evaluated
 
 ### 4. Verification Checks
 
-Verification Checks
+Tests, coverage and security checks
 
-### 5. Automatic Rollback
+### 5. Rollback
 
-Automatic Rollback
+Revert a failed change with git
 
-### 6. Verification Reports
+### 6. Ci Integration
 
-Verification Reports
-
-### 7. Interactive Dashboard
-
-Interactive Dashboard
-
-### 8. Configuration
-
-Configuration
+Gate CI on measured evidence
 
 ## MCP Tools
 

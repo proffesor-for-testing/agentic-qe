@@ -14,14 +14,25 @@
  *   node scripts/ruflo-cli-surface.mjs snapshot /tmp/rf/node_modules/.bin/ruflo \
  *     > tests/fixtures/ruflo-cli-surface/<version>.json
  *
- * The snapshot is built from `--help` output only: every command listed in the top-level
- * help, plus the hidden commands named in HIDDEN_COMMANDS, their SUBCOMMANDS and OPTIONS.
+ * Every `--help` runs in a new empty temporary directory: ruflo refreshes the
+ * `.claude/helpers` of the directory it runs in, which must not be this repo.
+ *
+ * The snapshot is built from `--help` output: the commands ruflo registers
+ * (`commandLoaders` in @claude-flow/cli, next to the binary; else the top-level help
+ * plus HIDDEN_COMMANDS), their SUBCOMMANDS and OPTIONS. An alias is kept only when
+ * `ruflo <parent> <alias> --help` prints the help of its target.
  */
 import { spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-/** Commands that exist but are not listed in `ruflo --help`. */
+/** Commands not listed in `ruflo --help`, used when ruflo's command index is not found. */
 export const HIDDEN_COMMANDS = ['verify'];
+
+/** How deep subcommands are followed (`hooks transfer store search` is depth 4). */
+const MAX_DEPTH = 4;
 
 const ANSI = /\x1b\[[0-9;]*m/g;
 
@@ -40,7 +51,7 @@ function sections(helpText) {
   return out;
 }
 
-/** Names in a `SUBCOMMANDS:` / `... COMMANDS:` block, including `(alias)` suffixes. */
+/** Names in a `SUBCOMMANDS:` / `... COMMANDS:` block, including `(alias)` suffix candidates. */
 export function parseCommandList(lines) {
   const names = [];
   for (const line of lines) {
@@ -64,31 +75,68 @@ export function parseFlags(lines) {
   return [...flags].sort();
 }
 
-function runHelp(bin, args) {
-  const r = spawnSync(bin, [...args, '--help'], {
-    encoding: 'utf8',
-    timeout: 60_000,
-    env: { ...process.env, NO_COLOR: '1', FORCE_COLOR: '0' },
-  });
-  return `${r.stdout ?? ''}${r.stderr ?? ''}`;
+/** The first non-empty line of a help text, e.g. `ruflo hooks pre-task`. */
+function helpHeader(text) {
+  return text.replace(ANSI, '').split(/\r?\n/).map((l) => l.trim()).find((l) => /^ruflo\b/.test(l)) ?? '';
 }
 
-function describeNode(bin, path, depth) {
-  const text = runHelp(bin, path);
+/** Command names registered in @claude-flow/cli's command index next to `bin`, or null. */
+export function registeredCommands(bin) {
+  let dir;
+  try { dir = dirname(realpathSync(bin)); } catch { return null; }
+  for (let i = 0; i < 8; i++) {
+    for (const base of [join(dir, 'node_modules'), dir]) {
+      const index = join(base, '@claude-flow', 'cli', 'dist', 'src', 'commands', 'index.js');
+      if (existsSync(index)) {
+        const src = readFileSync(index, 'utf8');
+        const at = src.indexOf('commandLoaders');
+        const block = at === -1 ? '' : src.slice(at, src.indexOf('};', at));
+        const names = [...block.matchAll(/^\s*["']?([a-z][\w-]*)["']?\s*:\s*(?:async\s*)?\(\)/gm)].map((m) => m[1]);
+        return names.length > 0 ? names : null;
+      }
+    }
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
+}
+
+function helpRunner(bin) {
+  const cwd = mkdtempSync(join(tmpdir(), 'ruflo-surface-'));
+  const run = (args) => {
+    const r = spawnSync(bin, [...args, '--help'], {
+      cwd,
+      input: '', // `mcp start --help` starts the server, which exits when stdin closes
+      encoding: 'utf8',
+      timeout: 60_000,
+      env: { ...process.env, NO_COLOR: '1', FORCE_COLOR: '0' },
+    });
+    return `${r.stdout ?? ''}${r.stderr ?? ''}`;
+  };
+  return { run, dispose: () => rmSync(cwd, { recursive: true, force: true }) };
+}
+
+function describeNode(run, path, depth) {
+  const text = run(path);
   if (/Unknown command/i.test(text)) return null;
+  // Some commands ignore --help (`mcp start` starts the server). They exist, since
+  // their parent lists them, but their flags are unknown and are not checked.
+  if (helpHeader(text) !== `ruflo ${path.join(' ')}`) return { flags: [], helpUnavailable: true };
   const s = sections(text);
   const node = { flags: parseFlags(s.OPTIONS ?? []) };
   const subs = parseCommandList(s.SUBCOMMANDS ?? []);
-  if (subs.length > 0 && depth < 3) {
+  if (subs.length > 0 && depth < MAX_DEPTH) {
     node.subcommands = {};
     node.aliases = {};
     for (const entry of subs) {
       const [name, target] = entry.split('=');
       if (target) {
-        node.aliases[name] = target;
+        // "(ls)" is an alias; "agent(s)" or "(code)" in a description is not.
+        if (helpHeader(run([...path, name])) === `ruflo ${[...path, target].join(' ')}`) node.aliases[name] = target;
         continue;
       }
-      const child = describeNode(bin, [...path, name], depth + 1);
+      const child = describeNode(run, [...path, name], depth + 1);
       if (child) node.subcommands[name] = child;
     }
     if (Object.keys(node.aliases).length === 0) delete node.aliases;
@@ -97,20 +145,25 @@ function describeNode(bin, path, depth) {
 }
 
 export function snapshot(bin) {
-  const top = runHelp(bin, []);
-  const version = /ruflo v(\d+\.\d+\.\d+)/.exec(top.replace(ANSI, ''))?.[1];
-  if (!version) throw new Error(`could not read the ruflo version from ${bin} --help`);
-  const s = sections(top);
-  const names = new Set(HIDDEN_COMMANDS);
-  for (const [title, lines] of Object.entries(s)) {
-    if (/COMMANDS$/.test(title)) for (const n of parseCommandList(lines)) names.add(n.split('=')[0]);
+  const { run, dispose } = helpRunner(bin);
+  try {
+    const top = run([]);
+    const version = /ruflo v(\d+\.\d+\.\d+)/.exec(top.replace(ANSI, ''))?.[1];
+    if (!version) throw new Error(`could not read the ruflo version from ${bin} --help`);
+    const s = sections(top);
+    const names = new Set(registeredCommands(bin) ?? HIDDEN_COMMANDS);
+    for (const [title, lines] of Object.entries(s)) {
+      if (/COMMANDS$/.test(title)) for (const n of parseCommandList(lines)) names.add(n.split('=')[0]);
+    }
+    const commands = {};
+    for (const name of [...names].sort()) {
+      const node = describeNode(run, [name], 1);
+      if (node) commands[name] = node;
+    }
+    return { tool: 'ruflo', version, globalFlags: parseFlags(s['GLOBAL OPTIONS'] ?? []), commands };
+  } finally {
+    dispose();
   }
-  const commands = {};
-  for (const name of [...names].sort()) {
-    const node = describeNode(bin, [name], 1);
-    if (node) commands[name] = node;
-  }
-  return { tool: 'ruflo', version, globalFlags: parseFlags(s['GLOBAL OPTIONS'] ?? []), commands };
 }
 
 // ---------------------------------------------------------------------------
@@ -127,13 +180,23 @@ export function tokenize(rest) {
   let i = 0;
   let cur = '';
   let quotedToken = false;
+  let startsQuoted = false;
   const push = () => {
-    if (cur !== '' || quotedToken) tokens.push({ text: cur, quoted: quotedToken });
+    if (cur !== '' || quotedToken) tokens.push({ text: cur, quoted: quotedToken, startsQuoted });
     cur = '';
     quotedToken = false;
+    startsQuoted = false;
   };
   while (i < rest.length) {
     const c = rest[i];
+    if ((c === '"' || c === "'" || (c === '$' && rest[i + 1] === '(')) && cur === '' && !quotedToken) startsQuoted = true;
+    // `<path>` is a placeholder in prose, not a redirection.
+    const placeholder = c === '<' && cur === '' ? /^<[\w.:/|-]+>/.exec(rest.slice(i)) : null;
+    if (placeholder) {
+      cur = placeholder[0];
+      i += placeholder[0].length;
+      continue;
+    }
     if (c === '"' || c === "'") {
       const end = rest.indexOf(c, i + 1);
       if (end === -1) break;
@@ -168,26 +231,31 @@ export function tokenize(rest) {
 }
 
 /**
- * Every `ruflo@<version> ...` call in `content`, with `\` line continuations joined.
- * Returns { line, text, tokens } per call.
+ * A launched ruflo call: `npx [flags] ruflo@<version>` (or bunx, npm exec/x, pnpm/yarn dlx),
+ * or `npx --no-install ruflo`, which runs the installed CLI. A bare mention such as
+ * "requires ruflo@3.76.0 or later" is not a call. `\n` covers prompts embedded in JSON.
+ */
+const LAUNCH = /(?:^|[\s"'`(=;&|]|\\n)(?:npx|bunx|npm\s+(?:exec|x)|pnpm\s+dlx|yarn\s+dlx)((?:\s+-{1,2}[\w-]+)*)\s+ruflo(?:@([\w.-]+))?(?![\w@/.-])/g;
+
+/**
+ * Every launched ruflo call of the pinned `version` in `content` (see LAUNCH), with
+ * `\` line continuations joined. Returns { line, text, tokens } per call.
  */
 export function extractCalls(content, version) {
-  const spec = `ruflo@${version}`;
   const lines = content.split(/\r?\n/);
   const calls = [];
   lines.forEach((line, idx) => {
-    let from = 0;
-    for (;;) {
-      const at = line.indexOf(spec, from);
-      if (at === -1) break;
-      from = at + spec.length;
-      if (/[\w.-]/.test(line[from] ?? '')) continue; // ruflo@3.76.01 etc.
-      let rest = line.slice(from);
+    for (const m of line.matchAll(LAUNCH)) {
+      const [, flags, got] = m;
+      const noInstall = /(^|\s)--no-install\b/.test(flags);
+      if (got === undefined ? !noInstall : got !== version) continue;
+      let rest = line.slice(m.index + m[0].length);
       let j = idx;
       while (/\\\s*$/.test(rest) && j + 1 < lines.length) {
         j++;
         rest = `${rest.replace(/\\\s*$/, ' ')} ${lines[j].trim()}`;
       }
+      const spec = got === undefined ? 'ruflo' : `ruflo@${got}`;
       calls.push({ line: idx + 1, text: `${spec}${rest}`.trim(), tokens: tokenize(rest) });
     }
   });
@@ -207,7 +275,7 @@ export function checkCall(tokens, surface) {
   if (tokens.length === 0 || isPlaceholder(tokens[0])) return null;
   const first = tokens[0];
   if (first.text.startsWith('-')) {
-    const bad = tokens.filter((t) => !t.quoted && /^--?[a-zA-Z]/.test(t.text)).map((t) => t.text.split('=')[0]);
+    const bad = tokens.filter((t) => !t.startsQuoted && /^--?[a-zA-Z]/.test(t.text)).map((t) => t.text.split('=')[0]);
     const unknown = bad.filter((f) => !surface.globalFlags.includes(f));
     return unknown.length ? `unknown flag(s) ${unknown.join(' ')}` : null;
   }
@@ -223,21 +291,21 @@ export function checkCall(tokens, surface) {
     const name = node.aliases?.[t.text] ?? t.text;
     const child = node.subcommands[name];
     if (!child) {
-      // A command with subcommands that also takes a positional (e.g. `hive-mind spawn "task"`)
-      // is only an error when the word cannot be an argument.
-      if (Object.keys(node.subcommands).length > 0 && path.length === 1) {
-        return `unknown subcommand '${path.join(' ')} ${t.text}'`;
-      }
+      // ruflo prints the parent's help for a word that is not one of its subcommands,
+      // at any depth. Positional arguments are quoted or follow a leaf command.
+      if (Object.keys(node.subcommands).length > 0) return `unknown subcommand '${path.join(' ')} ${t.text}'`;
       break;
     }
     node = child;
     path.push(name);
     k++;
   }
+  if (node.helpUnavailable) return null;
   const known = new Set([...node.flags, ...surface.globalFlags]);
   const unknown = [];
   for (const t of tokens.slice(k)) {
-    if (t.quoted || !/^--?[a-zA-Z]/.test(t.text)) continue;
+    // `"--x"` is a value; `--x="v"` is still the flag --x.
+    if (t.startsQuoted || !/^--?[a-zA-Z]/.test(t.text)) continue;
     const flag = t.text.split('=')[0];
     const base = flag.replace(/^--no-/, '--');
     if (!known.has(flag) && !known.has(base)) unknown.push(flag);

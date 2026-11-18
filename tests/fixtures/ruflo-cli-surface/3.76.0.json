@@ -18,6 +18,22 @@
     "-v"
   ],
   "commands": {
+    "advisor": {
+      "flags": [],
+      "subcommands": {
+        "enable": {
+          "flags": [
+            "--yes"
+          ]
+        },
+        "disable": {
+          "flags": []
+        },
+        "status": {
+          "flags": []
+        }
+      }
+    },
     "agent": {
       "flags": [],
       "subcommands": {
@@ -279,6 +295,29 @@
         "cycles": "circular"
       }
     },
+    "announcements": {
+      "flags": [],
+      "subcommands": {
+        "enable": {
+          "flags": [
+            "--yes"
+          ]
+        },
+        "disable": {
+          "flags": []
+        },
+        "list": {
+          "flags": [
+            "--json"
+          ]
+        },
+        "reset": {
+          "flags": [
+            "--yes"
+          ]
+        }
+      }
+    },
     "appliance": {
       "flags": [],
       "subcommands": {
@@ -350,7 +389,37 @@
           ]
         },
         "update": {
-          "flags": []
+          "flags": [],
+          "helpUnavailable": true
+        }
+      }
+    },
+    "appliance-advanced": {
+      "flags": [],
+      "helpUnavailable": true
+    },
+    "auth": {
+      "flags": [],
+      "subcommands": {
+        "login": {
+          "flags": [
+            "--no-browser",
+            "--profile",
+            "--token-stdin"
+          ]
+        },
+        "logout": {
+          "flags": [
+            "--all",
+            "--profile"
+          ]
+        },
+        "status": {
+          "flags": [
+            "--check",
+            "--json",
+            "--profile"
+          ]
         }
       }
     },
@@ -408,6 +477,64 @@
           ]
         }
       }
+    },
+    "benchmark": {
+      "flags": [],
+      "subcommands": {
+        "pretrain": {
+          "flags": [
+            "--iterations",
+            "--output",
+            "--save",
+            "--verbose",
+            "--warmup",
+            "-i",
+            "-o",
+            "-s",
+            "-v",
+            "-w"
+          ]
+        },
+        "neural": {
+          "flags": [
+            "--dimension",
+            "--iterations",
+            "--output",
+            "--vectors",
+            "-d",
+            "-i",
+            "-n",
+            "-o"
+          ]
+        },
+        "memory": {
+          "flags": [
+            "--iterations",
+            "--output",
+            "-i",
+            "-o"
+          ]
+        },
+        "all": {
+          "flags": [
+            "--iterations",
+            "--output",
+            "--save",
+            "-i",
+            "-o",
+            "-s"
+          ]
+        }
+      }
+    },
+    "catalog": {
+      "flags": [
+        "--check",
+        "--engine",
+        "--file",
+        "--json",
+        "--repo-root"
+      ]
     },
     "claims": {
       "flags": [],
@@ -558,6 +685,46 @@
             "--file",
             "--merge",
             "-f"
+          ]
+        }
+      }
+    },
+    "cost": {
+      "flags": [],
+      "subcommands": {
+        "budget": {
+          "flags": [],
+          "subcommands": {
+            "set": {
+              "flags": [
+                "--daily",
+                "--fallback-model",
+                "--hard-stop",
+                "--monthly",
+                "--weekly"
+              ]
+            },
+            "get": {
+              "flags": [
+                "--json"
+              ]
+            },
+            "export": {
+              "flags": [
+                "--apply",
+                "--gateway",
+                "--key-env",
+                "--model",
+                "--print-key",
+                "--url"
+              ]
+            }
+          }
+        },
+        "report": {
+          "flags": [
+            "--days",
+            "--json"
           ]
         }
       }
@@ -735,6 +902,14 @@
         "-v"
       ]
     },
+    "eject": {
+      "flags": [
+        "--confirm",
+        "--format",
+        "--name",
+        "--target"
+      ]
+    },
     "embeddings": {
       "flags": [],
       "subcommands": {
@@ -883,9 +1058,74 @@
             "-n"
           ]
         }
-      },
-      "aliases": {
-        "namespaces": "collections"
+      }
+    },
+    "funnel": {
+      "flags": [],
+      "subcommands": {
+        "status": {
+          "flags": [
+            "--json"
+          ]
+        },
+        "disable": {
+          "flags": []
+        },
+        "enable": {
+          "flags": []
+        },
+        "accept": {
+          "flags": []
+        },
+        "open": {
+          "flags": []
+        },
+        "enroll": {
+          "flags": []
+        },
+        "earnings": {
+          "flags": [
+            "--json"
+          ]
+        },
+        "unenroll": {
+          "flags": []
+        },
+        "id": {
+          "flags": []
+        },
+        "telemetry": {
+          "flags": []
+        }
+      }
+    },
+    "gaia-bench": {
+      "flags": [],
+      "subcommands": {
+        "run": {
+          "flags": [
+            "--concurrency",
+            "--decompose",
+            "--enable-convergence",
+            "--enable-critic",
+            "--hardness-routing",
+            "--hardness-verbose",
+            "--judge-model",
+            "--level",
+            "--limit",
+            "--max-turns",
+            "--models",
+            "--output",
+            "--planning-interval",
+            "--smoke-only",
+            "--voting-attempts",
+            "-c",
+            "-l",
+            "-m",
+            "-n",
+            "-o"
+          ]
+        }
       }
     },
     "guidance": {
@@ -970,6 +1210,13 @@
           ]
         }
       }
+    },
+    "harness": {
+      "flags": [
+        "--hook",
+        "--json",
+        "--print-codex-hook"
+      ]
     },
     "hive-mind": {
       "flags": [],
@@ -1253,7 +1500,87 @@
           "flags": [],
           "subcommands": {
             "store": {
-              "flags": []
+              "flags": [],
+              "subcommands": {
+                "list": {
+                  "flags": [
+                    "--category",
+                    "--featured",
+                    "--limit",
+                    "--newest",
+                    "--registry",
+                    "--trending",
+                    "-c",
+                    "-f",
+                    "-l",
+                    "-n",
+                    "-r",
+                    "-t"
+                  ]
+                },
+                "search": {
+                  "flags": [
+                    "--category",
+                    "--framework",
+                    "--language",
+                    "--limit",
+                    "--min-rating",
+                    "--query",
+                    "--tags",
+                    "--verified",
+                    "-c",
+                    "-f",
+                    "-l",
+                    "-q",
+                    "-t",
+                    "-v"
+                  ]
+                },
+                "download": {
+                  "flags": [
+                    "--import",
+                    "--name",
+                    "--output",
+                    "--verify",
+                    "-i",
+                    "-n",
+                    "-o",
+                    "-v"
+                  ]
+                },
+                "publish": {
+                  "flags": [
+                    "--anonymize",
+                    "--categories",
+                    "--description",
+                    "--framework",
+                    "--input",
+                    "--language",
+                    "--license",
+                    "--name",
+                    "--tags",
+                    "-a",
+                    "-c",
+                    "-d",
+                    "-i",
+                    "-l",
+                    "-n",
+                    "-t"
+                  ]
+                },
+                "info": {
+                  "flags": [
+                    "--name",
+                    "-n"
+                  ]
+                }
+              },
+              "aliases": {
+                "ls": "list",
+                "get": "download",
+                "install": "download",
+                "contribute": "publish"
+              }
             },
             "from-project": {
               "flags": [
@@ -1705,7 +2032,8 @@
       "flags": [],
       "subcommands": {
         "start": {
-          "flags": []
+          "flags": [],
+          "helpUnavailable": true
         },
         "stop": {
           "flags": [
@@ -2014,6 +2342,11 @@
         "config": "configure"
       }
     },
+    "metaharness": {
+      "flags": [
+        "--subcommand"
+      ]
+    },
     "migrate": {
       "flags": [],
       "subcommands": {
@@ -2050,6 +2383,61 @@
             "--agents",
             "--dry-run",
             "-d"
+          ]
+        }
+      }
+    },
+    "mission": {
+      "flags": [
+        "--action",
+        "--after",
+        "--expected-revision",
+        "--limit",
+        "--mission",
+        "--objective",
+        "--plan-file",
+        "--project-root",
+        "--reason",
+        "--request-id"
+      ]
+    },
+    "mods": {
+      "flags": [],
+      "subcommands": {
+        "install": {
+          "flags": [
+            "--accept-risk",
+            "--dry-run",
+            "--marketplace-path",
+            "--plugin-install",
+            "--project-root",
+            "--scope",
+            "--source",
+            "--strict"
+          ]
+        },
+        "uninstall": {
+          "flags": [
+            "--dry-run",
+            "--project-root"
+          ]
+        },
+        "status": {
+          "flags": [
+            "--json",
+            "--project-root"
+          ]
+        },
+        "doctor": {
+          "flags": [
+            "--json",
+            "--project-root",
+            "--strict"
+          ]
+        },
+        "sync-policy": {
+          "flags": [
+            "--project-root"
           ]
         }
       }
@@ -2770,9 +3158,6 @@
             "-i"
           ]
         }
-      },
-      "aliases": {
-        "default": "check"
       }
     },
     "providers": {
@@ -2821,6 +3206,95 @@
             "-p",
             "-t"
           ]
+        }
+      }
+    },
+    "proxy": {
+      "flags": [],
+      "subcommands": {
+        "install": {
+          "flags": [
+            "--release",
+            "--yes"
+          ]
+        },
+        "update": {
+          "flags": [
+            "--release"
+          ]
+        },
+        "start": {
+          "flags": [
+            "--service"
+          ]
+        },
+        "supervise": {
+          "flags": []
+        },
+        "stop": {
+          "flags": []
+        },
+        "status": {
+          "flags": [
+            "--json"
+          ]
+        },
+        "logs": {
+          "flags": [
+            "--follow",
+            "-f"
+          ]
+        },
+        "uninstall": {
+          "flags": []
+        },
+        "config": {
+          "flags": [
+            "--cloud",
+            "--local-only",
+            "--passthrough",
+            "--routing-mode",
+            "--yes"
+          ]
+        },
+        "sponsor-enable": {
+          "flags": [
+            "--yes"
+          ]
+        },
+        "sponsor-disable": {
+          "flags": []
+        },
+        "sponsor-status": {
+          "flags": []
+        },
+        "sponsor-clear": {
+          "flags": []
+        },
+        "power-saver-enable": {
+          "flags": [
+            "--yes"
+          ]
+        },
+        "power-saver-disable": {
+          "flags": []
+        },
+        "power-saver-status": {
+          "flags": []
+        },
+        "power-saver-clear": {
+          "flags": []
+        },
+        "training-share-enable": {
+          "flags": [
+            "--yes"
+          ]
+        },
+        "training-share-disable": {
+          "flags": []
+        },
+        "training-share-status": {
+          "flags": []
         }
       }
     },
@@ -3232,10 +3706,6 @@
             "-p"
           ]
         }
-      },
-      "aliases": {
-        "code": "scan",
-        "dependencies": "scan"
       }
     },
     "session": {
@@ -3305,6 +3775,61 @@
         "load": "restore",
         "rm": "delete",
         "remove": "delete"
+      }
+    },
+    "settings": {
+      "flags": [],
+      "subcommands": {
+        "notices": {
+          "flags": [],
+          "subcommands": {
+            "status": {
+              "flags": []
+            },
+            "off": {
+              "flags": []
+            },
+            "on": {
+              "flags": []
+            },
+            "id": {
+              "flags": []
+            },
+            "rate-limited": {
+              "flags": [
+                "--clear"
+              ]
+            },
+            "quota-low": {
+              "flags": [
+                "--clear"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "spinner": {
+      "flags": [],
+      "subcommands": {
+        "enable": {
+          "flags": [
+            "--yes"
+          ]
+        },
+        "disable": {
+          "flags": []
+        },
+        "list": {
+          "flags": [
+            "--json"
+          ]
+        },
+        "reset": {
+          "flags": [
+            "--yes"
+          ]
+        }
       }
     },
     "start": {
@@ -3514,9 +4039,36 @@
         "get": "status",
         "abort": "cancel",
         "stop": "cancel",
-        "s": "assign",
         "rerun": "retry"
       }
+    },
+    "transfer-store": {
+      "flags": [],
+      "helpUnavailable": true
+    },
+    "transport": {
+      "flags": [],
+      "subcommands": {
+        "use": {
+          "flags": []
+        }
+      }
+    },
+    "tui": {
+      "flags": [
+        "--ai",
+        "--anim",
+        "--boot",
+        "--convo-targets",
+        "--fps",
+        "--look",
+        "--max-spend-usd",
+        "--model",
+        "--mouse",
+        "--pictures",
+        "--plain",
+        "--view"
+      ]
     },
     "update": {
       "flags": [],
@@ -3559,6 +4111,12 @@
         "--manifest",
         "-b",
         "-m"
+      ]
+    },
+    "version": {
+      "flags": [
+        "--explain",
+        "--require-catalog-gte"
       ]
     },
     "workflow": {

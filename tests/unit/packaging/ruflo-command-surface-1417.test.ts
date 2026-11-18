@@ -55,6 +55,10 @@ const USER_FACING = [
   /^\.claude\/agents\/v3\/qe-[^/]+\.md$/,
   /^\.claude\/skills\/(verification-quality|pair-programming)\//,
   /^\.claude\/commands\/aqe-[^/]+\.md$/,
+  // --with-n8n agents, and the Codex hooks aqe init --with-codex copies
+  /^\.claude\/agents\/n8n\//,
+  /^\.codex\/hooks(\/|\.json$)/,
+  /^\.claude\/hooks\/aqe-hook\.cjs$/,
 ];
 
 const isTextFile = (file: string) => !/\.(png|jpe?g|gif|webp|ico|wasm|node|db|gz|zip|rvf|tgz)$/i.test(file);
@@ -149,6 +153,40 @@ describe('ruflo command surface (#1417)', () => {
 
     it('should_ignoreOtherVersions_when_extractingCalls', () => {
       expect(extractCalls('npx ruflo@3.76.01 truth', RUFLO_PINNED_VERSION)).toEqual([]);
+    });
+
+    // Review of #1417
+    it('should_onlyCountLaunchedCalls_when_theSpecIsMentionedInProse', () => {
+      expect(extractCalls('requires ruflo@3.76.0 or later', RUFLO_PINNED_VERSION)).toEqual([]);
+      expect(extractCalls('npm install -g ruflo@3.76.0', RUFLO_PINNED_VERSION)).toEqual([]);
+      expect(extractCalls('"prompt": "x\\nnpx ruflo@3.76.0 truth"', RUFLO_PINNED_VERSION)).toHaveLength(1);
+      expect(extractCalls('npx -y ruflo@3.76.0 doctor', RUFLO_PINNED_VERSION)).toHaveLength(1);
+    });
+
+    it('should_checkNoInstallCalls_when_theyRunTheInstalledCli', () => {
+      const [call] = extractCalls('npx --no-install ruflo memory search --bogus x', RUFLO_PINNED_VERSION);
+      expect(checkCall(call.tokens, surface)).toBe("'memory search' has no flag --bogus");
+      expect(extractCalls('npx ruflo memory search', RUFLO_PINNED_VERSION)).toEqual([]); // #1404 flags that one
+    });
+
+    it('should_keepCheckingFlags_when_aPlaceholderComesFirst', () => {
+      const [call] = extractCalls('npx ruflo@3.76.0 hooks post-edit --file <path> --memory-key x', RUFLO_PINNED_VERSION);
+      expect(checkCall(call.tokens, surface)).toBe("'hooks post-edit' has no flag --memory-key");
+    });
+
+    it('should_rejectUnknownSubcommands_when_theyAreBelowTheTopLevel', () => {
+      expect(check(' hooks worker bogus')).toBe("unknown subcommand 'hooks worker bogus'");
+      expect(check(' hooks transfer store search -q x')).toBeNull();
+    });
+
+    it('should_checkTheFlagName_when_onlyItsValueIsQuoted', () => {
+      expect(check(' hooks notify --bogus="x" -m "--y"')).toBe("'hooks notify' has no flag --bogus");
+    });
+
+    it('should_knowHiddenCommandsAndOnlyRealAliases_when_snapshotIsLoaded', () => {
+      expect(check(' benchmark --help')).toBeNull();
+      expect(check(' security code')).toBe("unknown subcommand 'security code'");
+      expect(check(' mcp start')).toBeNull();
     });
   });
 

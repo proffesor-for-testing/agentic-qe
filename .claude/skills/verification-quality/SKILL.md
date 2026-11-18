@@ -1,7 +1,6 @@
 ---
 name: "Verification & Quality Assurance"
-description: |
-  Verify agent-written changes before they are kept: run the tests, measure coverage, scan for vulnerabilities, apply AQE's fail-closed quality gate, and revert with git when the verdict is a failure. Use when an agent's output needs a measured pass/fail decision rather than a self-reported one.
+description: "Verify agent-written changes before they are kept: run the tests, measure coverage, scan for vulnerabilities, apply AQE's fail-closed quality gate, and revert with git when the verdict is a failure. Use when an agent's output needs a measured pass/fail decision rather than a self-reported one."
 ---
 
 # Verification & Quality Assurance Skill
@@ -13,7 +12,6 @@ This skill turns "the agent says it works" into a measured verdict:
 - **Evidence first**: run the tests and coverage so the gate has real measurements.
 - **Fail-closed gate**: `aqe quality --gate` passes only on measured evidence; a missing metric is *insufficient evidence*, never a pass.
 - **Security check**: SAST and dependency advisories before a change is kept.
-- **Attestation**: `aqe prove` records what was executed, measured and scanned.
 - **Rollback with git**: when the verdict fails, revert the change with ordinary git commands.
 
 Every command below exists in the AQE CLI (`aqe`) or in git. The skill does not depend on Ruflo.
@@ -70,21 +68,9 @@ aqe quality --gate --format json | jq '{status, passed, unmeasured, recommendati
 }
 ```
 
-Treat exit code `3` as a stop: report which metrics are missing instead of a score.
+Never report exit code `3` as a pass: say which metrics are missing instead of giving a score.
 
-**Current limit.** The gate also requires `criticalBugs`, `codeSmells`, `securityVulnerabilities`, `technicalDebt` and `duplications`, and no AQE CLI command or MCP tool records those yet. Until they are supplied from your own measurement, expect exit code `3` even when tests and coverage are measured. In that case, base the keep/revert decision on the evidence you did measure (test results, coverage, security findings) and say plainly which gate metrics were not measured.
-
-### Pinned-checklist verdicts
-
-For a two-gate, three-valued verdict on one artifact against a frozen checklist:
-
-```bash
-# List the pinned checklists
-aqe quality-gate --list
-
-# Judge an artifact, with the mutation-oracle result
-aqe quality-gate --checklist <id> --artifact-file path/to/artifact.ts --oracle-file oracle.json --format json
-```
+**Current limit.** The gate also requires `criticalBugs`, `codeSmells`, `securityVulnerabilities`, `technicalDebt` and `duplications`, and no AQE CLI command or MCP tool records those yet. Until they are supplied from your own measurement, expect exit code `3` even when tests and coverage are measured. Until then, decide on the evidence you did measure: the test run's exit code, `aqe coverage` against its threshold, and the security findings. Say plainly which gate metrics were not measured. The CI example below works this way.
 
 ## Verification Checks
 
@@ -121,15 +107,6 @@ aqe security --dependencies
 aqe security --sast --format sarif --output security.sarif
 ```
 
-### Proof-of-Quality attestation
-
-```bash
-aqe prove --format json --output .agentic-qe/results/attestation.json
-jq '.attestation' .agentic-qe/results/attestation.json
-```
-
-`attestation` states which steps actually ran (`testsExecuted`, `coverageChecked`, `securityScanned`, `qualityGatePassed`). A `false` means that step has no evidence; do not report it as done.
-
 ### Audit trail
 
 ```bash
@@ -156,7 +133,7 @@ git reset --soft HEAD~1
 git revert <commit>
 ```
 
-Before discarding work, save it on a branch (`git switch -c wip/rejected-change && git commit -am "rejected by gate"`) so it can be inspected later.
+Before discarding work, save it on a branch (`git switch -c wip/rejected-change && git add -A && git commit -m "rejected by gate"`) so it can be inspected later; `git add -A` also keeps new files the agent created.
 
 ## CI/CD Integration
 
@@ -177,16 +154,26 @@ jobs:
           node-version: 20
       - run: npm ci
       - run: npx agentic-qe init --auto
+      # Fails the job when a test fails; also writes the coverage report
+      - run: npx vitest run --coverage
+      # Records testsPassing for the gate
       - run: npx agentic-qe test execute tests/ --format junit --output junit.xml
-      - run: npx agentic-qe coverage src/ --format json --output coverage.json
-      - name: Quality gate
+      - name: Coverage threshold
+        run: |
+          set +e
+          npx agentic-qe coverage src/ --threshold 80 --format json --output coverage.json
+          code=$?
+          # 0 = meets, 2 = within 5 points; 1 = below threshold or error; 3 = no coverage measured
+          if [ "$code" -eq 1 ] || [ "$code" -eq 3 ]; then exit 1; fi
+      - name: Quality gate (report only until every gate metric is measured)
         run: |
           set +e
           npx agentic-qe quality --gate --format json --output gate.json
           code=$?
           jq '{status, passed, unmeasured}' gate.json
-          # 0 = pass, 2 = pass with narrow margin; 1 = failed; 3 = not evaluated (missing evidence)
-          if [ "$code" -ne 0 ] && [ "$code" -ne 2 ]; then exit "$code"; fi
+          # 1 = a measured check failed. 3 = not evaluated: listed as unmeasured, not a pass.
+          if [ "$code" -eq 1 ]; then exit 1; fi
+          if [ "$code" -eq 3 ]; then echo "::warning::Quality gate not evaluated: $(jq -r '.unmeasured | join(", ")' gate.json) not measured"; fi
       - uses: actions/upload-artifact@v4
         with:
           name: verification-report
@@ -200,18 +187,18 @@ jobs:
 
 ```bash
 #!/bin/bash
-# .git/hooks/pre-commit
-npx agentic-qe quality --gate --format json --output /tmp/aqe-gate.json
+# .git/hooks/pre-commit: block on a measured failure, warn on missing evidence
+gate=$(mktemp)
+trap 'rm -f "$gate"' EXIT
+npx agentic-qe quality --gate --format json --output "$gate"
 code=$?
 if [ "$code" -eq 1 ]; then
   echo "❌ Quality gate failed:"
-  jq -r '.checks[] | select(.passed == false) | "  \(.name): \(.value) (threshold \(.threshold))"' /tmp/aqe-gate.json
+  jq -r '.checks[] | select(.passed == false) | "  \(.name): \(.value) (threshold \(.threshold))"' "$gate"
   exit 1
 fi
 if [ "$code" -eq 3 ]; then
-  echo "⚠️  Quality gate not evaluated (missing evidence):"
-  jq -r '.unmeasured[]' /tmp/aqe-gate.json
-  exit 1
+  echo "⚠️  Quality gate not evaluated; not measured: $(jq -r '.unmeasured | join(", ")' "$gate")"
 fi
 ```
 
@@ -228,7 +215,7 @@ npx ruflo@3.76.0 verify --json
 1. **Measure before you judge**: run the tests and coverage before the gate; an unmeasured metric is a missing verdict, not a pass.
 2. **Respect exit code 3**: report the missing evidence instead of inventing a score.
 3. **Keep thresholds in config, not prompts**: an agent should not lower a threshold to pass.
-4. **Attach evidence**: link the gate JSON, coverage report and attestation to the PR.
+4. **Attach evidence**: link the test results, coverage report and gate JSON to the PR.
 5. **Revert with git**: keep rejected work on a branch so the failure can be studied.
 
 ## Related Skills

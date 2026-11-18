@@ -2,7 +2,7 @@ skill: verification-quality
 version: 1.0.0
 description: >
   Evaluation suite for verification-quality skill.
-  Tests comprehensive quality verification including truth scoring,
+  Tests measured quality verification: the fail-closed gate verdict,
   code quality analysis, and comprehensive quality assessment.
 
 models_to_test:
@@ -54,22 +54,25 @@ test_cases:
       schema_check: true
       keyword_match_threshold: 0.8
 
-  - id: tc002_truth_scoring
-    description: "Truth scoring correctly evaluates statement validity"
+  - id: tc002_insufficient_evidence
+    description: "An unmeasured gate metric is reported as missing evidence, not as a passing score"
     category: core
     priority: critical
 
     input:
-      statements:
-        - "Function returns correct result"
-        - "Code is optimized"
+      gateResult:
+        status: "insufficient-evidence"
+        passed: false
+        unmeasured: ["coverage", "testsPassing"]
       context:
-        evaluateTruth: true
+        reportVerdict: true
 
     expected_output:
       must_contain:
-        - "truth"
-        - "score"
+        - "evidence"
+        - "coverage"
+      must_not_contain:
+        - "passed with"
 
     validation:
       schema_check: true
@@ -147,4 +150,4 @@ metadata:
   author: "qe-quality-specialist"
   created: "2026-02-02"
   last_updated: "2026-02-02"
-  coverage_target: "Quality scoring, truth evaluation, code metrics, issue identification, recommendations"
+  coverage_target: "Quality scoring, gate verdicts on missing evidence, code metrics, issue identification, recommendations"
