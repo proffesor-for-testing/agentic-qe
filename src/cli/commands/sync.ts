@@ -19,6 +19,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
 import { subcommandOptions } from './sync-subcommand-options.js';
+import { restoreStatement } from '../../sync/cloud/dedupe-experiences.js';
 import {
   createSyncAgent,
   syncToCloud,
@@ -258,18 +259,27 @@ export function createSyncCommands(): Command {
     .description('Remove learning experiences duplicated by syncs before migration 004 (dry run unless --apply)')
     .option('-e, --env <environment>', 'Environment identifier', process.env.AQE_ENV || 'devpod')
     .option('--apply', 'Back up the duplicates to a cloud table, then delete them')
+    .option('--dry-run', 'Only show what would be deleted (the default without --apply)')
     .option('--json', 'Output JSON')
     .action(async (_options, command: Command) => {
-      const options = subcommandOptions<{ env: string; apply?: boolean; json?: boolean }>(command);
+      const options = subcommandOptions<{ env: string; apply?: boolean; dryRun?: boolean; json?: boolean }>(command);
+      // A typed --dry-run (here or on `aqe sync`) always wins over --apply.
+      const apply = options.apply === true && options.dryRun !== true;
       const spinner = options.json ? null : ora(`Checking ${options.env} experiences in the cloud...`).start();
       try {
         const agent = createSyncAgent({ environment: options.env, verbose: false });
-        const outcome = await agent.dedupeExperiences({ apply: options.apply === true });
+        let outcome: Awaited<ReturnType<typeof agent.dedupeExperiences>>;
+        try {
+          await agent.initialize();
+          outcome = await agent.dedupeExperiences({ apply });
+        } finally {
+          await agent.close();
+        }
         spinner?.stop();
         if (options.json) {
-          console.log(JSON.stringify({ applied: options.apply === true, ...outcome }, null, 2));
+          console.log(JSON.stringify({ applied: apply, ...outcome }, null, 2));
         } else {
-          printDedupeOutcome(outcome, options.apply === true);
+          printDedupeOutcome(outcome, apply);
         }
         process.exitCode = outcome.blocked ? 1 : 0;
       } catch (error) {
@@ -394,7 +404,8 @@ export function createSyncCommands(): Command {
 /** #1436: human-readable dedupe plan or result. */
 function printDedupeOutcome(
   outcome: { environment: string; totalRows: number; keyedRows: number; legacyRows: number;
-    legacyWithKeyedTwin: number; legacyRepeats: number; legacyKept: number; toDelete: number;
+    legacyWithKeyedTwin: number; legacyChanged: number; legacyRepeats: number; legacyKept: number;
+    toDelete: number; localExperiences?: number;
     rowsAfter: number; blocked?: string; deleted?: number; backupTable?: string | null; verifiedRowsAfter?: number },
   applied: boolean,
 ): void {
@@ -405,8 +416,12 @@ function printDedupeOutcome(
   }
   console.log(`  Rows:                         ${outcome.totalRows}`);
   console.log(`  Uploaded with local_id:       ${outcome.keyedRows} (kept)`);
+  if (outcome.localExperiences !== undefined) {
+    console.log(`  Local experiences:            ${outcome.localExperiences}`);
+  }
   console.log(`  Uploaded before migration 004: ${outcome.legacyRows}`);
   console.log(`    same as a local_id row:     ${outcome.legacyWithKeyedTwin} (duplicate)`);
+  console.log(`    older copy, changed since:  ${outcome.legacyChanged} (duplicate)`);
   console.log(`    repeat of an earlier row:   ${outcome.legacyRepeats} (duplicate)`);
   console.log(`    only copy, kept:            ${outcome.legacyKept}`);
   console.log(`  Duplicates:                   ${outcome.toDelete}`);
@@ -423,6 +438,7 @@ function printDedupeOutcome(
   }
   console.log(chalk.green(`\nDeleted ${outcome.deleted} duplicates. Backup: ${outcome.backupTable}`));
   console.log(`Rows now: ${outcome.verifiedRowsAfter}. Check with: aqe sync verify --env ${outcome.environment}`);
+  if (outcome.backupTable) console.log(`To put them back: psql -c "${restoreStatement(outcome.backupTable)}"`);
 }
 function printSyncReport(report: SyncReport): void {
   const statusColor = report.status === 'completed' ? chalk.green :

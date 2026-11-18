@@ -416,6 +416,13 @@ export interface PullSource {
 
   /** #1409: insert new rows only; a row already in the local table is kept as it is. */
   insertOnly?: boolean;
+
+  /**
+   * #1436: when the mapped local `id` is NULL (a cloud row uploaded without its
+   * local id), use `<prefix><source_env>:<cloud id>`, so pulling the row again
+   * finds it instead of inserting it once more.
+   */
+  fallbackIdPrefix?: string;
 }
 
 /**
@@ -567,6 +574,8 @@ export const DEFAULT_PULL_CONFIG: PullConfig = {
       // #1436: mark pulled experiences, so the push leaves them out, and keep a
       // row already present (same origin id) as it is.
       fill: { source: `${PULLED_EXPERIENCE_SOURCE_PREFIX}{env}` },
+      // Rows uploaded before migration 004 have no local_id.
+      fallbackIdPrefix: 'cloud:',
       excludeOwnEnvironment: true,
       insertOnly: true,
     },
@@ -768,7 +777,8 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
       },
       // Captured experiences → cloud learning_experiences (854+ records)
       // Cloud id is SERIAL (auto-increment); the local UUID goes to local_id, and
-      // UNIQUE(local_id, source_env) makes a re-sync update a row instead of adding one (#1436).
+      // UNIQUE(local_id, source_env) makes a re-sync match the row instead of adding one (#1436).
+      // Append mode: a full sync fills columns still NULL in the cloud, it does not overwrite.
       // Rows pulled from another environment (source cloud-sync:*, or a NULL id left by
       // pulls before #1436) are not this machine's experiences and are not uploaded.
       {

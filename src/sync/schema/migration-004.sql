@@ -3,7 +3,7 @@
 --   upload left out the local experience id, so every `aqe sync --full` (and every
 --   incremental sync that re-read a row) inserted each captured experience again.
 -- local_id holds the local captured_experiences id; UNIQUE(local_id, source_env)
---   makes a re-sync update the row instead of adding one.
+--   makes a re-sync match the row instead of adding it again.
 -- Safe to run more than once. Afterwards:
 --   1. aqe sync --full                      (uploads every experience with its local_id)
 --   2. aqe sync dedupe-experiences          (dry run: shows the duplicates it would delete)

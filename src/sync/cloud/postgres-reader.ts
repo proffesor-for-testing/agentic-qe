@@ -179,6 +179,11 @@ export class PostgresReader {
       result[localKey] = this.transformValue(value, key, source.transforms);
     }
 
+    // #1436: a stable local id for a cloud row that has none.
+    if (source.fallbackIdPrefix && (result.id === null || result.id === undefined) && row.id !== null && row.id !== undefined) {
+      result.id = `${source.fallbackIdPrefix}${String(row.source_env ?? '')}:${String(row.id)}`;
+    }
+
     // #1432: local NOT NULL columns whose cloud value is NULL.
     for (const [column, value] of Object.entries(source.defaults ?? {})) {
       if (result[column] === null || result[column] === undefined) result[column] = value;

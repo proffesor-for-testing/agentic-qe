@@ -20,8 +20,11 @@ import {
   DEFAULT_PULL_CONFIG, DEFAULT_SYNC_CONFIG, PULLED_EXPERIENCE_SOURCE_PREFIX, type CloudWriter,
 } from '../../../src/sync/interfaces.js';
 import {
-  applyExperienceDedupe, backupTableName, planExperienceDedupe, type DedupeDb,
+  applyExperienceDedupe, backupTableName, planExperienceDedupe, restoreStatement, type DedupeDb,
 } from '../../../src/sync/cloud/dedupe-experiences.js';
+import type { Command } from 'commander';
+import { createSyncCommands } from '../../../src/cli/commands/sync.js';
+import { subcommandOptions } from '../../../src/cli/commands/sync-subcommand-options.js';
 import { ensureAllBrainTables } from '../../../src/integrations/ruvector/brain-table-ddl.js';
 import { openDatabase } from '../../../src/shared/safe-db.js';
 
@@ -138,6 +141,15 @@ describe('pull of learning experiences (#1436)', () => {
     expect(row).not.toHaveProperty('source_env');
   });
 
+  it('should_giveAStableId_when_theCloudRowWasUploadedWithoutLocalId', async () => {
+    // Review of #1436: a NULL id never conflicts in SQLite, so every pull added these rows again.
+    const reader = readerWith([{ ...EXPERIENCE, local_id: null, id: 42 }]);
+    const [first] = await reader.readAll(pullSource);
+    const [second] = await readerWith([{ ...EXPERIENCE, local_id: null, id: 42 }]).readAll(pullSource);
+    expect(first.id).toBe('cloud:laptop:42');
+    expect(second.id).toBe(first.id);
+  });
+
   it('should_skipOwnEnvironmentAndKeepExistingRows_when_pulling', () => {
     expect(pullSource.excludeOwnEnvironment).toBe(true);
     expect(pullSource.insertOnly).toBe(true);
@@ -166,7 +178,7 @@ describe('cloud schema (#1436)', () => {
 /** A DedupeDb that answers the plan queries from fixed counts and records statements. */
 function fakeDb(state: {
   hasColumn?: boolean; total?: number; keyed?: number; legacy?: number;
-  withTwin?: number; repeats?: number; kept?: number;
+  withTwin?: number; changed?: number; repeats?: number; kept?: number;
   backedUp?: number; deleted?: number; after?: number;
 }) {
   const statements: string[] = [];
@@ -180,7 +192,9 @@ function fakeDb(state: {
         return [{ total: state.total ?? 0, keyed: state.keyed ?? 0, legacy: state.legacy ?? 0 }] as T[];
       }
       if (s.includes('AS with_twin')) {
-        return [{ with_twin: state.withTwin ?? 0, repeats: state.repeats ?? 0, kept: state.kept ?? 0 }] as T[];
+        return [{
+          with_twin: state.withTwin ?? 0, changed: state.changed ?? 0, repeats: state.repeats ?? 0, kept: state.kept ?? 0,
+        }] as T[];
       }
       if (s.startsWith('SELECT COUNT(*) AS n FROM aqe.learning_experiences_dedupe_')) return [{ n: state.backedUp }] as T[];
       if (s.startsWith('DELETE FROM')) return Array.from({ length: state.deleted ?? 0 }, (_, i) => ({ id: i })) as T[];
@@ -193,7 +207,7 @@ function fakeDb(state: {
 
 // 1104 local experiences, synced twice before migration 004 and once after; one
 // experience deleted locally since, uploaded twice before.
-const DUPLICATED = { total: 3314, keyed: 1104, legacy: 2210, withTwin: 2208, repeats: 1, kept: 1 };
+const DUPLICATED = { total: 3314, keyed: 1104, legacy: 2210, withTwin: 2208, changed: 0, repeats: 1, kept: 1 };
 const NOW = new Date('2026-11-18T09:30:00.123Z');
 
 describe('aqe sync dedupe-experiences (#1436)', () => {
@@ -218,16 +232,39 @@ describe('aqe sync dedupe-experiences (#1436)', () => {
   });
 
   it('should_block_when_migration004IsNotApplied', async () => {
-    const { db } = fakeDb({ hasColumn: false });
+    const { db, statements } = fakeDb({ hasColumn: false });
     const plan = await planExperienceDedupe(db, 'laptop');
     expect(plan.blocked).toMatch(/no local_id column.*migration-004\.sql/);
-    await expect(applyExperienceDedupe(db, 'laptop', { now: NOW })).rejects.toThrow(/no local_id column/);
+    const result = await applyExperienceDedupe(db, 'laptop', { now: NOW });
+    expect(result).toMatchObject({ deleted: 0, backupTable: null, blocked: expect.stringMatching(/no local_id column/) });
+    expect(statements.some(s => s.startsWith('CREATE') || s.startsWith('DELETE'))).toBe(false);
+  });
+
+  it('should_deleteOlderCopiesOfAChangedExperience_when_oneKeyedRowHasTheSameIdentity', async () => {
+    // Review of #1436: quality changed locally after the legacy uploads, so no keyed row
+    // has the same content, but exactly one has the same agent/task/type/created_at.
+    const { db, statements } = fakeDb({ ...DUPLICATED, withTwin: 2148, changed: 60, repeats: 1, kept: 1 });
+    const plan = await planExperienceDedupe(db, 'laptop');
+    expect(plan).toMatchObject({ legacyChanged: 60, toDelete: 2209, rowsAfter: 1105 });
+    const classify = statements.find(s => s.includes('AS with_twin'))!;
+    expect(classify).toContain('= 1 AS has_unique_keyed_identity');
+    for (const column of ['agent_id', 'task_id', 'task_type', 'created_at']) {
+      expect(classify).toContain(`k.${column} IS NOT DISTINCT FROM l.${column}`);
+    }
+  });
+
+  it('should_block_when_notEveryLocalExperienceHasAKeyedRowYet', async () => {
+    // Review of #1436: the background sync uploads a few keyed rows long before a full sync.
+    const { db } = fakeDb({ ...DUPLICATED, keyed: 12 });
+    const plan = await planExperienceDedupe(db, 'laptop', { localExperiences: 1104 });
+    expect(plan.blocked).toMatch(/Only 12 of 1104 local experiences/);
+    expect((await planExperienceDedupe(fakeDb(DUPLICATED).db, 'laptop', { localExperiences: 1104 })).blocked).toBeUndefined();
   });
 
   it('should_block_when_noRowHasBeenUploadedWithItsKeyYet', async () => {
     // Collapsing legacy rows now would leave one copy, and the next full sync
     // would add every experience again next to it.
-    const { db } = fakeDb({ total: 2208, keyed: 0, legacy: 2208, withTwin: 0, repeats: 1104, kept: 1104 });
+    const { db } = fakeDb({ total: 2208, keyed: 0, legacy: 2208, withTwin: 0, changed: 0, repeats: 1104, kept: 1104 });
     const plan = await planExperienceDedupe(db, 'laptop');
     expect(plan.blocked).toMatch(/Run aqe sync --full --env laptop first/);
   });
@@ -242,7 +279,7 @@ describe('aqe sync dedupe-experiences (#1436)', () => {
     const result = await applyExperienceDedupe(db, 'laptop', { now: NOW });
 
     expect(result).toMatchObject({ deleted: 2209, verifiedRowsAfter: 1105, backupTable: 'aqe.learning_experiences_dedupe_20261118t093000' });
-    const order = ['BEGIN', 'LOCK TABLE', 'CREATE TABLE aqe.learning_experiences_dedupe_', 'DELETE FROM', 'COMMIT']
+    const order = ['BEGIN', "SET LOCAL lock_timeout = '10s'", 'LOCK TABLE', 'CREATE TABLE aqe.learning_experiences_dedupe_', 'DELETE FROM', 'COMMIT']
       .map(prefix => statements.findIndex(s => s.startsWith(prefix)));
     expect(order.every(i => i >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
@@ -273,5 +310,37 @@ describe('aqe sync dedupe-experiences (#1436)', () => {
 
   it('should_nameTheBackupAfterTheRunTime_when_applying', () => {
     expect(backupTableName(NOW)).toBe('aqe.learning_experiences_dedupe_20261118t093000');
+    expect(restoreStatement(backupTableName(NOW))).toBe(
+      'INSERT INTO aqe.learning_experiences SELECT * FROM aqe.learning_experiences_dedupe_20261118t093000;',
+    );
+  });
+
+  it('should_rejectAnInjectedLockTimeout_when_applying', async () => {
+    const { db } = fakeDb(DUPLICATED);
+    await expect(applyExperienceDedupe(db, 'laptop', { now: NOW, lockTimeout: "1s'; DROP TABLE x; --" }))
+      .rejects.toThrow(/Invalid lock timeout/);
+  });
+
+  describe('options', () => {
+    async function resolved(argv: string[]): Promise<Record<string, unknown>> {
+      const sync = createSyncCommands();
+      let captured: Record<string, unknown> = {};
+      const command = sync.commands.find(c => c.name() === 'dedupe-experiences')!;
+      command.action((_opts: unknown, cmd: Command) => { captured = subcommandOptions(cmd); });
+      await sync.parseAsync(['node', 'sync', ...argv]);
+      return captured;
+    }
+
+    it.each([
+      [['dedupe-experiences', '--apply', '--dry-run']],
+      [['--dry-run', 'dedupe-experiences', '--apply']],
+    ])('should_seeTheTypedDryRun_when_givenWithApply %j', async (argv) => {
+      // Review of #1436: --dry-run reached only the parent, and --apply deleted anyway.
+      expect(await resolved(argv)).toMatchObject({ apply: true, dryRun: true });
+    });
+
+    it('should_takeTheParentEnvironment_when_givenBeforeTheSubcommand', async () => {
+      expect((await resolved(['--env', 'ci-7', 'dedupe-experiences'])).env).toBe('ci-7');
+    });
   });
 });
