@@ -224,6 +224,20 @@ describe('ruflo command surface (#1417)', () => {
       expect(shrunk, 'Fewer stale calls than the baseline; lower known-stale-1417.json to lock it in').toEqual([]);
     });
 
+    it('should_shipNoFileWithStaleRufloCalls_when_packaging', () => {
+      // #1456: the npm package ships only what aqe init installs, so nothing that ships
+      // may sit in the stale baseline.
+      const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as { files: string[] };
+      const shippedSpecs = pkg.files
+        .filter((entry) => !entry.startsWith('dist/'))
+        .map((entry) => entry.replace(/\/\*\*.*$/, ''));
+      const shipped = new Set(
+        execFileSync('git', ['ls-files', '-z', '--', ...shippedSpecs], { cwd: ROOT, encoding: 'utf8' }).split('\0').filter(Boolean),
+      );
+      expect(Object.keys(baseline.files).filter((rel) => shipped.has(rel))).toEqual([]);
+      expect(pkg.files.filter((entry) => /^\.claude\/(skills|commands)\b/.test(entry) || entry === '.claude/agents')).toEqual([]);
+    });
+
     it('should_keepBaselineCurrent_when_filesMoveOrDisappear', () => {
       const tracked = new Set(rest);
       const missing = Object.keys(baseline.files).filter((rel) => !tracked.has(rel));
