@@ -252,6 +252,8 @@ export interface SafeGlobOptions {
   ignore?: string[];
   /** Return absolute paths (default: relative to cwd). */
   absolute?: boolean;
+  /** Entries read at or below symbolic links before failing closed (default MAX_LINKED_ENTRIES). */
+  maxLinkedEntries?: number;
 }
 
 const inside = (root: string, path: string) => {
@@ -299,6 +301,7 @@ export async function safeGlob(pattern: string | string[], options: SafeGlobOpti
   // walk. Every entry read at or below a link counts against MAX_LINKED_ENTRIES;
   // past it the walk fails closed instead of running out of memory.
   let linkedEntries = 0;
+  const linkBudget = options.maxLinkedEntries ?? MAX_LINKED_ENTRIES;
   // Set once; every walk still running stops at its next step (no unhandled rejections).
   let failure: UnsafeGlobError | null = null;
   const found: string[] = [];
@@ -311,10 +314,10 @@ export async function safeGlob(pattern: string | string[], options: SafeGlobOpti
     } catch {
       return; // unreadable directory: nothing to match there
     }
-    if (viaLink && (linkedEntries += entries.length + 1) > MAX_LINKED_ENTRIES) {
+    if (viaLink && (linkedEntries += entries.length + 1) > linkBudget) {
       failure = new UnsafeGlobError(
         Array.isArray(pattern) ? pattern.join(',') : pattern,
-        `more than ${MAX_LINKED_ENTRIES} entries reached through symbolic links under ${cwd}`,
+        `more than ${linkBudget} entries reached through symbolic links under ${cwd}`,
       );
       return;
     }

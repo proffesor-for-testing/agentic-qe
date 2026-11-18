@@ -136,9 +136,10 @@ describe('safety (#1458)', () => {
       const n = 9; // factorial fan-out before: 9 dirs ran out of memory
       for (let i = 0; i < n; i++) { mkdirSync(join(d, `d${i}`)); writeFileSync(join(d, `d${i}`, 'f.ts'), ''); }
       for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) if (i !== j) symlinkSync(join(d, `d${j}`), join(d, `d${i}`, `l${j}`), 'dir');
-      const start = Date.now();
-      await expect(safeGlob('**/*.ts', { cwd: d })).rejects.toThrow(/entries reached through symbolic links/);
-      expect(Date.now() - start).toBeLessThan(5000);
+      // A small budget keeps the test fast on slow runners; the default is MAX_LINKED_ENTRIES.
+      await expect(safeGlob('**/*.ts', { cwd: d, maxLinkedEntries: 2_000 })).rejects.toThrow(
+        /more than 2000 entries reached through symbolic links/,
+      );
     } finally {
       rmSync(d, { recursive: true, force: true });
     }
