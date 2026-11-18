@@ -49,7 +49,9 @@ CREATE TABLE IF NOT EXISTS aqe.learning_experiences (
     episode_id TEXT,
     metadata JSONB,
     source_env TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    -- #1436: the local captured_experiences id, the sync key together with source_env
+    local_id TEXT
 );
 
 -- ============================================================================
@@ -363,6 +365,15 @@ CREATE INDEX IF NOT EXISTS idx_memory_updated ON aqe.memory_entries(updated_at);
 CREATE INDEX IF NOT EXISTS idx_learning_agent ON aqe.learning_experiences(agent_id);
 CREATE INDEX IF NOT EXISTS idx_learning_task_type ON aqe.learning_experiences(task_type);
 CREATE INDEX IF NOT EXISTS idx_learning_source ON aqe.learning_experiences(source_env);
+-- #1436 (migration 004): tables created before local_id existed get the column here.
+-- Rows uploaded before it keep local_id NULL; NULLs never conflict, so they stay until
+-- `aqe sync dedupe-experiences` removes the duplicates among them.
+ALTER TABLE aqe.learning_experiences ADD COLUMN IF NOT EXISTS local_id TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_learning_experiences_local_id
+    ON aqe.learning_experiences(local_id, source_env);
+-- Lets `aqe sync dedupe-experiences` match legacy rows without a scan per row.
+CREATE INDEX IF NOT EXISTS idx_learning_experiences_identity
+    ON aqe.learning_experiences(source_env, agent_id, created_at);
 
 CREATE INDEX IF NOT EXISTS idx_goap_actions_agent ON aqe.goap_actions(agent_type);
 CREATE INDEX IF NOT EXISTS idx_goap_actions_source ON aqe.goap_actions(source_env);

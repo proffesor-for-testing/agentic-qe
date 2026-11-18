@@ -50,6 +50,10 @@ import { convertBeforeQUpload, MISSING_STORE } from './q-patterns-cloud-migratio
 import { existsSync } from 'fs';
 import { resolve as resolvePath } from 'path';
 import { Q_PATTERNS_TABLE } from './readers/q-patterns.js';
+import {
+  applyExperienceDedupe, planExperienceDedupe,
+  type ExperienceDedupePlan, type ExperienceDedupeResult,
+} from './cloud/dedupe-experiences.js';
 
 /**
  * Sync agent configuration
@@ -455,6 +459,26 @@ export class CloudSyncAgent {
       results,
       ...(connectError ? { error: connectError } : {}),
     };
+  }
+
+  /**
+   * #1436: plan (default) or apply the one-off cleanup of duplicated
+   * learning_experiences rows for this environment. See dedupe-experiences.ts.
+   */
+  async dedupeExperiences(options: { apply: boolean }): Promise<ExperienceDedupePlan | ExperienceDedupeResult> {
+    if (this.config.sync.dryRun) throw new Error('dedupe-experiences needs a cloud connection; it cannot run as a dry run');
+    // The local experiences the upload sends: the cleanup waits until each has a keyed row.
+    const reader = this.readers.get('root-captured-experiences');
+    const localExperiences = reader && reader.exists?.() !== false ? await reader.count() : undefined;
+    await this.connectToCloud();
+    if (!this.writer) throw new Error('No cloud connection was opened');
+    try {
+      return options.apply
+        ? await applyExperienceDedupe(this.writer, this.config.environment, { localExperiences })
+        : await planExperienceDedupe(this.writer, this.config.environment, { localExperiences });
+    } finally {
+      await this.disconnect();
+    }
   }
 
   /**

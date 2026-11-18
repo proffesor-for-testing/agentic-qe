@@ -229,6 +229,16 @@ export class PostgresWriter implements CloudWriter {
     const recordColumns = Object.keys(firstRecord);
     const columns = kinds.size > 0 ? recordColumns.filter(c => kinds.has(c)) : recordColumns;
     const missing = recordColumns.filter(c => !columns.includes(c));
+    // #1436: without its key column the table has no conflict target, and every
+    // sync would insert each row again. Refuse instead of duplicating.
+    const missingKey = missing.filter(c => requiredKeyColumns(table).includes(c));
+    if (missingKey.length > 0) {
+      throw new Error(
+        `${table} has no ${missingKey.join(', ')} column, so rows cannot be matched and every sync would ` +
+        'duplicate them. Re-apply the cloud schema (aqe sync init --output cloud-schema.sql, then run it with psql; ' +
+        'or run src/sync/schema/migration-004.sql) and sync again.',
+      );
+    }
     if (missing.length > 0) options?.onMissingColumns?.(missing);
 
     // Build upsert SQL
@@ -581,6 +591,11 @@ export class PostgresWriter implements CloudWriter {
       return ['state', 'action', 'source_env'];
     }
 
+    // learning_experiences: unique(local_id, source_env) (#1436, migration 004)
+    if (tableName === 'learning_experiences' && columns.includes('local_id') && columns.includes('source_env')) {
+      return ['local_id', 'source_env'];
+    }
+
     // claude_flow_workers: unique(worker_type, source_env)
     if (tableName === 'claude_flow_workers' && columns.includes('worker_type') && columns.includes('source_env')) {
       return ['worker_type', 'source_env'];
@@ -589,6 +604,19 @@ export class PostgresWriter implements CloudWriter {
     // No conflict columns → plain INSERT (no ON CONFLICT clause)
     return [];
   }
+}
+
+/**
+ * #1436: columns a table's rows are matched on. An upload whose records carry one of
+ * these must not go ahead when the cloud table lacks it.
+ */
+const REQUIRED_KEY_COLUMNS: Record<string, string[]> = {
+  learning_experiences: ['local_id'],
+};
+
+function requiredKeyColumns(table: string): string[] {
+  const tableName = table.includes('.') ? table.split('.')[1] : table;
+  return REQUIRED_KEY_COLUMNS[tableName] ?? [];
 }
 
 /**

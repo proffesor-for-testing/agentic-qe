@@ -416,6 +416,13 @@ export interface PullSource {
 
   /** #1409: insert new rows only; a row already in the local table is kept as it is. */
   insertOnly?: boolean;
+
+  /**
+   * #1436: when the mapped local `id` is NULL (a cloud row uploaded without its
+   * local id), use `<prefix><source_env>:<cloud id>`, so pulling the row again
+   * finds it instead of inserting it once more.
+   */
+  fallbackIdPrefix?: string;
 }
 
 /**
@@ -455,6 +462,13 @@ export const PULLED_Q_ALGORITHM = 'cloud-sync';
 
 /** #1409: kv_store namespace prefix of claude-flow memories pulled from another environment. */
 export const PULLED_CLAUDE_FLOW_NAMESPACE_PREFIX = 'claude-flow-cloud:';
+
+/**
+ * #1436: captured_experiences.source of experiences pulled from another
+ * environment (`cloud-sync:<env>`). The push of root-captured-experiences
+ * leaves them out, so they are not uploaded again as this machine's rows.
+ */
+export const PULLED_EXPERIENCE_SOURCE_PREFIX = 'cloud-sync:';
 
 /**
  * Default pull configuration
@@ -545,6 +559,8 @@ export const DEFAULT_PULL_CONFIG: PullConfig = {
       mode: 'append',
       dropColumns: ['id', 'source_env', 'sync_version'],
       columnMap: {
+        // #1436: the origin's experience id, so a second pull of the same row is ignored
+        local_id: 'id',
         agent_id: 'agent',
         task_id: 'task',
         task_type: 'domain',
@@ -555,6 +571,13 @@ export const DEFAULT_PULL_CONFIG: PullConfig = {
         episode_id: 'tags',
         created_at: 'started_at',
       },
+      // #1436: mark pulled experiences, so the push leaves them out, and keep a
+      // row already present (same origin id) as it is.
+      fill: { source: `${PULLED_EXPERIENCE_SOURCE_PREFIX}{env}` },
+      // Rows uploaded before migration 004 have no local_id.
+      fallbackIdPrefix: 'cloud:',
+      excludeOwnEnvironment: true,
+      insertOnly: true,
     },
     // Q-learning patterns → rl_q_values (3 records)
     {
@@ -753,7 +776,11 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
         enabled: true,
       },
       // Captured experiences → cloud learning_experiences (854+ records)
-      // Cloud id is SERIAL (auto-increment) — omit local UUID id
+      // Cloud id is SERIAL (auto-increment); the local UUID goes to local_id, and
+      // UNIQUE(local_id, source_env) makes a re-sync match the row instead of adding one (#1436).
+      // Append mode: a full sync fills columns still NULL in the cloud, it does not overwrite.
+      // Rows pulled from another environment (source cloud-sync:*, or a NULL id left by
+      // pulls before #1436) are not this machine's experiences and are not uploaded.
       {
         name: 'root-captured-experiences',
         type: 'sqlite',
@@ -761,7 +788,7 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
         targetTable: 'aqe.learning_experiences',
         priority: 'high',
         mode: 'append',
-        query: "SELECT agent as agent_id, task as task_id, domain as task_type, COALESCE(result_json, '{}') as state, COALESCE(steps_json, '{}') as action, quality as reward, COALESCE(routing_json, '{}') as next_state, tags as episode_id, started_at as created_at FROM captured_experiences",
+        query: "SELECT id as local_id, agent as agent_id, task as task_id, domain as task_type, COALESCE(result_json, '{}') as state, COALESCE(steps_json, '{}') as action, quality as reward, COALESCE(routing_json, '{}') as next_state, tags as episode_id, started_at as created_at FROM captured_experiences WHERE id IS NOT NULL AND COALESCE(source, '') NOT LIKE 'cloud-sync:%'",
         enabled: true,
       },
       // GOAP plans (91+ records)
