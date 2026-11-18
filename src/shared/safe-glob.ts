@@ -25,8 +25,8 @@ import { readdir, realpath, stat } from 'node:fs/promises';
 import { join, relative, isAbsolute, resolve, sep } from 'node:path';
 
 export const MAX_BRACE_EXPANSIONS = 256;
-/** Directories a walk may enter through symbolic links before it fails closed. */
-export const MAX_LINKED_DIRS = 10_000;
+/** Entries (files and directories) a walk may read at or below symbolic links before it fails closed. */
+export const MAX_LINKED_ENTRIES = 200_000;
 const MAX_PATTERN_LENGTH = 1024;
 
 export class UnsafeGlobError extends Error {
@@ -222,11 +222,14 @@ export function assertSafePattern(pattern: string): void {
 
 function compileSegments(pattern: string): Segment[][] {
   assertSafePattern(pattern);
-  // A literal `//` is one separator (`src//a.ts`); a `//` that only an empty brace
-  // alternative produced must not join segments: `{a,}/**` is `a/**`, not `**`.
-  const literalDoubleSlash = pattern.includes('//');
+  // A literal `//` or `./` is normalized (`src//a.ts`, `./src`). An empty brace
+  // alternative must not remove a segment: `{a,}/**` is `a/**` (not `**`) and
+  // `**/{a,}` is `**/a`, so an expansion with more empty or `.` segments than the
+  // pattern itself is dropped.
+  const blanks = (text: string) => text.split('/').filter((x) => x === '' || x === '.').length;
+  const literalBlanks = blanks(pattern);
   return expandBraces(pattern)
-    .filter((p) => literalDoubleSlash || (!p.startsWith('/') && !p.includes('//')))
+    .filter((p) => !p.startsWith('/') && blanks(p) <= literalBlanks)
     // `./src/*.ts` and `src/./a.ts` mean `src/*.ts` and `src/a.ts`.
     .map((p) => p.split('/').filter((x) => x !== '' && x !== '.'))
     .filter((parts) => parts.length > 0)
@@ -293,27 +296,27 @@ export async function safeGlob(pattern: string | string[], options: SafeGlobOpti
   }
   // Links to sibling directories are followed (two links to one package list it
   // twice, as tinyglobby did), so links pointing at each other could multiply the
-  // walk. Directories entered at or below a link count against MAX_LINKED_DIRS;
+  // walk. Every entry read at or below a link counts against MAX_LINKED_ENTRIES;
   // past it the walk fails closed instead of running out of memory.
-  let linkedDirs = 0;
+  let linkedEntries = 0;
   // Set once; every walk still running stops at its next step (no unhandled rejections).
   let failure: UnsafeGlobError | null = null;
   const found: string[] = [];
   // `realDir` is the real path of `relDir`; ancestors are the real paths above it.
   const walk = async (relDir: string, realDir: string, ancestors: Set<string>, viaLink: boolean): Promise<void> => {
     if (failure) return;
-    if (viaLink && ++linkedDirs > MAX_LINKED_DIRS) {
-      failure = new UnsafeGlobError(
-        Array.isArray(pattern) ? pattern.join(',') : pattern,
-        `more than ${MAX_LINKED_DIRS} directories reached through symbolic links under ${cwd}`,
-      );
-      return;
-    }
     let entries;
     try {
       entries = await readdir(relDir ? join(cwd, relDir) : cwd, { withFileTypes: true });
     } catch {
       return; // unreadable directory: nothing to match there
+    }
+    if (viaLink && (linkedEntries += entries.length + 1) > MAX_LINKED_ENTRIES) {
+      failure = new UnsafeGlobError(
+        Array.isArray(pattern) ? pattern.join(',') : pattern,
+        `more than ${MAX_LINKED_ENTRIES} entries reached through symbolic links under ${cwd}`,
+      );
+      return;
     }
     const subdirs: Array<Promise<void>> = [];
     for (const entry of entries) {

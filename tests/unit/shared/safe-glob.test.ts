@@ -137,7 +137,7 @@ describe('safety (#1458)', () => {
       for (let i = 0; i < n; i++) { mkdirSync(join(d, `d${i}`)); writeFileSync(join(d, `d${i}`, 'f.ts'), ''); }
       for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) if (i !== j) symlinkSync(join(d, `d${j}`), join(d, `d${i}`, `l${j}`), 'dir');
       const start = Date.now();
-      await expect(safeGlob('**/*.ts', { cwd: d })).rejects.toThrow(/directories reached through symbolic links/);
+      await expect(safeGlob('**/*.ts', { cwd: d })).rejects.toThrow(/entries reached through symbolic links/);
       expect(Date.now() - start).toBeLessThan(5000);
     } finally {
       rmSync(d, { recursive: true, force: true });
@@ -168,6 +168,29 @@ describe('safety (#1458)', () => {
     expect(await safeGlob('**/*.py', { cwd: root, ignore: ['src/**'] })).not.toContain('src/c.py');
     // A bare name prunes the directory of that name.
     expect((await safeGlob('**/*.{ts,py}', { cwd: root, ignore: ['src', 'linked', 'node_modules'] }))).toEqual(['dir.ts/inner.ts']);
+  });
+
+  it.skipIf(!canSymlink)('should_failClosed_when_fewLinkedDirsHoldManyFiles', async () => {
+    // Re-review of #1459: a directory budget let 6 mutually linked dirs of 1,000 files return ~2M paths.
+    const d = mkdtempSync(join(tmpdir(), 'aqe-glob-wide-'));
+    try {
+      const n = 6;
+      for (let i = 0; i < n; i++) {
+        mkdirSync(join(d, `d${i}`));
+        for (let f = 0; f < 1000; f++) writeFileSync(join(d, `d${i}`, `f${f}.ts`), '');
+      }
+      for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) if (i !== j) symlinkSync(join(d, `d${j}`), join(d, `d${i}`, `l${j}`), 'dir');
+      await expect(safeGlob('**/*.ts', { cwd: d })).rejects.toThrow(/entries reached through symbolic links/);
+    } finally {
+      rmSync(d, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('should_keepEmptyBraceAlternativesFromDroppingSegments_when_atTheEnd', () => {
+    expect(compileGlob('**/{a,}')('x/y.ts')).toBe(false);
+    expect(compileGlob('**/{a,}')('x/a')).toBe(true);
+    expect(compileGlob('src//{a,}/**')('src/q/r.ts')).toBe(false);
+    expect(compileGlob('src//{a,}/**')('src/a/r.ts')).toBe(true);
   });
 
   it('should_readALiteralDoubleSlashAsOneSeparator_when_written', async () => {
