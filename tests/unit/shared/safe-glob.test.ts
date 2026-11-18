@@ -130,28 +130,48 @@ describe('safety (#1458)', () => {
   });
 
   // Review of #1459
-  it.skipIf(!canSymlink)('should_walkEachLinkedDirectoryOnce_when_linksPointAtEachOther', async () => {
+  it.skipIf(!canSymlink)('should_failClosedQuickly_when_linksPointAtEachOther', async () => {
     const d = mkdtempSync(join(tmpdir(), 'aqe-glob-diamond-'));
     try {
       const n = 9; // factorial fan-out before: 9 dirs ran out of memory
       for (let i = 0; i < n; i++) { mkdirSync(join(d, `d${i}`)); writeFileSync(join(d, `d${i}`, 'f.ts'), ''); }
       for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) if (i !== j) symlinkSync(join(d, `d${j}`), join(d, `d${i}`, `l${j}`), 'dir');
       const start = Date.now();
-      const files = await safeGlob('**/*.ts', { cwd: d });
+      await expect(safeGlob('**/*.ts', { cwd: d })).rejects.toThrow(/directories reached through symbolic links/);
       expect(Date.now() - start).toBeLessThan(5000);
-      expect(files.length).toBeLessThanOrEqual(2 * n);
-      for (let i = 0; i < n; i++) expect(files).toContain(`d${i}/f.ts`);
     } finally {
       rmSync(d, { recursive: true, force: true });
     }
   });
 
-  it('should_pruneOnlyDirectoriesAnIgnoreReallyCovers_when_ignoresEndInAFileName', async () => {
-    // `**/*x` and `**/x` ignore files named like that; they must not prune every directory.
+  it.skipIf(!canSymlink)('should_listEveryLinkToTheSameDirectory_when_twoLinksShareATarget', async () => {
+    // Re-review of #1459: a monorepo where two apps link one package lists it under both.
+    const d = mkdtempSync(join(tmpdir(), 'aqe-glob-twolinks-'));
+    try {
+      mkdirSync(join(d, 'packages', 'p1'), { recursive: true });
+      writeFileSync(join(d, 'packages', 'p1', 'x.ts'), '');
+      for (const app of ['web', 'api']) {
+        mkdirSync(join(d, 'apps', app), { recursive: true });
+        symlinkSync(join(d, 'packages', 'p1'), join(d, 'apps', app, 'p1'), 'dir');
+      }
+      expect(await safeGlob('**/*.ts', { cwd: d })).toEqual(['apps/api/p1/x.ts', 'apps/web/p1/x.ts', 'packages/p1/x.ts']);
+    } finally {
+      rmSync(d, { recursive: true, force: true });
+    }
+  });
+
+  it('should_pruneADirectory_when_anIgnoreMatchesItsPathAsTinyglobbyDid', async () => {
+    // A fake `dir/x` child used to make `**/*x`, `**/x` or `**/[a-z]` prune every directory.
     const all = await safeGlob('src/**/*.ts', { cwd: root });
-    expect(await safeGlob('src/**/*.ts', { cwd: root, ignore: ['**/*x', '**/x', '**/[a-z]'] })).toEqual(all);
+    expect(await safeGlob('src/**/*.ts', { cwd: root, ignore: ['**/*x', '**/[a-z]'] })).toEqual(all);
     expect(await safeGlob('**/*.ts', { cwd: root, ignore: ['**/*.ts'] })).toEqual([]);
     expect(await safeGlob('**/*.py', { cwd: root, ignore: ['src/**'] })).not.toContain('src/c.py');
+    // A bare name prunes the directory of that name.
+    expect((await safeGlob('**/*.{ts,py}', { cwd: root, ignore: ['src', 'linked', 'node_modules'] }))).toEqual(['dir.ts/inner.ts']);
+  });
+
+  it('should_readALiteralDoubleSlashAsOneSeparator_when_written', async () => {
+    expect(await safeGlob('src//a.ts', { cwd: root })).toEqual(['src/a.ts']);
   });
 
   it('should_normalizeDotSegments_when_patternsStartWithDotSlash', async () => {

@@ -25,6 +25,8 @@ import { readdir, realpath, stat } from 'node:fs/promises';
 import { join, relative, isAbsolute, resolve, sep } from 'node:path';
 
 export const MAX_BRACE_EXPANSIONS = 256;
+/** Directories a walk may enter through symbolic links before it fails closed. */
+export const MAX_LINKED_DIRS = 10_000;
 const MAX_PATTERN_LENGTH = 1024;
 
 export class UnsafeGlobError extends Error {
@@ -220,9 +222,11 @@ export function assertSafePattern(pattern: string): void {
 
 function compileSegments(pattern: string): Segment[][] {
   assertSafePattern(pattern);
+  // A literal `//` is one separator (`src//a.ts`); a `//` that only an empty brace
+  // alternative produced must not join segments: `{a,}/**` is `a/**`, not `**`.
+  const literalDoubleSlash = pattern.includes('//');
   return expandBraces(pattern)
-    // An empty brace alternative must not join segments: `{a,}/**` is `a/**` or nothing.
-    .filter((p) => !p.startsWith('/') && !p.includes('//'))
+    .filter((p) => literalDoubleSlash || (!p.startsWith('/') && !p.includes('//')))
     // `./src/*.ts` and `src/./a.ts` mean `src/*.ts` and `src/a.ts`.
     .map((p) => p.split('/').filter((x) => x !== '' && x !== '.'))
     .filter((parts) => parts.length > 0)
@@ -268,13 +272,14 @@ export async function safeGlob(pattern: string | string[], options: SafeGlobOpti
     const parts = rel.split('/');
     return ignores.some((segments) => matchSegments(segments, parts));
   };
-  // A directory is left out (not entered) only by an ignore ending in `/**` whose
-  // prefix matches it: `node_modules/**`, `**/dist/**`. `**/*.test.ts` or a bare
-  // name ignore files, as tinyglobby did.
+  // A directory is left out (not entered) when an ignore matches its own path
+  // (`src`, `**/b.js`), as tinyglobby did, or is `<prefix>/**` with a matching
+  // prefix (`node_modules/**`, `**/dist/**`).
   const dirIgnores = ignores
     .filter((segments) => segments.length > 1 && segments[segments.length - 1].globstar)
     .map((segments) => segments.slice(0, -1));
   const ignoredDir = (rel: string) => {
+    if (ignored(rel)) return true;
     const parts = rel.split('/');
     return dirIgnores.some((prefix) => matchSegments(prefix, parts));
   };
@@ -286,12 +291,24 @@ export async function safeGlob(pattern: string | string[], options: SafeGlobOpti
   } catch {
     return []; // no search root: nothing matches
   }
-  // Each directory reached through a symbolic link is entered through a link at
-  // most once, so links pointing at each other cannot multiply the walk.
-  const linkedDirs = new Set<string>();
+  // Links to sibling directories are followed (two links to one package list it
+  // twice, as tinyglobby did), so links pointing at each other could multiply the
+  // walk. Directories entered at or below a link count against MAX_LINKED_DIRS;
+  // past it the walk fails closed instead of running out of memory.
+  let linkedDirs = 0;
+  // Set once; every walk still running stops at its next step (no unhandled rejections).
+  let failure: UnsafeGlobError | null = null;
   const found: string[] = [];
   // `realDir` is the real path of `relDir`; ancestors are the real paths above it.
-  const walk = async (relDir: string, realDir: string, ancestors: Set<string>): Promise<void> => {
+  const walk = async (relDir: string, realDir: string, ancestors: Set<string>, viaLink: boolean): Promise<void> => {
+    if (failure) return;
+    if (viaLink && ++linkedDirs > MAX_LINKED_DIRS) {
+      failure = new UnsafeGlobError(
+        Array.isArray(pattern) ? pattern.join(',') : pattern,
+        `more than ${MAX_LINKED_DIRS} directories reached through symbolic links under ${cwd}`,
+      );
+      return;
+    }
     let entries;
     try {
       entries = await readdir(relDir ? join(cwd, relDir) : cwd, { withFileTypes: true });
@@ -312,11 +329,7 @@ export async function safeGlob(pattern: string | string[], options: SafeGlobOpti
           const info = await stat(target);
           isDir = info.isDirectory();
           isFile = info.isFile();
-          if (isDir) {
-            if (ancestors.has(target) || linkedDirs.has(target)) continue; // a loop, or already entered by a link
-            if (ignoredDir(rel) || !worthEntering(rel)) continue;
-            linkedDirs.add(target);
-          }
+          if (isDir && ancestors.has(target)) continue; // a loop
         } catch {
           continue; // dangling link
         }
@@ -324,14 +337,15 @@ export async function safeGlob(pattern: string | string[], options: SafeGlobOpti
       if (isDir) {
         if (ignoredDir(rel) || !worthEntering(rel)) continue;
         if (ancestors.has(real)) continue;
-        subdirs.push(walk(rel, real, new Set([...ancestors, real])));
+        subdirs.push(walk(rel, real, new Set([...ancestors, real]), viaLink || entry.isSymbolicLink()));
       } else if (isFile && matches(rel) && !ignored(rel)) {
         found.push(rel);
       }
     }
     await Promise.all(subdirs);
   };
-  await walk('', root, new Set([root]));
+  await walk('', root, new Set([root]), false);
+  if (failure) throw failure;
   // Sorted, so results (and callers that take the first N) are deterministic;
   // tinyglobby returned crawl order. Paths through a link keep the link's path.
   found.sort();
