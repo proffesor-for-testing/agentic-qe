@@ -187,16 +187,19 @@ npx ruflo@3.76.0 memory store \
 
 ```bash
 npx ruflo@3.76.0 hooks pre-task \
-  --description "Benchmark: ${target}" \
-  --agent "qe-performance-tester"
+  --task-id "${BENCH_ID}" \
+  --description "Benchmark: ${target}"
 ```
 
 ### Post-Task Hook
 
 ```bash
+# TASK_SUCCEEDED is true or false; results go to `memory store` above
 npx ruflo@3.76.0 hooks post-task \
   --task-id "${BENCH_ID}" \
-  --results "${BENCH_RESULTS}"
+  --success "${TASK_SUCCEEDED}" \
+  --agent "qe-performance-tester" \
+  --task "Benchmark: ${target}"
 ```
 
 ### Notify Fleet

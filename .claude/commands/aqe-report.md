@@ -174,16 +174,19 @@ npx ruflo@3.76.0 memory store \
 
 ```bash
 npx ruflo@3.76.0 hooks pre-task \
-  --description "Generate ${report_type} report" \
-  --agent "qe-quality-gate"
+  --task-id "${REPORT_ID}" \
+  --description "Generate ${report_type} report"
 ```
 
 ### Post-Task Hook
 
 ```bash
+# TASK_SUCCEEDED is true or false; results go to `memory store` above
 npx ruflo@3.76.0 hooks post-task \
   --task-id "${REPORT_ID}" \
-  --results "${REPORT_META}"
+  --success "${TASK_SUCCEEDED}" \
+  --agent "qe-quality-gate" \
+  --task "Generate ${report_type} report"
 ```
 
 ### Notify Fleet

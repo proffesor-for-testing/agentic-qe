@@ -187,8 +187,8 @@ npx ruflo@3.76.0 memory store \
 
 ```bash
 npx ruflo@3.76.0 hooks pre-task \
-  --description "Chaos test: ${scenario}" \
-  --agent "qe-test-executor"
+  --task-id "${CHAOS_ID}" \
+  --description "Chaos test: ${scenario}"
 ```
 
 ### During Chaos (monitoring)
@@ -201,9 +201,12 @@ npx ruflo@3.76.0 hooks notify \
 ### Post-Task Hook
 
 ```bash
+# TASK_SUCCEEDED is true or false; results go to `memory store` above
 npx ruflo@3.76.0 hooks post-task \
   --task-id "${CHAOS_ID}" \
-  --results "${CHAOS_RESULTS}"
+  --success "${TASK_SUCCEEDED}" \
+  --agent "qe-test-executor" \
+  --task "Chaos test: ${scenario}"
 ```
 
 ## Expected Outputs

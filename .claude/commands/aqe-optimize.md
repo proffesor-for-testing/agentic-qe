@@ -181,16 +181,19 @@ npx ruflo@3.76.0 memory store \
 
 ```bash
 npx ruflo@3.76.0 hooks pre-task \
-  --description "Optimize ${target} with ${algorithm}" \
-  --agent "qe-coverage-analyzer"
+  --task-id "${OPT_ID}" \
+  --description "Optimize ${target} with ${algorithm}"
 ```
 
 ### Post-Task Hook
 
 ```bash
+# TASK_SUCCEEDED is true or false; results go to `memory store` above
 npx ruflo@3.76.0 hooks post-task \
   --task-id "${OPT_ID}" \
-  --results "${OPT_RESULTS}"
+  --success "${TASK_SUCCEEDED}" \
+  --agent "qe-coverage-analyzer" \
+  --task "Optimize ${target} with ${algorithm}"
 ```
 
 ### Notify Fleet

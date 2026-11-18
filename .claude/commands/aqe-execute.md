@@ -179,8 +179,8 @@ npx ruflo@3.76.0 memory store \
 
 ```bash
 npx ruflo@3.76.0 hooks pre-task \
-  --description "Execute test suite: ${suite}" \
-  --agent "qe-test-executor"
+  --task-id "${RUN_ID}" \
+  --description "Execute test suite: ${suite}"
 ```
 
 ### During Execution (real-time updates)
@@ -194,9 +194,12 @@ npx ruflo@3.76.0 hooks notify \
 ### Post-Task Hook
 
 ```bash
+# TASK_SUCCEEDED is true or false; results go to `memory store` above
 npx ruflo@3.76.0 hooks post-task \
   --task-id "${RUN_ID}" \
-  --results "${EXECUTION_RESULTS}"
+  --success "${TASK_SUCCEEDED}" \
+  --agent "qe-test-executor" \
+  --task "Execute test suite: ${suite}"
 ```
 
 ## Expected Outputs

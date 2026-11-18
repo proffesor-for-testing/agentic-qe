@@ -176,16 +176,19 @@ npx ruflo@3.76.0 memory store \
 
 ```bash
 npx ruflo@3.76.0 hooks pre-task \
-  --description "Analyze coverage for ${target}" \
-  --agent "qe-coverage-analyzer"
+  --task-id "${ANALYSIS_ID}" \
+  --description "Analyze coverage for ${target}"
 ```
 
 ### Post-Task Hook
 
 ```bash
+# TASK_SUCCEEDED is true or false; results go to `memory store` above
 npx ruflo@3.76.0 hooks post-task \
   --task-id "${ANALYSIS_ID}" \
-  --results "${ANALYSIS_RESULTS}"
+  --success "${TASK_SUCCEEDED}" \
+  --agent "qe-coverage-analyzer" \
+  --task "Analyze coverage for ${target}"
 ```
 
 ### Notify Fleet

@@ -183,8 +183,8 @@ npx ruflo@3.76.0 memory store \
 
 ```bash
 npx ruflo@3.76.0 hooks pre-task \
-  --description "Generate tests for ${target}" \
-  --agent "qe-test-generator"
+  --task-id "${TASK_ID}" \
+  --description "Generate tests for ${target}"
 ```
 
 ### Post-Edit Hook (for each generated test file)
@@ -192,15 +192,18 @@ npx ruflo@3.76.0 hooks pre-task \
 ```bash
 npx ruflo@3.76.0 hooks post-edit \
   --file "${TEST_FILE}" \
-  --memory-key "aqe/test-files/${FILE_NAME}"
+  --success true
 ```
 
 ### Post-Task Hook
 
 ```bash
+# TASK_SUCCEEDED is true or false; results go to `memory store` above
 npx ruflo@3.76.0 hooks post-task \
   --task-id "${TASK_ID}" \
-  --results "${GENERATION_RESULTS}"
+  --success "${TASK_SUCCEEDED}" \
+  --agent "qe-test-generator" \
+  --task "Generate tests for ${target}"
 ```
 
 ### Notify Fleet

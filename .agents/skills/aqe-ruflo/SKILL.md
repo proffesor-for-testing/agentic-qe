@@ -21,7 +21,7 @@ external CLI:
 
 ```bash
 npx ruflo@3.76.0 doctor
-npx ruflo@3.76.0 discover-plugins
+npx ruflo@3.76.0 plugins list --official
 ```
 
 Use the installed Ruflo MCP tools when available. Treat their absence as
