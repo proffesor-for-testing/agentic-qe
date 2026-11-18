@@ -61,7 +61,6 @@ const nativeModules = [
 
 // Pure JS externals that work fine with ESM import
 const esmExternals = [
-  'tinyglobby',
   'yaml',
   'commander',
   'chalk',

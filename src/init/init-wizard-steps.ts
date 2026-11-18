@@ -262,13 +262,12 @@ export async function runCodeIntelligenceScan(
       projectRoot: projectPath,
     });
 
-    const { glob } = await import('tinyglobby');
+    const { safeGlob: glob } = await import('../shared/safe-glob.js');
     const files = await glob([
       '**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', '**/*.py'
     ], {
       cwd: projectPath,
       ignore: ['node_modules/**', 'dist/**', 'coverage/**', '.agentic-qe/**'],
-      expandDirectories: false,
     });
 
     const result = await kgService.index({
