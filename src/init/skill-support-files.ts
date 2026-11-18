@@ -31,15 +31,24 @@ import { join, relative, isAbsolute, sep } from 'path';
 export const SKIPPED_SKILL_ENTRIES: ReadonlySet<string> = new Set(['SKILL.md', 'evals']);
 
 export interface CopySkillSupportOptions {
-  /** Overwrite files that already exist in the target (default: false) */
+  /**
+   * Overwrite files that already exist in the target (default: false).
+   * Like SKILL.md, an upgrade/overwrite run replaces supporting files with the
+   * packaged version; files removed from the package are never pruned.
+   */
   overwrite?: boolean;
-  /** Applied to the text of every copied .md file (e.g. path rewriting) */
-  transformMarkdown?: (content: string) => string;
+  /**
+   * Applied to the text of every copied .md file (e.g. path rewriting).
+   * `relPath` is the file's POSIX path relative to the skill dir.
+   */
+  transformMarkdown?: (content: string, relPath: string) => string;
 }
 
 export interface CopySkillSupportResult {
   copied: string[];
   skipped: string[];
+  /** Entries that could not be read or written; copying continues past them. */
+  failed: Array<{ path: string; error: string }>;
 }
 
 function isInside(root: string, candidate: string): boolean {
@@ -47,56 +56,89 @@ function isInside(root: string, candidate: string): boolean {
   return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
 }
 
+function toPosix(path: string): string {
+  return path.split(sep).join('/');
+}
+
 /**
  * Copy every supporting file of a skill directory (everything except
  * SKIPPED_SKILL_ENTRIES and dotfiles) into targetDir, preserving layout.
  * Symlinks are never followed or copied, so nothing outside sourceDir can be
  * pulled in; every resolved source path is re-checked against sourceDir.
+ * A file that cannot be copied (unreadable source, a directory in the way at
+ * the target, ...) is recorded in `failed` and the rest are still copied.
  */
 export function copySkillSupportFiles(
   sourceDir: string,
   targetDir: string,
   options: CopySkillSupportOptions = {},
 ): CopySkillSupportResult {
-  const result: CopySkillSupportResult = { copied: [], skipped: [] };
+  const result: CopySkillSupportResult = { copied: [], skipped: [], failed: [] };
   if (!existsSync(sourceDir) || !lstatSync(sourceDir).isDirectory()) return result;
   const sourceRoot = realpathSync(sourceDir);
+  const fail = (relPath: string, error: unknown): void => {
+    result.failed.push({
+      path: toPosix(relPath),
+      error: error instanceof Error ? error.message : String(error),
+    });
+  };
+
+  const copyEntry = (relDir: string, entry: string): void => {
+    const relPath = relDir ? join(relDir, entry) : entry;
+    if (entry.startsWith('.') || (!relDir && SKIPPED_SKILL_ENTRIES.has(entry))) {
+      result.skipped.push(toPosix(relPath));
+      return;
+    }
+    const from = join(sourceRoot, relPath);
+    const stat = lstatSync(from);
+    if (stat.isSymbolicLink() || !isInside(sourceRoot, realpathSync(from))) {
+      result.skipped.push(toPosix(relPath));
+      return;
+    }
+    const to = join(targetDir, relPath);
+    if (stat.isDirectory()) {
+      mkdirSync(to, { recursive: true });
+      walk(relPath);
+    } else if (stat.isFile()) {
+      if (existsSync(to) && !options.overwrite) {
+        result.skipped.push(toPosix(relPath));
+        return;
+      }
+      if (options.transformMarkdown && entry.endsWith('.md')) {
+        const text = options.transformMarkdown(readFileSync(from, 'utf-8'), toPosix(relPath));
+        writeFileSync(to, text, { mode: stat.mode & 0o777 });
+      } else {
+        copyFileSync(from, to);
+      }
+      result.copied.push(toPosix(relPath));
+    } else {
+      result.skipped.push(toPosix(relPath));
+    }
+  };
 
   const walk = (relDir: string): void => {
-    for (const entry of readdirSync(join(sourceRoot, relDir))) {
-      const relPath = relDir ? join(relDir, entry) : entry;
-      if (entry.startsWith('.') || (!relDir && SKIPPED_SKILL_ENTRIES.has(entry))) {
-        result.skipped.push(relPath);
-        continue;
-      }
-      const from = join(sourceRoot, relPath);
-      const stat = lstatSync(from);
-      if (stat.isSymbolicLink() || !isInside(sourceRoot, realpathSync(from))) {
-        result.skipped.push(relPath);
-        continue;
-      }
-      const to = join(targetDir, relPath);
-      if (stat.isDirectory()) {
-        mkdirSync(to, { recursive: true });
-        walk(relPath);
-      } else if (stat.isFile()) {
-        if (existsSync(to) && !options.overwrite) {
-          result.skipped.push(relPath);
-          continue;
-        }
-        if (options.transformMarkdown && entry.endsWith('.md')) {
-          writeFileSync(to, options.transformMarkdown(readFileSync(from, 'utf-8')), { mode: stat.mode & 0o777 });
-        } else {
-          copyFileSync(from, to);
-        }
-        result.copied.push(relPath.split(sep).join('/'));
-      } else {
-        result.skipped.push(relPath);
+    let entries: string[];
+    try {
+      entries = readdirSync(join(sourceRoot, relDir));
+    } catch (error) {
+      fail(relDir || '.', error);
+      return;
+    }
+    for (const entry of entries) {
+      try {
+        copyEntry(relDir, entry);
+      } catch (error) {
+        fail(relDir ? join(relDir, entry) : entry, error);
       }
     }
   };
 
-  mkdirSync(targetDir, { recursive: true });
+  try {
+    mkdirSync(targetDir, { recursive: true });
+  } catch (error) {
+    fail('.', error);
+    return result;
+  }
   walk('');
   return result;
 }
@@ -108,8 +150,10 @@ function escapeRegExp(value: string): string {
 /**
  * Rewrite project-root paths into the skill's own Claude directory
  * (`.claude/skills/<source>/…`) to the converted location
- * (`<targetPrefix>/<target>/…`). Paths into skipped entries (evals/) are left
- * alone because they are not copied; references to other skills are untouched.
+ * (`<targetPrefix>/<target>/…`). Only project-relative paths match: the
+ * `.claude` segment must not follow a path, home (`~/`) or URL character.
+ * Paths into skipped entries (evals/) are left alone because they are not
+ * copied; references to other skills are untouched.
  */
 export function rewriteOwnSkillPaths(
   content: string,
@@ -118,26 +162,39 @@ export function rewriteOwnSkillPaths(
   targetSkillName: string,
 ): string {
   const pattern = new RegExp(
-    `\\.claude/skills/${escapeRegExp(sourceSkillName)}/(?!evals(?:/|\\b))`,
+    `(?<![\\w./~:-])\\.claude/skills/${escapeRegExp(sourceSkillName)}/(?!evals(?![\\w.-]))`,
     'g',
   );
   return content.replace(pattern, `${targetSkillPrefix}/${targetSkillName}/`);
 }
 
 /**
- * Rewrite relative links to sibling skills (`../<source>/…`) whose converted
- * location differs. `targets` maps a source skill name to the relative path
- * that replaces `../<source>`, e.g. `api-testing-patterns` →
- * `../qe-api-testing-patterns` (renamed), or `contract-testing` →
- * `../../../.claude/skills/contract-testing` (not converted; keep the link
- * pointing at the Claude copy instead of a directory that does not exist).
+ * Rewrite markdown links to sibling skills whose converted location differs.
+ *
+ * `targets` maps a source skill name to its new location relative to the
+ * converted skills root, e.g. `api-testing-patterns` → `qe-api-testing-patterns`
+ * (renamed) or `contract-testing` → `../../.claude/skills/contract-testing`
+ * (not converted; keep pointing at the Claude copy rather than a missing dir).
+ *
+ * Only markdown link targets (`](…)`) are touched, and only when they climb
+ * exactly to the skills root from `relPath` (SKILL.md: `../<skill>`,
+ * steps/x.md: `../../<skill>`). Prose, code spans, URLs and skill-local
+ * `../<dir>` links in nested files are left as written.
  */
 export function rewriteSiblingSkillLinks(
   content: string,
   targets: ReadonlyMap<string, string>,
+  relPath = 'SKILL.md',
 ): string {
   if (targets.size === 0) return content;
+  const up = '../'.repeat(relPath.split('/').length);
   const names = [...targets.keys()].sort((a, b) => b.length - a.length).map(escapeRegExp);
-  const pattern = new RegExp(`(?<![\\w.-])\\.\\./(${names.join('|')})(?=[/)#\\s\`'"]|$)`, 'gm');
-  return content.replace(pattern, (match, name: string) => targets.get(name) ?? match);
+  const pattern = new RegExp(
+    `\\]\\(${escapeRegExp(up)}(${names.join('|')})(?=[/)#\\s]|$)`,
+    'gm',
+  );
+  return content.replace(pattern, (match, name: string) => {
+    const target = targets.get(name);
+    return target === undefined ? match : `](${up}${target}`;
+  });
 }

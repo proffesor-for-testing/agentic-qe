@@ -422,7 +422,7 @@ When ALL phases complete -> <promise>DEPLOYMENT_READY</promise>
 
 ## Related Skills
 
-- [iterative-loop](../iterative-loop/) - General iteration technique
+- [iterative-loop](../../../.claude/skills/iterative-loop/) - General iteration technique
 - [qe-test-generation](../qe-test-generation/) - AI-powered test creation
 - [qe-coverage-analysis](../qe-coverage-analysis/) - Coverage gap detection
 - [qe-quality-assessment](../qe-quality-assessment/) - Quality gate management

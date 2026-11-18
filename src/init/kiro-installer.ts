@@ -531,9 +531,10 @@ export class KiroInstaller {
       }
     }
 
-    // Resolve Claude sources up front so links between skills (../<skill>/)
-    // follow renames (../api-testing-patterns/ -> ../qe-api-testing-patterns/),
-    // and links to Claude skills with no Kiro counterpart point at the Claude copy.
+    // Resolve Claude sources up front so markdown links between skills
+    // (../<skill>/) follow renames (../api-testing-patterns/ ->
+    // ../qe-api-testing-patterns/), and links to Claude skills with no Kiro
+    // counterpart point at the Claude copy. Targets are relative to .kiro/skills.
     const claudeSources = new Map<string, ReturnType<KiroInstaller['findClaudeSkillSource']>>();
     const siblingTargets = new Map<string, string>();
     const converted = new Set<string>();
@@ -542,13 +543,13 @@ export class KiroInstaller {
       claudeSources.set(skillName, source);
       if (source) {
         converted.add(source.sourceName);
-        if (source.sourceName !== skillName) siblingTargets.set(source.sourceName, `../${skillName}`);
+        if (source.sourceName !== skillName) siblingTargets.set(source.sourceName, skillName);
       }
     }
     if (existsSync(claudeSkillsDir)) {
       for (const name of readdirSync(claudeSkillsDir)) {
         if (!converted.has(name) && !openCodeSkills.has(name) && existsSync(join(claudeSkillsDir, name, 'SKILL.md'))) {
-          siblingTargets.set(name, `../../../.claude/skills/${name}`);
+          siblingTargets.set(name, `../../.claude/skills/${name}`);
         }
       }
     }
@@ -563,13 +564,14 @@ export class KiroInstaller {
         // Try Claude Code source (full rich content)
         const claudeSource = claudeSources.get(skillName);
         if (claudeSource) {
-          const rewrite = (md: string): string =>
+          const rewrite = (md: string, relPath: string): string =>
             rewriteSiblingSkillLinks(
               rewriteOwnSkillPaths(md, claudeSource.sourceName, '.kiro/skills', skillName),
               siblingTargets,
+              relPath,
             );
           if (!skillMdExists) {
-            const kiroMd = rewrite(this.convertClaudeSkillToKiro(claudeSource.content, skillName));
+            const kiroMd = rewrite(this.convertClaudeSkillToKiro(claudeSource.content, skillName), 'SKILL.md');
             mkdirSync(kiroSkillDir, { recursive: true });
             writeFileSync(targetFile, kiroMd, { mode: 0o644 });
             installed.push(skillName);
@@ -577,10 +579,19 @@ export class KiroInstaller {
           // Supporting files (steps/, schemas/, scripts/, ...) that SKILL.md
           // references (#1414). Missing files are filled in even when SKILL.md
           // is kept, so re-running init repairs earlier SKILL.md-only installs.
-          copySkillSupportFiles(claudeSource.dir, kiroSkillDir, {
+          // With overwrite (--upgrade) they are replaced like SKILL.md; files
+          // dropped from the package are not pruned. A file that fails to copy
+          // is reported here and does not stop the others or undo SKILL.md.
+          const support = copySkillSupportFiles(claudeSource.dir, kiroSkillDir, {
             overwrite: this.options.overwrite,
             transformMarkdown: rewrite,
           });
+          if (support.failed.length > 0) {
+            errors.push(
+              `Skill ${skillName}: failed to copy supporting files: ` +
+                support.failed.map((f) => `${f.path} (${f.error})`).join('; '),
+            );
+          }
         } else if (!skillMdExists) {
           // Fallback: convert from OpenCode YAML (thin content)
           const yamlPath = join(openCodeSkillsDir, `${skillName}.yaml`);
