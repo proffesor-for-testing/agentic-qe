@@ -252,6 +252,33 @@ export function createSyncCommands(): Command {
       }
     });
 
+  // #1436: one-off cleanup of experiences duplicated before migration 004
+  syncCmd
+    .command('dedupe-experiences')
+    .description('Remove learning experiences duplicated by syncs before migration 004 (dry run unless --apply)')
+    .option('-e, --env <environment>', 'Environment identifier', process.env.AQE_ENV || 'devpod')
+    .option('--apply', 'Back up the duplicates to a cloud table, then delete them')
+    .option('--json', 'Output JSON')
+    .action(async (_options, command: Command) => {
+      const options = subcommandOptions<{ env: string; apply?: boolean; json?: boolean }>(command);
+      const spinner = options.json ? null : ora(`Checking ${options.env} experiences in the cloud...`).start();
+      try {
+        const agent = createSyncAgent({ environment: options.env, verbose: false });
+        const outcome = await agent.dedupeExperiences({ apply: options.apply === true });
+        spinner?.stop();
+        if (options.json) {
+          console.log(JSON.stringify({ applied: options.apply === true, ...outcome }, null, 2));
+        } else {
+          printDedupeOutcome(outcome, options.apply === true);
+        }
+        process.exitCode = outcome.blocked ? 1 : 0;
+      } catch (error) {
+        if (spinner) spinner.fail(`dedupe-experiences failed: ${toErrorMessage(error)}`);
+        else console.log(JSON.stringify({ error: toErrorMessage(error) }));
+        process.exitCode = 1;
+      }
+    });
+
   // Init subcommand
   syncCmd
     .command('init')
@@ -363,6 +390,40 @@ export function createSyncCommands(): Command {
 /**
  * Print sync report
  */
+
+/** #1436: human-readable dedupe plan or result. */
+function printDedupeOutcome(
+  outcome: { environment: string; totalRows: number; keyedRows: number; legacyRows: number;
+    legacyWithKeyedTwin: number; legacyRepeats: number; legacyKept: number; toDelete: number;
+    rowsAfter: number; blocked?: string; deleted?: number; backupTable?: string | null; verifiedRowsAfter?: number },
+  applied: boolean,
+): void {
+  console.log(chalk.cyan(`\n=== aqe.learning_experiences, environment ${outcome.environment} ===\n`));
+  if (outcome.blocked) {
+    console.log(chalk.red(`Not run: ${outcome.blocked}`));
+    return;
+  }
+  console.log(`  Rows:                         ${outcome.totalRows}`);
+  console.log(`  Uploaded with local_id:       ${outcome.keyedRows} (kept)`);
+  console.log(`  Uploaded before migration 004: ${outcome.legacyRows}`);
+  console.log(`    same as a local_id row:     ${outcome.legacyWithKeyedTwin} (duplicate)`);
+  console.log(`    repeat of an earlier row:   ${outcome.legacyRepeats} (duplicate)`);
+  console.log(`    only copy, kept:            ${outcome.legacyKept}`);
+  console.log(`  Duplicates:                   ${outcome.toDelete}`);
+  console.log(`  Rows afterwards:              ${outcome.rowsAfter}`);
+  if (!applied) {
+    console.log(chalk.yellow(outcome.toDelete > 0
+      ? '\nDry run: nothing was changed. Run again with --apply to back up and delete the duplicates.'
+      : '\nNo duplicates.'));
+    return;
+  }
+  if (!outcome.deleted) {
+    console.log(chalk.green('\nNo duplicates; nothing was changed.'));
+    return;
+  }
+  console.log(chalk.green(`\nDeleted ${outcome.deleted} duplicates. Backup: ${outcome.backupTable}`));
+  console.log(`Rows now: ${outcome.verifiedRowsAfter}. Check with: aqe sync verify --env ${outcome.environment}`);
+}
 function printSyncReport(report: SyncReport): void {
   const statusColor = report.status === 'completed' ? chalk.green :
                       report.status === 'partial' ? chalk.yellow :
