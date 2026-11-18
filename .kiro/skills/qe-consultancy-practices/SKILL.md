@@ -179,9 +179,9 @@ const consultingFleet = await FleetManager.coordinate({
 ---
 
 ## Related Skills
-- [quality-metrics](../quality-metrics/) - Metrics for client reporting
-- [risk-based-testing](../risk-based-testing/) - Client risk assessment
-- [holistic-testing-pact](../holistic-testing-pact/) - Comprehensive strategy
+- [quality-metrics](../qe-quality-metrics/) - Metrics for client reporting
+- [risk-based-testing](../qe-risk-based-testing/) - Client risk assessment
+- [holistic-testing-pact](../qe-holistic-testing-pact/) - Comprehensive strategy
 
 ---
 

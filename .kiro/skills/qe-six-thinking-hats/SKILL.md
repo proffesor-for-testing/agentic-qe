@@ -248,9 +248,9 @@ const analysisFleet = await FleetManager.coordinate({
 ---
 
 ## Related Skills
-- [risk-based-testing](../risk-based-testing/) - Black Hat deep dive
-- [exploratory-testing-advanced](../exploratory-testing-advanced/) - Green Hat exploration
-- [context-driven-testing](../context-driven-testing/) - Adapt to context
+- [risk-based-testing](../qe-risk-based-testing/) - Black Hat deep dive
+- [exploratory-testing-advanced](../qe-exploratory-testing-advanced/) - Green Hat exploration
+- [context-driven-testing](../qe-context-driven-testing/) - Adapt to context
 
 ---
 

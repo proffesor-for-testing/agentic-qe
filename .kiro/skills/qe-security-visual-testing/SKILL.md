@@ -189,9 +189,9 @@ const fleet = await FleetManager.coordinate({
 ---
 
 ## Related Skills
-- [visual-testing-advanced](../visual-testing-advanced/) - Pure visual testing without security
-- [security-testing](../security-testing/) - Security testing without visual component
-- [accessibility-testing](../accessibility-testing/) - Accessibility-only testing
+- [visual-testing-advanced](../qe-visual-testing-advanced/) - Pure visual testing without security
+- [security-testing](../qe-security-testing/) - Security testing without visual component
+- [accessibility-testing](../qe-accessibility-testing/) - Accessibility-only testing
 - [qe-visual-accessibility](../qe-visual-accessibility/) - AQE v3 visual domain skill
 
 ---

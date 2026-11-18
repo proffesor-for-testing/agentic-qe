@@ -705,13 +705,13 @@ await enterpriseFleet.execute({
 ---
 
 ## Related Skills
-- [api-testing-patterns](../api-testing-patterns/) - REST/GraphQL API testing fundamentals
-- [contract-testing](../contract-testing/) - Consumer-driven contract testing with Pact
-- [middleware-testing-patterns](../middleware-testing-patterns/) - ESB, routing, transformation, DLQ
-- [wms-testing-patterns](../wms-testing-patterns/) - Warehouse management system testing
-- [chaos-engineering-resilience](../chaos-engineering-resilience/) - Fault injection for enterprise systems
-- [database-testing](../database-testing/) - Database integrity and migration testing
-- [security-testing](../security-testing/) - Security and authorization testing
+- [api-testing-patterns](../qe-api-testing-patterns/) - REST/GraphQL API testing fundamentals
+- [contract-testing](../../../.claude/skills/contract-testing/) - Consumer-driven contract testing with Pact
+- [middleware-testing-patterns](../qe-middleware-testing-patterns/) - ESB, routing, transformation, DLQ
+- [wms-testing-patterns](../qe-wms-testing-patterns/) - Warehouse management system testing
+- [chaos-engineering-resilience](../qe-chaos-engineering-resilience/) - Fault injection for enterprise systems
+- [database-testing](../qe-database-testing/) - Database integrity and migration testing
+- [security-testing](../qe-security-testing/) - Security and authorization testing
 
 ---
 

@@ -289,10 +289,10 @@ Task("Fleet Orchestration",
 ---
 
 ## Related Skills
-- [agentic-quality-engineering](../agentic-quality-engineering/) - Fleet coordination
-- [shift-left-testing](../shift-left-testing/) - Early defect detection
-- [shift-right-testing](../shift-right-testing/) - Production monitoring
-- [chaos-engineering-resilience](../chaos-engineering-resilience/) - Resilience testing
+- [agentic-quality-engineering](../qe-agentic-quality-engineering/) - Fleet coordination
+- [shift-left-testing](../qe-shift-left-testing/) - Early defect detection
+- [shift-right-testing](../qe-shift-right-testing/) - Production monitoring
+- [chaos-engineering-resilience](../qe-chaos-engineering-resilience/) - Resilience testing
 
 ---
 

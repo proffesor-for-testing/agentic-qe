@@ -514,9 +514,9 @@ const googleSheetsTestPatterns = {
 ---
 
 ## Related Skills
-- [n8n-workflow-testing-fundamentals](../n8n-workflow-testing-fundamentals/)
-- [n8n-security-testing](../n8n-security-testing/)
-- [api-testing-patterns](../api-testing-patterns/)
+- [n8n-workflow-testing-fundamentals](../qe-n8n-workflow-testing-fundamentals/)
+- [n8n-security-testing](../qe-n8n-security-testing/)
+- [api-testing-patterns](../qe-api-testing-patterns/)
 
 ---
 

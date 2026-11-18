@@ -180,10 +180,10 @@ const holisticFleet = await FleetManager.coordinate({
 ---
 
 ## Related Skills
-- [agentic-quality-engineering](../agentic-quality-engineering/) - Agent coordination
-- [context-driven-testing](../context-driven-testing/) - Adapt to context
-- [shift-left-testing](../shift-left-testing/) - Proactive testing
-- [risk-based-testing](../risk-based-testing/) - Targeted testing
+- [agentic-quality-engineering](../qe-agentic-quality-engineering/) - Agent coordination
+- [context-driven-testing](../qe-context-driven-testing/) - Adapt to context
+- [shift-left-testing](../qe-shift-left-testing/) - Proactive testing
+- [risk-based-testing](../qe-risk-based-testing/) - Targeted testing
 
 ---
 

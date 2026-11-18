@@ -247,9 +247,9 @@ const dataFleet = await FleetManager.coordinate({
 ---
 
 ## Related Skills
-- [database-testing](../database-testing/) - Schema and integrity testing
-- [compliance-testing](../compliance-testing/) - GDPR/CCPA compliance
-- [performance-testing](../performance-testing/) - Volume data for perf tests
+- [database-testing](../qe-database-testing/) - Schema and integrity testing
+- [compliance-testing](../qe-compliance-testing/) - GDPR/CCPA compliance
+- [performance-testing](../qe-performance-testing/) - Volume data for perf tests
 
 ---
 

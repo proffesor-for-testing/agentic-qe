@@ -1,0 +1,14 @@
+{
+  "$schema": "./config-schema.json",
+  "_description": "QE Test Generation configuration. Auto-created on first run. Edit to customize.",
+  "framework": null,
+  "style": null,
+  "coverageTarget": 80,
+  "outputDir": "tests/",
+  "options": {
+    "generateIntegrationTests": true,
+    "generateEdgeCases": true,
+    "maxTestsPerFile": 20
+  },
+  "_setupPrompt": "If framework is null, ask the user: 'Which test framework does this project use? (jest/vitest/mocha/playwright)'. If style is null, ask: 'Do you prefer London (mock-based) or Chicago (state-based) TDD style?'"
+}

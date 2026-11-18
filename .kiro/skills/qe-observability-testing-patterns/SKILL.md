@@ -902,11 +902,11 @@ await observabilityFleet.execute({
 ---
 
 ## Related Skills
-- [api-testing-patterns](../api-testing-patterns/) - API testing for services feeding observability
-- [shift-right-testing](../shift-right-testing/) - Production monitoring and observability
-- [performance-testing](../performance-testing/) - Performance baselines and SLO definition
-- [chaos-engineering-resilience](../chaos-engineering-resilience/) - Fault injection to validate alerting
-- [visual-testing-advanced](../visual-testing-advanced/) - Dashboard visual regression
+- [api-testing-patterns](../qe-api-testing-patterns/) - API testing for services feeding observability
+- [shift-right-testing](../qe-shift-right-testing/) - Production monitoring and observability
+- [performance-testing](../qe-performance-testing/) - Performance baselines and SLO definition
+- [chaos-engineering-resilience](../qe-chaos-engineering-resilience/) - Fault injection to validate alerting
+- [visual-testing-advanced](../qe-visual-testing-advanced/) - Dashboard visual regression
 
 ---
 

@@ -285,9 +285,9 @@ const perfFleet = await FleetManager.coordinate({
 ---
 
 ## Related Skills
-- [agentic-quality-engineering](../agentic-quality-engineering/) - Agent coordination
-- [api-testing-patterns](../api-testing-patterns/) - API performance
-- [chaos-engineering-resilience](../chaos-engineering-resilience/) - Resilience testing
+- [agentic-quality-engineering](../qe-agentic-quality-engineering/) - Agent coordination
+- [api-testing-patterns](../qe-api-testing-patterns/) - API performance
+- [chaos-engineering-resilience](../qe-chaos-engineering-resilience/) - Resilience testing
 
 ---
 

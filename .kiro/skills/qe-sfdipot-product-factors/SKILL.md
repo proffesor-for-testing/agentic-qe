@@ -219,10 +219,10 @@ aqe/sfdipot/
 
 ## Related Skills
 
-- [brutal-honesty-review](../brutal-honesty-review/) - Quality validation
-- [risk-based-testing](../risk-based-testing/) - Priority assignment
-- [context-driven-testing](../context-driven-testing/) - Domain awareness
-- [exploratory-testing-advanced](../exploratory-testing-advanced/) - Session design
+- [brutal-honesty-review](../qe-brutal-honesty-review/) - Quality validation
+- [risk-based-testing](../qe-risk-based-testing/) - Priority assignment
+- [context-driven-testing](../qe-context-driven-testing/) - Domain awareness
+- [exploratory-testing-advanced](../qe-exploratory-testing-advanced/) - Session design
 
 ---
 

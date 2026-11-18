@@ -1,0 +1,25 @@
+# Step 7: Store Learnings & Persist State
+
+## Prerequisites
+- Step 6 completed
+
+## Instructions
+
+### ALWAYS RUN.
+
+Store development findings:
+```bash
+aqe memory store \
+  --key "qcsd-development-${storyId}-${Date.now()}" \
+  --namespace "qcsd-development" \
+  --value '{...}' \
+  --json
+```
+
+Save to `${OUTPUT_FOLDER}/11-learning-persistence.json`.
+
+## Success Criteria
+- [ ] Persistence completed
+
+## Navigation
+- On success: proceed to Step 8 by reading `steps/08-defect-predictor.md`

@@ -84,7 +84,7 @@ loaded one at a time to avoid "lost in the middle" context degradation.
 
 ### Execution Instructions
 
-1. Use the Read tool to load the current step file (e.g., `Read({ file_path: ".claude/skills/qcsd-cicd-swarm/steps/01-flag-detection.md" })`)
+1. Use the Read tool to load the current step file (e.g., `Read({ file_path: ".kiro/skills/qcsd-cicd-swarm/steps/01-flag-detection.md" })`)
 2. Execute the step's instructions completely
 3. Verify all success criteria are met before proceeding
 4. Pass the step's output as context to the next step

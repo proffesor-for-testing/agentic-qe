@@ -172,10 +172,10 @@ const contextFleet = await FleetManager.coordinate({
 ---
 
 ## Related Skills
-- [agentic-quality-engineering](../agentic-quality-engineering/) - Context-aware agent selection
-- [holistic-testing-pact](../holistic-testing-pact/) - Adapt holistic model to context
-- [risk-based-testing](../risk-based-testing/) - Context affects risk assessment
-- [exploratory-testing-advanced](../exploratory-testing-advanced/) - RST techniques
+- [agentic-quality-engineering](../qe-agentic-quality-engineering/) - Context-aware agent selection
+- [holistic-testing-pact](../qe-holistic-testing-pact/) - Adapt holistic model to context
+- [risk-based-testing](../qe-risk-based-testing/) - Context affects risk assessment
+- [exploratory-testing-advanced](../qe-exploratory-testing-advanced/) - RST techniques
 
 ---
 
