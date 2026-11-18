@@ -84,24 +84,9 @@ const RUFLO_OWNED_FILES: Record<string, string> = {
 };
 const GENERATED_RUFLO_OWNED = new Set(['.codex/hooks/ruflo-runtime.cjs']);
 
-/**
- * Lines that still write the old ruflo@3.5.18 pin into users' MCP config. Moving them to
- * RUFLO_PINNED_VERSION changes existing installs, so it is tracked separately in #1413.
- */
-const LEGACY_INIT_PIN_LINES: Array<{ file: string; text: string }> = [
-  { file: 'src/cli/commands/claude-flow-setup.ts', text: "args: ['ruflo@3.5.18', 'mcp']," },
-  { file: 'src/adapters/claude-flow/detect.ts', text: "'    npm install -g ruflo'," },
-  { file: 'src/adapters/claude-flow/detect.ts', text: "'    claude mcp add ruflo -- npx -y ruflo@3.5.18'," },
-];
-
-function isLegacyInitPinLine(file: string, line: string): boolean {
-  return LEGACY_INIT_PIN_LINES.some((l) => l.file === file && line.trim() === l.text.trim());
-}
-
-function findViolations(content: string, file = ''): string[] {
+function findViolations(content: string): string[] {
   const hits: string[] = [];
   for (const line of content.split(/\r?\n/)) {
-    if (isLegacyInitPinLine(file, line)) continue;
     for (const m of line.matchAll(TAGGED_COMMAND)) {
       if (!(m[2] in EXEMPT_PACKAGES)) hits.push(`${m[2]}@${m[3]}`);
     }
@@ -154,7 +139,7 @@ function walk(dir: string): string[] {
 
 function offendersIn(files: Array<{ rel: string; abs: string }>): string[] {
   return files.flatMap(({ rel, abs }) => {
-    const hits = findViolations(readFileSync(abs, 'utf8'), rel);
+    const hits = findViolations(readFileSync(abs, 'utf8'));
     return hits.length > 0 ? [`${rel}: ${[...new Set(hits)].join(', ')}`] : [];
   });
 }
@@ -187,13 +172,6 @@ describe('floating third-party CLI versions (#1404)', () => {
     expect(files.length).toBeGreaterThan(100);
 
     expect(offendersIn(files.map((rel) => ({ rel, abs: join(ROOT, rel) })))).toEqual([]);
-  });
-
-  it('should_keepLegacyInitPinAllowlistCurrent_when_initPinMoves', () => {
-    for (const { file, text } of LEGACY_INIT_PIN_LINES) {
-      const lines = readFileSync(join(ROOT, file), 'utf8').split(/\r?\n/).map((l) => l.trim());
-      expect(lines, `${file} no longer contains the allowlisted line; drop it from LEGACY_INIT_PIN_LINES`).toContain(text.trim());
-    }
   });
 
   it('should_keepRufloOwnedAllowlistCurrent_when_helpersChange', () => {

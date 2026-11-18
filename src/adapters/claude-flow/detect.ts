@@ -12,6 +12,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { execSync } from 'node:child_process';
 import { safeJsonParse } from '../../shared/safe-json.js';
+import { RUFLO_PINNED_SPEC } from '../../shared/pinned-tools.js';
 
 // ============================================================================
 // Types
@@ -208,8 +209,8 @@ export function getClaudeFlowNotFoundMessage(): string {
     '    - Codebase pretrain analysis',
     '',
     '  To install later:',
-    '    npm install -g ruflo',
-    '    claude mcp add ruflo -- npx -y ruflo@3.5.18',
+    `    npm install -g ${RUFLO_PINNED_SPEC}`,
+    `    claude mcp add ruflo -- npx -y ${RUFLO_PINNED_SPEC} mcp`,
     '    aqe init --auto --with-claude-flow',
   ].join('\n');
 }
