@@ -9,10 +9,13 @@
  * For one environment, a legacy row is a duplicate when
  *   - a keyed row has the same content: every uploaded column (agent_id, task_id,
  *     task_type, state, action, reward, next_state, episode_id, created_at) is equal;
- *   - or exactly one keyed row has the same identity (agent_id, task_id, task_type,
- *     created_at): the same experience, whose content changed locally after the
- *     legacy upload (consolidation updates quality, retention clears result_json).
- *     When two keyed rows share an identity, only a full-content match counts;
+ *   - or exactly one keyed row is the same experience with a changed outcome: equal
+ *     on everything but reward and state (agent_id, task_id, task_type, created_at,
+ *     action, next_state, episode_id). Only quality (reward) and result_json (state)
+ *     change after capture (consolidation updates quality, retention clears
+ *     result_json). Two experiences can share agent, task, type and second (hook
+ *     edits of one file), so steps/routing/tags must match too; when two keyed rows
+ *     still match, only a full-content match counts;
  *   - or, with no keyed match, an earlier legacy row has the same content.
  * So every keyed row is kept, and of legacy rows with no keyed match (an experience
  * since deleted locally) one copy per distinct content is kept. Rows are never
@@ -65,7 +68,8 @@ const TABLE = 'aqe.learning_experiences';
 const MIGRATION = 'migration-004.sql (src/sync/schema/ in the agentic-qe package)';
 
 const CONTENT_COLUMNS = ['agent_id', 'task_id', 'task_type', 'state', 'action', 'reward', 'next_state', 'episode_id', 'created_at'];
-const IDENTITY_COLUMNS = ['agent_id', 'task_id', 'task_type', 'created_at'];
+/** Columns that never change after capture: a legacy row equal on these is the same experience. */
+const IDENTITY_COLUMNS = ['agent_id', 'task_id', 'task_type', 'created_at', 'action', 'next_state', 'episode_id'];
 
 /** Equal on `columns`; NULL equals NULL. */
 const same = (columns: string[], a: string, b: string) =>
@@ -208,15 +212,20 @@ export function restoreStatement(backupTable: string): string {
 export async function applyExperienceDedupe(
   db: DedupeDb,
   environment: string,
-  options: DedupeOptions & { now?: Date; lockTimeout?: string } = {},
+  options: DedupeOptions & { now?: Date; lockTimeout?: string; statementTimeout?: string } = {},
 ): Promise<ExperienceDedupeResult> {
   const backupTable = validateIdentifier(backupTableName(options.now ?? new Date()));
   const lockTimeout = options.lockTimeout ?? '10s';
-  if (!/^\d+(ms|s|min)?$/.test(lockTimeout)) throw new Error(`Invalid lock timeout: ${lockTimeout}`);
+  const statementTimeout = options.statementTimeout ?? '5min';
+  for (const t of [lockTimeout, statementTimeout]) {
+    if (!/^\d+(ms|s|min)?$/.test(t)) throw new Error(`Invalid lock timeout: ${t}`);
+  }
   await db.execute('BEGIN');
   try {
-    // Fail fast instead of queueing behind (and then blocking) a running sync.
+    // Fail fast instead of queueing behind (and then blocking) a running sync, and
+    // bound how long the lock is held, since syncs wait while it is.
     await db.execute(`SET LOCAL lock_timeout = '${lockTimeout}'`);
+    await db.execute(`SET LOCAL statement_timeout = '${statementTimeout}'`);
     // A sync running now must not add or change rows between the plan and the delete.
     await db.execute(`LOCK TABLE ${TABLE} IN SHARE ROW EXCLUSIVE MODE`);
     const plan = await planExperienceDedupe(db, environment, options);

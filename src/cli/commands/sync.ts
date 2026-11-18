@@ -277,7 +277,8 @@ export function createSyncCommands(): Command {
         }
         spinner?.stop();
         if (options.json) {
-          console.log(JSON.stringify({ applied: apply, ...outcome }, null, 2));
+          const applied = apply && !outcome.blocked && 'deleted' in outcome && outcome.deleted > 0;
+          console.log(JSON.stringify({ requestedApply: apply, applied, ...outcome }, null, 2));
         } else {
           printDedupeOutcome(outcome, apply);
         }

@@ -12,3 +12,6 @@
 ALTER TABLE aqe.learning_experiences ADD COLUMN IF NOT EXISTS local_id TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_learning_experiences_local_id
     ON aqe.learning_experiences(local_id, source_env);
+-- Lets `aqe sync dedupe-experiences` match legacy rows without a scan per row.
+CREATE INDEX IF NOT EXISTS idx_learning_experiences_identity
+    ON aqe.learning_experiences(source_env, agent_id, created_at);

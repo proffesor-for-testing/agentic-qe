@@ -371,6 +371,9 @@ CREATE INDEX IF NOT EXISTS idx_learning_source ON aqe.learning_experiences(sourc
 ALTER TABLE aqe.learning_experiences ADD COLUMN IF NOT EXISTS local_id TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_learning_experiences_local_id
     ON aqe.learning_experiences(local_id, source_env);
+-- Lets `aqe sync dedupe-experiences` match legacy rows without a scan per row.
+CREATE INDEX IF NOT EXISTS idx_learning_experiences_identity
+    ON aqe.learning_experiences(source_env, agent_id, created_at);
 
 CREATE INDEX IF NOT EXISTS idx_goap_actions_agent ON aqe.goap_actions(agent_type);
 CREATE INDEX IF NOT EXISTS idx_goap_actions_source ON aqe.goap_actions(source_env);

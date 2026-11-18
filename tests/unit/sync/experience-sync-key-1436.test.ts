@@ -248,8 +248,15 @@ describe('aqe sync dedupe-experiences (#1436)', () => {
     expect(plan).toMatchObject({ legacyChanged: 60, toDelete: 2209, rowsAfter: 1105 });
     const classify = statements.find(s => s.includes('AS with_twin'))!;
     expect(classify).toContain('= 1 AS has_unique_keyed_identity');
-    for (const column of ['agent_id', 'task_id', 'task_type', 'created_at']) {
-      expect(classify).toContain(`k.${column} IS NOT DISTINCT FROM l.${column}`);
+    const end = classify.indexOf('= 1 AS has_unique_keyed_identity');
+    const identity = classify.slice(classify.lastIndexOf('SELECT COUNT(*)', end), end);
+    // Re-review of #1436: two experiences can share agent/task/type/second, so the
+    // columns that never change after capture must match too; reward and state may differ.
+    for (const column of ['agent_id', 'task_id', 'task_type', 'created_at', 'action', 'next_state', 'episode_id']) {
+      expect(identity).toContain(`k.${column} IS NOT DISTINCT FROM l.${column}`);
+    }
+    for (const column of ['reward', 'state']) {
+      expect(identity).not.toContain(`k.${column} IS NOT DISTINCT FROM l.${column}`);
     }
   });
 
@@ -279,7 +286,7 @@ describe('aqe sync dedupe-experiences (#1436)', () => {
     const result = await applyExperienceDedupe(db, 'laptop', { now: NOW });
 
     expect(result).toMatchObject({ deleted: 2209, verifiedRowsAfter: 1105, backupTable: 'aqe.learning_experiences_dedupe_20261118t093000' });
-    const order = ['BEGIN', "SET LOCAL lock_timeout = '10s'", 'LOCK TABLE', 'CREATE TABLE aqe.learning_experiences_dedupe_', 'DELETE FROM', 'COMMIT']
+    const order = ['BEGIN', "SET LOCAL lock_timeout = '10s'", "SET LOCAL statement_timeout = '5min'", 'LOCK TABLE', 'CREATE TABLE aqe.learning_experiences_dedupe_', 'DELETE FROM', 'COMMIT']
       .map(prefix => statements.findIndex(s => s.startsWith(prefix)));
     expect(order.every(i => i >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
