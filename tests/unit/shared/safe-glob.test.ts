@@ -9,7 +9,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync } from 'node:fs';
-import { join, isAbsolute } from 'node:path';
+import { join, isAbsolute, relative } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
   safeGlob, compileGlob, expandBraces, UnsafeGlobError, MAX_BRACE_EXPANSIONS,
@@ -127,6 +127,65 @@ describe('safety (#1458)', () => {
     expect(files.some((f) => f.includes('secret'))).toBe(false);
     expect(files.some((f) => f.startsWith('escape/'))).toBe(false);
     expect(files.some((f) => f.includes('loop/'))).toBe(false);
+  });
+
+  // Review of #1459
+  it.skipIf(!canSymlink)('should_walkEachLinkedDirectoryOnce_when_linksPointAtEachOther', async () => {
+    const d = mkdtempSync(join(tmpdir(), 'aqe-glob-diamond-'));
+    try {
+      const n = 9; // factorial fan-out before: 9 dirs ran out of memory
+      for (let i = 0; i < n; i++) { mkdirSync(join(d, `d${i}`)); writeFileSync(join(d, `d${i}`, 'f.ts'), ''); }
+      for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) if (i !== j) symlinkSync(join(d, `d${j}`), join(d, `d${i}`, `l${j}`), 'dir');
+      const start = Date.now();
+      const files = await safeGlob('**/*.ts', { cwd: d });
+      expect(Date.now() - start).toBeLessThan(5000);
+      expect(files.length).toBeLessThanOrEqual(2 * n);
+      for (let i = 0; i < n; i++) expect(files).toContain(`d${i}/f.ts`);
+    } finally {
+      rmSync(d, { recursive: true, force: true });
+    }
+  });
+
+  it('should_pruneOnlyDirectoriesAnIgnoreReallyCovers_when_ignoresEndInAFileName', async () => {
+    // `**/*x` and `**/x` ignore files named like that; they must not prune every directory.
+    const all = await safeGlob('src/**/*.ts', { cwd: root });
+    expect(await safeGlob('src/**/*.ts', { cwd: root, ignore: ['**/*x', '**/x', '**/[a-z]'] })).toEqual(all);
+    expect(await safeGlob('**/*.ts', { cwd: root, ignore: ['**/*.ts'] })).toEqual([]);
+    expect(await safeGlob('**/*.py', { cwd: root, ignore: ['src/**'] })).not.toContain('src/c.py');
+  });
+
+  it('should_normalizeDotSegments_when_patternsStartWithDotSlash', async () => {
+    expect(await safeGlob('./src/*.ts', { cwd: root })).toEqual(['src/a.ts']);
+    expect(await safeGlob('src/./a.ts', { cwd: root })).toEqual(['src/a.ts']);
+    expect(await safeGlob('**/n.ts', { cwd: root, ignore: ['./node_modules/**'] })).toEqual([]);
+  });
+
+  it('should_dropAnEmptyBraceAlternative_when_itWouldJoinSegments', () => {
+    expect(compileGlob('{src,}/**/*.ts')('lib/x.ts')).toBe(false);
+    expect(compileGlob('{src,}/**/*.ts')('src/x.ts')).toBe(true);
+  });
+
+  it('should_treatALeadingBracketAsAMember_when_aClassStartsWithIt', () => {
+    expect(compileGlob('a[!]]b.ts')('a,b.ts')).toBe(true);
+    expect(compileGlob('a[!]]b.ts')('a]b.ts')).toBe(false);
+    expect(compileGlob('a[]x]b.ts')('a]b.ts')).toBe(true);
+  });
+
+  it.skipIf(!canSymlink)('should_followALinkToAnInRootDirectoryNamedDotDotSomething', async () => {
+    const d = mkdtempSync(join(tmpdir(), 'aqe-glob-dotdot-'));
+    try {
+      mkdirSync(join(d, '..foo'));
+      writeFileSync(join(d, '..foo', 'a.ts'), '');
+      symlinkSync(join(d, '..foo'), join(d, 'link'), 'dir');
+      expect(await safeGlob('link/*.ts', { cwd: d })).toEqual(['link/a.ts']);
+    } finally {
+      rmSync(d, { recursive: true, force: true });
+    }
+  });
+
+  it('should_returnAbsolutePaths_when_cwdIsRelative', async () => {
+    const files = await safeGlob('src/*.ts', { cwd: relative(process.cwd(), root), absolute: true });
+    expect(files).toEqual([`${root}/src/a.ts`]);
   });
 
   it('should_returnNothing_when_theRootDoesNotExist', async () => {

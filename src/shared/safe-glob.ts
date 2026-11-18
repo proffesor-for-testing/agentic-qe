@@ -22,15 +22,17 @@
  * link to a sibling directory is followed, as tinyglobby did: both paths are listed.)
  */
 import { readdir, realpath, stat } from 'node:fs/promises';
-import { join, relative, isAbsolute } from 'node:path';
+import { join, relative, isAbsolute, resolve, sep } from 'node:path';
 
 export const MAX_BRACE_EXPANSIONS = 256;
 const MAX_PATTERN_LENGTH = 1024;
 
 export class UnsafeGlobError extends Error {
+  readonly pattern: string;
   constructor(pattern: string, reason: string) {
     super(`Unsupported glob pattern ${JSON.stringify(pattern.slice(0, 80))}: ${reason}`);
     this.name = 'UnsafeGlobError';
+    this.pattern = pattern;
   }
 }
 
@@ -96,8 +98,8 @@ function compileSegment(segment: string): Segment {
       tokens.push({ kind: 'star' });
     } else if (c === '?') {
       tokens.push({ kind: 'any' });
-    } else if (c === '[' && segment.indexOf(']', i + 2) !== -1) {
-      const end = segment.indexOf(']', i + 2);
+    } else if (c === '[' && classEnd(segment, i) !== -1) {
+      const end = classEnd(segment, i);
       let body = segment.slice(i + 1, end);
       const negate = body.startsWith('!') || body.startsWith('^');
       if (negate) body = body.slice(1);
@@ -115,6 +117,13 @@ function compileSegment(segment: string): Segment {
     }
   }
   return { globstar: false, tokens, dot: segment.startsWith('.') };
+}
+
+/** Index of the `]` closing the class opened at `open`; a `]` first (after `!`/`^`) is a member. */
+function classEnd(segment: string, open: number): number {
+  let i = open + 1;
+  if (segment[i] === '!' || segment[i] === '^') i++;
+  return segment.indexOf(']', i + 1);
 }
 
 function tokenMatches(token: Token, ch: string): boolean {
@@ -181,11 +190,16 @@ function matchSegments(pattern: Segment[], path: string[]): boolean {
 }
 
 /** Whether a file below directory `dirParts` could still match `pattern`. */
-function couldContain(pattern: Segment[], dirParts: string[]): boolean {
-  let pi = 0;
-  for (const part of dirParts) {
+function couldContain(pattern: Segment[], dirParts: string[], pi = 0, di = 0): boolean {
+  for (; di < dirParts.length; di++) {
+    const part = dirParts[di];
     if (pi >= pattern.length) return false;
-    if (pattern[pi].globstar) return true;
+    if (pattern[pi].globstar) {
+      // `**` absorbs any number of non-dot directories; a dot directory must be
+      // matched by a later segment that names the dot (`.git` is never entered for `**/*.ts`).
+      if (!part.startsWith('.')) return true;
+      return couldContain(pattern, dirParts, pi + 1, di);
+    }
     // The last segment names the file, so a directory must match an earlier one.
     if (pi === pattern.length - 1 || !matchSegment(pattern[pi], part)) return false;
     pi++;
@@ -206,7 +220,13 @@ export function assertSafePattern(pattern: string): void {
 
 function compileSegments(pattern: string): Segment[][] {
   assertSafePattern(pattern);
-  return expandBraces(pattern).map((p) => p.split('/').filter((x) => x !== '').map(compileSegment));
+  return expandBraces(pattern)
+    // An empty brace alternative must not join segments: `{a,}/**` is `a/**` or nothing.
+    .filter((p) => !p.startsWith('/') && !p.includes('//'))
+    // `./src/*.ts` and `src/./a.ts` mean `src/*.ts` and `src/a.ts`.
+    .map((p) => p.split('/').filter((x) => x !== '' && x !== '.'))
+    .filter((parts) => parts.length > 0)
+    .map((parts) => parts.map(compileSegment));
 }
 
 /** A matcher for one pattern (braces expanded); paths are relative and `/`-separated. */
@@ -229,7 +249,7 @@ export interface SafeGlobOptions {
 
 const inside = (root: string, path: string) => {
   const rel = relative(root, path);
-  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+  return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
 };
 
 /** Files under `cwd` matching `pattern` (or any of several), as sorted `/`-separated paths. */
@@ -243,23 +263,38 @@ export async function safeGlob(pattern: string | string[], options: SafeGlobOpti
     const parts = rel.split('/');
     return compiled.some((segments) => couldContain(segments, parts));
   };
-  const ignores = (options.ignore ?? []).map(compileGlob);
-  const ignored = (rel: string) => ignores.some((m) => m(rel));
-  // `dir/**` ignores the directory itself: test a path inside it.
-  const ignoredDir = (rel: string) => ignored(rel) || ignored(`${rel}/x`);
+  const ignores = (options.ignore ?? []).flatMap(compileSegments);
+  const ignored = (rel: string) => {
+    const parts = rel.split('/');
+    return ignores.some((segments) => matchSegments(segments, parts));
+  };
+  // A directory is left out (not entered) only by an ignore ending in `/**` whose
+  // prefix matches it: `node_modules/**`, `**/dist/**`. `**/*.test.ts` or a bare
+  // name ignore files, as tinyglobby did.
+  const dirIgnores = ignores
+    .filter((segments) => segments.length > 1 && segments[segments.length - 1].globstar)
+    .map((segments) => segments.slice(0, -1));
+  const ignoredDir = (rel: string) => {
+    const parts = rel.split('/');
+    return dirIgnores.some((prefix) => matchSegments(prefix, parts));
+  };
 
+  const cwd = resolve(options.cwd);
   let root: string;
   try {
-    root = await realpath(options.cwd);
+    root = await realpath(cwd);
   } catch {
     return []; // no search root: nothing matches
   }
+  // Each directory reached through a symbolic link is entered through a link at
+  // most once, so links pointing at each other cannot multiply the walk.
+  const linkedDirs = new Set<string>();
   const found: string[] = [];
   // `realDir` is the real path of `relDir`; ancestors are the real paths above it.
   const walk = async (relDir: string, realDir: string, ancestors: Set<string>): Promise<void> => {
     let entries;
     try {
-      entries = await readdir(relDir ? join(options.cwd, relDir) : options.cwd, { withFileTypes: true });
+      entries = await readdir(relDir ? join(cwd, relDir) : cwd, { withFileTypes: true });
     } catch {
       return; // unreadable directory: nothing to match there
     }
@@ -271,13 +306,17 @@ export async function safeGlob(pattern: string | string[], options: SafeGlobOpti
       let real = join(realDir, entry.name);
       if (entry.isSymbolicLink()) {
         try {
-          const target = await realpath(join(options.cwd, rel));
+          const target = await realpath(join(cwd, rel));
           real = target;
           if (!inside(root, target)) continue;
           const info = await stat(target);
           isDir = info.isDirectory();
           isFile = info.isFile();
-          if (isDir && ancestors.has(target)) continue; // a loop
+          if (isDir) {
+            if (ancestors.has(target) || linkedDirs.has(target)) continue; // a loop, or already entered by a link
+            if (ignoredDir(rel) || !worthEntering(rel)) continue;
+            linkedDirs.add(target);
+          }
         } catch {
           continue; // dangling link
         }
@@ -293,6 +332,8 @@ export async function safeGlob(pattern: string | string[], options: SafeGlobOpti
     await Promise.all(subdirs);
   };
   await walk('', root, new Set([root]));
+  // Sorted, so results (and callers that take the first N) are deterministic;
+  // tinyglobby returned crawl order. Paths through a link keep the link's path.
   found.sort();
-  return options.absolute ? found.map((rel) => join(options.cwd, rel)) : found;
+  return options.absolute ? found.map((rel) => `${cwd}/${rel}`.split(sep).join('/')) : found;
 }

@@ -330,9 +330,10 @@ export class FileBasedVerifier {
         });
       } catch (error) {
         if (!(error instanceof UnsafeGlobError)) throw error;
+        // The rejected pattern may be the search glob or one of excludePatterns.
         evidence.push({
           type: 'file-reference',
-          location: searchGlob,
+          location: error.pattern,
           content: error.message,
           verified: false,
           timestamp: new Date(),
