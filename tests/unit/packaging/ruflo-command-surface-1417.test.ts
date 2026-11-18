@@ -163,6 +163,14 @@ describe('ruflo command surface (#1417)', () => {
       expect(extractCalls('npx -y ruflo@3.76.0 doctor', RUFLO_PINNED_VERSION)).toHaveLength(1);
     });
 
+    it('should_checkThePackageFlagForm_when_rufloIsNamedWithDashP', () => {
+      const [dashP] = extractCalls('npx -y -p ruflo@3.76.0 ruflo truth', RUFLO_PINNED_VERSION);
+      expect(checkCall(dashP.tokens, surface)).toBe("unknown command 'truth'");
+      const calls = extractCalls('npx --package=ruflo@3.76.0 ruflo doctor', RUFLO_PINNED_VERSION);
+      expect(calls).toHaveLength(1);
+      expect(checkCall(calls[0].tokens, surface)).toBeNull();
+    });
+
     it('should_checkNoInstallCalls_when_theyRunTheInstalledCli', () => {
       const [call] = extractCalls('npx --no-install ruflo memory search --bogus x', RUFLO_PINNED_VERSION);
       expect(checkCall(call.tokens, surface)).toBe("'memory search' has no flag --bogus");

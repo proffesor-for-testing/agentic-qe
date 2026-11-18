@@ -205,7 +205,7 @@ npx ruflo@3.76.0 hooks notify \
 ```bash
 # Set TASK_SUCCEEDED to true or false from the actual result; results go to `memory store` above
 npx ruflo@3.76.0 hooks post-task \
-  --task-id "${CHAOS_ID}" \
+  --task-id "${CHAOS_ID:?run the pre-task block first, in the same shell}" \
   --success "${TASK_SUCCEEDED:?set to true or false}" \
   --agent "qe-chaos-engineer" \
   --task "Chaos test: ${scenario}"

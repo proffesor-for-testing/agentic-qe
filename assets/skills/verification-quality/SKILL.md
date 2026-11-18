@@ -187,7 +187,9 @@ jobs:
 
 ```bash
 #!/bin/bash
-# .git/hooks/pre-commit: block on a measured failure, warn on missing evidence
+# .git/hooks/pre-commit: block on a measured failure, warn on missing evidence.
+# Until every gate metric can be recorded (see Current limit), the gate exits 3 and this hook only warns;
+# add your test command here to block on failing tests.
 gate=$(mktemp)
 trap 'rm -f "$gate"' EXIT
 npx agentic-qe quality --gate --format json --output "$gate"

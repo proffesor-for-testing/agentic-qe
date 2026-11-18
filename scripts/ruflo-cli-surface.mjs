@@ -237,6 +237,9 @@ export function tokenize(rest) {
  */
 const LAUNCH = /(?:^|[\s"'`(=;&|]|\\n)(?:npx|bunx|npm\s+(?:exec|x)|pnpm\s+dlx|yarn\s+dlx)((?:\s+-{1,2}[\w-]+)*)\s+ruflo(?:@([\w.-]+))?(?![\w@/.-])/g;
 
+/** `npx -p ruflo@<v> ruflo <cmd>` / `npx --package=ruflo@<v> ruflo <cmd>`: the package is named by a flag. */
+const LAUNCH_PACKAGE = /(?:^|[\s"'`(=;&|]|\\n)(?:npx|npm\s+(?:exec|x))((?:\s+-{1,2}[\w-]+)*)\s+(?:-p\s+|--package[=\s]+)ruflo@([\w.-]+)((?:\s+-{1,2}[\w-]+)*)\s+ruflo(?![\w@/.-])/g;
+
 /**
  * Every launched ruflo call of the pinned `version` in `content` (see LAUNCH), with
  * `\` line continuations joined. Returns { line, text, tokens } per call.
@@ -245,11 +248,18 @@ export function extractCalls(content, version) {
   const lines = content.split(/\r?\n/);
   const calls = [];
   lines.forEach((line, idx) => {
+    const found = [];
+    for (const m of line.matchAll(LAUNCH_PACKAGE)) found.push({ index: m.index, length: m[0].length, flags: '', got: m[2] });
     for (const m of line.matchAll(LAUNCH)) {
-      const [, flags, got] = m;
+      // `-p ruflo@x ruflo`: the second `ruflo` is the binary, already found above.
+      if (found.some((f) => m.index >= f.index && m.index < f.index + f.length)) continue;
+      found.push({ index: m.index, length: m[0].length, flags: m[1], got: m[2] });
+    }
+    for (const m of found) {
+      const { flags, got } = m;
       const noInstall = /(^|\s)--no-install\b/.test(flags);
       if (got === undefined ? !noInstall : got !== version) continue;
-      let rest = line.slice(m.index + m[0].length);
+      let rest = line.slice(m.index + m.length);
       let j = idx;
       while (/\\\s*$/.test(rest) && j + 1 < lines.length) {
         j++;
