@@ -141,11 +141,21 @@ function javascriptVerdict(testCode: string, subject: SourceImportSubject): Sour
   const sourceModulePath = normalizeModulePath(sourceNoExt);
   const tsPaths = readTsPaths(root, sourceNoExt);
 
+  // #1392: the generated test path may be relative to the project root (as
+  // `getTestFilePath` returns it) or absolute (as direct gate callers pass it).
+  // Resolving a relative one needs the root; `path.resolve(dirname(...), spec)`
+  // would otherwise resolve it against the process cwd.
+  const testModuleDir = subject.testFilePath
+    ? path.dirname(path.resolve(root, normalizePathSeparators(subject.testFilePath)))
+    : undefined;
+
   const matches = (spec: string): boolean => {
+    // #1392: TypeScript ESM writes `./calc.js` for `calc.ts`, so the extension is
+    // stripped from both sides before the paths are compared.
     const clean = normalizePathSeparators(spec.replace(/[?#].*$/, '')).replace(JS_EXT, '').replace(/\/index$/, '');
     if (spec.startsWith('.') || path.isAbsolute(spec)) {
-      if (subject.testFilePath) {
-        return normalizeModulePath(path.resolve(path.dirname(normalizePathSeparators(subject.testFilePath)), clean)) === sourceModulePath;
+      if (testModuleDir) {
+        return normalizeModulePath(path.resolve(testModuleDir, clean)) === sourceModulePath;
       }
       // Older direct gate callers do not provide the generated test path. Keep
       // their source-relative and conventional tests/ resolution, while still
@@ -194,6 +204,12 @@ function javascriptVerdict(testCode: string, subject: SourceImportSubject): Sour
   };
   visitImports(sourceFile);
   if (importedNames.size === 0) return 'missing';
+  // #1392: requiring the test to *use* an imported symbol is #1390's tightening, and it
+  // needs the source text to be a judgement about this module rather than about the name
+  // alone. Without it (a direct gate caller that passes only the path), a specifier that
+  // resolves to the source is all the evidence there is — the same "cannot tell, so report
+  // nothing" rule the other languages use.
+  if (subject.sourceCode === undefined) return 'found';
   let referenced = false;
   const visitReferences = (node: ts.Node): void => {
     if (importNodes.has(node)) return;

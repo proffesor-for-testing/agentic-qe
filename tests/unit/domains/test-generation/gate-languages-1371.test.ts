@@ -31,6 +31,7 @@ const PY_SRC = 'def add(a, b):\n    return a + b\n';
 const GO_SRC = 'package calc\n\nfunc Add(a int, b int) int { return a + b }\n';
 const JAVA_SRC = 'package com.example;\n\npublic class Calc { public static int add(int a, int b) { return a + b; } }\n';
 const KT_SRC = 'package com.ex\n\nfun add(a: Int, b: Int): Int = a + b\n';
+const JS_ADD_SRC = 'export function add(a: number, b: number) { return a + b; }';
 
 describe('#1371 the gate accepts valid tests in each language', () => {
   it.each([
@@ -235,6 +236,48 @@ describe('#1390 assertion-like identifiers are not assertions', () => {
       'class CalcTest { @Test fun shouldAdd() { println(3) } }\n',
       'src/Calc.kt',
     )).toBeDefined();
+  });
+});
+
+describe('#1392 infix matchers are assertions and .js resolves to the source', () => {
+  it.each([
+    ['kotest shouldBe (identifier receiver)', 'add(2, 3) shouldBe 5'],
+    ['kotest shouldBe (numeric receiver)', '5 shouldBe add(2, 3)'],
+    ['kotest shouldBe (string literal receiver)', '"a" shouldBe add(1, 2)'],
+    ['kotest shouldBe (call receiver, list operand)', 'add(2, 3) shouldBe listOf(5)'],
+    ['kotest shouldNotBe', 'add(2, 3) shouldNotBe 6'],
+    ['kotest shouldContain', 'listOf(1) shouldContain 1'],
+    ['kotest shouldNotContain', 'listOf(1) shouldNotContain 2'],
+    ['kotest shouldHaveSize', 'listOf(1) shouldHaveSize 1'],
+    ['kotest shouldBeGreaterThan', 'add(2, 3) shouldBeGreaterThan 4'],
+    ['kotest call form', 'add(2, 3).shouldBe(5)'],
+    ['kotest shouldThrow with a type argument', 'shouldThrow<IllegalStateException> { boom() }'],
+    ['kotest shouldNotThrow with a type argument', 'shouldNotThrow<IllegalStateException> { boom() }'],
+  ])('keeps a Kotlin test using %s', (_label, body) => {
+    expect(unexecutableTestReason(`class CalcTest : StringSpec({ "t" { ${body} } })\n`, 'src/Calc.kt')).toBeUndefined();
+  });
+
+  it('keeps the .js → .ts resolution for a generated test path relative to the project root', () => {
+    // `getTestFilePath` returns a project-relative path; resolving the specifier from it
+    // must not depend on the process working directory.
+    expect(sourceImportVerdict(
+      "import { add } from '../../src/calc.js';\nit('adds', () => { expect(add(2, 3)).toBe(5); });\n",
+      { sourceFilePath: 'src/calc.ts', testFilePath: 'tests/unit/calc.test.ts', sourceCode: JS_ADD_SRC },
+    )).toBe('found');
+  });
+
+  it('still rejects a .js import of a different module', () => {
+    expect(sourceImportVerdict(
+      "import { add } from '../../other/calc.js';\nit('adds', () => { expect(add(2, 3)).toBe(5); });\n",
+      { sourceFilePath: 'src/calc.ts', testFilePath: 'tests/unit/calc.test.ts', sourceCode: JS_ADD_SRC },
+    )).toBe('missing');
+  });
+
+  it('still rejects the source import when no imported symbol is used', () => {
+    expect(sourceImportVerdict(
+      "import { add } from '../../src/calc.js';\nit('adds', () => { expect(2).toBe(2); });\n",
+      { sourceFilePath: 'src/calc.ts', testFilePath: 'tests/unit/calc.test.ts', sourceCode: JS_ADD_SRC },
+    )).toBe('missing');
   });
 });
 
