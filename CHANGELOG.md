@@ -7,6 +7,90 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.15.22] - 2026-11-20
+
+The Claude Code plugin now works with npm 12: it lets npm build AQE's
+native SQLite module, and when an existing npx cache is broken the error
+names that cache and the commands that repair it. A full `aqe sync` no
+longer duplicates captured experiences in the cloud, and the new
+`aqe sync dedupe-experiences` removes the duplicates already there.
+`aqe init` pins the ruflo MCP server, `--with-kiro` installs each skill's
+supporting files, and the plugin commands and skills no longer call ruflo
+commands that don't exist. The package no longer depends on
+`tinyglobby`/`picomatch`, which carry a high-severity advisory with no fix,
+and its tarball is about 1 MB smaller.
+
+### Added
+
+- **`aqe sync dedupe-experiences [--env <env>] [--apply]`** ([#1436]):
+  removes the duplicate experiences that earlier full syncs left in
+  `aqe.learning_experiences`. It is a dry run unless you pass `--apply`.
+  It only runs after migration 004 is applied and once every local
+  experience has been uploaded with its sync key. `--apply` copies the rows
+  it deletes to a backup table in the same transaction and prints the SQL
+  that restores them. Steps for each environment:
+  1. apply `src/sync/schema/migration-004.sql` (shipped in the package);
+  2. `aqe sync --full --env <env>`;
+  3. `aqe sync dedupe-experiences --env <env>`, and check the numbers;
+  4. the same with `--apply`;
+  5. `aqe sync verify --env <env>`.
+
+### Fixed
+
+- **The Claude Code plugin starts on npm 12** ([#1466]): npm 12 skips
+  dependency install scripts for `npx` unless they are allowed, so
+  `better-sqlite3` had no binary and `fleet_init` failed. The plugin, and
+  every MCP config `aqe init` writes for other platforms, now launch
+  `npx -y --allow-scripts=better-sqlite3,hnswlib-node agentic-qe@<version> mcp`.
+  npm 10 and 11 accept the flag too. If AQE does run from a broken npx
+  cache, the error names that directory, gives the commands that repair it
+  in place, and says to restart the MCP server.
+- **Full syncs no longer duplicate experiences** ([#1436]): every
+  `aqe sync --full` inserted each captured experience into the cloud again.
+  Uploads now carry the local experience id as a sync key, so a re-sync
+  updates the existing row. Pulling no longer inserts the same experiences
+  locally again, and experiences pulled from another environment are never
+  uploaded as this machine's.
+- **`aqe init --with-claude-flow` pins the ruflo MCP server** ([#1413]):
+  it wrote `npx ruflo@3.5.18 mcp`, which still started whatever
+  `@claude-flow/cli` was newest, and its install hints named no version.
+  The entry and the hints now use `ruflo@3.76.0`, which pins it exactly. On
+  re-init an entry that is exactly an old AQE default is upgraded; any
+  other entry is yours and is kept.
+- **`aqe init --with-kiro` installs each skill's supporting files**
+  ([#1414]): it copied only `SKILL.md`, so the `steps/`, `schemas/` and
+  other files that 64 of the 84 Kiro skills reference were missing. Links
+  between those files now point inside the Kiro skill directory.
+- **The plugin commands and skills call only real ruflo commands**
+  ([#1417]): the `/aqe-*` hooks, the verification-quality skill, the
+  qe-integration-architect agent and the Codex `aqe-ruflo` skill called
+  subcommands and flags that ruflo 3.76.0 doesn't have. A CI check now
+  compares every ruflo call in shipped content with ruflo's real `--help`.
+
+### Changed
+
+- **No more `tinyglobby` or `picomatch`** ([#1458]): `picomatch` has a
+  high-severity ReDoS advisory with no fixed version. AQE now uses its own
+  small glob matcher, which returns the same files at every call site. A
+  scan that reaches more than 200,000 entries through symlinks now stops
+  with an error instead of running until memory runs out.
+- **Smaller package** ([#1456]): the Claude Flow platform agents, commands
+  and skills that `aqe init` never installs are no longer shipped. The
+  tarball has 4,165 files instead of 4,932 (11.5 MB instead of 12.6 MB), and
+  `aqe init` installs the same files as before.
+- **Upgrade note** ([#1436]): until migration 004 is applied to your cloud
+  database, `aqe sync` reports experience upload as failed, with a message
+  naming the migration, instead of adding duplicates. The other sources
+  still sync.
+
+[#1466]: https://github.com/proffesor-for-testing/agentic-qe/issues/1466
+[#1436]: https://github.com/proffesor-for-testing/agentic-qe/issues/1436
+[#1413]: https://github.com/proffesor-for-testing/agentic-qe/issues/1413
+[#1414]: https://github.com/proffesor-for-testing/agentic-qe/issues/1414
+[#1417]: https://github.com/proffesor-for-testing/agentic-qe/issues/1417
+[#1458]: https://github.com/proffesor-for-testing/agentic-qe/issues/1458
+[#1456]: https://github.com/proffesor-for-testing/agentic-qe/issues/1456
+
 ## [3.15.21] - 2026-11-17
 
 You can take back a pattern you curated with `aqe learning unmark`, and

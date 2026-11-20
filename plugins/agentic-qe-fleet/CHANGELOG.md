@@ -2,6 +2,11 @@
 
 Newest first. One `## <version> — <date>` heading per version, then `feat:`, `fix:`, `breaking:` and `chore:` bullets. Since 3.15.0 the plugin version tracks the `agentic-qe` npm package version (see [ADR-0001](docs/adrs/0001-agentic-qe-fleet-contract.md)). Built from git history.
 
+## 3.15.22 — 2026-11-20
+- fix: the MCP server launches with `npx -y --allow-scripts=better-sqlite3,hnswlib-node`, so npm 12 builds the native SQLite module and `fleet_init` works (#1466).
+- fix: the `/aqe-*` commands call only ruflo commands and flags that ruflo 3.76.0 has (#1417).
+- chore: MCP server pin and mod version move to `agentic-qe@3.15.22` (no duplicate cloud experiences from `aqe sync`, pinned ruflo MCP entry, Kiro skill files, no tinyglobby/picomatch, smaller package; see the root CHANGELOG).
+
 ## 3.15.21 — 2026-11-17
 - chore: MCP server pin and mod version move to `agentic-qe@3.15.21` (`aqe learning unmark` and revocation of patterns whose measured runs mostly fail, no unproven memory entries in the test-generation LLM prompt, package types under node16/nodenext, `aqe sync` and learning export/import fixes; see the root CHANGELOG). No other plugin changes.
 
