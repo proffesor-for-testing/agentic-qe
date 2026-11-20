@@ -91,7 +91,10 @@ export function findNpxCacheDir(path: string | undefined): string | undefined {
  */
 export function findNpxCacheDirInText(text: string): string | undefined {
   for (const line of text.split(/\r?\n/)) {
-    const dir = findNpxCacheDir(line.replace(/^[\s→>-]+/, ''));
+    // A quoted path (`The module '/x/.node'`) starts after the quote; an
+    // unquoted one after a leading arrow or list dash.
+    const quoted = /['"`]([^'"`]+)['"`]/.exec(line)?.[1];
+    const dir = findNpxCacheDir(quoted ?? line.replace(/^[\s→>-]+/, ''));
     if (dir) return dir;
   }
   return undefined;

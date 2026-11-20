@@ -187,6 +187,13 @@ describe('npx cache remedy (#1466)', () => {
     expect(findNpxCacheDir(path)).toBe(dir);
   });
 
+  it.each([
+    "Error: The module '/Users/Jane Doe/.npm/_npx/abc/node_modules/better-sqlite3/build/Release/better_sqlite3.node'",
+    'Require stack:\n- /Users/Jane Doe/.npm/_npx/abc/node_modules/better-sqlite3/lib/database.js',
+  ])('should_drop_the_line_prefix_before_the_cache_dir_%#', (text) => {
+    expect(findNpxCacheDirInText(text)).toBe('/Users/Jane Doe/.npm/_npx/abc');
+  });
+
   it('should_find_a_cache_dir_with_spaces_in_the_probed_paths', () => {
     const text = 'Could not locate the bindings file. Tried:\n → /Users/Jane Doe/.npm/_npx/abc/node_modules/better-sqlite3/build/x.node';
     expect(findNpxCacheDirInText(text)).toBe('/Users/Jane Doe/.npm/_npx/abc');
