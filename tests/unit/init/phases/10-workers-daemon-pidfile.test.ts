@@ -64,7 +64,8 @@ describe('start-daemon.cjs generator (#488 B.1)', () => {
     const binCandidateIdx = source.indexOf(
       'const binCandidate = candidates.find',
     );
-    const npxFallbackIdx = source.indexOf("'--yes', 'agentic-qe', 'mcp'");
+    // #1466: the npx fallback allows the native install scripts.
+    const npxFallbackIdx = source.indexOf("'--yes', '${NPX_ALLOW_SCRIPTS_FLAG}', 'agentic-qe', 'mcp'");
 
     expect(requireResolveIdx).toBeGreaterThan(0);
     expect(binCandidateIdx).toBeGreaterThan(requireResolveIdx);

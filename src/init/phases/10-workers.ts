@@ -13,6 +13,7 @@ import {
   type InitContext,
 } from './phase-interface.js';
 import type { AQEInitConfig } from '../types.js';
+import { NPX_ALLOW_SCRIPTS_FLAG } from '../../shared/npx-launch.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -279,8 +280,8 @@ if (binCandidate && binCandidate.endsWith('bundle.js')) {
   }
   mcpCmd = process.platform === 'win32' ? process.execPath : 'npx';
   mcpArgs = process.platform === 'win32'
-    ? [npxCli, '--yes', 'agentic-qe', 'mcp']
-    : ['--yes', 'agentic-qe', 'mcp'];
+    ? [npxCli, '--yes', '${NPX_ALLOW_SCRIPTS_FLAG}', 'agentic-qe', 'mcp']
+    : ['--yes', '${NPX_ALLOW_SCRIPTS_FLAG}', 'agentic-qe', 'mcp'];
   appendFileSync(logFile, '[' + ts + '] WARNING: using npx fallback — daemon.pid will point at the npx wrapper, not the MCP server. \`aqe daemon status\` may misreport liveness after the wrapper exits.\\n');
 }
 

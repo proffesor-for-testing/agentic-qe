@@ -17,7 +17,7 @@ Or add the marketplace first:
 /plugin install agentic-qe-fleet@agentic-qe
 ```
 
-The install registers the MCP server `plugin:agentic-qe-fleet:agentic-qe`, which runs `npx -y agentic-qe@<plugin version> mcp`. You don't need to run `claude mcp add`. Check it with `claude mcp list`.
+The install registers the MCP server `plugin:agentic-qe-fleet:agentic-qe`, which runs `npx -y --allow-scripts=better-sqlite3,hnswlib-node agentic-qe@<plugin version> mcp`. The flag lets npm 12 run the install scripts that build `better-sqlite3` and `hnswlib-node`; without it `fleet_init` fails. You don't need to run `claude mcp add`. Check it with `claude mcp list`.
 
 ### Options (`userConfig`)
 

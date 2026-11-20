@@ -16,6 +16,7 @@ import {
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { toErrorMessage } from '../shared/error-utils.js';
+import { aqeNpxMcpArgs } from '../shared/npx-launch.js';
 import { findPackageRoot } from './find-package-root.js';
 import {
   copySkillSupportFiles,
@@ -227,7 +228,7 @@ export class KiroInstaller {
       mcpServers: {
         'agentic-qe': {
           command: 'npx',
-          args: ['-y', 'agentic-qe@latest', 'mcp'],
+          args: aqeNpxMcpArgs(),
           // Issue #533: database-free installs run the MCP server in-memory.
           env: this.options.memoryBackend === 'memory'
             ? { AQE_MEMORY_BACKEND: 'memory', AQE_V3_MODE: 'true' }
@@ -369,7 +370,7 @@ export class KiroInstaller {
       mcpServers: {
         'agentic-qe': {
           command: 'npx',
-          args: ['-y', 'agentic-qe@latest', 'mcp'],
+          args: aqeNpxMcpArgs(),
         },
       },
       tools: ['read', 'write', 'shell', '@agentic-qe'],
@@ -474,7 +475,7 @@ export class KiroInstaller {
       mcpServers: {
         'agentic-qe': {
           command: 'npx',
-          args: ['-y', 'agentic-qe@latest', 'mcp'],
+          args: aqeNpxMcpArgs(),
         },
       },
       tools: kiroTools.length > 0 ? kiroTools : ['read', 'write', 'shell', '@agentic-qe'],
@@ -497,7 +498,7 @@ export class KiroInstaller {
       mcpServers: {
         'agentic-qe': {
           command: 'npx',
-          args: ['-y', 'agentic-qe@latest', 'mcp'],
+          args: aqeNpxMcpArgs(),
         },
       },
       tools: ['read', 'write', 'shell', '@agentic-qe'],

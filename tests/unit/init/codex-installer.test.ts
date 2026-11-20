@@ -126,7 +126,7 @@ describe('CodexInstaller', () => {
       // Verify TOML key-value pairs
       expect(content).toMatch(/^\[mcp_servers\.agentic-qe\]$/m);
       expect(content).toMatch(/^command = "npx"$/m);
-      expect(content).toMatch(/^args = \["-y", "agentic-qe@latest", "mcp"\]$/m);
+      expect(content).toMatch(/^args = \["-y", "--allow-scripts=better-sqlite3,hnswlib-node", "agentic-qe@latest", "mcp"\]$/m); // #1466
       expect(content).toMatch(/^\[mcp_servers\.agentic-qe\.env\]$/m);
     });
   });

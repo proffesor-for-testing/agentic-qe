@@ -5,6 +5,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { join } from 'path';
+import { parse as parseYaml } from 'yaml';
 
 vi.mock('fs', async () => {
   const actual = await vi.importActual<typeof import('fs')>('fs');
@@ -111,6 +112,8 @@ describe('ContinueDevInstaller', () => {
       expect(content).toMatch(/^\s+- name: agentic-qe$/m);
       expect(content).toMatch(/^\s+command: npx$/m);
       expect(content).toContain('agentic-qe@latest');
+      // #1466
+      expect(parseYaml(content).mcpServers[0].args).toEqual(['-y', '--allow-scripts=better-sqlite3,hnswlib-node', 'agentic-qe@latest', 'mcp']);
     });
   });
 
@@ -171,6 +174,9 @@ describe('ContinueDevInstaller', () => {
       // Should contain both servers
       expect(content).toContain('other-server');
       expect(content).toContain('agentic-qe');
+      // #1466: the merged entry launches npx with the native install scripts allowed
+      const aqe = parseYaml(content).mcpServers.find((s: { name: string }) => s.name === 'agentic-qe');
+      expect(aqe.args).toEqual(['-y', '--allow-scripts=better-sqlite3,hnswlib-node', 'agentic-qe@latest', 'mcp']);
     });
 
     it('honors database-free mode on the merge branch — no AQE_MEMORY_PATH (#533/C2)', async () => {
