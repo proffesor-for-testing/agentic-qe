@@ -118,6 +118,8 @@ interface FileScope {
   deadline: number;
   incomplete: boolean;
   timedOut: boolean;
+  /** Whether git tracks the file; undefined until asked (at most once per scope). */
+  tracked?: boolean;
 }
 
 /** Git had an answer that was not read: it timed out or overflowed the output limit. */
@@ -456,8 +458,9 @@ export class GitAnalyzer {
    * Run one file's analysis with every git call sharing one `gitTimeoutMs`
    * deadline (#1115). When git is unavailable or fails, the analysis returns
    * its default, which callers treat as "no git data", never a measured 0
-   * (#1165). Any failed query is recorded for consumeIncomplete(); a timeout
-   * or output overflow also records consumeTimeout() and rejects when `strict`.
+   * (#1165). A failed query of a tracked file is recorded for
+   * consumeIncomplete(); a timeout or output overflow also records
+   * consumeTimeout() and rejects when `strict`.
    */
   private async analyze<T>(
     filePath: string,
@@ -472,20 +475,44 @@ export class GitAnalyzer {
       this.markIncomplete(filePath, scope, true);
     }
     if (repo !== true) return fallback;
+    const relativePath = this.getRelativePath(filePath);
     try {
-      return await work(this.query(scope?.deadline), this.getRelativePath(filePath));
+      return await work(this.query(scope?.deadline), relativePath);
     } catch (error) {
-      // A failed Git query is not evidence for the fallback value. Preserve
-      // the strict timeout/overflow behavior, while also reporting other
-      // failures as incomplete to callers such as the defect predictor.
+      // A timeout or an output overflow is an answer git never gave: always incomplete.
       if (isIncompleteRead(error)) {
         if (options.strict) throw error;
         this.markIncomplete(filePath, scope, true);
-      } else {
+      } else if ((await this.isTracked(relativePath, scope)) !== false) {
+        // Git tracks the file, so it had history to report; the failure is a
+        // real query failure. Also when git cannot say (#1330).
         this.markIncomplete(filePath, scope);
       }
+      // An untracked file has no history, so e.g. `blame` legitimately fails
+      // before its first commit: the fallback is git's answer (#1330).
       return fallback;
     }
+  }
+
+  /**
+   * Whether git tracks `relativePath`, asked at most once per
+   * withFileDeadline() call. `undefined` when git cannot say: it failed (exit
+   * 128, a hang, an overfull buffer) rather than answering "no such path in the
+   * index" (exit 1), so callers keep treating their failed query as a failure.
+   */
+  private async isTracked(relativePath: string, scope: FileScope | undefined): Promise<boolean | undefined> {
+    if (scope?.tracked !== undefined) return scope.tracked;
+    let tracked: boolean | undefined;
+    try {
+      await this.query(scope?.deadline).text(['--literal-pathspecs', 'ls-files', '--error-unmatch', '--', relativePath]);
+      tracked = true;
+    } catch (error) {
+      // Exit 1 is git's "no such path in the index": the answer this asks for.
+      // Only an exit status carries one; a timeout or overflow has none.
+      if ((error as { status?: number }).status === 1) tracked = false;
+    }
+    if (scope) scope.tracked = tracked;
+    return tracked;
   }
 
   /** The withFileDeadline() call on `filePath` that the current async context runs in. */
