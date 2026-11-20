@@ -64,7 +64,7 @@ Create `.vscode/mcp.json`, setting `AQE_INIT_VERSION` to your installed version 
     "agentic-qe": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "agentic-qe@latest", "mcp"],
+      "args": ["-y", "--allow-scripts=better-sqlite3,hnswlib-node", "agentic-qe@latest", "mcp"],
       "env": {
         "AQE_MEMORY_PATH": ".agentic-qe/memory.db",
         "AQE_V3_MODE": "true",
@@ -101,7 +101,7 @@ Create `.cursor/mcp.json`:
     "agentic-qe": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "agentic-qe@latest", "mcp"],
+      "args": ["-y", "--allow-scripts=better-sqlite3,hnswlib-node", "agentic-qe@latest", "mcp"],
       "env": {
         "AQE_MEMORY_PATH": ".agentic-qe/memory.db",
         "AQE_V3_MODE": "true"
@@ -134,7 +134,7 @@ Create `.vscode/cline_mcp_settings.json`:
   "mcpServers": {
     "agentic-qe": {
       "command": "npx",
-      "args": ["-y", "agentic-qe@latest", "mcp"],
+      "args": ["-y", "--allow-scripts=better-sqlite3,hnswlib-node", "agentic-qe@latest", "mcp"],
       "env": {
         "AQE_MEMORY_PATH": ".agentic-qe/memory.db",
         "AQE_V3_MODE": "true"
@@ -180,7 +180,7 @@ Create `.kilocode/mcp.json`:
   "mcpServers": {
     "agentic-qe": {
       "command": "npx",
-      "args": ["-y", "agentic-qe@latest", "mcp"],
+      "args": ["-y", "--allow-scripts=better-sqlite3,hnswlib-node", "agentic-qe@latest", "mcp"],
       "env": {
         "AQE_MEMORY_PATH": ".agentic-qe/memory.db",
         "AQE_V3_MODE": "true"
@@ -222,7 +222,7 @@ Create `.roo/mcp.json`:
   "mcpServers": {
     "agentic-qe": {
       "command": "npx",
-      "args": ["-y", "agentic-qe@latest", "mcp"],
+      "args": ["-y", "--allow-scripts=better-sqlite3,hnswlib-node", "agentic-qe@latest", "mcp"],
       "env": {
         "AQE_MEMORY_PATH": ".agentic-qe/memory.db",
         "AQE_V3_MODE": "true"
@@ -292,7 +292,7 @@ Create `.codex/config.toml`:
 [mcp_servers.agentic-qe]
 type = "stdio"
 command = "npx"
-args = ["-y", "agentic-qe@latest", "mcp"]
+args = ["-y", "--allow-scripts=better-sqlite3,hnswlib-node", "agentic-qe@latest", "mcp"]
 
 [mcp_servers.agentic-qe.env]
 AQE_MEMORY_PATH = ".agentic-qe/memory.db"
@@ -351,7 +351,7 @@ Create `.windsurf/mcp_config.json`:
   "mcpServers": {
     "agentic-qe": {
       "command": "npx",
-      "args": ["-y", "agentic-qe@latest", "mcp"],
+      "args": ["-y", "--allow-scripts=better-sqlite3,hnswlib-node", "agentic-qe@latest", "mcp"],
       "env": {
         "AQE_MEMORY_PATH": ".agentic-qe/memory.db",
         "AQE_V3_MODE": "true"
@@ -385,6 +385,7 @@ mcpServers:
     command: npx
     args:
       - "-y"
+      - "--allow-scripts=better-sqlite3,hnswlib-node"
       - "agentic-qe@latest"
       - "mcp"
     env:
@@ -448,5 +449,7 @@ Verify checks:
 
 **MCP server not starting**: Ensure `npx agentic-qe mcp` works standalone first:
 ```bash
-npx agentic-qe@latest mcp
+npx -y --allow-scripts=better-sqlite3,hnswlib-node agentic-qe@latest mcp
 ```
+
+With npm 12, the `--allow-scripts` flag is required: without it npm skips the install scripts that build `better-sqlite3`, and `fleet_init` fails. If an earlier launch already left a broken npx cache, the error names the cache directory and the commands that repair it; restart the MCP server afterwards.

@@ -342,7 +342,7 @@ AQE exposes 60+ tools via the Model Context Protocol. Any AI coding tool that su
 
 ```bash
 # Claude Code setup
-claude mcp add agentic-qe -- npx agentic-qe mcp
+claude mcp add agentic-qe -- npx -y --allow-scripts=better-sqlite3,hnswlib-node agentic-qe mcp
 
 # Or auto-provision for any platform
 aqe init --with-cursor
@@ -489,7 +489,7 @@ cd your-project && aqe init --auto
 # 3. Provision for your coding tool
 aqe init --with-cursor           # or --with-windsurf, --with-copilot, etc.
 # Or for Claude Code:
-claude mcp add agentic-qe -- npx agentic-qe mcp
+claude mcp add agentic-qe -- npx -y --allow-scripts=better-sqlite3,hnswlib-node agentic-qe mcp
 
 # 4. Start using skills in your coding tool
 #    /test-design-techniques       — systematic test case design

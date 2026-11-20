@@ -13,7 +13,10 @@
  * list of probed paths (or, in `aqe init`, nothing at all).
  */
 
+import { createRequire } from 'module';
+import { dirname } from 'path';
 import { toErrorMessage } from './error-utils.js';
+import { AQE_NATIVE_SCRIPT_PACKAGES } from './npx-launch.js';
 
 export type NativeModuleFailureReason =
   | 'missing-binding'
@@ -26,6 +29,12 @@ export interface NativeModuleFailure {
   readonly reason: NativeModuleFailureReason;
   /** First line of the original error, without the probed-path list */
   readonly detail: string;
+  /**
+   * The npx cache directory (`.../_npx/<hash>`) AQE runs from, when it runs
+   * through npx (the Claude Code plugin does). Global and project-local
+   * remedies don't reach that directory (issue #1466).
+   */
+  readonly npxCacheDir?: string;
 }
 
 /** Marker present in every remedy we emit; used to avoid double-wrapping. */
@@ -67,6 +76,36 @@ function collectMessages(error: unknown): string {
   return parts.join('\n');
 }
 
+const NPX_CACHE_DIR = /^(.*?[\\/]_npx[\\/][^\\/]+)[\\/]node_modules(?:[\\/]|$)/;
+
+/** The `.../_npx/<hash>` directory a file-system path lies in, or undefined. */
+export function findNpxCacheDir(path: string | undefined): string | undefined {
+  if (!path) return undefined;
+  return NPX_CACHE_DIR.exec(path.trim())?.[1];
+}
+
+/**
+ * The npx cache directory named in an error's text: the bindings package lists
+ * each probed path on its own line (` → /path/...`). Paths may contain spaces,
+ * so each line is matched whole after dropping the leading arrow.
+ */
+export function findNpxCacheDirInText(text: string): string | undefined {
+  for (const line of text.split(/\r?\n/)) {
+    const dir = findNpxCacheDir(line.replace(/^[\s→>-]+/, ''));
+    if (dir) return dir;
+  }
+  return undefined;
+}
+
+/** Directory `moduleName` resolves to from AQE's own code, or undefined. */
+function locateModule(moduleName: string): string | undefined {
+  try {
+    return dirname(createRequire(import.meta.url).resolve(`${moduleName}/package.json`));
+  } catch {
+    return undefined;
+  }
+}
+
 function firstLine(message: string): string {
   // Drop the dangling "Tried:" that introduces the bindings package's path list.
   const line = message.split('\n')[0].trim();
@@ -85,16 +124,17 @@ export function diagnoseNativeModuleError(
   const text = collectMessages(error);
   const detail = firstLine(toErrorMessage(error));
 
-  if (MISSING_BINDING_PATTERNS.some((p) => p.test(text))) {
-    return { moduleName, reason: 'missing-binding', detail };
-  }
-  if (ABI_MISMATCH_PATTERNS.some((p) => p.test(text))) {
-    return { moduleName, reason: 'abi-mismatch', detail };
-  }
-  if (LOAD_FAILED_PATTERNS.some((p) => p.test(text))) {
-    return { moduleName, reason: 'load-failed', detail };
-  }
-  return null;
+  let reason: NativeModuleFailureReason;
+  if (MISSING_BINDING_PATTERNS.some((p) => p.test(text))) reason = 'missing-binding';
+  else if (ABI_MISMATCH_PATTERNS.some((p) => p.test(text))) reason = 'abi-mismatch';
+  else if (LOAD_FAILED_PATTERNS.some((p) => p.test(text))) reason = 'load-failed';
+  else return null;
+
+  // Where the module actually resolves from is authoritative; the probed paths
+  // in the error text are the fallback when it can't be resolved.
+  const moduleDir = locateModule(moduleName);
+  const npxCacheDir = moduleDir ? findNpxCacheDir(`${moduleDir}/`) : findNpxCacheDirInText(text);
+  return npxCacheDir ? { moduleName, reason, detail, npxCacheDir } : { moduleName, reason, detail };
 }
 
 const CAUSE_TEXT: Record<NativeModuleFailureReason, string> = {
@@ -108,17 +148,48 @@ const CAUSE_TEXT: Record<NativeModuleFailureReason, string> = {
     'the binary exists but the OS refused to load it (wrong platform/architecture or a corrupt build).',
 };
 
+const RESTART_LINE =
+  '  Then restart AQE: a running MCP server keeps the failed load (in Claude Code, reconnect it from /mcp).';
+
+function npxRemedy(moduleName: string, dir: string, platform: NodeJS.Platform): string[] {
+  // One command per line: PowerShell 5.1 has no `&&`, and cmd.exe needs /d to change drive.
+  const cd = platform === 'win32' ? `cd /d "${dir}"   (PowerShell: cd "${dir}")` : `cd "${dir}"`;
+  const lines = [
+    '  AQE is running from the npx cache (the Claude Code plugin starts it this way):',
+    `    ${dir}`,
+    '  Allow the install scripts there and rebuild:',
+    `    ${cd}`,
+    `    npm install-scripts approve ${AQE_NATIVE_SCRIPT_PACKAGES.join(' ')}`,
+    `    npm rebuild ${moduleName}`,
+  ];
+  const others = AQE_NATIVE_SCRIPT_PACKAGES.filter((name) => name !== moduleName);
+  if (others.length > 0) {
+    lines.push(`  Optionally also run \`npm rebuild ${others.join(' ')}\` there (it compiles from source and needs a C++ toolchain).`);
+  }
+  return lines;
+}
+
 /** Multi-line, actionable explanation for a diagnosed native-module failure. */
-export function formatNativeModuleRemedy(failure: NativeModuleFailure): string {
+export function formatNativeModuleRemedy(
+  failure: NativeModuleFailure,
+  platform: NodeJS.Platform = process.platform,
+): string {
   const { moduleName } = failure;
+  const fixes = failure.npxCacheDir
+    ? npxRemedy(moduleName, failure.npxCacheDir, platform)
+    : [
+        '  Fix a global install (reinstall, naming the package):',
+        `    npm install -g agentic-qe --allow-scripts=${AQE_INSTALL_SCRIPT_PACKAGES}`,
+        '  Or rebuild just the native module in an existing global install:',
+        `    npm rebuild -g ${moduleName} --allow-scripts=${moduleName}`,
+        '  For a project-local install (devDependency), run in the project:',
+        `    npm install-scripts approve ${moduleName} && npm rebuild ${moduleName}`,
+        '  If AQE runs through npx, run the project-local commands inside its npx cache directory (~/.npm/_npx/<hash>).',
+      ];
   return [
     `${moduleName} ${NATIVE_MODULE_REMEDY_MARKER}: ${CAUSE_TEXT[failure.reason]}`,
-    '  Fix a global install (reinstall, naming the package):',
-    `    npm install -g agentic-qe --allow-scripts=${AQE_INSTALL_SCRIPT_PACKAGES}`,
-    '  Or rebuild just the native module in an existing global install:',
-    `    npm rebuild -g ${moduleName} --allow-scripts=${moduleName}`,
-    '  For a project-local install (devDependency), run in the project:',
-    `    npm install-scripts approve ${moduleName} && npm rebuild ${moduleName}`,
+    ...fixes,
+    RESTART_LINE,
     `  Original error: ${failure.detail}`,
   ].join('\n');
 }

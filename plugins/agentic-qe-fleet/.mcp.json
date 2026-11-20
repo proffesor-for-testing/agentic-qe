@@ -4,6 +4,7 @@
       "command": "npx",
       "args": [
         "-y",
+        "--allow-scripts=better-sqlite3,hnswlib-node",
         "agentic-qe@3.15.21",
         "mcp"
       ],

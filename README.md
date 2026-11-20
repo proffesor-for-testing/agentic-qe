@@ -111,7 +111,7 @@ git clone https://github.com/proffesor-for-testing/agentic-qe.git
 claude --plugin-dir ./agentic-qe/plugins/agentic-qe-fleet
 ```
 
-Start with `/aqe-fleet-status`, `/aqe-generate src/services/Auth.ts` or `/aqe-analyze src/`. The plugin registers its own MCP server, pinned to the matching package version (`npx -y agentic-qe@<plugin version> mcp`). See the [plugin README](plugins/agentic-qe-fleet/README.md) for the bundled agents, commands and skills.
+Start with `/aqe-fleet-status`, `/aqe-generate src/services/Auth.ts` or `/aqe-analyze src/`. The plugin registers its own MCP server, pinned to the matching package version (`npx -y --allow-scripts=better-sqlite3,hnswlib-node agentic-qe@<plugin version> mcp`; the flag lets npm 12 build the native SQLite module). See the [plugin README](plugins/agentic-qe-fleet/README.md) for the bundled agents, commands and skills.
 
 <details>
 <summary>Windows and native dependency setup</summary>
