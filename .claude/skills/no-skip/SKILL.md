@@ -53,10 +53,16 @@ Code shows to the model. Exit `0` allows the write.
 
 The hook runs the shipped detector, `scripts/check-skips.sh`. In hook mode it reads
 `tool_input.file_path` and the written text (`content` for Write, `new_string` for Edit,
-every `edits[].new_string` for MultiEdit). Only test files are checked: `*.test.*`,
-`*.spec.*`, files under `__tests__/`, `test/` or `tests/`, `*Test`/`*Tests`/`*Spec`/`*IT`
-classes (`.java`, `.kt`, `.scala`, `.groovy`, `.cs`), `test_*.py`, `*_test.py` and `*_test.go`.
-Other files are allowed.
+every `edits[].new_string` for MultiEdit). Only test files are checked; other files are
+allowed.
+
+Test files are defined once in `scripts/test-files.sh` (shared by no-skip and freeze-tests;
+`\` is normalised to `/`):
+
+- files under a `spec/`, `specs/`, `e2e/`, `cypress/`, `__tests__/`, `test/` or `tests/` directory
+- `*.test.*`, `*.spec.*`, `*_spec.*`, `*-spec.*`, `*.tests.*` (case-insensitive), and Cypress `*.cy.*`
+- `*Spec.*`, `*Test.*`, `*Tests.*`, `*IT.*` class files (e.g. `FooTest.java`, `FooTests.swift`, `aTest.php`)
+- `test_*.py`, `*_test.py`, `*_test.go`
 
 For manual or CI use, pass the content as the first argument or as plain text on stdin;
 that content is always checked:
@@ -70,8 +76,10 @@ printf '%s' "$CONTENT" | bash .claude/skills/no-skip/scripts/check-skips.sh
 ```
 
 Exit codes are the same in every mode: `0` = allowed, `2` = blocked (reasons on stderr).
-If the hook payload cannot be decoded (for example `node` is missing), the script blocks
-rather than allowing the write.
+Stdin whose first character is `{` (after an optional UTF-8 BOM) is treated as a hook
+payload. If it cannot be decoded (truncated JSON, no `tool_input` object, `node` missing),
+the script blocks with the reason on stderr rather than allowing the write. To check plain
+text that starts with `{` manually, pass it as the first argument.
 
 Detected patterns: `.skip(`, `.only(`, `xit(`, `xdescribe(`, `xcontext(`, `test.todo(`,
 `@Skip`, `@Disabled`, `@Ignore`. The detector uses POSIX extended regular expressions

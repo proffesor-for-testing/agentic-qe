@@ -69,4 +69,13 @@ describe('#1470 guard: GNU-only grep in shipped skill commands', () => {
   it('finds no GNU BRE escapes (\\s \\w \\+ \\|) in grep patterns in skill scripts', () => {
     expect(offenders().gnuEscape).toEqual([]);
   });
+
+  it.each([
+    ['hook-input.sh', ['no-skip', 'freeze-tests', 'security-watch']],
+    ['test-files.sh', ['no-skip', 'freeze-tests']],
+  ] as Array<[string, string[]]>)('shared helper %s is byte-identical in every skill and mirror', (helper, skills) => {
+    const copies = ['assets/skills', '.claude/skills'].flatMap((tree) => skills.map((s) => join(tree, s, 'scripts', helper)));
+    const bodies = new Set(copies.map((c) => readFileSync(join(ROOT, c), 'utf8')));
+    expect(bodies.size, copies.join(', ')).toBe(1);
+  });
 });

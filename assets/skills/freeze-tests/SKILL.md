@@ -10,11 +10,11 @@ When activated, blocks all modifications to test files. Use during refactoring t
 
 ## What It Does
 
-Blocks Write and Edit operations on any file matching test patterns:
-- `**/*.test.{ts,js,tsx,jsx}`
-- `**/*.spec.{ts,js,tsx,jsx}`
-- `**/__tests__/**`
-- `**/tests/**`
+Blocks Write, Edit and MultiEdit operations on any test file (the same definition no-skip uses):
+- files under `spec/`, `specs/`, `e2e/`, `cypress/`, `__tests__/`, `test/` or `tests/`
+- `*.test.*`, `*.spec.*`, `*_spec.*`, `*-spec.*`, `*.cy.*`
+- `*Spec.*`, `*Test.*`, `*Tests.*`, `*IT.*` class files
+- `test_*.py`, `*_test.py`, `*_test.go`
 
 ## Activation
 
@@ -53,8 +53,15 @@ Code shows to the model. Exit `0` allows the write.
 ## Enforcement Logic
 
 The hook runs the shipped script, `scripts/block-test-edits.sh`. In hook mode it reads the
-target path from `tool_input.file_path`. It blocks `*.test.*`/`*.spec.*` files
-(`ts`, `js`, `tsx`, `jsx`) and paths under `__tests__/` or `/tests/`, and allows anything else.
+target path from `tool_input.file_path`, blocks test files and allows anything else.
+
+Test files are defined once in `scripts/test-files.sh` (shared by no-skip and freeze-tests;
+`\` is normalised to `/`):
+
+- files under a `spec/`, `specs/`, `e2e/`, `cypress/`, `__tests__/`, `test/` or `tests/` directory
+- `*.test.*`, `*.spec.*`, `*_spec.*`, `*-spec.*`, `*.tests.*` (case-insensitive), and Cypress `*.cy.*`
+- `*Spec.*`, `*Test.*`, `*Tests.*`, `*IT.*` class files (e.g. `FooTest.java`, `FooTests.swift`, `aTest.php`)
+- `test_*.py`, `*_test.py`, `*_test.go`
 
 For manual or CI use, pass the path as the first argument or as plain text on stdin:
 
@@ -64,10 +71,12 @@ printf '%s' "$FILE" | bash .claude/skills/freeze-tests/scripts/block-test-edits.
 ```
 
 Exit codes are the same in every mode: `0` = allowed, `2` = blocked (reasons on stderr).
-If the hook payload cannot be decoded (for example `node` is missing), the script blocks
-rather than allowing the write.
+Stdin whose first character is `{` (after an optional UTF-8 BOM) is treated as a hook
+payload. If it cannot be decoded (truncated JSON, no `tool_input` object, `node` missing),
+the script blocks with the reason on stderr rather than allowing the write. To check plain
+text that starts with `{` manually, pass it as the first argument.
 
-The script matches with POSIX extended regular expressions (`grep -E`), so GNU grep on
+The definition uses POSIX extended regular expressions (`grep -E`), so GNU grep on
 Linux and BSD grep on macOS give the same result. Do not rewrite it with `grep -P`: BSD
 grep rejects `-P`, and inside an `if` that error reads as "not a test file", so every edit
 would pass. If grep itself fails, the script blocks rather than allowing the edit.

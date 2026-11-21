@@ -1,66 +1,33 @@
 /**
- * #1470 — the no-skip, freeze-tests and security-watch hooks must work with BSD grep
- * and with the real Claude Code PreToolUse protocol (JSON on stdin, exit 2 + stderr
- * to block), and their guides' documented commands must behave as documented.
+ * #1470 — the no-skip and freeze-tests hooks must work with BSD grep and with the real
+ * Claude Code PreToolUse protocol (JSON on stdin, exit 2 + stderr to block), share one
+ * test-file definition, fail closed on undecodable payloads, and behave as their guides
+ * document.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { cpSync, mkdirSync, mkdtempSync, symlinkSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
+import { MIRRORS, ROOT, createBsdHarness, realBinary, type BsdHarness } from './helpers/bsd-grep-env';
 import {
-  MIRRORS, ROOT, createBsdHarness, fencedBlockAfter, realBinary, type BsdHarness,
-} from './helpers/bsd-grep-env';
+  ALLOWED, BLOCKED, BOM, MALFORMED_PAYLOADS, edit, expectBlocked, multiEdit, runGuideHook, runGuideManual, write,
+} from './helpers/hook-payloads';
 
 let h: BsdHarness;
 beforeAll(() => { h = createBsdHarness('aqe-1470-hooks-'); });
 afterAll(() => h.dispose());
 
-const BLOCKED = 2;
-const ALLOWED = 0;
+const NO_SKIP = 'assets/skills/no-skip/scripts/check-skips.sh';
+const FREEZE = 'assets/skills/freeze-tests/scripts/block-test-edits.sh';
 
-const write = (filePath: string, content: string): string =>
-  JSON.stringify({ session_id: 's', hook_event_name: 'PreToolUse', tool_name: 'Write', tool_input: { file_path: filePath, content } });
-const edit = (filePath: string, newString: string): string =>
-  JSON.stringify({ tool_name: 'Edit', tool_input: { file_path: filePath, old_string: 'placeholder', new_string: newString } });
-const multiEdit = (filePath: string, ...newStrings: string[]): string =>
-  JSON.stringify({
-    tool_name: 'MultiEdit',
-    tool_input: { file_path: filePath, edits: newStrings.map((s) => ({ old_string: 'placeholder', new_string: s })) },
-  });
-
-/** Stage the packaged skill into a fresh project, as an install would. */
-function stagedProject(skill: string): string {
-  const dir = mkdtempSync(join(h.work, `${skill}-`));
-  cpSync(join(ROOT, 'assets/skills', skill), join(dir, '.claude/skills', skill), { recursive: true });
-  return dir;
-}
-
-/** The `command` from the guide's settings.json example. */
-function guideHookCommand(skill: string): string {
-  const config = JSON.parse(fencedBlockAfter(`assets/skills/${skill}/SKILL.md`, '## Hook Configuration', 'json'));
-  const group = config.hooks.PreToolUse[0];
-  expect(group.matcher).toBe('Write|Edit|MultiEdit');
-  expect(group.hooks[0].type).toBe('command');
-  return group.hooks[0].command as string;
-}
-
-function guideManualCommands(skill: string, heading: string): string[] {
-  const cmds = fencedBlockAfter(`assets/skills/${skill}/SKILL.md`, heading, 'bash')
-    .split('\n').filter((l) => /^(bash|printf) /.test(l));
-  expect(cmds.length, `${skill} manual commands`).toBeGreaterThanOrEqual(2);
-  return cmds;
-}
-
-/** Run the guide's hook command from a staged project with a hook payload on stdin. */
-function runGuideHook(skill: string, payload: string) {
-  const project = stagedProject(skill);
-  return h.run('bash', ['-c', guideHookCommand(skill)], { cwd: project, input: payload, env: h.env({ CLAUDE_PROJECT_DIR: project }) });
-}
-
-function expectBlocked(r: { status: number | null; stdout: string; stderr: string }, reason: RegExp): void {
-  expect(r.status, r.stdout + r.stderr).toBe(BLOCKED);
-  expect(r.stderr).toMatch(reason);
-  expect(r.stderr).not.toMatch(/invalid option/);
-}
+/** Paths both hooks must treat as tests (round-2 review list plus the originals). */
+const TEST_PATHS = [
+  '/r/spec/fooSpec.js', '/r/src/a_spec.js', '/r/spec/models/user_spec.rb', '/r/cypress/e2e/login.cy.ts',
+  '/r/src/app.e2e-spec.ts', '/r/e2e/login.ts', '/r/src/a.Test.ts', '/r/src/FooTests.swift', '/r/src/aTest.php',
+  'C:\\r\\__tests__\\a.ts', '/r/src/test/java/FooTest.java', '/r/src/a.test.mjs', '/r/src/math.test.ts',
+  '/r/src/Button.spec.tsx', '/r/src/__tests__/math.ts', '/r/tests/helpers.ts', '/r/src/FooIT.java',
+  '/r/pkg/math_test.go', '/r/test_math.py',
+];
+const NON_TEST_PATHS = ['/r/README.md', '/r/src/math.ts', '/r/docs/AUDIT.md', '/r/src/latest.ts', 'C:\\r\\src\\app.ts'];
 
 describe.runIf(process.platform !== 'win32')('#1470 skill hooks', () => {
   it('the BSD grep emulation rejects -P and passes other flags through', () => {
@@ -102,47 +69,24 @@ describe.runIf(process.platform !== 'win32')('#1470 skill hooks', () => {
     it('JSON-escaped newline before xit( is decoded, not scanned as "\\nxit("', () => {
       const payload = write(TEST_FILE, "describe('a', () => {\nxit('b', () => {});\n});");
       expect(payload).toContain('\\nxit(');
-      expectBlocked(h.run('bash', [join(ROOT, 'assets/skills/no-skip/scripts/check-skips.sh')], { input: payload }), /xit/);
+      expectBlocked(h.run('bash', [join(ROOT, NO_SKIP)], { input: payload }), /xit/);
     });
 
-    it.each([
-      ['/repo/README.md', ALLOWED],
-      ['/repo/src/math.ts', ALLOWED],
-      ['/repo/src/__tests__/math.ts', BLOCKED],
-      ['/repo/tests/unit/math.ts', BLOCKED],
-      ['/repo/src/test/java/MathTest.java', BLOCKED],
-      ['/repo/pkg/math_test.go', BLOCKED],
-      ['/repo/test_math.py', BLOCKED],
-    ])('hook mode only checks test files: %s', (file, expected) => {
-      const r = h.run('bash', [join(ROOT, 'assets/skills/no-skip/scripts/check-skips.sh')], { input: write(file, "it.skip('x', () => {});") });
-      expect(r.status, r.stderr).toBe(expected);
+    it.each(TEST_PATHS)('hook mode checks test file %s', (file) => {
+      expectBlocked(h.run('bash', [join(ROOT, NO_SKIP)], { input: write(file, "it.skip('x', () => {});") }), /skip/);
     });
 
-    it('raw stdin that starts with "{" but is not a payload is still scanned', () => {
-      const r = h.run('bash', [join(ROOT, 'assets/skills/no-skip/scripts/check-skips.sh')], { input: "{ it.only('x', () => {}) }" });
-      expectBlocked(r, /only/);
-    });
-
-    it('a payload blocks (fails closed) when node is unavailable', () => {
-      const minimal = join(h.work, 'no-node-bin');
-      mkdirSync(minimal, { recursive: true });
-      for (const tool of ['cat', 'head']) symlinkSync(realBinary(tool), join(minimal, tool));
-      symlinkSync(join(h.bsdBin, 'grep'), join(minimal, 'grep'));
-      const r = h.run(realBinary('bash'), [join(ROOT, 'assets/skills/no-skip/scripts/check-skips.sh')], {
-        input: write(TEST_FILE, "it('ok', () => {});"), env: { PATH: minimal },
-      });
-      expectBlocked(r, /node was not found/);
+    it.each(NON_TEST_PATHS)('hook mode allows non-test file %s', (file) => {
+      expect(h.run('bash', [join(ROOT, NO_SKIP)], { input: write(file, "it.skip('x', () => {});") }).status).toBe(ALLOWED);
     });
 
     it.each(fixtures)('guide settings.json hook command, Write payload: %s', (_n, content, expected) => {
-      expect(runGuideHook('no-skip', write(TEST_FILE, content)).status).toBe(expected);
+      expect(runGuideHook(h, 'no-skip', write(TEST_FILE, content)).status).toBe(expected);
     });
 
     it.each(fixtures)('guide manual commands: %s', (_n, content, expected) => {
-      const project = stagedProject('no-skip');
-      for (const command of guideManualCommands('no-skip', '## Enforcement Logic')) {
-        const r = h.run('bash', ['-c', command], { cwd: project, env: h.env({ CONTENT: content }) });
-        expect(r.status, `${command}\n${r.stdout}${r.stderr}`).toBe(expected);
+      for (const r of runGuideManual(h, 'no-skip', '## Enforcement Logic', { CONTENT: content })) {
+        expect(r.status, r.stdout + r.stderr).toBe(expected);
       }
     });
 
@@ -164,89 +108,71 @@ done`;
 
   // ---------------------------------------------------------- freeze-tests
   describe('freeze-tests', () => {
-    const cases: Array<[string, number]> = [
-      ['/repo/src/math.ts', ALLOWED],
-      ['/repo/src/math.test.ts', BLOCKED],
-      ['/repo/src/Button.spec.tsx', BLOCKED],
-      ['/repo/src/__tests__/math.ts', BLOCKED],
-      ['/repo/tests/helpers.ts', BLOCKED],
-    ];
     for (const mirror of MIRRORS) {
       const script = join(ROOT, mirror, 'freeze-tests/scripts/block-test-edits.sh');
-      it.each(cases)(`${mirror}: %s via argv, raw stdin and Write/Edit/MultiEdit payloads`, (file, expected) => {
-        const modes = {
-          argv: h.run('bash', [script, file]),
-          stdin: h.run('bash', [script], { input: file }),
-          write: h.run('bash', [script], { input: write(file, 'x') }),
-          edit: h.run('bash', [script], { input: edit(file, 'x') }),
-          multiEdit: h.run('bash', [script], { input: multiEdit(file, 'x', 'y') }),
-        };
-        for (const [mode, r] of Object.entries(modes)) {
-          expect(r.status, `${mode}: ${r.stdout}${r.stderr}`).toBe(expected);
-          if (expected === BLOCKED) expect(r.stderr, mode).toMatch(/BLOCKED: Test (files|directories) are frozen/);
-        }
-      });
+      it.each([...TEST_PATHS.map((p) => [p, BLOCKED]), ...NON_TEST_PATHS.map((p) => [p, ALLOWED])] as Array<[string, number]>)(
+        `${mirror}: %s via argv, raw stdin and Write/Edit/MultiEdit payloads`,
+        (file, expected) => {
+          const modes = {
+            argv: h.run('bash', [script, file]),
+            stdin: h.run('bash', [script], { input: file }),
+            write: h.run('bash', [script], { input: write(file, 'x') }),
+            edit: h.run('bash', [script], { input: edit(file, 'x') }),
+            multiEdit: h.run('bash', [script], { input: multiEdit(file, 'x', 'y') }),
+          };
+          for (const [mode, r] of Object.entries(modes)) {
+            expect(r.status, `${mode}: ${r.stdout}${r.stderr}`).toBe(expected);
+            if (expected === BLOCKED) expect(r.stderr, mode).toMatch(/BLOCKED: Test files are frozen/);
+          }
+        },
+      );
     }
 
-    it.each(cases)('guide settings.json hook command, Edit payload: %s', (file, expected) => {
-      expect(runGuideHook('freeze-tests', edit(file, 'x')).status).toBe(expected);
-    });
+    it.each([['/r/src/a.test.ts', BLOCKED], ['/r/src/a.ts', ALLOWED]] as Array<[string, number]>)(
+      'guide settings.json hook command, Edit payload: %s', (file, expected) => {
+        expect(runGuideHook(h, 'freeze-tests', edit(file, 'x')).status).toBe(expected);
+      },
+    );
 
-    it.each(cases)('guide manual commands: %s', (file, expected) => {
-      const project = stagedProject('freeze-tests');
-      for (const command of guideManualCommands('freeze-tests', '## Enforcement Logic')) {
-        const r = h.run('bash', ['-c', command], { cwd: project, env: h.env({ FILE: file }) });
-        expect(r.status, `${command}\n${r.stdout}${r.stderr}`).toBe(expected);
-      }
-    });
+    it.each([['/r/src/a.test.ts', BLOCKED], ['/r/src/a.ts', ALLOWED]] as Array<[string, number]>)(
+      'guide manual commands: %s', (file, expected) => {
+        for (const r of runGuideManual(h, 'freeze-tests', '## Enforcement Logic', { FILE: file })) {
+          expect(r.status, r.stdout + r.stderr).toBe(expected);
+        }
+      },
+    );
   });
 
-  // --------------------------------------------------------- security-watch
-  describe('security-watch', () => {
-    const cases: Array<[string, string, number]> = [
-      ['clean', 'const total = items.reduce((a, b) => a + b, 0);', ALLOWED],
-      ['AWS key', 'const key = "AKIAABCDEFGHIJKLMNOP";', BLOCKED],
-      ['hardcoded password (double quotes)', 'const config = { password: "hunter22" };', BLOCKED],
-      ['hardcoded password (single quotes)', "const config = { password: 'hunter22' };", BLOCKED],
-      ['eval', 'eval (userInput);', BLOCKED],
-      ['innerHTML', 'el.innerHTML = html;', BLOCKED],
-      ['SQL template', 'db.query(`${table} SELECT * FROM users`);', BLOCKED],
-      ['word boundary (retrieval is not eval)', 'const retrieval = 1;', ALLOWED],
-    ];
-    const FILE = '/repo/src/config.ts';
-    for (const mirror of MIRRORS) {
-      const script = join(ROOT, mirror, 'security-watch/scripts/scan-security.sh');
-      it.each(cases)(`${mirror}: %s via argv, raw stdin and Write/Edit/MultiEdit payloads`, (_n, content, expected) => {
-        const modes = {
-          argv: h.run('bash', [script, content]),
-          stdin: h.run('bash', [script], { input: content }),
-          write: h.run('bash', [script], { input: write(FILE, content) }),
-          edit: h.run('bash', [script], { input: edit(FILE, content) }),
-          multiEdit: h.run('bash', [script], { input: multiEdit(FILE, 'const a = 1;', content) }),
-        };
-        for (const [mode, r] of Object.entries(modes)) {
-          expect(r.status, `${mode}: ${r.stdout}${r.stderr}`).toBe(expected);
-          if (expected === BLOCKED) expect(r.stderr, mode).toMatch(/security issue/);
-        }
-      });
-    }
-
-    it('JSON-escaped quotes around a password are decoded before scanning', () => {
-      const payload = edit(FILE, 'const c = { password: "hunter2" };');
-      expect(payload).toContain('\\"hunter2\\"');
-      expectBlocked(h.run('bash', [join(ROOT, 'assets/skills/security-watch/scripts/scan-security.sh')], { input: payload }), /hardcoded password/);
+  // ------------------------------------------- shared protocol / fail-closed
+  describe.each([
+    ['no-skip', NO_SKIP, write('/r/a.test.ts', "it.skip('x', () => {});"), BLOCKED],
+    ['freeze-tests', FREEZE, write('/r/a.ts', 'x'), ALLOWED],
+    ['security-watch', 'assets/skills/security-watch/scripts/scan-security.sh', write('/r/a.ts', 'const k = "AKIAABCDEFGHIJKLMNOP";'), BLOCKED],
+  ] as Array<[string, string, string, number]>)('%s hook input handling', (_skill, script, bomPayloadBody, bomExpected) => {
+    it.each(MALFORMED_PAYLOADS)('blocks a malformed payload: %s', (_n, payload) => {
+      expectBlocked(h.run('bash', [join(ROOT, script)], { input: payload }), /cannot decode the hook payload/);
     });
 
-    it.each(cases)('guide settings.json hook command, MultiEdit payload: %s', (_n, content, expected) => {
-      expect(runGuideHook('security-watch', multiEdit(FILE, content)).status).toBe(expected);
+    it('decodes a payload that starts with a UTF-8 BOM', () => {
+      const r = h.run('bash', [join(ROOT, script)], { input: BOM + bomPayloadBody });
+      expect(r.status, r.stdout + r.stderr).toBe(bomExpected);
+      expect(r.stderr).not.toMatch(/cannot decode/);
     });
 
-    it.each(cases)('guide manual commands: %s', (_n, content, expected) => {
-      const project = stagedProject('security-watch');
-      for (const command of guideManualCommands('security-watch', '## Detection Patterns')) {
-        const r = h.run('bash', ['-c', command], { cwd: project, env: h.env({ CONTENT: content }) });
-        expect(r.status, `${command}\n${r.stdout}${r.stderr}`).toBe(expected);
-      }
+    it('blocks a payload when node is unavailable', () => {
+      const minimal = mkdtempSync(join(h.work, 'no-node-'));
+      for (const tool of ['cat', 'head', 'tr', 'dirname']) symlinkSync(realBinary(tool), join(minimal, tool));
+      symlinkSync(join(h.bsdBin, 'grep'), join(minimal, 'grep'));
+      const r = h.run(realBinary('bash'), [join(ROOT, script)], { input: write('/r/a.test.ts', 'x'), env: { PATH: minimal } });
+      expectBlocked(r, /node was not found/);
+    });
+
+    it('blocks when a sourced helper is missing', () => {
+      const dir = mkdtempSync(join(h.work, 'no-helper-'));
+      mkdirSync(join(dir, 'scripts'));
+      const copy = join(dir, 'scripts', script.split('/').pop()!);
+      copyFileSync(join(ROOT, script), copy);
+      expectBlocked(h.run('bash', [copy], { input: write('/r/a.ts', 'x') }), /cannot load .*hook-input\.sh/);
     });
   });
 });
