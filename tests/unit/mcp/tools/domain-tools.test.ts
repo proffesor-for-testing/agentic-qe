@@ -721,7 +721,8 @@ describe('A11yAuditTool', () => {
     // browser mode is not available, so heuristic analysis is used.
     // Use a data URL for instant, deterministic offline testing.
     const result = await tool.invoke({
-      urls: ['data:text/html,<html><head><title>Test</title></head><body><h1>Accessible Page</h1><p>Content</p></body></html>'],
+      // #1465: only http(s) URLs are audited; port 1 refuses, so the URL is unmeasured
+      urls: ['http://127.0.0.1:1/'],
     });
 
     // The tool should succeed with heuristic-based accessibility analysis
@@ -733,7 +734,8 @@ describe('A11yAuditTool', () => {
   it('should support WCAG standard selection', async () => {
     // Use data URL for instant, deterministic offline testing
     const result = await tool.invoke({
-      urls: ['data:text/html,<html><head><title>WCAG Test</title></head><body><main><h1>Main Content</h1></main></body></html>'],
+      // #1465: only http(s) URLs are audited; port 1 refuses, so the URL is unmeasured
+      urls: ['http://127.0.0.1:1/'],
       standard: 'wcag21-aa',
     });
 

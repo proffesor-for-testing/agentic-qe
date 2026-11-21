@@ -29,6 +29,20 @@ import '../../../src/domains/security-compliance';
 import '../../../src/domains/code-intelligence';
 import '../../../src/domains/quality-assessment';
 
+// #1465: test-accessibility runs the real audit service; keep this unit test
+// off the browser by having the service report that no browser is available.
+vi.mock('../../../src/domains/visual-accessibility/services/accessibility-tester.js', () => ({
+  AccessibilityTesterService: class {
+    async audit(url: string) {
+      return { success: true, value: {
+        url, timestamp: new Date(), violations: [], passes: [], incomplete: [], score: -1, wcagLevel: 'AA',
+        measured: false, notMeasuredReason: 'no browser is available (test double)',
+      } };
+    }
+    async dispose() {}
+  },
+}));
+
 // ============================================================================
 // Mock Implementations
 // ============================================================================
@@ -628,6 +642,7 @@ describe('DomainTaskExecutor', () => {
       expect(data.measured).toBe(false);
       expect(data.score).toBe(-1);
       expect(data.violations).toEqual([]);
+      expect((data as { notMeasuredReason?: string }).notMeasuredReason).toBe('no browser is available (test double)');
     });
   });
 

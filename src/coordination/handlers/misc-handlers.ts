@@ -5,32 +5,24 @@
  * Covers: test-accessibility, run-chaos, optimize-learning
  */
 
-import { ok } from '../../shared/types';
+import { ok, err } from '../../shared/types';
+import { toError } from '../../shared/error-utils.js';
 import type { TaskHandlerContext } from './handler-types';
+import { createAccessibilityAuditor, runAccessibilityTest, type AccessibilityTaskPayload } from './accessibility-handler';
 
 export function registerMiscHandlers(ctx: TaskHandlerContext): void {
-  // Register accessibility test handler
+  // #1465: run the real browser audit (the service behind qe/a11y/audit).
+  // No browser, or a failed audit, gives an unmeasured result with its reason (#1145).
   ctx.registerHandler('test-accessibility', async (task) => {
-    const payload = task.payload as {
-      url: string;
-      standard: string;
-    };
-
-    // Accessibility testing requires a browser/DOM — return honest guidance
-    return ok({
-      url: payload.url || '',
-      standard: payload.standard || 'wcag21-aa',
-      passed: false,
-      violations: [],
-      warnings: [],
-      // #1145: nothing was audited, so `passed: false` is not a verdict and the score is -1
-      score: -1,
-      measured: false,
-      note: 'Accessibility NOT MEASURED: this is not a failing result. ' +
-            'Accessibility testing requires a browser environment (Puppeteer/Playwright). ' +
-            'Use tools like axe-core, pa11y, or Lighthouse CLI for WCAG compliance testing. ' +
-            'Example: npx pa11y ' + (payload.url || '<url>'),
-    });
+    const auditor = await createAccessibilityAuditor(ctx.memory);
+    try {
+      return ok(await runAccessibilityTest(auditor, task.payload as AccessibilityTaskPayload));
+    } catch (error) {
+      // A bad url or standard (CallerInputError) is the caller's mistake, not a result
+      return err(toError(error));
+    } finally {
+      await auditor.dispose?.().catch(() => undefined);
+    }
   });
 
   // Register chaos test handler
