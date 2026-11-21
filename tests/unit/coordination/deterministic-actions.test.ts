@@ -290,15 +290,17 @@ describe('pattern-health action', () => {
     expect(result.value).toMatchObject({ totalPatterns: 50, activePatterns: 40, avgConfidence: 0.5, source: 'database' });
   });
 
-  it('should return zero health for empty state and database source', async () => {
+  it('should report health as unmeasured for an empty store', async () => {
     const action = findDeterministicAction('learning-optimization', 'health-check')!;
     const result = await action.execute({}, makeContext());
 
     expect(result.success).toBe(true);
     const data = result.value;
-    expect(data.healthScore).toBe(0);
+    expect(data.healthScore).toBeNull();
     expect(data.totalPatterns).toBe(0);
     expect(data.source).toBe('database');
+    expect(data.unmeasured).toBe(true);
+    expect(data.reason).toBe('No patterns were measured');
   });
 });
 
@@ -329,14 +331,16 @@ describe('routing-accuracy action', () => {
     expect(result.value).toMatchObject({ successRate: 75, totalOutcomes: 4, successfulOutcomes: 3, source: 'database' });
   });
 
-  it('should handle zero outcomes gracefully and report database source', async () => {
+  it('should report routing accuracy as unmeasured without outcomes', async () => {
     const action = findDeterministicAction('learning-optimization', 'routing-check')!;
     const result = await action.execute({}, makeContext());
 
     expect(result.success).toBe(true);
     const data = result.value;
-    expect(data.successRate).toBe(0);
+    expect(data.successRate).toBeNull();
     expect(data.totalOutcomes).toBe(0);
     expect(data.source).toBe('database');
+    expect(data.unmeasured).toBe(true);
+    expect(data.reason).toBe('No routing outcomes were measured');
   });
 });

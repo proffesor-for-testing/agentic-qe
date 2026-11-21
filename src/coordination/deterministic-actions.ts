@@ -243,6 +243,10 @@ const patternHealthCheck: DeterministicAction = {
       }
     }
 
+    // An empty store has no observations from which to measure pattern health.
+    // Keep that distinct from a measured score of zero.
+    const unmeasured = totalPatterns === null || totalPatterns === 0;
+
     // Apply defaults for anything still null
     totalPatterns = totalPatterns ?? 0;
     activePatterns = activePatterns ?? 0;
@@ -251,7 +255,7 @@ const patternHealthCheck: DeterministicAction = {
     // Health score: weighted combination of volume, activity ratio, and confidence
     const volumeScore = Math.min(totalPatterns / 100, 1); // 100 patterns = max volume
     const activityRatio = totalPatterns > 0 ? activePatterns / totalPatterns : 0;
-    const healthScore = Math.round(
+    const healthScore = unmeasured ? null : Math.round(
       (volumeScore * 0.3 + activityRatio * 0.3 + avgConfidence * 0.4) * 100,
     ) / 100;
 
@@ -261,6 +265,7 @@ const patternHealthCheck: DeterministicAction = {
       avgConfidence,
       healthScore,
       source,
+      ...(unmeasured ? { unmeasured: true, reason: 'No patterns were measured' } : {}),
     });
   },
 };
@@ -304,9 +309,10 @@ const routingAccuracyCheck: DeterministicAction = {
     successfulOutcomes = successfulOutcomes ?? 0;
     confidenceCorrelation = confidenceCorrelation ?? 0;
 
+    const unmeasured = totalOutcomes === null || totalOutcomes === 0;
     const successRate = totalOutcomes > 0
       ? Math.round((successfulOutcomes / totalOutcomes) * 10000) / 100
-      : 0;
+      : null;
 
     return ok({
       successRate,
@@ -314,6 +320,7 @@ const routingAccuracyCheck: DeterministicAction = {
       successfulOutcomes,
       confidenceCorrelation,
       source,
+      ...(unmeasured ? { unmeasured: true, reason: 'No routing outcomes were measured' } : {}),
     });
   },
 };
