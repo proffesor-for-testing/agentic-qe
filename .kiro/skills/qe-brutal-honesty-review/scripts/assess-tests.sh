@@ -28,30 +28,58 @@ if [ ! -d "$TEST_DIR" ]; then
     exit 1
 fi
 
-# Extract the overall coverage percentage from coverage-tool output.
-# Deterministic and portable (POSIX ERE via grep -E, no grep -P / bc):
-#   1. the first number on the istanbul/jest/vitest "All files" summary line
-#      (e.g. "All files: 93.50%" or "All files |   93.5 |  80 | ...")
-#   2. otherwise the "Statements : 93.5% ( 100/107 )" or "Lines : ..." text-summary line
-# Prints nothing when no such line exists, so callers can report "unavailable".
-extract_coverage_pct() {
-    local esc text line
-    esc=$(printf '\033')
-    # Drop ANSI colour codes so their digits are never mistaken for the metric.
-    text=$(printf '%s\n' "$1" | sed -E "s/${esc}\\[[0-9;]*[A-Za-z]//g")
-    line=$(printf '%s\n' "$text" | grep -E '^[^[:alnum:]]*All files' | head -n 1)
-    if [ -z "$line" ]; then
-        line=$(printf '%s\n' "$text" | grep -E '^[^[:alnum:]]*(Statements|Lines)[[:space:]]*:' | head -n 1)
-    fi
-    [ -n "$line" ] || return 0
-    printf '%s\n' "$line" | sed -E 's/^[^[:alnum:]]*(All files|Statements|Lines)//' \
-        | grep -Eo '[0-9]+(\.[0-9]+)?' | head -n 1
-}
-
-# Succeeds only for a plain number between 0 and 100.
-is_valid_pct() {
-    printf '%s\n' "$1" | grep -Eq '^[0-9]+(\.[0-9]+)?$' || return 1
-    awk -v p="$1" 'BEGIN { exit !(p >= 0 && p <= 100) }'
+# Parse the overall coverage percentage from coverage-tool output.
+# Deterministic and portable (POSIX awk, no grep -P / bc). Prints exactly one line:
+#   "OK <pct>"        a single valid 0-100 percentage was found
+#   "ERR <reason>"    no trustworthy value (never rate this)
+#
+# Recognised summary shapes, in priority order (the first shape present wins):
+#   1. "All files" row:   "All files |   93.5 |  80 | ..."  (istanbul text table, first
+#                         column = statements) or "All files: 93.50%" (% required)
+#   2. "Statements : 93.5% ( 100/107 )" text-summary line
+#   3. "Lines      : 93.5% ( 100/107 )" text-summary line
+# Within the winning shape every row must hold a plain number (decimal point only;
+# "79,9" and "Unknown" are rejected) between 0 and 100. Several rows with different
+# values (e.g. a monorepo printing one table per package) are reported as
+# "multiple coverage summaries" instead of picking one. Lines that merely mention
+# "All files" (test names such as "✓ All files are listed (95 ms)") are ignored.
+parse_coverage() {
+    printf '%s\n' "$1" | awk -v esc="$(printf '\033')" '
+        function valid(v) { return v ~ /^[0-9]+(\.[0-9]+)?$/ && v + 0 <= 100 }
+        function add(kind, v,   key) {
+            total[kind]++
+            if (!valid(v)) { bad[kind]++; if (!(kind in badline)) badline[kind] = $0; return }
+            key = v + 0
+            if (!((kind, key) in seen)) { seen[kind, key] = 1; distinct[kind]++; vals[kind] = vals[kind] (vals[kind] == "" ? "" : ", ") v; first[kind] = v }
+        }
+        {
+            gsub(esc "\\[[0-9;]*[A-Za-z]", "")
+            line = $0
+            if (line ~ /^[^A-Za-z0-9]*All files[ \t]*\|/) {
+                rest = line; sub(/^[^A-Za-z0-9]*All files[ \t]*\|[ \t]*/, "", rest)
+                v = rest; sub(/[ \t]*\|.*$/, "", v); sub(/[ \t]+$/, "", v)
+                add("all", v)
+            } else if (line ~ /^[^A-Za-z0-9]*All files[ \t]*:[ \t]*[0-9][0-9.,]*%/) {
+                rest = line; sub(/^[^A-Za-z0-9]*All files[ \t]*:[ \t]*/, "", rest)
+                v = rest; sub(/%.*$/, "", v)
+                add("all", v)
+            } else if (line ~ /^[^A-Za-z0-9]*Statements[ \t]*:/) {
+                rest = line; sub(/^[^A-Za-z0-9]*Statements[ \t]*:[ \t]*/, "", rest)
+                v = (rest ~ /%/) ? rest : "?"; sub(/%.*$/, "", v)
+                add("stmt", v)
+            } else if (line ~ /^[^A-Za-z0-9]*Lines[ \t]*:/) {
+                rest = line; sub(/^[^A-Za-z0-9]*Lines[ \t]*:[ \t]*/, "", rest)
+                v = (rest ~ /%/) ? rest : "?"; sub(/%.*$/, "", v)
+                add("lines", v)
+            }
+        }
+        END {
+            kind = ("all" in total) ? "all" : ("stmt" in total) ? "stmt" : ("lines" in total) ? "lines" : ""
+            if (kind == "") { print "ERR could not parse a coverage percentage (no \"All files\", \"Statements :\" or \"Lines :\" summary line)"; exit }
+            if (bad[kind] > 0) { print "ERR could not parse a coverage percentage from: " badline[kind]; exit }
+            if (distinct[kind] > 1) { print "ERR multiple coverage summaries with different values (" vals[kind] "); report one package at a time"; exit }
+            print "OK " first[kind]
+        }'
 }
 
 coverage_unavailable() {
@@ -76,27 +104,27 @@ assess_coverage() {
     fi
 
     echo "Running coverage analysis..."
-    local output status coverage
+    local output status parsed coverage
     if output=$(npm run test:coverage 2>&1); then
         status=0
     else
         status=$?
     fi
+    parsed=$(parse_coverage "$output")
 
-    if [ "$status" -ne 0 ]; then
-        coverage_unavailable "'npm run test:coverage' exited with status $status"
-        return 0
-    fi
-    if [ -z "$(printf '%s' "$output" | tr -d '[:space:]')" ]; then
-        coverage_unavailable "'npm run test:coverage' produced no output"
-        return 0
-    fi
-
-    coverage=$(extract_coverage_pct "$output")
-    if [ -z "$coverage" ] || ! is_valid_pct "$coverage"; then
-        coverage_unavailable "could not parse a coverage percentage (expected an 'All files' or 'Statements :' summary line)"
-        return 0
-    fi
+    case "$parsed" in
+        OK\ *) coverage=${parsed#OK } ;;
+        *)
+            if [ "$status" -ne 0 ]; then
+                coverage_unavailable "'npm run test:coverage' exited with status $status and printed no valid coverage summary"
+            elif [ -z "$(printf '%s' "$output" | tr -d '[:space:]')" ]; then
+                coverage_unavailable "'npm run test:coverage' produced no output"
+            else
+                coverage_unavailable "${parsed#ERR }"
+            fi
+            return 0
+            ;;
+    esac
 
     if awk -v p="$coverage" 'BEGIN { exit !(p < 50) }'; then
         echo -e "${RED}🔴 RAW: ${coverage}% coverage${NC}"
@@ -106,6 +134,10 @@ assess_coverage() {
         echo "   → Minimum is 80%. You're not there yet."
     else
         echo -e "${GREEN}🟢 MICHELIN STAR: ${coverage}% coverage${NC}"
+    fi
+    if [ "$status" -ne 0 ]; then
+        # e.g. Jest/Vitest coverage thresholds: the run fails but still prints a valid summary.
+        echo -e "${YELLOW}⚠️  NOTE: coverage command failed (status $status); the rating uses its printed summary${NC}"
     fi
 }
 
@@ -160,7 +192,7 @@ assess_clarity() {
     fi
 
     # Check for describe/it blocks
-    if grep -r "describe\|it\|test" "$TEST_DIR" > /dev/null 2>&1; then
+    if grep -rE "describe|it|test" "$TEST_DIR" > /dev/null 2>&1; then
         echo -e "${GREEN}✓ Tests have structure${NC}"
     else
         echo -e "${YELLOW}⚠️  No test framework patterns detected${NC}"
@@ -204,7 +236,7 @@ assess_stability() {
     echo "-----------------"
 
     # Check for flaky patterns
-    if grep -ri "setTimeout\|sleep\|wait" "$TEST_DIR" > /dev/null 2>&1; then
+    if grep -riE "setTimeout|sleep|wait" "$TEST_DIR" > /dev/null 2>&1; then
         echo -e "${RED}🔴 RAW: Timing-based tests detected${NC}"
         echo "   → You're creating flaky tests. Use proper async/await."
     fi
@@ -234,13 +266,13 @@ assess_isolation() {
     echo "------------------"
 
     # Check for shared state patterns
-    if grep -ri "global\|beforeAll\|shared" "$TEST_DIR" > /dev/null 2>&1; then
+    if grep -riE "global|beforeAll|shared" "$TEST_DIR" > /dev/null 2>&1; then
         echo -e "${YELLOW}🟡 WARNING: Shared state patterns detected${NC}"
         echo "   → Are your tests independent? Can they run in any order?"
     fi
 
     # Check for test order dependencies
-    if grep -r "\.only\|\.skip" "$TEST_DIR" > /dev/null 2>&1; then
+    if grep -rE "\.only|\.skip" "$TEST_DIR" > /dev/null 2>&1; then
         echo -e "${YELLOW}🟡 WARNING: .only or .skip found${NC}"
         echo "   → Don't commit tests with .only or .skip"
     fi

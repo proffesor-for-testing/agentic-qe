@@ -26,29 +26,46 @@ Deactivate with `/freeze-tests off`.
 
 ## Hook Configuration
 
+Add this to `.claude/settings.json` (Claude Code settings schema):
+
 ```json
 {
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Write|Edit",
-        "hook": ".claude/skills/freeze-tests/scripts/block-test-edits.sh",
-        "condition": "file matches **/*.test.* OR **/*.spec.* OR **/__tests__/** OR **/tests/**"
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/skills/freeze-tests/scripts/block-test-edits.sh"
+          }
+        ]
       }
     ]
   }
 }
 ```
 
+Claude Code sends the tool call as JSON on stdin. The script decodes it with `node`
+(no `jq` needed) and, when it blocks, exits `2` with the reason on stderr, which Claude
+Code shows to the model. Exit `0` allows the write.
+
 ## Enforcement Logic
 
-The hook runs the shipped script, `scripts/block-test-edits.sh`, with the target file
-path as its argument. It exits `1` (blocked) for `*.test.*`/`*.spec.*` files
-(`ts`, `js`, `tsx`, `jsx`) and for paths under `__tests__/` or `/tests/`, and `0` otherwise.
+The hook runs the shipped script, `scripts/block-test-edits.sh`. In hook mode it reads the
+target path from `tool_input.file_path`. It blocks `*.test.*`/`*.spec.*` files
+(`ts`, `js`, `tsx`, `jsx`) and paths under `__tests__/` or `/tests/`, and allows anything else.
+
+For manual or CI use, pass the path as the first argument or as plain text on stdin:
 
 ```bash
 bash .claude/skills/freeze-tests/scripts/block-test-edits.sh "$FILE"
+printf '%s' "$FILE" | bash .claude/skills/freeze-tests/scripts/block-test-edits.sh
 ```
+
+Exit codes are the same in every mode: `0` = allowed, `2` = blocked (reasons on stderr).
+If the hook payload cannot be decoded (for example `node` is missing), the script blocks
+rather than allowing the write.
 
 The script matches with POSIX extended regular expressions (`grep -E`), so GNU grep on
 Linux and BSD grep on macOS give the same result. Do not rewrite it with `grep -P`: BSD

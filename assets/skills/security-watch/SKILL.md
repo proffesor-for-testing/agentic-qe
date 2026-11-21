@@ -13,8 +13,7 @@ When activated, scans every file write for common security anti-patterns and blo
 Flags or blocks writes containing:
 - **Secrets**: API keys, passwords, tokens, private keys in source code
 - **Dangerous functions**: `eval()`, `Function()`, `innerHTML`, `dangerouslySetInnerHTML`
-- **Injection vectors**: Unsanitized template literals in SQL/shell commands
-- **Insecure config**: `http://` URLs, disabled TLS verification, `*` CORS origins
+- **Injection vectors**: template literals interpolated into SQL statements
 
 ## Activation
 
@@ -24,29 +23,46 @@ Flags or blocks writes containing:
 
 ## Hook Configuration
 
+Add this to `.claude/settings.json` (Claude Code settings schema):
+
 ```json
 {
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Write|Edit",
-        "hook": ".claude/skills/security-watch/scripts/scan-security.sh"
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/skills/security-watch/scripts/scan-security.sh"
+          }
+        ]
       }
     ]
   }
 }
 ```
 
+Claude Code sends the tool call as JSON on stdin. The script decodes it with `node`
+(no `jq` needed) and, when it blocks, exits `2` with the reason on stderr, which Claude
+Code shows to the model. Exit `0` allows the write.
+
 ## Detection Patterns
 
-The hook runs the shipped scanner, `scripts/scan-security.sh`. It takes the new file
-content as its first argument or on stdin, prints each finding, and exits `1` when it
-finds any issue or `0` when the content is clean.
+The hook runs the shipped scanner, `scripts/scan-security.sh`. In hook mode it scans the
+written text (`content` for Write, `new_string` for Edit, every `edits[].new_string` for
+MultiEdit) of every file.
+
+For manual or CI use, pass the content as the first argument or as plain text on stdin:
 
 ```bash
 bash .claude/skills/security-watch/scripts/scan-security.sh "$CONTENT"
 printf '%s' "$CONTENT" | bash .claude/skills/security-watch/scripts/scan-security.sh
 ```
+
+Exit codes are the same in every mode: `0` = clean, `2` = blocked (findings on stderr; any finding blocks, including WARNING rows).
+If the hook payload cannot be decoded (for example `node` is missing), the script blocks
+rather than allowing the write.
 
 | Check | Pattern (POSIX ERE) | Result |
 |-------|---------------------|--------|
@@ -66,7 +82,7 @@ scanner reports the failure as a finding rather than passing the content.
 
 ## Gotchas
 
-- False positives on test fixtures that intentionally contain patterns like `eval()` — use `// security-watch:ignore` comment
+- False positives on test fixtures that intentionally contain patterns like `eval()` — there is no ignore comment; deactivate the hook while writing such fixtures
 - Base64-encoded secrets won't be caught — this scans for plaintext patterns only
 - Template literal injection detection has false positives on safe string interpolation — review warnings carefully
 - This is a first line of defense, not a replacement for proper security review
