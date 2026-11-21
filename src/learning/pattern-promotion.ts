@@ -20,6 +20,7 @@ import type { RvfDualWriter } from '../integrations/ruvector/rvf-dual-writer.js'
 import type { PromotionBlockedEvent } from './qe-reasoning-bank-types.js';
 import { RELATED_DOMAINS } from './agent-routing.js';
 import type { Result } from '../shared/types/index.js';
+import { committedPendingIndexPatternId } from './pattern-mutation-error.js';
 import { getRuVectorFeatureFlags } from '../integrations/ruvector/feature-flags.js';
 import { PageRankSolver, type PatternGraph } from '../integrations/ruvector/solver-adapter.js';
 import type { Database as DatabaseType } from 'better-sqlite3';
@@ -369,7 +370,7 @@ export async function seedCrossDomainPatterns(
           confidence: transferredConfidence,
         });
 
-        if (transferResult.success) {
+        if (transferResult.success || committedPendingIndexPatternId(transferResult.error)) {
           target.names.add(transferredName);
           transferred++;
         } else {
