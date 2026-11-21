@@ -44,6 +44,8 @@ export interface AccessibilityTaskResult {
   violations: AccessibilityTaskViolation[];
   warnings: Array<{ id: string; description: string; nodes: number }>;
   passedRules: number;
+  /** The URL actually audited after redirects, when measured. */
+  finalUrl?: string;
   notMeasuredReason?: string;
   note?: string;
   auditDurationMs: number;
@@ -160,6 +162,7 @@ export async function runAccessibilityTest(
     violations,
     warnings: report.incomplete.map((i) => ({ id: i.id, description: i.description, nodes: i.nodes.length })),
     passedRules: report.passes.length,
+    finalUrl: report.finalUrl ?? url,
     auditDurationMs: Date.now() - started,
   };
 }

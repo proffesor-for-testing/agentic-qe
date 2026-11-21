@@ -419,6 +419,8 @@ export interface AccessibilityReport {
   readonly measured?: boolean;
   /** Why the page was not measured, when `measured` is false (#1145). */
   readonly notMeasuredReason?: string;
+  /** #1465: the URL actually audited, after redirects; `url` stays as requested. */
+  readonly finalUrl?: string;
 }
 
 export interface PassedRule {

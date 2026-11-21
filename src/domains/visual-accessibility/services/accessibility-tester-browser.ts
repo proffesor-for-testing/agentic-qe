@@ -3,8 +3,8 @@
  * Extracted from accessibility-tester.ts - Browser-based auditing via agent-browser and Vibium
  */
 
-import { randomUUID } from 'node:crypto';
 import { LoggerFactory } from '../../../logging/index.js';
+import { newAuditSessionName } from '../../../integrations/browser/agent-browser/audit-sessions.js';
 import { Result, ok, err } from '../../../shared/types/index.js';
 import {
   AccessibilityReport,
@@ -429,28 +429,50 @@ export function isPageStatusError(error: unknown): error is PageStatusError {
   return typeof error === 'object' && error !== null && (error as { pageStatus?: unknown }).pageStatus === true;
 }
 
-/** A per-audit agent-browser session, so parallel audits never share a browser. */
-export function newAuditSessionName(): string {
-  return `aqe-a11y-${randomUUID()}`;
-}
+/** A per-audit agent-browser session (`aqe-a11y-<pid>-<uuid>`), so parallel audits never share a browser. */
+export { newAuditSessionName };
 
 const DOCUMENT_STATUS_JS =
   "(() => { const e = performance.getEntriesByType('navigation')[0]; " +
-  "return e && typeof e.responseStatus === 'number' ? e.responseStatus : 0; })()";
+  "return JSON.stringify({ status: e && typeof e.responseStatus === 'number' ? e.responseStatus : 0, " +
+  "url: String(location.href) }); })()";
+
+/** What the loaded page says about itself: final URL (after redirects) and HTTP status. */
+export interface DocumentInfo {
+  readonly finalUrl?: string;
+  readonly status?: number;
+}
+
+function parseDocumentInfo(value: unknown): DocumentInfo {
+  if (typeof value === 'number') return { status: value };
+  let parsed: unknown = value;
+  if (typeof value === 'string') {
+    try { parsed = safeJsonParse(value); } catch { return {}; }
+  }
+  if (typeof parsed === 'number') return { status: parsed };
+  if (!parsed || typeof parsed !== 'object') return {};
+  const { status, url } = parsed as { status?: unknown; url?: unknown };
+  return {
+    ...(typeof status === 'number' ? { status } : {}),
+    ...(typeof url === 'string' && /^https?:/.test(url) ? { finalUrl: url } : {}),
+  };
+}
 
 /**
  * Fail when the main document's final response (after redirects) was not 2xx.
- * Reads the Navigation Timing `responseStatus` (Chromium 109+). When the
- * browser does not report a status (0), the page is audited as loaded.
+ * Reads the Navigation Timing `responseStatus` (Chromium 109+) and
+ * `location.href`. When the browser does not report a status (0), the page is
+ * audited as loaded.
  */
-export async function checkDocumentStatus(client: IBrowserClient): Promise<Result<void, Error>> {
+export async function checkDocumentStatus(client: IBrowserClient): Promise<Result<DocumentInfo, Error>> {
   const result = await client.evaluate<unknown>(DOCUMENT_STATUS_JS);
-  if (!result.success) return ok(undefined);
-  const status = Number(result.value);
+  if (!result.success) return ok({});
+  const info = parseDocumentInfo(result.value);
+  const status = info.status ?? 0;
   if (Number.isInteger(status) && status >= 100 && (status < 200 || status >= 300)) {
     return err(new PageStatusError(status));
   }
-  return ok(undefined);
+  return ok(info);
 }
 
 // ============================================================================
@@ -501,8 +523,10 @@ export async function auditWithBrowserClient(
       }
 
       const report = mapAxeResultToReport(url, axeResult.value, wcagLevel);
+      // #1465: say which page was audited when a redirect moved it
+      const finalUrl = status.value.finalUrl ?? url;
 
-      return ok(report);
+      return ok({ ...report, finalUrl });
     } finally {
       await client.quit();
     }

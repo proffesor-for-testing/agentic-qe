@@ -44,7 +44,9 @@ import {
 } from '../../../integrations/vibium/index.js';
 import { CallerInputError, toError } from '../../../shared/error-utils.js';
 import { auditUrlProblem } from './audit-url-policy.js';
+import { reapOrphanedAuditSessions } from '../../../integrations/browser/agent-browser/audit-sessions.js';
 import {
+  AgentBrowserClient,
   getBrowserClientForUseCase,
   type IBrowserClient,
 } from '../../../integrations/browser/index.js';
@@ -162,7 +164,11 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
       try {
         const client = await getBrowserClientForUseCase('accessibility');
         if (!this.agentBrowserAvailable) this.agentBrowserAvailable = await client.isAvailable();
-        if (this.agentBrowserAvailable) return client;
+        if (this.agentBrowserAvailable) {
+          // #1465: close sessions a killed process left behind (throttled, never throws)
+          if (client instanceof AgentBrowserClient) void reapOrphanedAuditSessions();
+          return client;
+        }
       } catch {
         logger.debug('Browser client error:');
       }
@@ -343,6 +349,8 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
 
   async checkContrast(url: string): Promise<Result<ContrastAnalysis[], Error>> {
     try {
+      const urlProblem = auditUrlProblem(url);
+      if (urlProblem) return err(new CallerInputError(urlProblem));
       // v3 (#1145, #1228): never serve a guessed result cached by an earlier version.
       const cacheKey = `visual-accessibility:contrast:v3:${hashUrl(url)}`;
       const cached = await this.memory.get<ContrastAnalysis[]>(cacheKey);
@@ -398,6 +406,8 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
     level: 'A' | 'AA' | 'AAA'
   ): Promise<Result<WCAGValidationResult, Error>> {
     try {
+      const urlProblem = auditUrlProblem(url);
+      if (urlProblem) return err(new CallerInputError(urlProblem));
       const audit = await this.audit(url, { wcagLevel: level, includeWarnings: true });
       if (!audit.success) return err(audit.error);
       if (audit.value.measured !== true) {
@@ -432,6 +442,8 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
     url: string
   ): Promise<Result<KeyboardNavigationReport, Error>> {
     try {
+      const urlProblem = auditUrlProblem(url);
+      if (urlProblem) return err(new CallerInputError(urlProblem));
       // v3 (#1228): earlier versions cached hasVisibleFocus: true without measuring it.
       const cacheKey = `visual-accessibility:keyboard:v3:${hashUrl(url)}`;
       const cached = await this.memory.get<KeyboardNavigationReport>(cacheKey);

@@ -232,6 +232,8 @@ export interface AccessibilityTestResult {
   status: string;
   /** #1465: what was audited and at which WCAG level, so a level change is visible. */
   url?: string;
+  /** #1465: the URL actually audited after redirects (measured results only). */
+  finalUrl?: string;
   standard?: string;
   wcagLevel?: string;
   passed: boolean;
@@ -1123,6 +1125,7 @@ export const accessibilityTestConfig: DomainHandlerConfig<AccessibilityTestParam
     taskId,
     status: data.measured === true ? 'completed' : 'not-measured',
     ...(typeof data.url === 'string' ? { url: data.url } : {}),
+    ...(data.measured === true && typeof data.finalUrl === 'string' ? { finalUrl: data.finalUrl } : {}),
     ...(typeof data.standard === 'string' ? { standard: data.standard } : {}),
     ...(typeof data.wcagLevel === 'string' ? { wcagLevel: data.wcagLevel } : {}),
     passed: data.measured === true && data.passed === true,

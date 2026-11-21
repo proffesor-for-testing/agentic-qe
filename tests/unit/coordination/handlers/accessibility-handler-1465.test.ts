@@ -55,6 +55,7 @@ describe('runAccessibilityTest (#1465)', () => {
       url: URL, standard: 'wcag22-aa', wcagLevel: 'AA', measured: true, score: 72,
       passed: false, passedRules: 1,
       warnings: [{ id: 'color-contrast', description: 'Contrast unknown', nodes: 0 }],
+      finalUrl: URL,
     });
     expect(result.violations).toEqual([{
       id: 'image-alt', impact: 'critical', description: 'Images must have alternate text',
@@ -237,10 +238,16 @@ describe('accessibilityTestConfig.mapToResult (#1465)', () => {
     expect(result.notMeasuredReason).toBeUndefined();
   });
 
-  it('echoes url, standard and WCAG level so the audited level is visible', () => {
-    const result = map({ measured: true, score: 90, url: URL, standard: 'wcag22-aa', wcagLevel: 'AA' });
+  it('echoes url, finalUrl, standard and WCAG level so the audited page and level are visible', () => {
+    const result = map({ measured: true, score: 90, url: URL, finalUrl: `${URL}home`, standard: 'wcag22-aa', wcagLevel: 'AA' });
 
-    expect(result).toMatchObject({ url: URL, standard: 'wcag22-aa', wcagLevel: 'AA' });
+    expect(result).toMatchObject({ url: URL, finalUrl: `${URL}home`, standard: 'wcag22-aa', wcagLevel: 'AA' });
+  });
+
+  it('drops finalUrl from an unmeasured result', () => {
+    const result = map({ measured: false, url: URL, finalUrl: URL });
+
+    expect(result.finalUrl).toBeUndefined();
   });
 
   it.each([

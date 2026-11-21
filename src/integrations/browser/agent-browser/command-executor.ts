@@ -474,13 +474,18 @@ export function sessionKillPattern(sessionName: string): string {
 /**
  * Check if agent-browser CLI is available
  */
+/** #1465: a positive probe holds for the process; a negative one is probed again. */
+let agentBrowserKnownAvailable = false;
+
 export async function isAgentBrowserAvailable(): Promise<boolean> {
+  if (agentBrowserKnownAvailable) return true;
   try {
     // Use 'npx agent-browser' without args to check help output
     // --version is not a valid command, but running with no args shows help
     const result = await runAgentBrowser([], 10000);
     const output = (result.stdout ?? '') + (result.stderr ?? '');
-    return output.includes('agent-browser') && output.includes('Usage:');
+    agentBrowserKnownAvailable = output.includes('agent-browser') && output.includes('Usage:');
+    return agentBrowserKnownAvailable;
   } catch {
     return false;
   }

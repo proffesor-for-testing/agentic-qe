@@ -31,13 +31,15 @@ const AXE_ONE_VIOLATION = {
 };
 
 /** Agent-browser double: the status script returns `status`; any other script returns the axe result. */
-function agentBrowser(status: number, axe: unknown = AXE_ONE_VIOLATION): IBrowserClient {
+function agentBrowser(status: number, axe: unknown = AXE_ONE_VIOLATION, finalUrl?: string): IBrowserClient {
   return {
     tool: 'agent-browser',
     launch: vi.fn().mockResolvedValue(ok({ id: 'session' })),
     navigate: vi.fn().mockResolvedValue(ok({ url: 'http://127.0.0.1/', title: 't', loadTime: 1 })),
     evaluate: vi.fn(async (script: string) =>
-      ok(script.includes("getEntriesByType('navigation')") ? status : JSON.stringify(axe))),
+      ok(script.includes("getEntriesByType('navigation')")
+        ? (finalUrl ? JSON.stringify({ status, url: finalUrl }) : status)
+        : JSON.stringify(axe))),
     quit: vi.fn().mockResolvedValue(ok(undefined)),
     isAvailable: vi.fn().mockResolvedValue(true),
     dispose: vi.fn().mockResolvedValue(undefined),
@@ -71,7 +73,7 @@ describe('#1465 per-audit browser sessions', () => {
     expect(results.every((r) => r.success && r.value.measured === true)).toBe(true);
     const sessions = clients.map(launchSession);
     expect(new Set(sessions).size).toBe(3);
-    for (const name of sessions) expect(name).toMatch(/^aqe-a11y-[0-9a-f-]{36}$/);
+    for (const name of sessions) expect(name).toMatch(new RegExp(`^aqe-a11y-${process.pid}-[0-9a-f-]{36}$`));
     for (const client of clients) expect(client.quit).toHaveBeenCalledTimes(1);
   });
 
@@ -122,6 +124,26 @@ describe('#1465 error pages are not measured', () => {
     expect(result.success && result.value.violations.map((v) => v.id)).toEqual(['image-alt']);
   });
 
+  it('reports the final URL after a redirect and keeps url as requested', async () => {
+    browserIntegration.getBrowserClientForUseCase.mockResolvedValue(agentBrowser(200, AXE_ONE_VIOLATION, 'http://127.0.0.1:8080/new.html'));
+    const service = new AccessibilityTesterService(memory(), {});
+
+    const result = await service.audit('http://127.0.0.1:8080/old.html');
+
+    expect(result.success && result.value).toMatchObject({
+      measured: true, url: 'http://127.0.0.1:8080/old.html', finalUrl: 'http://127.0.0.1:8080/new.html',
+    });
+  });
+
+  it('uses the requested url as finalUrl when the page does not report one', async () => {
+    browserIntegration.getBrowserClientForUseCase.mockResolvedValue(agentBrowser(200));
+    const service = new AccessibilityTesterService(memory(), {});
+
+    const result = await service.audit('http://127.0.0.1:8080/ok.html');
+
+    expect(result.success && result.value.finalUrl).toBe('http://127.0.0.1:8080/ok.html');
+  });
+
   it('audits the page when the browser reports no status (0), the documented limitation', async () => {
     const status = await checkDocumentStatus(agentBrowser(0));
 
@@ -158,6 +180,28 @@ describe('#1465 audit URL policy', () => {
     if (result.success) return;
     expect(result.error.name).toBe('CallerInputError');
     expect(browserIntegration.getBrowserClientForUseCase).not.toHaveBeenCalled();
+  });
+
+  it.each(['checkContrast', 'checkKeyboardNavigation'] as const)('%s rejects a file: url without a browser', async (method) => {
+    browserIntegration.getBrowserClientForUseCase.mockReset();
+    const service = new AccessibilityTesterService(memory(), {});
+
+    const result = await service[method]('file:///etc/hostname');
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.name).toBe('CallerInputError');
+    expect(browserIntegration.getBrowserClientForUseCase).not.toHaveBeenCalled();
+  });
+
+  it('validateWCAGLevel rejects a javascript: url as a caller input error', async () => {
+    const service = new AccessibilityTesterService(memory(), {});
+
+    const result = await service.validateWCAGLevel('javascript:alert(1)', 'AA');
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.name).toBe('CallerInputError');
   });
 
   it('qe/a11y/audit rejects the call before auditing when any url is not http(s)', async () => {
