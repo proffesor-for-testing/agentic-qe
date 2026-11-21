@@ -194,10 +194,14 @@ export class AgentBrowserCommandExecutor {
 
       // Find and kill processes by session name
       // Use pkill with argument array to prevent shell injection
-      try {
-        await runProcessText('pkill', ['-f', `agent-browser.*--session[= ]${sessionName}`], { cwd: process.cwd(), timeout: 5000 });
-      } catch {
-        // Non-critical: pkill exits 1 when nothing matched, or the process is already dead
+      // #1465: never pkill the shared "default" session (it may be the user's own
+      // browser), and anchor the name so "aqe-a11y-1" cannot match "aqe-a11y-12".
+      if (sessionName !== 'default') {
+        try {
+          await runProcessText('pkill', ['-f', sessionKillPattern(sessionName)], { cwd: process.cwd(), timeout: 5000 });
+        } catch {
+          // Non-critical: pkill exits 1 when nothing matched, or the process is already dead
+        }
       }
 
       // Also try to kill by AGENT_BROWSER_SESSION env var (harder to match)
@@ -457,6 +461,14 @@ export class AgentBrowserCommandExecutor {
 
     return fullArgs;
   }
+}
+
+/**
+ * pkill -f pattern for one session's processes. The name must end at a space
+ * or the end of the command line, so one session never matches another by prefix.
+ */
+export function sessionKillPattern(sessionName: string): string {
+  return `agent-browser.*--session[= ]${sessionName}( |$)`;
 }
 
 /**

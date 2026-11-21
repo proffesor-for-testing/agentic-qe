@@ -3,6 +3,7 @@
  * Extracted from accessibility-tester.ts - Browser-based auditing via agent-browser and Vibium
  */
 
+import { randomUUID } from 'node:crypto';
 import { LoggerFactory } from '../../../logging/index.js';
 import { Result, ok, err } from '../../../shared/types/index.js';
 import {
@@ -412,6 +413,47 @@ export function extractContrastFromVibiumResult(
 }
 
 // ============================================================================
+// Page Load Checks (#1465)
+// ============================================================================
+
+/** A page that loaded with a non-2xx status: there is nothing to audit. */
+export class PageStatusError extends Error {
+  readonly pageStatus = true as const;
+  constructor(readonly status: number) {
+    super(`the page returned HTTP ${status}`);
+    this.name = 'PageStatusError';
+  }
+}
+
+export function isPageStatusError(error: unknown): error is PageStatusError {
+  return typeof error === 'object' && error !== null && (error as { pageStatus?: unknown }).pageStatus === true;
+}
+
+/** A per-audit agent-browser session, so parallel audits never share a browser. */
+export function newAuditSessionName(): string {
+  return `aqe-a11y-${randomUUID()}`;
+}
+
+const DOCUMENT_STATUS_JS =
+  "(() => { const e = performance.getEntriesByType('navigation')[0]; " +
+  "return e && typeof e.responseStatus === 'number' ? e.responseStatus : 0; })()";
+
+/**
+ * Fail when the main document's final response (after redirects) was not 2xx.
+ * Reads the Navigation Timing `responseStatus` (Chromium 109+). When the
+ * browser does not report a status (0), the page is audited as loaded.
+ */
+export async function checkDocumentStatus(client: IBrowserClient): Promise<Result<void, Error>> {
+  const result = await client.evaluate<unknown>(DOCUMENT_STATUS_JS);
+  if (!result.success) return ok(undefined);
+  const status = Number(result.value);
+  if (Number.isInteger(status) && status >= 100 && (status < 200 || status >= 300)) {
+    return err(new PageStatusError(status));
+  }
+  return ok(undefined);
+}
+
+// ============================================================================
 // Browser Audit Methods
 // ============================================================================
 
@@ -422,12 +464,13 @@ export async function auditWithBrowserClient(
   client: IBrowserClient,
   url: string,
   wcagLevel: 'A' | 'AA' | 'AAA',
-  browserConfig: { headless: boolean; timeout: number },
+  browserConfig: { headless: boolean; timeout: number; sessionName?: string },
   options?: AuditOptions
 ): Promise<Result<AccessibilityReport, Error>> {
   try {
     const launchResult = await client.launch({
       headless: browserConfig.headless,
+      sessionName: browserConfig.sessionName ?? newAuditSessionName(),
     });
 
     if (!launchResult.success) {
@@ -440,6 +483,9 @@ export async function auditWithBrowserClient(
       if (!navResult.success) {
         return err(new Error(`Failed to navigate to ${url}: ${navResult.error?.message ?? 'Unknown error'}`));
       }
+
+      const status = await checkDocumentStatus(client);
+      if (!status.success) return err(status.error);
 
       if (isAgentBrowserClient(client)) {
         const snapshotResult = await client.getSnapshot({ interactive: true });

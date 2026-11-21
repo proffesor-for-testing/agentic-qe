@@ -144,7 +144,8 @@ describe('#1228 contrast and keyboard checks use the agent-browser client', () =
       expect.objectContaining({ element: 'p.muted', foreground: '#aaaaaa', background: '#ffffff', ratio: 2.32, passes: false, measured: true }),
       expect.objectContaining({ element: 'h1', foreground: '#222222', background: '#ffffff', ratio: 15.91, passes: true, measured: true }),
     ]);
-    expect(String((client.evaluate as ReturnType<typeof vi.fn>).mock.calls[0][0])).toContain("values: ['color-contrast']");
+    // #1465: the document status is read first; the axe script follows
+    expect(String((client.evaluate as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0])).toContain("values: ['color-contrast']");
   });
 
   it('checkKeyboardNavigation is measured through the agent-browser client and leaves focus visibility unmeasured', async () => {

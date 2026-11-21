@@ -13,6 +13,7 @@ import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMem
 import { ToolResult } from '../../types';
 import { createVisualTesterServiceWithDependencies, VisualTesterService } from '../../../domains/visual-accessibility/services/visual-tester';
 import { AccessibilityTesterService } from '../../../domains/visual-accessibility/services/accessibility-tester';
+import { auditUrlProblem } from '../../../domains/visual-accessibility/services/audit-url-policy';
 import { toErrorMessage } from '../../../shared/error-utils.js';
 
 // ============================================================================
@@ -387,6 +388,10 @@ export class A11yAuditTool extends MCPToolBase<A11yAuditParams, A11yAuditResult>
       checkContrast = true,
       checkKeyboard = true,
     } = params;
+
+    // #1465: only http(s) pages are audited; reject the whole call before any browser work
+    const badUrl = (urls ?? []).map((u) => ({ u, problem: auditUrlProblem(u) })).find((x) => x.problem);
+    if (badUrl) return { success: false, error: `Invalid input: ${badUrl.problem}` };
 
     try {
       this.emitStream(context, {

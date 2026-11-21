@@ -10,7 +10,8 @@
 import type { MemoryBackend } from '../../kernel/interfaces.js';
 import type { AccessibilityReport, AuditOptions } from '../../domains/visual-accessibility/interfaces';
 import type { Result } from '../../shared/types';
-import { toErrorMessage } from '../../shared/error-utils.js';
+import { CallerInputError, isCallerInputError, toErrorMessage } from '../../shared/error-utils.js';
+import { assertAuditableUrl } from '../../domains/visual-accessibility/services/audit-url-policy.js';
 
 /** The slice of AccessibilityTesterService this handler uses. */
 export interface AccessibilityAuditor {
@@ -54,6 +55,31 @@ export const A11Y_BACKEND_HINT =
   'Install it where the MCP server runs (npm install -g agent-browser, then agent-browser install ' +
   'to fetch its browser) so that `npx agent-browser` works, then retry.';
 
+/** The standards accessibility_test accepts, as in qe/a11y/audit's schema. */
+export const ACCESSIBILITY_STANDARDS = ['wcag21-aa', 'wcag21-aaa', 'wcag22-aa', 'section508'] as const;
+export type AccessibilityStandard = typeof ACCESSIBILITY_STANDARDS[number];
+
+/** The standard to use, or a CallerInputError for one that is not supported (#1465). */
+export function resolveAccessibilityStandard(standard: unknown): AccessibilityStandard {
+  if (standard === undefined || standard === null || standard === '') return 'wcag21-aa';
+  if (typeof standard === 'string' && (ACCESSIBILITY_STANDARDS as readonly string[]).includes(standard)) {
+    return standard as AccessibilityStandard;
+  }
+  throw new CallerInputError(
+    `standard ${JSON.stringify(standard)} is not supported; use one of ${ACCESSIBILITY_STANDARDS.join(', ')}`);
+}
+
+/** What to do next for a not-measured reason: the install hint only when no browser ran. */
+export function nextStepFor(reason: string): string {
+  if (/^the page returned HTTP \d+/.test(reason)) {
+    return 'The URL answered with an error page, which is not audited; point url at a page that returns 2xx and retry.';
+  }
+  if (reason.includes('Failed to navigate')) {
+    return 'The browser ran but could not load the URL; check that the server is running and reachable from the MCP server, then retry.';
+  }
+  return A11Y_BACKEND_HINT;
+}
+
 export function standardToWcagLevel(standard: string): 'A' | 'AA' | 'AAA' {
   return standard === 'wcag21-aaa' ? 'AAA' : 'AA';
 }
@@ -71,7 +97,7 @@ function notMeasured(
     warnings: [],
     passedRules: 0,
     notMeasuredReason: reason,
-    note: `Accessibility NOT MEASURED: this is not a failing result. Reason: ${reason}. ${A11Y_BACKEND_HINT}`,
+    note: `Accessibility NOT MEASURED: this is not a failing result. Reason: ${reason}. ${nextStepFor(reason)}`,
     auditDurationMs: Date.now() - started,
   };
 }
@@ -94,28 +120,29 @@ function mapViolations(report: AccessibilityReport): AccessibilityTaskViolation[
 }
 
 /**
- * Audit one URL. Never throws; an audit error becomes an unmeasured result
- * whose reason is the error message.
+ * Audit one URL. A bad url or standard throws a CallerInputError; any other
+ * audit error becomes an unmeasured result whose reason is the error message.
  */
 export async function runAccessibilityTest(
   auditor: AccessibilityAuditor,
   payload: AccessibilityTaskPayload,
 ): Promise<AccessibilityTaskResult> {
   const started = Date.now();
-  const url = typeof payload.url === 'string' ? payload.url.trim() : '';
-  const standard = payload.standard || 'wcag21-aa';
+  assertAuditableUrl(payload.url);
+  const url = payload.url.trim();
+  const standard = resolveAccessibilityStandard(payload.standard);
   const wcagLevel = standardToWcagLevel(standard);
-
-  if (!url) return notMeasured(url, standard, wcagLevel, 'no url was given, so no page was loaded', started);
 
   let audit: Result<AccessibilityReport, Error>;
   try {
     audit = await auditor.audit(url, { wcagLevel, includeWarnings: true });
   } catch (error) {
+    if (isCallerInputError(error)) throw error;
     return notMeasured(url, standard, wcagLevel, `the audit failed: ${toErrorMessage(error)}`, started);
   }
 
   if (!audit.success) {
+    if (isCallerInputError(audit.error)) throw audit.error;
     return notMeasured(url, standard, wcagLevel, `the audit failed: ${audit.error.message}`, started);
   }
   const report = audit.value;

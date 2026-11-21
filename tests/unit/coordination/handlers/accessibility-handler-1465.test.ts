@@ -11,6 +11,7 @@ import {
 import { registerMiscHandlers } from '../../../../src/coordination/handlers/misc-handlers';
 import type { AccessibilityReport } from '../../../../src/domains/visual-accessibility/interfaces';
 import { ok, err } from '../../../../src/shared/types';
+import { CallerInputError } from '../../../../src/shared/error-utils';
 // Side-effect import: domain-handler-configs participates in a circular import.
 import '../../../../src/mcp/handlers/domain-handlers';
 import { accessibilityTestConfig } from '../../../../src/mcp/handlers/domain-handler-configs.js';
@@ -102,6 +103,18 @@ describe('runAccessibilityTest (#1465)', () => {
     expect(result.note).not.toMatch(/puppeteer|playwright/i);
   });
 
+  it('does not tell the caller to install a browser when the page was an error page', async () => {
+    const auditor = auditorReturning(ok(measuredReport({
+      measured: false, notMeasuredReason: 'the page returned HTTP 404', violations: [], passes: [], score: -1,
+    })));
+
+    const result = await runAccessibilityTest(auditor, { url: URL });
+
+    expect(result).toMatchObject({ measured: false, score: -1, notMeasuredReason: 'the page returned HTTP 404' });
+    expect(result.note).toContain('error page');
+    expect(result.note).not.toContain('npm install');
+  });
+
   it('reports unmeasured with the error when the service returns an error', async () => {
     const auditor = auditorReturning(err(new Error('Failed to navigate to http://127.0.0.1:18990/')));
 
@@ -120,13 +133,42 @@ describe('runAccessibilityTest (#1465)', () => {
     expect(result.notMeasuredReason).toBe('the audit failed: spawn npx ENOENT');
   });
 
-  it('does not call the service when no url is given', async () => {
+  it.each([
+    [undefined, 'url must be a non-empty http or https URL'],
+    ['file:///etc/hostname', 'url scheme file: is not allowed'],
+    ['javascript:alert(1)', 'url scheme javascript: is not allowed'],
+    ['data:text/html,<p>x</p>', 'url scheme data: is not allowed'],
+    ['not a url', 'url is not a valid absolute URL'],
+  ])('rejects %s as a caller input error without calling the service', async (url, message) => {
     const auditor = auditorReturning(ok(measuredReport()));
 
-    const result = await runAccessibilityTest(auditor, {});
+    const run = runAccessibilityTest(auditor, { url: url as string | undefined });
 
+    await expect(run).rejects.toMatchObject({ name: 'CallerInputError', message: expect.stringContaining(message) });
     expect(auditor.audit).not.toHaveBeenCalled();
-    expect(result).toMatchObject({ measured: false, score: -1, notMeasuredReason: 'no url was given, so no page was loaded' });
+  });
+
+  it('allows a local dev server url', async () => {
+    const auditor = auditorReturning(ok(measuredReport()));
+
+    await runAccessibilityTest(auditor, { url: 'http://localhost:3000/' });
+
+    expect(auditor.audit).toHaveBeenCalledWith('http://localhost:3000/', expect.anything());
+  });
+
+  it('rejects an unsupported standard instead of auditing at another level', async () => {
+    const auditor = auditorReturning(ok(measuredReport()));
+
+    const run = runAccessibilityTest(auditor, { url: URL, standard: 'wcag22-aaa' });
+
+    await expect(run).rejects.toMatchObject({ name: 'CallerInputError', message: expect.stringContaining('wcag22-aaa') });
+    expect(auditor.audit).not.toHaveBeenCalled();
+  });
+
+  it('passes a caller input error from the service through instead of calling it unmeasured', async () => {
+    const auditor = auditorReturning(err(new CallerInputError('url scheme ftp: is not allowed')));
+
+    await expect(runAccessibilityTest(auditor, { url: URL })).rejects.toBeInstanceOf(CallerInputError);
   });
 });
 
@@ -156,6 +198,20 @@ describe('test-accessibility handler registration (#1465)', () => {
     vi.doUnmock('../../../../src/domains/visual-accessibility/services/accessibility-tester.js');
   });
 
+  it('returns a caller input error as a failed task, not as a result', async () => {
+    const handlers = new Map<string, (task: unknown) => Promise<unknown>>();
+    registerMiscHandlers({
+      registerHandler: (type: string, handler: (task: unknown) => Promise<unknown>) => handlers.set(type, handler),
+      memory: {},
+    } as never);
+
+    const result = await handlers.get('test-accessibility')!({ payload: { url: 'file:///etc/passwd' } }) as
+      { success: boolean; error?: Error };
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBeInstanceOf(CallerInputError);
+  });
+
   it('still registers the handler from the static module', () => {
     const types: string[] = [];
     registerMiscHandlers({ registerHandler: (type: string) => types.push(type), memory: {} } as never);
@@ -179,6 +235,28 @@ describe('accessibilityTestConfig.mapToResult (#1465)', () => {
 
     expect(result).toMatchObject({ status: 'completed', measured: true, score: 72, passedRules: 12, passed: false });
     expect(result.notMeasuredReason).toBeUndefined();
+  });
+
+  it('echoes url, standard and WCAG level so the audited level is visible', () => {
+    const result = map({ measured: true, score: 90, url: URL, standard: 'wcag22-aa', wcagLevel: 'AA' });
+
+    expect(result).toMatchObject({ url: URL, standard: 'wcag22-aa', wcagLevel: 'AA' });
+  });
+
+  it.each([
+    [{ url: 'file:///etc/hostname' }, 'url scheme file: is not allowed'],
+    [{ url: 'javascript:alert(1)' }, 'url scheme javascript: is not allowed'],
+    [{ url: URL, standard: 'wcag22-aaa' }, 'is not supported'],
+  ])('mapToPayload rejects %j as a caller input error', (params, message) => {
+    const build = () => accessibilityTestConfig.mapToPayload(params as never, null);
+
+    expect(build).toThrow(CallerInputError);
+    expect(build).toThrow(message);
+  });
+
+  it('mapToPayload keeps a supported standard and defaults to wcag21-aa', () => {
+    expect(accessibilityTestConfig.mapToPayload({ url: URL, standard: 'section508' }, null)).toMatchObject({ standard: 'section508' });
+    expect(accessibilityTestConfig.mapToPayload({ url: URL }, null)).toMatchObject({ standard: 'wcag21-aa', url: URL });
   });
 
   it('never reports passed for an unmeasured result', () => {

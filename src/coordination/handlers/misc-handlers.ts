@@ -5,7 +5,8 @@
  * Covers: test-accessibility, run-chaos, optimize-learning
  */
 
-import { ok } from '../../shared/types';
+import { ok, err } from '../../shared/types';
+import { toError } from '../../shared/error-utils.js';
 import type { TaskHandlerContext } from './handler-types';
 import { createAccessibilityAuditor, runAccessibilityTest, type AccessibilityTaskPayload } from './accessibility-handler';
 
@@ -16,6 +17,9 @@ export function registerMiscHandlers(ctx: TaskHandlerContext): void {
     const auditor = await createAccessibilityAuditor(ctx.memory);
     try {
       return ok(await runAccessibilityTest(auditor, task.payload as AccessibilityTaskPayload));
+    } catch (error) {
+      // A bad url or standard (CallerInputError) is the caller's mistake, not a result
+      return err(toError(error));
     } finally {
       await auditor.dispose?.().catch(() => undefined);
     }

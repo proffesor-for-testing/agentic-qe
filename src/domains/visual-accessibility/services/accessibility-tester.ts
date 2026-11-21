@@ -42,7 +42,8 @@ import {
   isBrowserModeEnabled,
   isAxeCoreEnabled,
 } from '../../../integrations/vibium/index.js';
-import { toError } from '../../../shared/error-utils.js';
+import { CallerInputError, toError } from '../../../shared/error-utils.js';
+import { auditUrlProblem } from './audit-url-policy.js';
 import {
   getBrowserClientForUseCase,
   type IBrowserClient,
@@ -57,6 +58,8 @@ import {
   auditElementWithVibium,
   checkContrastWithVibium,
   checkKeyboardWithVibium,
+  isPageStatusError,
+  newAuditSessionName,
 } from './accessibility-tester-browser.js';
 import {
   checkContrastWithBrowserClient,
@@ -117,7 +120,8 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
   private readonly rules: AccessibilityRule[];
   private readonly vibiumClient: VibiumClient | null;
   private readonly browserClient: IBrowserClient | null;
-  private managedBrowserClient: IBrowserClient | null = null;
+  /** True once agent-browser answered; an unavailable result is probed again next time. */
+  private agentBrowserAvailable = false;
   private readonly euComplianceService: EUComplianceService;
 
   constructor(
@@ -146,19 +150,20 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
     return true;
   }
 
+  /**
+   * #1465: a fresh client for every audit or check. One shared client meant one
+   * shared agent-browser session, so parallel audits read each other's pages.
+   * Each run also launches its own session (see newAuditSessionName).
+   */
   private async getBrowserClient(): Promise<IBrowserClient | null> {
     if (this.browserClient) return this.browserClient;
-    if (this.managedBrowserClient) return this.managedBrowserClient;
 
     if (this.config.preferAgentBrowser) {
       try {
         const client = await getBrowserClientForUseCase('accessibility');
-        const available = await client.isAvailable();
-        if (available) {
-          this.managedBrowserClient = client;
-          return client;
-        }
-      } catch (error) {
+        if (!this.agentBrowserAvailable) this.agentBrowserAvailable = await client.isAvailable();
+        if (this.agentBrowserAvailable) return client;
+      } catch {
         logger.debug('Browser client error:');
       }
     }
@@ -175,6 +180,10 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
     options?: AuditOptions
   ): Promise<Result<AccessibilityReport, Error>> {
     try {
+      // #1465: only http(s) pages; any other scheme is the caller's mistake
+      const urlProblem = auditUrlProblem(url);
+      if (urlProblem) return err(new CallerInputError(urlProblem));
+
       const wcagLevel = options?.wcagLevel || this.config.defaultWCAGLevel;
       const failures: string[] = [];
 
@@ -182,9 +191,13 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
         const browserClient = await this.getBrowserClient();
         if (browserClient) {
           const browserResult = await auditWithBrowserClient(
-            browserClient, url, wcagLevel, this.config.browserConfig, options
+            browserClient, url, wcagLevel, { ...this.config.browserConfig, sessionName: newAuditSessionName() }, options
           );
           if (browserResult.success) return await this.measuredReport(browserResult.value);
+          // #1465: an error page (404, 500, ...) loaded fine but is not the page asked for
+          if (isPageStatusError(browserResult.error)) {
+            return ok(this.notMeasuredReport(url, wcagLevel, browserResult.error.message));
+          }
           const errorMsg = getErrorMessage(browserResult);
           failures.push(errorMsg);
           logger.warn(`Browser client audit failed: ${errorMsg}`);
@@ -508,10 +521,8 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
   // ============================================================================
 
   async dispose(): Promise<void> {
-    if (this.managedBrowserClient) {
-      await this.managedBrowserClient.dispose();
-      this.managedBrowserClient = null;
-    }
+    // #1465: every audit and check quits its own browser session when it ends,
+    // so there is no shared browser left to close here.
   }
 }
 

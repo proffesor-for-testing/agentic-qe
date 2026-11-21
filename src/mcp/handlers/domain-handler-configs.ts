@@ -34,6 +34,8 @@ import type { SecurityCoverage } from '../../domains/security-compliance/interfa
 import type { DependencyScanReport } from '../../domains/security-compliance/dependency-advisory-engine.js';
 import type { ExcludedQualityFile, PartialQualityMetric } from '../../domains/quality-assessment/interfaces.js';
 import { CallerInputError } from '../../shared/error-utils.js';
+import { assertAuditableUrl } from '../../domains/visual-accessibility/services/audit-url-policy.js';
+import { resolveAccessibilityStandard } from '../../coordination/handlers/accessibility-handler.js';
 
 import {
   DEFAULT_FRAMEWORKS,
@@ -228,6 +230,10 @@ export interface ContractValidateResult {
 export interface AccessibilityTestResult {
   taskId: string;
   status: string;
+  /** #1465: what was audited and at which WCAG level, so a level change is visible. */
+  url?: string;
+  standard?: string;
+  wcagLevel?: string;
   passed: boolean;
   score: number;
   violations: unknown[];
@@ -1100,18 +1106,25 @@ export const accessibilityTestConfig: DomainHandlerConfig<AccessibilityTestParam
   buildTaskDescription: (params) =>
     `Test accessibility for ${params.url} against ${params.standard || 'WCAG 2.1 AA'} standard`,
 
-  mapToPayload: (params, routingResult) => ({
-    url: params.url,
-    standard: params.standard || 'wcag21-aa',
-    includeScreenReader: params.includeScreenReader || false,
-    routingTier: routingResult?.decision.tier,
-    useAgentBooster: routingResult?.useAgentBooster,
-    compiledContext: routingResult?.compiledContext,
-  }),
+  mapToPayload: (params, routingResult) => {
+    // #1465: reject a non-http(s) url or an unknown standard before any task runs
+    assertAuditableUrl(params.url);
+    return {
+      url: params.url.trim(),
+      standard: resolveAccessibilityStandard(params.standard),
+      includeScreenReader: params.includeScreenReader || false,
+      routingTier: routingResult?.decision.tier,
+      useAgentBooster: routingResult?.useAgentBooster,
+      compiledContext: routingResult?.compiledContext,
+    };
+  },
 
   mapToResult: (taskId, data, duration, savedFiles) => ({
     taskId,
     status: data.measured === true ? 'completed' : 'not-measured',
+    ...(typeof data.url === 'string' ? { url: data.url } : {}),
+    ...(typeof data.standard === 'string' ? { standard: data.standard } : {}),
+    ...(typeof data.wcagLevel === 'string' ? { wcagLevel: data.wcagLevel } : {}),
     passed: data.measured === true && data.passed === true,
     // #1145: an unmeasured score is -1, never a 0/100 grade
     score: data.measured === true && typeof data.score === 'number' ? data.score : -1,
