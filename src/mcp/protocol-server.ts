@@ -1208,11 +1208,11 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'accessibility_test',
-        description: `Test accessibility against WCAG 2.1/2.2 and Section 508 standards. ${SAVE_RESULTS_HINT} Example: accessibility_test({ url: "http://localhost:3000", standard: "wcag21-aa" })`,
+        description: `Audit a page for WCAG 2.1/2.2 or Section 508 with axe-core in agent-browser; no browser gives measured:false. ${SAVE_RESULTS_HINT} Example: accessibility_test({ url: "http://localhost:3000" })`,
         category: 'domain',
         parameters: [
           { name: 'url', type: 'string', description: 'URL to test', required: true },
-          { name: 'standard', type: 'string', description: 'Accessibility standard' },
+          { name: 'standard', type: 'string', description: 'Accessibility standard (default wcag21-aa)', enum: ['wcag21-aa', 'wcag21-aaa', 'wcag22-aa', 'section508'] },
           saveResultsParameter('accessibility_test'),
         ],
       },

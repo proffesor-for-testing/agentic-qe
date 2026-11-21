@@ -318,7 +318,7 @@ describe('AccessibilityTesterService with Browser Client Integration', () => {
       await service.audit('https://example.com');
 
       // Verify evaluate was called with axe-core injection script
-      const evaluateCall = (mockBrowserClient.evaluate as Mock).mock.calls[0][0];
+      const evaluateCall = (mockBrowserClient.evaluate as Mock).mock.calls.map((c) => String(c[0])).find((s) => s.includes('axe')) ?? ''; // #1465: status is read first
       expect(evaluateCall).toContain('axe');
       expect(evaluateCall).toContain('cdnjs.cloudflare.com');
     });
@@ -503,7 +503,7 @@ describe('AccessibilityTesterService with Browser Client Integration', () => {
 
       await service.audit('https://example.com');
 
-      const evaluateCall = (mockBrowserClient.evaluate as Mock).mock.calls[0][0];
+      const evaluateCall = (mockBrowserClient.evaluate as Mock).mock.calls.map((c) => String(c[0])).find((s) => s.includes('axe')) ?? ''; // #1465: status is read first
       expect(evaluateCall).toContain('wcag2a');
       expect(evaluateCall).toContain('wcag21a');
     });
@@ -518,7 +518,7 @@ describe('AccessibilityTesterService with Browser Client Integration', () => {
 
       await service.audit('https://example.com', { wcagLevel: 'AA' });
 
-      const evaluateCall = (mockBrowserClient.evaluate as Mock).mock.calls[0][0];
+      const evaluateCall = (mockBrowserClient.evaluate as Mock).mock.calls.map((c) => String(c[0])).find((s) => s.includes('axe')) ?? ''; // #1465: status is read first
       expect(evaluateCall).toContain('wcag2aa');
       expect(evaluateCall).toContain('wcag21aa');
     });
@@ -533,7 +533,7 @@ describe('AccessibilityTesterService with Browser Client Integration', () => {
 
       await service.audit('https://example.com', { wcagLevel: 'AAA' });
 
-      const evaluateCall = (mockBrowserClient.evaluate as Mock).mock.calls[0][0];
+      const evaluateCall = (mockBrowserClient.evaluate as Mock).mock.calls.map((c) => String(c[0])).find((s) => s.includes('axe')) ?? ''; // #1465: status is read first
       expect(evaluateCall).toContain('wcag2aaa');
       expect(evaluateCall).toContain('wcag21aaa');
     });
@@ -552,7 +552,7 @@ describe('AccessibilityTesterService with Browser Client Integration', () => {
         excludeSelectors: ['.third-party-widget', '#ads-container'],
       });
 
-      const evaluateCall = (mockBrowserClient.evaluate as Mock).mock.calls[0][0];
+      const evaluateCall = (mockBrowserClient.evaluate as Mock).mock.calls.map((c) => String(c[0])).find((s) => s.includes('axe')) ?? ''; // #1465: status is read first
       expect(evaluateCall).toContain('third-party-widget');
       expect(evaluateCall).toContain('ads-container');
     });

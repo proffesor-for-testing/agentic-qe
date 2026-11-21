@@ -16,11 +16,13 @@ import type {
   KeyboardIssue,
   TabOrderItem,
 } from '../interfaces.js';
-import { AXE_LOADER_JS, KEYBOARD_NOT_MEASURED, getElementType, mapKeyboardIssueType } from './accessibility-tester-browser.js';
+import {
+  AXE_LOADER_JS, KEYBOARD_NOT_MEASURED, checkDocumentStatus, getElementType, mapKeyboardIssueType, newAuditSessionName,
+} from './accessibility-tester-browser.js';
 import { AXE_CONTRAST_DATA_JS, contrastValues, toContrastAnalysis, type AxeContrastData } from './accessibility-contrast.js';
 
 type WcagLevel = 'A' | 'AA' | 'AAA';
-type BrowserConfig = { headless: boolean; timeout: number };
+type BrowserConfig = { headless: boolean; timeout: number; sessionName?: string };
 
 interface ContrastNode {
   selector: string;
@@ -155,7 +157,10 @@ async function withLoadedPage<T>(
   run: () => Promise<Result<T, Error>>
 ): Promise<Result<T, Error>> {
   try {
-    const launchResult = await client.launch({ headless: browserConfig.headless });
+    const launchResult = await client.launch({
+      headless: browserConfig.headless,
+      sessionName: browserConfig.sessionName ?? newAuditSessionName(),
+    });
     if (!launchResult.success) {
       return err(new Error(`Failed to launch browser: ${launchResult.error?.message ?? 'Unknown error'}`));
     }
@@ -164,6 +169,8 @@ async function withLoadedPage<T>(
       if (!navResult.success) {
         return err(new Error(`Failed to navigate to ${url}: ${navResult.error?.message ?? 'Unknown error'}`));
       }
+      const status = await checkDocumentStatus(client);
+      if (!status.success) return err(status.error);
       return await run();
     } finally {
       await client.quit();

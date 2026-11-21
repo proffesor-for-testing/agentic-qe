@@ -39,6 +39,7 @@ import {
   AgentBrowserSessionManager,
   type BrowserSessionInfo as SessionManagerInfo,
 } from './session-manager';
+import { registerAuditSession, unregisterAuditSession } from './audit-sessions.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 
 // ============================================================================
@@ -234,6 +235,8 @@ export class AgentBrowserClient implements IAgentBrowserClient {
 
       this.currentSessionId = session.name;
       this.isLaunched = true;
+      // #1465: an audit session is closed on MCP shutdown if this client never quits
+      registerAuditSession(session.name);
 
       // Update executor to use the new session
       // This ensures all subsequent operations use the correct session
@@ -293,6 +296,7 @@ export class AgentBrowserClient implements IAgentBrowserClient {
         }
       }
 
+      if (this.currentSessionId) unregisterAuditSession(this.currentSessionId);
       this.isLaunched = false;
       this.currentSessionId = null;
       return ok(undefined);
