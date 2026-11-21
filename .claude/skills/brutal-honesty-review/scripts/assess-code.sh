@@ -27,14 +27,14 @@ assess_correctness() {
     echo "-------------------"
 
     # Check for common bug patterns
-    if grep -r "TODO\|FIXME\|BUG\|HACK" "$TARGET" 2>/dev/null; then
+    if grep -rE "TODO|FIXME|BUG|HACK" "$TARGET" 2>/dev/null; then
         echo -e "${RED}🔴 FAILING: Found TODO/FIXME/BUG/HACK comments${NC}"
         echo "   → This code admits it's broken. Fix it before review."
         return 0
     fi
 
     # Check for error-prone patterns
-    if grep -r "null\|undefined" "$TARGET" 2>/dev/null | grep -v "!== null" | grep -v "!== undefined" > /dev/null; then
+    if grep -rE "null|undefined" "$TARGET" 2>/dev/null | grep -v "!== null" | grep -v "!== undefined" > /dev/null; then
         echo -e "${YELLOW}🟡 WARNING: Potential null/undefined issues${NC}"
         echo "   → Are you handling null cases properly?"
     fi
@@ -57,7 +57,7 @@ assess_performance() {
     fi
 
     # Check for synchronous I/O in hot paths
-    if grep -r "readFileSync\|writeFileSync" "$TARGET" 2>/dev/null; then
+    if grep -rE "readFileSync|writeFileSync" "$TARGET" 2>/dev/null; then
         echo -e "${RED}🔴 FAILING: Synchronous file I/O detected${NC}"
         echo "   → You're blocking the event loop. Use async operations."
     fi
@@ -72,7 +72,7 @@ assess_error_handling() {
     echo "----------------------"
 
     # Check for try/catch usage
-    try_count=$(grep -r "try\|catch" "$TARGET" 2>/dev/null | wc -l)
+    try_count=$(grep -rE "try|catch" "$TARGET" 2>/dev/null | wc -l)
     if [ "$try_count" -eq 0 ]; then
         echo -e "${RED}🔴 FAILING: No error handling found${NC}"
         echo "   → What happens when this code fails? It crashes."
@@ -81,7 +81,7 @@ assess_error_handling() {
     fi
 
     # Check for empty catch blocks
-    if grep -A 1 "catch" "$TARGET" 2>/dev/null | grep -q "^\s*}"; then
+    if grep -A 1 "catch" "$TARGET" 2>/dev/null | grep -Eq "^[[:space:]]*[}]"; then
         echo -e "${RED}🔴 FAILING: Empty catch blocks detected${NC}"
         echo "   → Swallowing errors silently is worse than crashing."
     fi
@@ -94,13 +94,13 @@ assess_concurrency() {
     echo "-------------------"
 
     # Check for global state mutations
-    if grep -r "global\.\|window\." "$TARGET" 2>/dev/null; then
+    if grep -rE "global\.|window\." "$TARGET" 2>/dev/null; then
         echo -e "${YELLOW}🟡 WARNING: Global state mutations detected${NC}"
         echo "   → Are you handling concurrent access safely?"
     fi
 
     # Check for race condition patterns
-    if grep -r "setTimeout\|setInterval" "$TARGET" 2>/dev/null; then
+    if grep -rE "setTimeout|setInterval" "$TARGET" 2>/dev/null; then
         echo -e "${YELLOW}🟡 WARNING: Timing-based code detected${NC}"
         echo "   → Are you creating race conditions?"
     fi
@@ -123,7 +123,7 @@ assess_testability() {
     fi
 
     # Check for dependency injection
-    if grep -r "new\s\+\w\+(" "$TARGET" 2>/dev/null | grep -v "Error\|Date" > /dev/null; then
+    if grep -rE "new[[:space:]]+[[:alnum:]_]+\(" "$TARGET" 2>/dev/null | grep -Ev "Error|Date" > /dev/null; then
         echo -e "${YELLOW}🟡 WARNING: Hard-coded dependencies detected${NC}"
         echo "   → Use dependency injection for testability."
     fi
@@ -145,7 +145,7 @@ assess_maintainability() {
     fi
 
     # Check for magic numbers
-    if grep -rE "\s[0-9]{3,}" "$TARGET" 2>/dev/null | grep -v "1000\|2000" > /dev/null; then
+    if grep -rE "[[:space:]][0-9]{3,}" "$TARGET" 2>/dev/null | grep -Ev "1000|2000" > /dev/null; then
         echo -e "${YELLOW}🟡 WARNING: Magic numbers detected${NC}"
         echo "   → Use named constants."
     fi
