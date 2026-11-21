@@ -1208,7 +1208,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'accessibility_test',
-        description: `Test accessibility against WCAG 2.1/2.2 and Section 508 standards. ${SAVE_RESULTS_HINT} Example: accessibility_test({ url: "http://localhost:3000", standard: "wcag21-aa" })`,
+        description: `WCAG 2.1/2.2 or Section 508 audit with axe-core in agent-browser; with no browser, measured:false. ${SAVE_RESULTS_HINT} Example: accessibility_test({ url: "http://localhost:3000" })`,
         category: 'domain',
         parameters: [
           { name: 'url', type: 'string', description: 'URL to test', required: true },
