@@ -41,31 +41,24 @@ Prevents these patterns from being written to test files:
 
 ## Enforcement Logic
 
+The hook runs the shipped detector, `scripts/check-skips.sh`. It takes the new file
+content as its first argument or on stdin, prints each matched pattern, and exits
+`1` (blocked) when a skip is found or `0` when the content is clean.
+
 ```bash
-#!/bin/bash
-# check-skips.sh
-CONTENT="$1"
+# Check content passed as an argument
+bash .claude/skills/no-skip/scripts/check-skips.sh "$CONTENT"
 
-SKIP_PATTERNS=(
-  '\.skip\s*\('
-  '\.only\s*\('
-  '\bxit\s*\('
-  '\bxdescribe\s*\('
-  '\bxcontext\s*\('
-  'test\.todo\s*\('
-  '@Skip'
-  '@Disabled'
-  '@Ignore'
-)
-
-for pattern in "${SKIP_PATTERNS[@]}"; do
-  if echo "$CONTENT" | grep -qP "$pattern"; then
-    echo "BLOCKED: Found skip pattern '$pattern'"
-    echo "Remove the skip and either fix the test or delete it."
-    exit 1
-  fi
-done
+# Or pipe it on stdin
+printf '%s' "$CONTENT" | bash .claude/skills/no-skip/scripts/check-skips.sh
 ```
+
+Detected patterns: `.skip(`, `.only(`, `xit(`, `xdescribe(`, `xcontext(`, `test.todo(`,
+`@Skip`, `@Disabled`, `@Ignore`. The detector uses POSIX extended regular expressions
+(`grep -E` with `[[:space:]]`), so GNU grep on Linux and BSD grep on macOS give the same
+result. Do not rewrite it with `grep -P`: BSD grep rejects `-P`, and inside an `if` that
+error reads as "no match", so every skip would pass. If grep itself fails, the detector
+blocks rather than allowing the write.
 
 ## Gotchas
 

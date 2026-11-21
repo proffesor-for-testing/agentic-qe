@@ -28,31 +28,84 @@ if [ ! -d "$TEST_DIR" ]; then
     exit 1
 fi
 
+# Extract the overall coverage percentage from coverage-tool output.
+# Deterministic and portable (POSIX ERE via grep -E, no grep -P / bc):
+#   1. the first number on the istanbul/jest/vitest "All files" summary line
+#      (e.g. "All files: 93.50%" or "All files |   93.5 |  80 | ...")
+#   2. otherwise the "Statements : 93.5% ( 100/107 )" or "Lines : ..." text-summary line
+# Prints nothing when no such line exists, so callers can report "unavailable".
+extract_coverage_pct() {
+    local esc text line
+    esc=$(printf '\033')
+    # Drop ANSI colour codes so their digits are never mistaken for the metric.
+    text=$(printf '%s\n' "$1" | sed -E "s/${esc}\\[[0-9;]*[A-Za-z]//g")
+    line=$(printf '%s\n' "$text" | grep -E '^[^[:alnum:]]*All files' | head -n 1)
+    if [ -z "$line" ]; then
+        line=$(printf '%s\n' "$text" | grep -E '^[^[:alnum:]]*(Statements|Lines)[[:space:]]*:' | head -n 1)
+    fi
+    [ -n "$line" ] || return 0
+    printf '%s\n' "$line" | sed -E 's/^[^[:alnum:]]*(All files|Statements|Lines)//' \
+        | grep -Eo '[0-9]+(\.[0-9]+)?' | head -n 1
+}
+
+# Succeeds only for a plain number between 0 and 100.
+is_valid_pct() {
+    printf '%s\n' "$1" | grep -Eq '^[0-9]+(\.[0-9]+)?$' || return 1
+    awk -v p="$1" 'BEGIN { exit !(p >= 0 && p <= 100) }'
+}
+
+coverage_unavailable() {
+    echo -e "${YELLOW}⚠️  COVERAGE UNAVAILABLE: $1${NC}"
+    echo "   → No coverage rating awarded. Fix the coverage run and re-assess."
+}
+
 # Function to assess coverage
 assess_coverage() {
     echo "📊 COVERAGE CHECK"
     echo "----------------"
 
-    # Run coverage if npm test with coverage exists
-    if [ -f "package.json" ] && grep -q "test:coverage" package.json; then
-        echo "Running coverage analysis..."
-        npm run test:coverage 2>/dev/null || true
-
-        # Extract coverage percentage
-        coverage=$(npm run test:coverage 2>&1 | grep -oP '\d+\.\d+(?=%)' | head -1 || echo "0")
-
-        if (( $(echo "$coverage < 50" | bc -l) )); then
-            echo -e "${RED}🔴 RAW: ${coverage}% coverage${NC}"
-            echo "   → This is embarrassing. You're barely testing anything."
-        elif (( $(echo "$coverage < 80" | bc -l) )); then
-            echo -e "${YELLOW}🟡 ACCEPTABLE: ${coverage}% coverage${NC}"
-            echo "   → Minimum is 80%. You're not there yet."
-        else
-            echo -e "${GREEN}🟢 MICHELIN STAR: ${coverage}% coverage${NC}"
-        fi
-    else
-        echo -e "${YELLOW}⚠️  No coverage command found${NC}"
+    if [ ! -f "package.json" ]; then
+        coverage_unavailable "no package.json in $(pwd)"
+        echo "   → Add a 'test:coverage' script to package.json"
+        return 0
+    fi
+    if ! grep -Eq '"test:coverage"[[:space:]]*:' package.json; then
+        coverage_unavailable "package.json has no 'test:coverage' script"
         echo "   → Add 'test:coverage' script to package.json"
+        return 0
+    fi
+
+    echo "Running coverage analysis..."
+    local output status coverage
+    if output=$(npm run test:coverage 2>&1); then
+        status=0
+    else
+        status=$?
+    fi
+
+    if [ "$status" -ne 0 ]; then
+        coverage_unavailable "'npm run test:coverage' exited with status $status"
+        return 0
+    fi
+    if [ -z "$(printf '%s' "$output" | tr -d '[:space:]')" ]; then
+        coverage_unavailable "'npm run test:coverage' produced no output"
+        return 0
+    fi
+
+    coverage=$(extract_coverage_pct "$output")
+    if [ -z "$coverage" ] || ! is_valid_pct "$coverage"; then
+        coverage_unavailable "could not parse a coverage percentage (expected an 'All files' or 'Statements :' summary line)"
+        return 0
+    fi
+
+    if awk -v p="$coverage" 'BEGIN { exit !(p < 50) }'; then
+        echo -e "${RED}🔴 RAW: ${coverage}% coverage${NC}"
+        echo "   → This is embarrassing. You're barely testing anything."
+    elif awk -v p="$coverage" 'BEGIN { exit !(p < 80) }'; then
+        echo -e "${YELLOW}🟡 ACCEPTABLE: ${coverage}% coverage${NC}"
+        echo "   → Minimum is 80%. You're not there yet."
+    else
+        echo -e "${GREEN}🟢 MICHELIN STAR: ${coverage}% coverage${NC}"
     fi
 }
 
@@ -78,7 +131,7 @@ assess_edge_cases() {
     found_count=0
     for pattern in "${edge_case_patterns[@]}"; do
         if grep -ri "$pattern" "$TEST_DIR" > /dev/null 2>&1; then
-            ((found_count++))
+            found_count=$((found_count + 1))
         fi
     done
 
@@ -161,7 +214,7 @@ assess_stability() {
     failures=0
     for i in {1..3}; do
         if ! npm test > /dev/null 2>&1; then
-            ((failures++))
+            failures=$((failures + 1))
         fi
     done
 

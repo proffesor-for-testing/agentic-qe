@@ -42,17 +42,18 @@ Deactivate with `/freeze-tests off`.
 
 ## Enforcement Logic
 
-```bash
-#!/bin/bash
-# block-test-edits.sh
-FILE="$1"
+The hook runs the shipped script, `scripts/block-test-edits.sh`, with the target file
+path as its argument. It exits `1` (blocked) for `*.test.*`/`*.spec.*` files
+(`ts`, `js`, `tsx`, `jsx`) and for paths under `__tests__/` or `/tests/`, and `0` otherwise.
 
-if echo "$FILE" | grep -qP '\.(test|spec)\.(ts|js|tsx|jsx)$|__tests__|/tests/'; then
-  echo "BLOCKED: Test files are frozen during refactoring."
-  echo "If tests need updating, deactivate with: /freeze-tests off"
-  exit 1
-fi
+```bash
+bash .claude/skills/freeze-tests/scripts/block-test-edits.sh "$FILE"
 ```
+
+The script matches with POSIX extended regular expressions (`grep -E`), so GNU grep on
+Linux and BSD grep on macOS give the same result. Do not rewrite it with `grep -P`: BSD
+grep rejects `-P`, and inside an `if` that error reads as "not a test file", so every edit
+would pass. If grep itself fails, the script blocks rather than allowing the edit.
 
 ## When to Use
 
