@@ -1298,10 +1298,10 @@ function extractAssertionsFromCode(testCode: string): string[] {
 
   for (const line of lines) {
     const trimmed = line.trim();
-    // Match expect(...).toBe/toEqual/toThrow patterns
-    const expectMatch = trimmed.match(/expect\((.+?)\)\.(to\w+)\((.+?)\)/);
-    if (expectMatch) {
-      assertions.push(`expect(${expectMatch[1]}).${expectMatch[2]}(${expectMatch[3]})`);
+    // Match expect(...).toBe/toEqual/toThrow patterns, preserving nested calls.
+    const expectAssertion = extractExpectAssertion(trimmed);
+    if (expectAssertion) {
+      assertions.push(expectAssertion);
       continue;
     }
     // Match assert patterns
@@ -1319,6 +1319,50 @@ function extractAssertionsFromCode(testCode: string): string[] {
 
   // #1355: no invented assertion text when none could be extracted.
   return assertions;
+}
+
+function matchingParenthesisEnd(code: string, openingIndex: number): number {
+  let depth = 0;
+  let quote: string | null = null;
+  let escaped = false;
+
+  for (let index = openingIndex; index < code.length; index++) {
+    const character = code[index];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (character === '\\') escaped = true;
+      else if (character === quote) quote = null;
+      continue;
+    }
+    if (character === '"' || character === "'" || character === '`') {
+      quote = character;
+      continue;
+    }
+    if (character === '(') depth++;
+    else if (character === ')' && --depth === 0) return index;
+  }
+
+  return -1;
+}
+
+function extractExpectAssertion(line: string): string | null {
+  const expectStart = line.indexOf('expect(');
+  if (expectStart < 0) return null;
+  const expectEnd = matchingParenthesisEnd(line, expectStart + 'expect'.length);
+  if (expectEnd < 0) return null;
+
+  let matcherStart = expectEnd + 1;
+  while (/\s/.test(line[matcherStart] ?? '')) matcherStart++;
+  if (line[matcherStart] !== '.') return null;
+
+  const matcher = /^to\w+/.exec(line.slice(matcherStart + 1));
+  if (!matcher) return null;
+  let argumentStart = matcherStart + 1 + matcher[0].length;
+  while (/\s/.test(line[argumentStart] ?? '')) argumentStart++;
+  if (line[argumentStart] !== '(') return null;
+
+  const assertionEnd = matchingParenthesisEnd(line, argumentStart);
+  return assertionEnd < 0 ? null : line.slice(expectStart, assertionEnd + 1);
 }
 
 // ============================================================================
