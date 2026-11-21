@@ -73,6 +73,21 @@ describe('registry and shutdown close', () => {
 
     await expect(closeLiveAuditSessions()).resolves.toHaveLength(1);
   });
+
+  it('keeps a session registered when its close fails, so the exit fallback still reaches it', async () => {
+    const ok = newAuditSessionName();
+    const slow = newAuditSessionName();
+    runAgentBrowser.mockImplementation(async (args: string[]) => {
+      if (args[1] === slow) throw Object.assign(new Error('timed out'), { code: 'ETIMEDOUT' });
+      return { status: 0, stdout: '', stderr: '' };
+    });
+    registerAuditSession(ok);
+    registerAuditSession(slow);
+
+    await closeLiveAuditSessions(1500);
+
+    expect(liveAuditSessions()).toEqual([slow]);
+  });
 });
 
 describe('daemon lookup through /proc (Linux)', () => {

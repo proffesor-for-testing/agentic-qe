@@ -64,21 +64,29 @@ export function isPidAlive(pid: number): boolean {
   }
 }
 
-/** Ask a session's daemon to close its browser and exit. Never throws. */
-export async function closeAuditSession(name: string, timeoutMs = CLOSE_TIMEOUT_MS): Promise<void> {
-  if (!name.startsWith(AUDIT_SESSION_PREFIX)) return;
+/**
+ * Ask a session's daemon to close its browser and exit. Never throws.
+ * Returns true when the close command completed, false when it failed or
+ * timed out (the daemon may still be running).
+ */
+export async function closeAuditSession(name: string, timeoutMs = CLOSE_TIMEOUT_MS): Promise<boolean> {
+  if (!name.startsWith(AUDIT_SESSION_PREFIX)) return false;
   try {
     await runAgentBrowser(['--session', name, 'close'], timeoutMs);
+    return true;
   } catch {
-    // best effort: the daemon may already be gone
+    // best effort: the daemon may already be gone, or the close timed out
+    return false;
   }
 }
 
 /** Close every live audit session in parallel, each bounded by `timeoutMs`. */
 export async function closeLiveAuditSessions(timeoutMs = CLOSE_TIMEOUT_MS): Promise<string[]> {
   const names = liveAuditSessions();
-  await Promise.all(names.map((name) => closeAuditSession(name, timeoutMs)));
-  for (const name of names) liveSessions.delete(name);
+  const closed = await Promise.all(names.map((name) => closeAuditSession(name, timeoutMs)));
+  // Keep a session registered when its close failed or timed out, so the
+  // synchronous exit fallback (killLiveAuditSessionsSync) still reaches its daemon.
+  names.forEach((name, i) => { if (closed[i]) liveSessions.delete(name); });
   return names;
 }
 
