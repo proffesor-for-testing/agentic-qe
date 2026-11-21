@@ -149,16 +149,19 @@ describe('#933 every handler-factory domain tool reports resultsSaved/resultsNot
 
   const configs = Object.entries(domainHandlerConfigs).filter(([name]) => name !== 'testGenerate');
   const SAVED_933 = ['.agentic-qe/results/other/2026-10-11T00-00-00_x.json'];
+  // #1465: accessibility_test rejects a call without an http(s) url before any task runs
+  const paramsFor = (name: string): Record<string, unknown> =>
+    name === 'accessibilityTest' ? { target: 'src/', url: 'http://127.0.0.1:1/' } : { target: 'src/' };
 
   it('covers the other 10 domain configs', () => {
     expect(configs).toHaveLength(10);
   });
 
-  it.each(configs)('%s: saveResults:false reaches the payload and the response says nothing was written', async (_name, config) => {
+  it.each(configs)('%s: saveResults:false reaches the payload and the response says nothing was written', async (name, config) => {
     executor.execute.mockResolvedValue({ success: true, data: {}, duration: 5 });
 
     const handler = createDomainHandler(config as Parameters<typeof createDomainHandler>[0]);
-    const result = await handler({ target: 'src/', saveResults: false });
+    const result = await handler({ ...paramsFor(name), saveResults: false });
 
     expect(queen.submitTask.mock.calls[0][0].payload.saveResults).toBe(false);
     expect(result.success, JSON.stringify(result)).toBe(true);
@@ -169,11 +172,11 @@ describe('#933 every handler-factory domain tool reports resultsSaved/resultsNot
     });
   });
 
-  it.each(configs)('%s: the default returns the saved paths', async (_name, config) => {
+  it.each(configs)('%s: the default returns the saved paths', async (name, config) => {
     executor.execute.mockResolvedValue({ success: true, data: {}, duration: 5, savedFiles: SAVED_933 });
 
     const handler = createDomainHandler(config as Parameters<typeof createDomainHandler>[0]);
-    const result = await handler({ target: 'src/' });
+    const result = await handler(paramsFor(name));
 
     expect(queen.submitTask.mock.calls[0][0].payload).not.toHaveProperty('saveResults');
     expect(result.success, JSON.stringify(result)).toBe(true);
