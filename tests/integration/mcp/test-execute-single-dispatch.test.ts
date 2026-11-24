@@ -1,6 +1,6 @@
 /** Native protocol regression: one request must launch one runner, not two. */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { execFileSync, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
@@ -37,6 +37,15 @@ describe('MCP test_execute_parallel single execution over stdio (#1059)', () => 
     mkdirSync(join(root, 'tests'));
     symlinkSync(resolve('node_modules'), join(root, 'node_modules'), 'dir');
     writeFileSync(join(root, 'tests/counter.test.mjs'), `import {test,expect} from 'vitest'; import {appendFileSync,existsSync} from 'node:fs'; test('one invocation',()=>{appendFileSync(new URL('../invocations.jsonl',import.meta.url),JSON.stringify({pid:process.pid})+'\\n');expect(existsSync(new URL('../fail.flag',import.meta.url))).toBe(false);});`);
+    // #1474: the gate judges the checkout's candidate, so the root is a Git work tree
+    // (run artifacts are ignored so they do not change the candidate).
+    writeFileSync(join(root, '.gitignore'), 'invocations.jsonl\nfail.flag\nnode_modules\n');
+    const git = (...args: string[]) => execFileSync('git', [
+      '-c', 'user.email=fixture@example.invalid', '-c', 'user.name=fixture', '-c', 'commit.gpgsign=false', ...args,
+    ], { cwd: root, stdio: 'ignore' });
+    git('init', '-q');
+    git('add', '-A');
+    git('commit', '-qm', 'fixture');
     child = spawn(process.execPath, [bundle], {
       cwd: root,
       env: { PATH: process.env.PATH, TMPDIR: process.env.TMPDIR, LANG: 'en_US.UTF-8', NODE_OPTIONS: process.env.NODE_OPTIONS,
@@ -87,7 +96,7 @@ describe('MCP test_execute_parallel single execution over stdio (#1059)', () => 
     expect(invocations, JSON.stringify(invocations)).toHaveLength(fails ? 2 : 1);
     const status = await call('task_status', { taskId: result.data.taskId });
     expect(status.data.status, JSON.stringify(status)).toBe('completed');
-    const evidence = await call('memory_retrieve', { namespace: 'quality-assessment', key: 'quality-evidence:testsPassing:latest' });
+    const evidence = await call('memory_retrieve', { namespace: 'quality-assessment', key: 'quality-evidence:v2:latest:testsPassing' });
     expect(evidence.data, JSON.stringify(evidence)).toMatchObject({ found: true, value: { value: fails ? 0 : 100, source: 'test-execution', runStatus: fails ? 'failed' : 'passed' } });
     const runId = evidence.data.value.runId;
     const run = await call('memory_retrieve', { namespace: 'test-execution', key: `test-run:${runId}` });
@@ -148,7 +157,7 @@ describe('MCP test_execute_parallel single execution over stdio (#1059)', () => 
     const list = await call('task_list', {});
     expect(list.data.filter((task: {type:string;status:string}) => task.type === 'execute-tests' && task.status === 'failed')).toHaveLength(1);
     expect(list.data.filter((task: {status:string}) => ['queued','assigned','running'].includes(task.status))).toEqual([]);
-    const evidence = await call('memory_retrieve', { namespace: 'quality-assessment', key: 'quality-evidence:testsPassing:latest' });
+    const evidence = await call('memory_retrieve', { namespace: 'quality-assessment', key: 'quality-evidence:v2:latest:testsPassing' });
     // The preceding ordinary submission passed; a runner error cannot replace it
     // with a fabricated failed-assertion measurement.
     expect(evidence.data.value).toMatchObject({ value: 100, runStatus: 'passed' });

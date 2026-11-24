@@ -113,6 +113,7 @@ export interface CoverageAnalyzeAPI {
     threshold?: number;
     includeFileDetails?: boolean;
     measured?: boolean;
+    evidenceComplete?: boolean;
     projectRoot?: string;
   }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
 }
@@ -188,9 +189,13 @@ export async function evaluateCliCoverage(
 
   const data = resolved.data;
   const measured = data.instrumented;
+  // #1154/#1474: decided BEFORE anything is stored — a report that is stale or
+  // misses target files is not quality-gate evidence for the current checkout.
+  const insufficientEvidence = describeEvidence(resolved.evidence, resolved.projectRoot ?? targetPath);
   // #1008: a heuristic estimate is shown, never persisted as coverage evidence.
   const result = await api.analyze({
     coverageData: data, threshold, includeFileDetails: true, measured,
+    evidenceComplete: insufficientEvidence.length === 0,
     ...(resolved.projectRoot ? { projectRoot: resolved.projectRoot } : {}),
   });
   if (!result.success || !result.value) {
@@ -213,7 +218,6 @@ export async function evaluateCliCoverage(
   const collected = metricsCollected(data);
   const figures = thresholdVerdict(report.summary, threshold, collected);
   // #1154: figures over part of the target, or from a stale report, never meet the threshold.
-  const insufficientEvidence = describeEvidence(resolved.evidence, resolved.projectRoot ?? targetPath);
   const verdict = { ...figures, meetsThreshold: figures.meetsThreshold && insufficientEvidence.length === 0 };
   return {
     kind: 'measured',

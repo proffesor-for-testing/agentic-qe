@@ -4,7 +4,7 @@
  * evidence is -1 and listed in `unmeasured`; it never becomes a passing
  * default (formerly coverage 80, testsPassing 95, 0 bugs, 0 vulnerabilities).
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import * as Reports from '../../../../src/domains/quality-assessment/coordinator-reports';
 import { QualityGateService } from '../../../../src/domains/quality-assessment/services/quality-gate';
 import {
@@ -13,6 +13,11 @@ import {
   type QualityEvidenceValues,
 } from '../../../../src/domains/quality-assessment/quality-evidence';
 import type { MemoryBackend } from '../../../../src/kernel/interfaces';
+
+// #1474: evidence is bound to the checkout's candidate; this suite's project root is
+// not a Git work tree, so resolve every checkout to one fixed candidate.
+vi.mock('../../../../src/domains/quality-assessment/evidence-candidate', async (importOriginal) =>
+  (await import('../../../../tests/fixtures/quality-evidence-candidates')).fixedCandidateModule(importOriginal));
 
 function memoryStub(): MemoryBackend {
   const store = new Map<string, unknown>();

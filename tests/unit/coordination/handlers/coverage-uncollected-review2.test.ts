@@ -150,7 +150,7 @@ describe('#1027 review 2 — uncollected metrics are persisted as null', () => {
 
     expect(data).toMatchObject({ measured: true, lineCoverage: 60, runStatus: 'failed' });
     expect(kernel.store.get('coverage:latest')).toMatchObject({ line: 60, measured: true, runStatus: 'failed' });
-    const ev = (m: string) => kernel.store.get(`quality-assessment::quality-evidence:${m}:latest`) as Record<string, unknown>;
+    const ev = (m: string) => kernel.store.get(`quality-assessment::quality-evidence:v2:latest:${m}`) as Record<string, unknown>;
     expect(ev('coverage')).toMatchObject({ value: 60, runStatus: 'failed' });
     expect(ev('testsPassing')).toMatchObject({ runStatus: 'failed', runId: ev('coverage').runId });
     expect(ev('testsPassing').value).toBeCloseTo(66.67, 1);
@@ -160,7 +160,7 @@ describe('#1027 review 2 — uncollected metrics are persisted as null', () => {
     vi.mocked(runJsCoverage).mockResolvedValueOnce({ ...base, numPassedTests: 3, numFailedTests: 0, numFailedTestSuites: 0 });
     const kernel2 = createKernel();
     expect(await analyze(kernel2, dir)).toMatchObject({ measured: true, runStatus: 'passed' });
-    expect(kernel2.store.get('quality-assessment::quality-evidence:testsPassing:latest')).toMatchObject({ value: 100, runStatus: 'passed' });
+    expect(kernel2.store.get('quality-assessment::quality-evidence:v2:latest:testsPassing')).toMatchObject({ value: 100, runStatus: 'passed' });
   });
 });
 

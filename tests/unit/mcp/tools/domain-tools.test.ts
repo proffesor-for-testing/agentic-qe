@@ -26,6 +26,11 @@ import { join } from 'node:path';
 import { AccessibilityTesterService } from '../../../../src/domains/visual-accessibility/services/accessibility-tester';
 import { isLearnableResult } from '../../../../src/learning/learnable-result';
 
+// #1474: evidence is bound to the checkout's candidate; this suite's project root is
+// not a Git work tree, so resolve every checkout to one fixed candidate.
+vi.mock('../../../../src/domains/quality-assessment/evidence-candidate', async (importOriginal) =>
+  (await import('../../../../tests/fixtures/quality-evidence-candidates')).fixedCandidateModule(importOriginal));
+
 // Mock shared memory backend to prevent real SQLite initialization in unit tests
 vi.mock('../../../../src/mcp/tools/base', async (importOriginal) => {
   const original = await importOriginal<typeof import('../../../../src/mcp/tools/base')>();

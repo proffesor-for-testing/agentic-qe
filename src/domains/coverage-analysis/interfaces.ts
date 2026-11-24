@@ -43,6 +43,14 @@ export interface AnalyzeCoverageRequest {
    */
   measured?: boolean;
   /**
+   * #1474: whether the report is complete and fresh for its target (no
+   * unmeasured or conflicting files, not older than the sources). `false`
+   * keeps the measurement out of the quality-gate evidence: a stale report
+   * says nothing about the current checkout, so its figure must not be bound
+   * to it. Fail-closed: only an explicit `true` records the coverage receipt.
+   */
+  evidenceComplete?: boolean;
+  /**
    * Outcome of the test run that produced `coverageData`, when one ran
    * (#1027 N4). Coverage from a run whose tests failed is still a
    * measurement: it is persisted, stamped `runStatus: 'failed'`; the failure

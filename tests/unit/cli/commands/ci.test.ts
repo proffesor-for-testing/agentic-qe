@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -6,6 +6,7 @@ import type { CLIContext } from '../../../../src/cli/handlers/interfaces.js';
 import type { CIConfig, CIPhase, CIRunResult } from '../../../../src/cli/utils/ci-config.js';
 import { getDefaultCIConfig } from '../../../../src/cli/utils/ci-config.js';
 import { createCICommand } from '../../../../src/cli/commands/ci.js';
+import { createGitCandidateFixture, evidenceKeyFixture } from '../../../fixtures/quality-evidence-candidates.js';
 
 // Test execution/aggregation independently of YAML parsing. The integration
 // suite also runs the real command defaults and registered MCP gate together.
@@ -19,6 +20,14 @@ const passing = {
   coverage: 90, testsPassing: 100, criticalBugs: 0, codeSmells: 10,
   securityVulnerabilities: 0, technicalDebt: 2, duplications: 3,
 };
+
+
+// #1474: the gate resolves its candidate from the project checkout; point the
+// root at a Git fixture so it resolves, and answer its candidate-bound keys.
+beforeAll(() => {
+  vi.stubEnv('AQE_PROJECT_ROOT', createGitCandidateFixture('aqe-ci-gate-'));
+  return () => vi.unstubAllEnvs();
+});
 
 describe('CI gate execution and reporting', () => {
   let directory: string;
@@ -55,12 +64,11 @@ describe('CI gate execution and reporting', () => {
       kernel: {
         memory: {
           get: async (key: string) => {
-            const metric = key.split(':')[1] as keyof typeof passing;
+            const fixture = evidenceKeyFixture(key);
+            if (!fixture) return undefined;
+            const metric = fixture.metric as keyof typeof passing;
             const failing = failFirstGate && reads++ < 7 && metric === 'coverage';
-            return {
-              schemaVersion: 1, metric, value: failing ? 0 : passing[metric],
-              source: 'fixture', measuredAt: new Date().toISOString(),
-            };
+            return fixture.record(failing ? 0 : passing[metric], { source: 'fixture' });
           },
         },
         getDomainAPIAsync: async () => undefined,

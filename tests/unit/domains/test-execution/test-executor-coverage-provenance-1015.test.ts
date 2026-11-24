@@ -48,7 +48,7 @@ describe('#1015.2 — TestExecutorService.storeResults', () => {
 
     expect(store.get('coverage:latest')).toMatchObject({ line: 75, branch: 50, function: 100, statement: 70, files: 1, measured: true, runStatus: 'passed' });
     expect(store.get(`coverage:file:${A_TS}`)).toMatchObject({ line: 75, measured: true });
-    expect(store.get('quality-evidence:coverage:latest')).toMatchObject({ value: 75 });
+    expect(store.get('quality-evidence:v2:latest:coverage')).toMatchObject({ value: 75 });
   });
 
   it('a runner ERROR persists no coverage and no coverage evidence (the test-run record is kept)', async () => {
@@ -58,7 +58,7 @@ describe('#1015.2 — TestExecutorService.storeResults', () => {
     expect(store.has('test-run:r1')).toBe(true);
     expect(store.has('coverage:latest')).toBe(false);
     expect(store.has(`coverage:file:${A_TS}`)).toBe(false);
-    expect(store.has('quality-evidence:coverage:latest')).toBe(false);
+    expect(store.has('quality-evidence:v2:latest:coverage')).toBe(false);
   });
 
   it('#1027 N4: a run whose tests FAILED still measured coverage — persisted, stamped runStatus:"failed"', async () => {
@@ -67,21 +67,21 @@ describe('#1015.2 — TestExecutorService.storeResults', () => {
 
     expect(store.get('coverage:latest')).toMatchObject({ line: 75, measured: true, runStatus: 'failed' });
     expect(store.get(`coverage:file:${A_TS}`)).toMatchObject({ line: 75, measured: true, runStatus: 'failed' });
-    expect(store.get('quality-evidence:coverage:latest')).toMatchObject({ value: 75 });
+    expect(store.get('quality-evidence:v2:latest:coverage')).toMatchObject({ value: 75 });
   });
 
   it('#1027 NB1: a failing run writes ITS testsPassing next to its coverage, under one runId', async () => {
     const { store, internals } = service();
     await internals.storeResults('r1', run({ status: 'failed', failed: 1, passed: 1 }));
 
-    expect(store.get('quality-evidence:testsPassing:latest')).toMatchObject({ value: 50, runId: 'r1', runStatus: 'failed' });
-    expect(store.get('quality-evidence:coverage:latest')).toMatchObject({ value: 75, runId: 'r1', runStatus: 'failed' });
+    expect(store.get('quality-evidence:v2:latest:testsPassing')).toMatchObject({ value: 50, runId: 'r1', runStatus: 'failed' });
+    expect(store.get('quality-evidence:v2:latest:coverage')).toMatchObject({ value: 75, runId: 'r1', runStatus: 'failed' });
   });
 
   it('#1027 NB1: testsPassing is recorded even when the run collected no coverage', async () => {
     const { store, internals } = service();
     await internals.storeResults('r2', run({ runId: 'r2', coverage: undefined, fileCoverages: undefined }));
-    expect(store.get('quality-evidence:testsPassing:latest')).toMatchObject({ value: 100, runId: 'r2', runStatus: 'passed' });
+    expect(store.get('quality-evidence:v2:latest:testsPassing')).toMatchObject({ value: 100, runId: 'r2', runStatus: 'passed' });
     expect(store.has('coverage:latest')).toBe(false);
   });
 

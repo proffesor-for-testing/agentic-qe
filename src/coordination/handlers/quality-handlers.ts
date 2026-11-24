@@ -15,8 +15,9 @@ import { findProjectRoot } from '../../kernel/project-root.js';
 import {
   INSUFFICIENT_EVIDENCE,
   describeMissingMetrics,
+  describeVerdictProvenance,
   evaluateQualityEvidence,
-  loadQualityEvidence,
+  loadQualityEvidenceSet,
 } from '../../domains/quality-assessment/quality-evidence.js';
 import {
   assessEvidenceSufficiency,
@@ -197,10 +198,13 @@ export function registerQualityHandlers(ctx: TaskHandlerContext): void {
       // Missing/stale/malformed evidence throws InsufficientQualityEvidenceError,
       // whose details (status, unmeasured) travel with the failure.
       if (payload.runGate === true) {
-        const measured = await loadQualityEvidence(ctx.memory);
+        // #1474: only evidence bound to the checkout being gated is evaluated.
+        const evidence = await loadQualityEvidenceSet(ctx.memory);
+        const measured = evidence.values;
         return ok({
           ...evaluateQualityEvidence(measured),
           metrics: measured,
+          ...describeVerdictProvenance(evidence),
           evidenceStatus: 'measured',
           unmeasured: [],
           gateEvaluated: true,

@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer, type Server } from 'node:http';
+import { execFileSync } from 'node:child_process';
 import type { MCPProtocolServer } from '../../src/mcp/protocol-server.js';
 import type { MemoryBackend } from '../../src/kernel/interfaces.js';
 import type { QualityAssessResult } from '../../src/mcp/handlers/domain-handler-configs.js';
@@ -65,6 +66,22 @@ describe('registered quality_assess measured gate', () => {
   /** The fixture's one source file; its own coverage record is what the analyzer reads (#1219). */
   let mathFile: string;
 
+  /** #1474: every key a metric's evidence may live under (candidate-bound, latest pointer, legacy). */
+  function evidenceKeys(metric: string): string[] {
+    const candidate = evidence.resolveQualityEvidenceCandidate();
+    return [
+      ...(candidate.status === 'resolved'
+        ? [evidence.candidateEvidenceKey(candidate.id, metric as keyof QualityEvidenceValues)] : []),
+      `quality-evidence:v2:latest:${metric}`,
+      `quality-evidence:${metric}:latest`,
+    ];
+  }
+  async function deleteEvidence(metric: string): Promise<void> {
+    for (const key of evidenceKeys(metric)) {
+      await memory.delete(key, { namespace: evidence.QUALITY_EVIDENCE_NAMESPACE });
+    }
+  }
+
   async function seed(values: QualityEvidenceValues = passing, ageMs = 0): Promise<void> {
     await evidence.writeQualityEvidence(memory, values, {
       measuredAt: new Date(Date.now() - ageMs).toISOString(), source: 'regression-fixture',
@@ -102,6 +119,14 @@ describe('registered quality_assess measured gate', () => {
     vi.stubEnv('AQE_TRAJECTORY_JUDGE', '0');
     await mkdir(join(root, 'src'));
     await writeFile(join(root, 'src', 'math.ts'), 'export function add(a: number, b: number) { return a + b; }\n');
+    // #1474: the gate judges this checkout's candidate, so the root is a Git work tree.
+    await writeFile(join(root, '.gitignore'), 'ci-result.json\n');
+    const git = (...args: string[]) => execFileSync('git', args, { cwd: root, stdio: 'ignore' });
+    git('init', '-q');
+    git('-c', 'user.email=fixture@example.invalid', '-c', 'user.name=fixture', '-c', 'commit.gpgsign=false',
+      'add', '-A');
+    git('-c', 'user.email=fixture@example.invalid', '-c', 'user.name=fixture', '-c', 'commit.gpgsign=false',
+      'commit', '-qm', 'fixture');
     const { createMCPProtocolServer } = await import('../../src/mcp/protocol-server.js');
     core = await import('../../src/mcp/handlers/core-handlers.js');
     evidence = await import('../../src/domains/quality-assessment/quality-evidence.js');
@@ -119,9 +144,7 @@ describe('registered quality_assess measured gate', () => {
     // Each case starts with independent evidence; previous expected errors must
     // not trip the fleet's unrelated protective circuit breaker for this case.
     core.getFleetState().queen!.getDomainBreakerRegistry()?.resetAll();
-    for (const metric of Object.keys(passing)) {
-      await memory.delete(`quality-evidence:${metric}:latest`, { namespace: evidence.QUALITY_EVIDENCE_NAMESPACE });
-    }
+    for (const metric of Object.keys(passing)) await deleteEvidence(metric);
     await memory.delete('coverage:latest');
     await memory.delete(`coverage:file:${mathFile}`);
   });
@@ -190,11 +213,12 @@ describe('registered quality_assess measured gate', () => {
     'fails closed for %s evidence with the same error as the CLI loader', async (mode) => {
       if (mode !== 'missing') await seed(passing, mode === 'stale' ? 48 * 60 * 60 * 1000 : 0);
       if (mode === 'partial') {
-        await memory.delete('quality-evidence:technicalDebt:latest', { namespace: evidence.QUALITY_EVIDENCE_NAMESPACE });
+        await deleteEvidence('technicalDebt');
       }
       if (mode === 'malformed' || mode === 'future') {
-        await memory.set('quality-evidence:coverage:latest', {
-          schemaVersion: 1, metric: 'coverage', value: 90, source: 'regression-fixture',
+        await memory.set(evidenceKeys('coverage')[0], {
+          schemaVersion: 2, receiptId: 'fixture-receipt', candidate: evidence.resolveQualityEvidenceCandidate(),
+          metric: 'coverage', value: 90, source: 'regression-fixture',
           ...(mode === 'future' ? { measuredAt: new Date(Date.now() + 120_000).toISOString() } : {}),
         }, { namespace: evidence.QUALITY_EVIDENCE_NAMESPACE });
       }
@@ -270,7 +294,7 @@ describe('registered quality_assess measured gate', () => {
     const second = await callTool<QualityAssessResult>('quality_assess', { runGate: true });
     expect(second.data?.passed).toBe(false);
     expect(second.data?.riskDecision?.decision).toBe('block');
-    await memory.delete('quality-evidence:coverage:latest', { namespace: evidence.QUALITY_EVIDENCE_NAMESPACE });
+    await deleteEvidence('coverage');
     const third = await callTool('quality_assess', { runGate: true });
     expect(third.success).toBe(false);
   });
@@ -377,7 +401,7 @@ describe('registered quality_assess measured gate', () => {
 
   it('fails closed with runGate true when measured coverage is missing', async () => {
     await seed();
-    await memory.delete('quality-evidence:coverage:latest', { namespace: evidence.QUALITY_EVIDENCE_NAMESPACE });
+    await deleteEvidence('coverage');
     await seedStaticCoverage();
     const result = await callTool<QualityAssessResult>('quality_assess', { runGate: true });
     expect(result.success).toBe(false);
