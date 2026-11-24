@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.15.23](v3.15.23.md) | 2026-11-24 | Gate binds evidence to the commit; a11y runs your standard; quality-gate works. |
 | [v3.15.22](v3.15.22.md) | 2026-11-20 | Plugin works on npm 12; no duplicate cloud experiences; no picomatch. |
 | [v3.15.21](v3.15.21.md) | 2026-11-17 | Unmark/revoke curation; no unproven LLM edge cases; node16 types; sync fixes. |
 | [v3.15.20](v3.15.20.md) | 2026-11-12 | Only trusted patterns applied; per-memory sync; pinned third-party CLIs. |
