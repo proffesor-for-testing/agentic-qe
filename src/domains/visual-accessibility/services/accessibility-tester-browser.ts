@@ -16,9 +16,11 @@ import {
   KeyboardIssue,
   FocusTrap,
   AuditOptions,
+  AuditRuleProfile,
   PassedRule,
   IncompleteCheck,
 } from '../interfaces.js';
+import { axeScanEvidence, levelOnlyBackendEvidence } from './audit-profile.js';
 import type {
   VibiumClient,
   AccessibilityResult as VibiumAccessibilityResult,
@@ -61,6 +63,14 @@ export interface AxeCoreResult {
   passes: string[];
   incomplete: string[];
   inapplicable: string[];
+  /** #1473: the tag filter passed to axe.run (set on the Node side). */
+  appliedTags?: string[];
+  /** #1473: the running engine, as the page reports it. */
+  engine?: {
+    version: string | null;
+    /** How many rules each applied tag selects in this engine. */
+    tagRuleCounts?: Record<string, number>;
+  };
 }
 
 /**
@@ -97,7 +107,9 @@ export function isAgentBrowserClient(client: IBrowserClient): client is IAgentBr
 }
 
 /**
- * Get axe-core tags for a WCAG conformance level
+ * Get axe-core tags for a WCAG conformance level: the legacy, level-only set
+ * for callers that pass no rule profile (#1473). It spans WCAG 2.0 to 2.2 and
+ * best-practice rules; a profile (resolveAuditProfile) selects one standard.
  */
 export function getAxeTagsForWcagLevel(level: 'A' | 'AA' | 'AAA'): string[] {
   const baseTags = ['wcag2a', 'wcag21a', 'wcag22a', 'best-practice'];
@@ -169,6 +181,11 @@ export const AXE_LOADER_JS = `
         });
       }`;
 
+/** The axe-core tags a run uses: the profile's when one is given (#1473), else the legacy level set. */
+export function axeTagsFor(wcagLevel: 'A' | 'AA' | 'AAA', options?: AuditOptions): string[] {
+  return options?.profile ? [...options.profile.axeTags] : getAxeTagsForWcagLevel(wcagLevel);
+}
+
 /**
  * Inject and run axe-core in the browser context
  */
@@ -177,7 +194,7 @@ export async function runAxeCore(
   wcagLevel: 'A' | 'AA' | 'AAA',
   options?: AuditOptions
 ): Promise<Result<AxeCoreResult, Error>> {
-  const tags = getAxeTagsForWcagLevel(wcagLevel);
+  const tags = axeTagsFor(wcagLevel, options);
   const excludeSelectors = options?.excludeSelectors ?? [];
 
   const axeScript = `
@@ -194,8 +211,12 @@ export async function runAxeCore(
       };
 
       const results = await axe.run(document, config);
+      // #1473: which engine ran, and how many rules each tag selects in it
+      const tagRuleCounts = {};
+      for (const tag of config.runOnly.values) tagRuleCounts[tag] = axe.getRules([tag]).length;
 
       return JSON.stringify({
+        engine: { version: typeof axe.version === 'string' ? axe.version : null, tagRuleCounts },
         violations: results.violations.map(v => ({
           id: v.id,
           impact: v.impact,
@@ -226,7 +247,7 @@ export async function runAxeCore(
 
   try {
     const parsed = safeJsonParse(evalResult.value) as AxeCoreResult;
-    return ok(parsed);
+    return ok({ ...parsed, appliedTags: tags });
   } catch (parseError) {
     return err(new Error(`Failed to parse axe-core results: ${parseError}`));
   }
@@ -271,7 +292,8 @@ export function extractWcagCriteria(tags: string[], defaultLevel: 'A' | 'AA' | '
 export function mapAxeResultToReport(
   url: string,
   axeResult: AxeCoreResult,
-  wcagLevel: 'A' | 'AA' | 'AAA'
+  wcagLevel: 'A' | 'AA' | 'AAA',
+  scanContext?: { backend: string; profile?: AuditRuleProfile }
 ): AccessibilityReport {
   const violations: AccessibilityViolation[] = axeResult.violations.map(v => ({
     id: v.id,
@@ -321,6 +343,20 @@ export function mapAxeResultToReport(
     incomplete,
     score: Math.max(0, Math.min(100, score)),
     wcagLevel,
+    // #1473: what ran, so the report never claims a standard it did not apply
+    ...(scanContext ? {
+      scan: axeScanEvidence(scanContext.backend, scanContext.profile, {
+        appliedTags: axeResult.appliedTags ?? axeTagsFor(wcagLevel, { profile: scanContext.profile }),
+        engineVersion: axeResult.engine?.version ?? null,
+        tagRuleCounts: axeResult.engine?.tagRuleCounts,
+        ruleIds: {
+          violations: axeResult.violations.map((v) => v.id),
+          passes: axeResult.passes,
+          incomplete: axeResult.incomplete,
+          inapplicable: axeResult.inapplicable ?? [],
+        },
+      }),
+    } : {}),
   };
 }
 
@@ -522,7 +558,9 @@ export async function auditWithBrowserClient(
         return err(axeResult.error);
       }
 
-      const report = mapAxeResultToReport(url, axeResult.value, wcagLevel);
+      const report = mapAxeResultToReport(url, axeResult.value, wcagLevel, {
+        backend: client.tool, profile: options?.profile,
+      });
       // #1465: say which page was audited when a redirect moved it
       const finalUrl = status.value.finalUrl ?? url;
 
@@ -576,7 +614,8 @@ export async function auditWithVibium(
 
       const report = mapVibiumResultToReport(url, a11yResult.value, wcagLevel);
 
-      return ok(report);
+      // #1473: Vibium selects rules by level only, so a requested profile is reported as not applied
+      return ok({ ...report, scan: levelOnlyBackendEvidence('vibium', options?.profile, wcagLevel) });
     } finally {
       await vibiumClient.quit();
     }

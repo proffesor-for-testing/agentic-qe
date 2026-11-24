@@ -331,6 +331,8 @@ export interface ContractValidateParams {
 export interface AccessibilityTestParams {
   url?: string;
   standard?: 'wcag21-aa' | 'wcag21-aaa' | 'wcag22-aa' | 'section508';
+  /** #1473: add axe-core best-practice rules (not WCAG requirements). Default false. */
+  includeBestPractices?: boolean;
   includeScreenReader?: boolean;
   /** #933: write result files under .agentic-qe/results/ (default true). false skips them. */
   saveResults?: boolean;
