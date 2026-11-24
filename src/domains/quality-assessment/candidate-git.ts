@@ -44,11 +44,19 @@ export function gitHead(cwd: string): string {
   }
 }
 
+/** `/`-separated, without trailing slashes — linear string handling, no regex backtracking. */
+export function toSlashPath(p: string): string {
+  const slashed = p.split('\\').join('/');
+  let end = slashed.length;
+  while (end > 0 && slashed[end - 1] === '/') end -= 1;
+  return slashed.slice(0, end);
+}
+
 /** Real path, `/`-separated, without a trailing slash. */
 export function normalizePath(p: string): string {
   let real = p;
   try { real = fs.realpathSync.native(p); } catch { real = path.resolve(p); }
-  return real.replace(/\\/g, '/').replace(/\/+$/, '') || '/';
+  return toSlashPath(real) || '/';
 }
 
 /**

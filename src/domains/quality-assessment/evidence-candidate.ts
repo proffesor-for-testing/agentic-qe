@@ -18,7 +18,7 @@ import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { findProjectRoot } from '../../kernel/project-root.js';
-import { git, gitHead, normalizePath } from './candidate-git.js';
+import { git, gitHead, normalizePath, toSlashPath } from './candidate-git.js';
 import {
   CANDIDATE_IGNORED_DIRS,
   effectiveCandidateIgnores,
@@ -90,7 +90,7 @@ const MAX_NESTED_DEPTH = 3;
 interface IgnoreRules { dirs: string[]; files: Set<string> }
 
 function isIgnored(relPath: string, rules: IgnoreRules): boolean {
-  const p = relPath.replace(/\\/g, '/').replace(/\/+$/, '');
+  const p = toSlashPath(relPath);
   return rules.files.has(p) || rules.dirs.some((dir) => p === dir || p.startsWith(`${dir}/`));
 }
 

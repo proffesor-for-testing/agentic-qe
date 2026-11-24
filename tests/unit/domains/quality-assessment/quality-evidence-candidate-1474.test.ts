@@ -387,7 +387,14 @@ describe('#1474 review — candidate robustness and diagnostics', () => {
     const candidate = resolveQualityEvidenceCandidate(dir);
     expect(candidate.status).toBe('unavailable');
     if (candidate.status !== 'unavailable') return;
-    expect(candidate.reason).toMatch(/not a git repository|nonexistent/i);
+    // git's wording varies by version ("not a git repository: …",
+    // "gitfile does not point to a valid repository: …"): assert that git's own
+    // stderr was carried, not its exact text.
+    expect(candidate.reason).toContain('(git: ');
+    const detail = candidate.reason.slice(candidate.reason.indexOf('(git: ') + '(git: '.length).trim();
+    expect(detail.startsWith(')')).toBe(false);
+    expect(detail).not.toMatch(/^git (failed|is not installed)/);
+    expect(detail).toMatch(/fatal:|error:|not a git repository|does not point to a valid repository|nonexistent/i);
     expect(candidate.reason).toContain('safe.directory');
   });
 });
