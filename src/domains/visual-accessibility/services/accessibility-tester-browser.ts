@@ -160,25 +160,31 @@ export function getErrorMessage<T, E extends Error>(result: Result<T, E>): strin
 // Axe-Core Injection & Execution
 // ============================================================================
 
+/** The axe-core version the audit injects; reports name the version the page actually ran. */
+export const AXE_CORE_VERSION = '4.8.4';
+
 /**
- * Browser-side statements that load axe-core into the page when it is not
- * loaded yet. For use inside an async function.
+ * Browser-side statements that load our axe-core into the page and bind it to
+ * a local `axe`. For use inside an async function.
+ *
+ * #1473: the engine is always injected and then checked. A page can define
+ * its own `axe` (a stub, another version, or an element with id="axe"), and a
+ * page-provided `axe` must never produce the audit's results.
  */
 export const AXE_LOADER_JS = `
-      // Check if axe is already loaded
-      if (typeof axe === 'undefined') {
-        // Inject axe-core from CDN
+      await new Promise((resolve, reject) => {
         const script = document.createElement('script');
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/axe-core/4.8.4/axe.min.js';
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/axe-core/${AXE_CORE_VERSION}/axe.min.js';
         script.crossOrigin = 'anonymous';
-        document.head.appendChild(script);
-
-        // Wait for script to load
-        await new Promise((resolve, reject) => {
-          script.onload = resolve;
-          script.onerror = () => reject(new Error('Failed to load axe-core'));
-          setTimeout(() => reject(new Error('Timeout loading axe-core')), 10000);
-        });
+        script.onload = resolve;
+        script.onerror = () => reject(new Error('Failed to load axe-core'));
+        setTimeout(() => reject(new Error('Timeout loading axe-core')), 10000);
+        (document.head || document.documentElement).appendChild(script);
+      });
+      const axe = window.axe;
+      if (!axe || typeof axe.run !== 'function' || typeof axe.getRules !== 'function' ||
+          axe.version !== '${AXE_CORE_VERSION}' || axe.getRules().length < 50) {
+        throw new Error('axe-core ${AXE_CORE_VERSION} did not load: the page defines its own axe, which is not used for the audit');
       }`;
 
 /** The axe-core tags a run uses: the profile's when one is given (#1473), else the legacy level set. */
@@ -201,19 +207,23 @@ export async function runAxeCore(
     (async function() {
       ${AXE_LOADER_JS}
 
-      // Configure and run axe
+      // Configure and run axe; excluded selectors belong in the context, not the options
       const config = {
         runOnly: {
           type: 'tag',
           values: ${JSON.stringify(tags)}
-        },
-        exclude: ${JSON.stringify(excludeSelectors.map(s => [s]))}
+        }
       };
+      const exclude = ${JSON.stringify(excludeSelectors.map(s => [s]))};
+      const context = exclude.length > 0 ? { exclude } : document;
 
-      const results = await axe.run(document, config);
+      const results = await axe.run(context, config);
       // #1473: which engine ran, and how many rules each tag selects in it
+      // (experimental rules are not run by a tag filter, so they are not counted)
       const tagRuleCounts = {};
-      for (const tag of config.runOnly.values) tagRuleCounts[tag] = axe.getRules([tag]).length;
+      for (const tag of config.runOnly.values) {
+        tagRuleCounts[tag] = axe.getRules([tag]).filter(r => !(r.tags || []).includes('experimental')).length;
+      }
 
       return JSON.stringify({
         engine: { version: typeof axe.version === 'string' ? axe.version : null, tagRuleCounts },
@@ -247,6 +257,12 @@ export async function runAxeCore(
 
   try {
     const parsed = safeJsonParse(evalResult.value) as AxeCoreResult;
+    // #1473: an engine that produced no result for any rule measured nothing
+    const resultCount = parsed.violations.length + parsed.passes.length +
+      parsed.incomplete.length + (parsed.inapplicable?.length ?? 0);
+    if (resultCount === 0) {
+      return err(new Error('axe-core produced no result for any rule, so the page was not measured'));
+    }
     return ok({ ...parsed, appliedTags: tags });
   } catch (parseError) {
     return err(new Error(`Failed to parse axe-core results: ${parseError}`));

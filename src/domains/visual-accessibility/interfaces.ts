@@ -465,7 +465,11 @@ export type AuditOutcomeStatus =
   | 'needs-review'
   | 'no-automated-violations';
 
-/** A structured verdict for agent summaries (#1473); `passed` is only `severityThresholdMet`. */
+/**
+ * A structured verdict for agent summaries (#1473); `passed` is only `severityThresholdMet`.
+ * The counts are always filled in: with `profile-unavailable` they count what the
+ * backend found with its own rule selection, which is not the requested profile.
+ */
 export interface AuditOutcome {
   readonly status: AuditOutcomeStatus;
   /** Same as the legacy `passed`: measured, and no critical or serious automated violation. */

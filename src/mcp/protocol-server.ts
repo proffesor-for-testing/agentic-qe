@@ -1213,7 +1213,7 @@ export class MCPProtocolServer {
         category: 'domain',
         parameters: [
           { name: 'url', type: 'string', description: 'URL to test', required: true },
-          { name: 'standard', type: 'string', description: 'Rule profile (default wcag21-aa). Each runs only its own axe-core WCAG tags; section508 runs the automated WCAG 2.0 A/AA subset of the 2018 baseline. The result reports the effective profile, applied tags and engine version.', enum: ['wcag21-aa', 'wcag21-aaa', 'wcag22-aa', 'section508'] },
+          { name: 'standard', type: 'string', description: 'Rule profile (default wcag21-aa). Each runs only its own axe-core WCAG tags; section508 runs the automated WCAG 2.0 A/AA subset of the 2018 baseline. The result reports the effective profile, applied tags and engine version; if the backend cannot apply it, outcome.status is profile-unavailable and outcome still counts the violations found.', enum: ['wcag21-aa', 'wcag21-aaa', 'wcag22-aa', 'section508'] },
           { name: 'includeBestPractices', type: 'boolean', description: 'Also run axe-core best-practice rules, which are not WCAG requirements (default false)', default: false },
           saveResultsParameter('accessibility_test'),
         ],

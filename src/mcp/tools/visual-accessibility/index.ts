@@ -15,7 +15,7 @@ import { createVisualTesterServiceWithDependencies, VisualTesterService } from '
 import { AccessibilityTesterService } from '../../../domains/visual-accessibility/services/accessibility-tester';
 import { auditUrlProblem } from '../../../domains/visual-accessibility/services/audit-url-policy';
 import { notRunEvidence, resolveAuditProfile, unreportedEvidence } from '../../../domains/visual-accessibility/services/audit-profile';
-import { buildAuditOutcome, meetsSeverityThreshold } from '../../../domains/visual-accessibility/services/audit-outcome';
+import { buildAuditOutcome } from '../../../domains/visual-accessibility/services/audit-outcome';
 import type {
   AuditOutcome, AuditRuleProfile, AuditScanEvidence,
 } from '../../../domains/visual-accessibility/interfaces';
@@ -598,18 +598,20 @@ export class A11yAuditTool extends MCPToolBase<A11yAuditParams, A11yAuditResult>
           id: i.id, description: i.description, reason: i.reason, nodes: i.nodes.length,
         }));
         const scan = withExtraChecks(report.scan ?? unreportedEvidence(profile), checkContrast, checkKeyboard);
+        const outcome = buildAuditOutcome({ measured: true, scan, violations, needsReview: needsReview.length });
 
         audits.push({
           url,
           score: report.score,
-          passed: meetsSeverityThreshold(violations),
+          // no critical or serious violation, and some rule ran (#1473)
+          passed: outcome.severityThresholdMet,
           violations,
           warnings,
           needsReview,
           passedRules: report.passes.length,
           measured: true,
           scan,
-          outcome: buildAuditOutcome({ measured: true, scan, violations, needsReview: needsReview.length }),
+          outcome,
         });
       }
 
@@ -728,7 +730,8 @@ const A11Y_AUDIT_SCHEMA: MCPToolSchema = {
     standard: {
       type: 'string',
       description: 'Rule profile (default wcag21-aa). Each runs only its own axe-core WCAG tags; section508 runs the ' +
-        'automated WCAG 2.0 A/AA subset of the 2018 baseline. Results report the effective profile and engine version.',
+        'automated WCAG 2.0 A/AA subset of the 2018 baseline. Results report the effective profile and engine version; ' +
+        'if the backend cannot apply it, outcome.status is profile-unavailable and outcome still counts the violations found.',
       enum: ['wcag21-aa', 'wcag21-aaa', 'wcag22-aa', 'section508'],
       default: 'wcag21-aa',
     },

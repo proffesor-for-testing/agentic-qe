@@ -17,7 +17,7 @@ import { assertAuditableUrl } from '../../domains/visual-accessibility/services/
 import {
   AUDIT_STANDARDS, notRunEvidence, resolveAuditProfile, resolveAuditStandard, unreportedEvidence, type AuditStandard,
 } from '../../domains/visual-accessibility/services/audit-profile.js';
-import { buildAuditOutcome, meetsSeverityThreshold } from '../../domains/visual-accessibility/services/audit-outcome.js';
+import { buildAuditOutcome } from '../../domains/visual-accessibility/services/audit-outcome.js';
 
 /** The slice of AccessibilityTesterService this handler uses. */
 export interface AccessibilityAuditor {
@@ -182,13 +182,14 @@ export async function runAccessibilityTest(
   const needsReview = toReviewItems(report);
   // A backend that reports no evidence cannot show it applied the profile
   const scan = report.scan ?? unreportedEvidence(profile);
+  const outcome = buildAuditOutcome({ measured: true, scan, violations, needsReview: needsReview.length });
   return {
     url, standard, wcagLevel,
     profile,
     scan,
-    outcome: buildAuditOutcome({ measured: true, scan, violations, needsReview: needsReview.length }),
-    // Same verdict rule as qe/a11y/audit: no critical or serious violation
-    passed: meetsSeverityThreshold(violations),
+    outcome,
+    // Same verdict rule as qe/a11y/audit: no critical or serious violation (and some rule ran)
+    passed: outcome.severityThresholdMet,
     score: report.score,
     measured: true,
     violations,

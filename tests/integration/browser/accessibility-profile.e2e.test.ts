@@ -51,6 +51,14 @@ const PAGES: Record<string, string> = {
   // Contrast over a gradient cannot be decided: incomplete only
   '/review.html': `<!DOCTYPE html><html lang="en"><head><title>Review</title></head><body><main>
     <h1>Review</h1><p style="color:#777;background-image:linear-gradient(#fff,#eee)">Text over a gradient</p></main></body></html>`,
+  // The page ships its own axe: a stub that reports 4.8.4 and runs no rule (#1473 review)
+  '/stub.html': `<!DOCTYPE html><html lang="en"><head><title>Stub</title>
+    <script>window.axe = { version: '4.8.4', getRules: () => [{}],
+      run: async () => ({ violations: [], passes: [], incomplete: [], inapplicable: [] }) };</script>
+    </head><body><main><h1>Stub</h1><img src="x.png"></main></body></html>`,
+  // An element with id="axe" makes the global name defined
+  '/axe-id.html': `<!DOCTYPE html><html lang="en"><head><title>Axe id</title></head><body><main>
+    <h1 id="axe">Axe id</h1><img src="x.png"></main></body></html>`,
 };
 
 describeIfAvailable('rule profiles with agent-browser and axe-core (#1473)', () => {
@@ -128,6 +136,18 @@ describeIfAvailable('rule profiles with agent-browser and axe-core (#1473)', () 
     expect(section508.report.violations.map((v) => v.id)).toEqual(['image-alt']);
     expect(section508.report.scan?.appliedTags).toEqual(['wcag2a', 'wcag2aa']);
     expect(section508.report.scan?.limitations.join(' ')).toMatch(/automated WCAG 2\.0 A\/AA rules of the Section 508/);
+  }, BROWSER_TIMEOUT);
+
+  it('audits with its own axe-core when the page defines a stub axe or an element with id="axe"', async () => {
+    for (const path of ['/stub.html', '/axe-id.html']) {
+      const { report } = await audit(path, 'wcag22-aa');
+
+      expect(report.measured, path).toBe(true);
+      expect(report.violations.map((v) => v.id), path).toEqual(['image-alt']);
+      expect(report.scan?.engine?.version, path).toBe('4.8.4');
+      expect(report.scan?.executedRules?.length ?? 0, path).toBeGreaterThan(20);
+      expect(report.scan?.effectiveProfile, path).toBe('wcag22-aa@1');
+    }
   }, BROWSER_TIMEOUT);
 
   it('reports a clean page as no automated violations, and an incomplete-only page as needs review', async () => {

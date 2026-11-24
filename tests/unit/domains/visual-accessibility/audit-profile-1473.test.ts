@@ -25,6 +25,9 @@ const axe = createRequire(import.meta.url)('axe-core') as {
   getRules(tags?: string[]): Array<{ ruleId: string; tags: string[] }>;
 };
 const rulesFor = (tags: readonly string[]) => axe.getRules([...tags]).map((r) => r.ruleId);
+/** Rules a tag filter actually runs: axe-core leaves experimental rules out. */
+const runnableFor = (tags: readonly string[]) =>
+  axe.getRules([...tags]).filter((r) => !r.tags.includes('experimental')).map((r) => r.ruleId);
 
 /** The expected tags per preset, written out so a resolver that collapses presets fails. */
 const EXPECTED_TAGS: Record<string, string[]> = {
@@ -103,7 +106,7 @@ describe(`profiles against axe-core ${axe.version} rule metadata (#1473)`, () =>
   it('needs only tags the engine knows', () => {
     for (const standard of AUDIT_STANDARDS) {
       for (const tag of resolveAuditProfile(standard).requiredTags) {
-        expect(rulesFor([tag]).length, `${standard}: ${tag}`).toBeGreaterThan(0);
+        expect(runnableFor([tag]).length, `${standard}: ${tag}`).toBeGreaterThan(0);
       }
     }
   });
@@ -145,6 +148,36 @@ describe('scan evidence (#1473)', () => {
 
     expect(scan).toMatchObject({ requestedProfile: 'wcag22-aa@1', effectiveProfile: null, profileSupport: 'unsupported' });
     expect(scan.limitations.join(' ')).toMatch(/has no rules for wcag22aa/);
+  });
+
+  it('does not count a profile as applied without the engine version or the per-tag rule counts', () => {
+    const profile = resolveAuditProfile('wcag21-aa');
+    const counts = Object.fromEntries(profile.axeTags.map((t) => [t, 3]));
+
+    const noVersion = axeScanEvidence('agent-browser', profile, {
+      appliedTags: profile.axeTags, engineVersion: null, tagRuleCounts: counts, ruleIds: IDS,
+    });
+    const noCounts = axeScanEvidence('agent-browser', profile, {
+      appliedTags: profile.axeTags, engineVersion: '4.8.4', ruleIds: IDS,
+    });
+
+    expect(noVersion).toMatchObject({ effectiveProfile: null, profileSupport: 'unsupported' });
+    expect(noVersion.limitations.join(' ')).toMatch(/did not report its version, so the profile is not verified/);
+    expect(noCounts).toMatchObject({ effectiveProfile: null, profileSupport: 'unsupported' });
+    expect(noCounts.limitations.join(' ')).toMatch(/did not report which rules each tag selects/);
+  });
+
+  it('does not count a profile as applied when no rule produced a result', () => {
+    const profile = resolveAuditProfile('wcag22-aa');
+    const scan = axeScanEvidence('agent-browser', profile, {
+      appliedTags: profile.axeTags, engineVersion: '4.8.4',
+      tagRuleCounts: Object.fromEntries(profile.axeTags.map((t) => [t, 1])),
+      ruleIds: { violations: [], passes: [], incomplete: [], inapplicable: [] },
+    });
+
+    expect(scan).toMatchObject({ effectiveProfile: null, profileSupport: 'unsupported', executedRules: [] });
+    expect(buildAuditOutcome({ measured: true, scan, violations: [], needsReview: 0 }))
+      .toMatchObject({ status: 'profile-unavailable', severityThresholdMet: false, reviewRequired: true });
   });
 
   it('reports a level-only run when no profile was requested', () => {
@@ -195,6 +228,17 @@ describe('buildAuditOutcome (#1473)', () => {
 
     expect(buildAuditOutcome({ measured: true, scan, violations: [], needsReview: 0 }))
       .toMatchObject({ status: 'profile-unavailable', severityThresholdMet: true, reviewRequired: true });
+  });
+
+  it('keeps the violations a level-only backend found visible under profile-unavailable', () => {
+    const scan = levelOnlyBackendEvidence('vibium', profile, 'AA');
+
+    const outcome = buildAuditOutcome({ measured: true, scan, violations: [{ impact: 'serious' }], needsReview: 0 });
+
+    expect(outcome).toMatchObject({ status: 'profile-unavailable', violations: 1, seriousOrCritical: 1, severityThresholdMet: false });
+    expect(outcome.scope).toBe(
+      'Automated scan on vibium with requested profile wcag21-aa@1 not applied; the findings below come from the ' +
+      "backend's own rule selection. 1 violation (1 critical or serious); 0 checks need manual review. Not a conformance claim.");
   });
 
   it('gives no verdict when nothing was measured', () => {

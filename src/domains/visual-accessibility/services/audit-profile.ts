@@ -147,23 +147,31 @@ export interface AxeRunFacts {
     readonly incomplete: readonly string[]; readonly inapplicable: readonly string[] };
 }
 
-/** Evidence for an axe-core run whose tags the backend controlled. */
+/**
+ * Evidence for an axe-core run whose tags the backend controlled. The profile
+ * counts as applied only with full evidence (#1473): the engine version, the
+ * rules each tag selects, every required tag selecting a rule, and at least one
+ * rule producing a result. Anything less gives `effectiveProfile: null`.
+ */
 export function axeScanEvidence(backend: string, profile: AuditRuleProfile | undefined, facts: AxeRunFacts): AuditScanEvidence {
   const version = facts.engineVersion;
   const engineName = `axe-core ${version ?? '(version not reported)'}`;
   const counts = facts.tagRuleCounts;
   const emptyTags = counts ? facts.appliedTags.filter((t) => counts[t] === 0) : [];
-  const missing = profile && counts ? profile.requiredTags.filter((t) => counts[t] === 0) : [];
+  const missing = profile && counts ? profile.requiredTags.filter((t) => !(counts[t] > 0)) : [];
+  const { violations, passes, incomplete, inapplicable } = facts.ruleIds;
+  const executed = [...new Set([...violations, ...passes, ...incomplete, ...inapplicable])].sort();
   const limitations = [
     ...(profile ? profile.limitations : [AUTOMATED_SCAN_LIMITATION, LEVEL_ONLY_LIMITATION]),
-    ...(version ? [] : ['The engine did not report its version.']),
-    ...(counts ? [] : ['The engine did not report which rules each tag selects; profile support is not verified.']),
+    ...(version ? [] : ['The engine did not report its version, so the profile is not verified.']),
+    ...(counts ? [] : ['The engine did not report which rules each tag selects, so the profile is not verified.']),
+    ...(executed.length > 0 ? [] : ['No rule produced a result, so nothing was measured under the profile.']),
     ...(emptyTags.length > 0 ? [`Tags that select no rule in ${engineName}: ${emptyTags.join(', ')}.`] : []),
     ...(missing.length > 0
       ? [`${engineName} has no rules for ${missing.join(', ')}, so profile ${profile!.id} could not be applied.`] : []),
   ];
-  const applied = profile !== undefined && missing.length === 0;
-  const { violations, passes, incomplete, inapplicable } = facts.ruleIds;
+  const applied = profile !== undefined && version !== null && counts !== undefined &&
+    missing.length === 0 && executed.length > 0;
   return {
     backend,
     engine: { name: 'axe-core', version },
@@ -171,7 +179,7 @@ export function axeScanEvidence(backend: string, profile: AuditRuleProfile | und
     effectiveProfile: applied ? profile!.id : null,
     profileSupport: profile ? (applied ? 'applied' : 'unsupported') : 'level-only',
     appliedTags: [...facts.appliedTags],
-    executedRules: [...new Set([...violations, ...passes, ...incomplete, ...inapplicable])].sort(),
+    executedRules: executed,
     coverage: {
       violations: violations.length, passes: passes.length,
       incomplete: incomplete.length, inapplicable: inapplicable.length,

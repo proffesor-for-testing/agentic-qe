@@ -152,6 +152,24 @@ describe.each(PATHS)('%s carries the rule profile to the backend and the respons
   });
 });
 
+describe.each(PATHS)('%s with an engine that ran no rule (#1473 review)', (_name, run) => {
+  it('reports the page as not measured: no applied profile and no pass', async () => {
+    const browser = fakeAxeBrowser();
+    const saved = { ...PAGE };
+    Object.assign(PAGE, { violations: [], incomplete: [], passes: [] });
+    try {
+      const out = await run(browser, { url: URL, standard: 'wcag22-aa' });
+
+      expect(out).toMatchObject({ measured: false, passed: false, score: -1 });
+      expect(out.scan).toMatchObject({ effectiveProfile: null, profileSupport: 'not-run' });
+      expect(out.outcome).toMatchObject({ status: 'not-measured', severityThresholdMet: false });
+      expect(out.notMeasuredReason).toMatch(/no result for any rule/);
+    } finally {
+      Object.assign(PAGE, saved);
+    }
+  });
+});
+
 describe('a backend without profile support (#1473)', () => {
   it('reports the requested profile as not applied when only Vibium measured the page', async () => {
     const vibium = {
