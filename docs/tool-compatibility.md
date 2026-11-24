@@ -56,7 +56,7 @@ All AQE MCP tool descriptions follow this pattern:
 | `quality_assess` | Assess code quality metrics and optionally run a quality gate. | 62 | Yes |
 | `security_scan_comprehensive` | Run SAST and/or DAST security scans with vulnerability classification. | 70 | Yes |
 | `contract_validate` | Validate API contracts for breaking changes against consumers. | 62 | Yes |
-| `accessibility_test` | Audit a page for WCAG 2.1/2.2 or Section 508 with axe-core in agent-browser; no browser gives measured:false. | 109 | Yes |
+| `accessibility_test` | axe-core scan by WCAG 2.1/2.2 or Section 508 profile; passed = no critical/serious finding, not conformance. | 108 | Yes |
 | `chaos_test` | Inject faults for chaos engineering resilience testing. | 54 | Yes |
 | `defect_predict` | Predict potential defects using AI analysis of code complexity. | 63 | Yes |
 | `requirements_validate` | Validate requirements for completeness and generate BDD scenarios. | 66 | Yes |

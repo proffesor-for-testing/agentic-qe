@@ -8,10 +8,16 @@
  */
 
 import type { MemoryBackend } from '../../kernel/interfaces.js';
-import type { AccessibilityReport, AuditOptions } from '../../domains/visual-accessibility/interfaces';
+import type {
+  AccessibilityReport, AuditOptions, AuditOutcome, AuditRuleProfile, AuditScanEvidence,
+} from '../../domains/visual-accessibility/interfaces';
 import type { Result } from '../../shared/types';
-import { CallerInputError, isCallerInputError, toErrorMessage } from '../../shared/error-utils.js';
+import { isCallerInputError, toErrorMessage } from '../../shared/error-utils.js';
 import { assertAuditableUrl } from '../../domains/visual-accessibility/services/audit-url-policy.js';
+import {
+  AUDIT_STANDARDS, notRunEvidence, resolveAuditProfile, resolveAuditStandard, unreportedEvidence, type AuditStandard,
+} from '../../domains/visual-accessibility/services/audit-profile.js';
+import { buildAuditOutcome } from '../../domains/visual-accessibility/services/audit-outcome.js';
 
 /** The slice of AccessibilityTesterService this handler uses. */
 export interface AccessibilityAuditor {
@@ -22,6 +28,16 @@ export interface AccessibilityAuditor {
 export interface AccessibilityTaskPayload {
   url?: string;
   standard?: string;
+  /** #1473: add axe-core best-practice rules (not WCAG requirements). Default false. */
+  includeBestPractices?: boolean;
+}
+
+/** An axe-core check that could not be decided and needs a manual review (#1473). */
+export interface AccessibilityReviewItem {
+  id: string;
+  description: string;
+  reason: string;
+  nodes: number;
 }
 
 export interface AccessibilityTaskViolation {
@@ -38,12 +54,21 @@ export interface AccessibilityTaskResult {
   url: string;
   standard: string;
   wcagLevel: 'A' | 'AA' | 'AAA';
+  /** Legacy: the automated scan found no critical or serious violation. Not a conformance verdict (see outcome). */
   passed: boolean;
   score: number;
   measured: boolean;
   violations: AccessibilityTaskViolation[];
   warnings: Array<{ id: string; description: string; nodes: number }>;
+  /** #1473: undecided checks, kept apart from violations; they need a manual review. */
+  needsReview: AccessibilityReviewItem[];
   passedRules: number;
+  /** #1473: the rule profile the standard resolved to (requested). */
+  profile: AuditRuleProfile;
+  /** #1473: what the backend ran: effective profile, applied tags, engine version, coverage. */
+  scan: AuditScanEvidence;
+  /** #1473: structured verdict and scope statement for summaries. */
+  outcome: AuditOutcome;
   /** The URL actually audited after redirects, when measured. */
   finalUrl?: string;
   notMeasuredReason?: string;
@@ -58,17 +83,12 @@ export const A11Y_BACKEND_HINT =
   'to fetch its browser) so that `npx agent-browser` works, then retry.';
 
 /** The standards accessibility_test accepts, as in qe/a11y/audit's schema. */
-export const ACCESSIBILITY_STANDARDS = ['wcag21-aa', 'wcag21-aaa', 'wcag22-aa', 'section508'] as const;
-export type AccessibilityStandard = typeof ACCESSIBILITY_STANDARDS[number];
+export const ACCESSIBILITY_STANDARDS = AUDIT_STANDARDS;
+export type AccessibilityStandard = AuditStandard;
 
 /** The standard to use, or a CallerInputError for one that is not supported (#1465). */
 export function resolveAccessibilityStandard(standard: unknown): AccessibilityStandard {
-  if (standard === undefined || standard === null || standard === '') return 'wcag21-aa';
-  if (typeof standard === 'string' && (ACCESSIBILITY_STANDARDS as readonly string[]).includes(standard)) {
-    return standard as AccessibilityStandard;
-  }
-  throw new CallerInputError(
-    `standard ${JSON.stringify(standard)} is not supported; use one of ${ACCESSIBILITY_STANDARDS.join(', ')}`);
+  return resolveAuditStandard(standard);
 }
 
 /** What to do next for a not-measured reason: the install hint only when no browser ran. */
@@ -83,14 +103,19 @@ export function nextStepFor(reason: string): string {
 }
 
 export function standardToWcagLevel(standard: string): 'A' | 'AA' | 'AAA' {
-  return standard === 'wcag21-aaa' ? 'AAA' : 'AA';
+  return resolveAuditProfile(standard).wcagLevel;
 }
 
 function notMeasured(
-  url: string, standard: string, wcagLevel: 'A' | 'AA' | 'AAA', reason: string, started: number,
+  url: string, profile: AuditRuleProfile, reason: string, started: number, scan?: AuditScanEvidence,
 ): AccessibilityTaskResult {
+  const evidence = scan ?? notRunEvidence('none', profile);
   return {
-    url, standard, wcagLevel,
+    url, standard: profile.standard, wcagLevel: profile.wcagLevel,
+    profile,
+    scan: evidence,
+    outcome: buildAuditOutcome({ measured: false, scan: evidence, violations: [], needsReview: 0, notMeasuredReason: reason }),
+    needsReview: [],
     passed: false,
     // #1145: nothing was audited, so `passed: false` is not a verdict and the score is -1
     score: -1,
@@ -132,39 +157,53 @@ export async function runAccessibilityTest(
   const started = Date.now();
   assertAuditableUrl(payload.url);
   const url = payload.url.trim();
-  const standard = resolveAccessibilityStandard(payload.standard);
-  const wcagLevel = standardToWcagLevel(standard);
+  // #1473: resolve the standard once; the profile goes to the backend and into the result
+  const profile = resolveAuditProfile(payload.standard, { includeBestPractices: payload.includeBestPractices === true });
+  const { standard, wcagLevel } = profile;
 
   let audit: Result<AccessibilityReport, Error>;
   try {
-    audit = await auditor.audit(url, { wcagLevel, includeWarnings: true });
+    audit = await auditor.audit(url, { wcagLevel, includeWarnings: true, profile });
   } catch (error) {
     if (isCallerInputError(error)) throw error;
-    return notMeasured(url, standard, wcagLevel, `the audit failed: ${toErrorMessage(error)}`, started);
+    return notMeasured(url, profile, `the audit failed: ${toErrorMessage(error)}`, started);
   }
 
   if (!audit.success) {
     if (isCallerInputError(audit.error)) throw audit.error;
-    return notMeasured(url, standard, wcagLevel, `the audit failed: ${audit.error.message}`, started);
+    return notMeasured(url, profile, `the audit failed: ${audit.error.message}`, started);
   }
   const report = audit.value;
   if (report.measured !== true) {
-    return notMeasured(url, standard, wcagLevel, report.notMeasuredReason ?? 'not measured', started);
+    return notMeasured(url, profile, report.notMeasuredReason ?? 'not measured', started, report.scan);
   }
 
   const violations = mapViolations(report);
+  const needsReview = toReviewItems(report);
+  // A backend that reports no evidence cannot show it applied the profile
+  const scan = report.scan ?? unreportedEvidence(profile);
+  const outcome = buildAuditOutcome({ measured: true, scan, violations, needsReview: needsReview.length });
   return {
     url, standard, wcagLevel,
-    // Same verdict rule as qe/a11y/audit: no critical or serious violation
-    passed: !violations.some((v) => v.impact === 'critical' || v.impact === 'serious'),
+    profile,
+    scan,
+    outcome,
+    // Same verdict rule as qe/a11y/audit: no critical or serious violation (and some rule ran)
+    passed: outcome.severityThresholdMet,
     score: report.score,
     measured: true,
     violations,
     warnings: report.incomplete.map((i) => ({ id: i.id, description: i.description, nodes: i.nodes.length })),
+    needsReview,
     passedRules: report.passes.length,
     finalUrl: report.finalUrl ?? url,
     auditDurationMs: Date.now() - started,
   };
+}
+
+/** Undecided checks, kept for manual review (#1473). */
+export function toReviewItems(report: AccessibilityReport): AccessibilityReviewItem[] {
+  return report.incomplete.map((i) => ({ id: i.id, description: i.description, reason: i.reason, nodes: i.nodes.length }));
 }
 
 /** Builds the real service; one per task so its browser is closed afterwards. */

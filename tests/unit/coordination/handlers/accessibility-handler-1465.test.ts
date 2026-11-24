@@ -50,7 +50,9 @@ describe('runAccessibilityTest (#1465)', () => {
 
     const result = await runAccessibilityTest(auditor, { url: URL, standard: 'wcag22-aa' });
 
-    expect(auditor.audit).toHaveBeenCalledWith(URL, { wcagLevel: 'AA', includeWarnings: true });
+    expect(auditor.audit).toHaveBeenCalledWith(URL, {
+      wcagLevel: 'AA', includeWarnings: true, profile: expect.objectContaining({ id: 'wcag22-aa@1' }),
+    });
     expect(result).toMatchObject({
       url: URL, standard: 'wcag22-aa', wcagLevel: 'AA', measured: true, score: 72,
       passed: false, passedRules: 1,
@@ -83,7 +85,9 @@ describe('runAccessibilityTest (#1465)', () => {
 
     await runAccessibilityTest(auditor, { url: URL, standard: 'wcag21-aaa' });
 
-    expect(auditor.audit).toHaveBeenCalledWith(URL, { wcagLevel: 'AAA', includeWarnings: true });
+    expect(auditor.audit).toHaveBeenCalledWith(URL, {
+      wcagLevel: 'AAA', includeWarnings: true, profile: expect.objectContaining({ id: 'wcag21-aaa@1' }),
+    });
   });
 
   it('reports unmeasured with the service reason when no browser loaded the page', async () => {
@@ -191,7 +195,9 @@ describe('test-accessibility handler registration (#1465)', () => {
     const result = await handlers.get('test-accessibility')!({ payload: { url: URL } }) as
       { success: boolean; value: { measured: boolean; score: number; violations: unknown[] } };
 
-    expect(audit).toHaveBeenCalledWith(URL, { wcagLevel: 'AA', includeWarnings: true });
+    expect(audit).toHaveBeenCalledWith(URL, {
+      wcagLevel: 'AA', includeWarnings: true, profile: expect.objectContaining({ id: 'wcag21-aa@1' }),
+    });
     expect(dispose).toHaveBeenCalled();
     expect(result.success).toBe(true);
     expect(result.value).toMatchObject({ measured: true, score: 72 });

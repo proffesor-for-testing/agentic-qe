@@ -33,6 +33,7 @@ import type { SecurityScanEvidence } from '../../domains/security-compliance/sca
 import type { SecurityCoverage } from '../../domains/security-compliance/interfaces.js';
 import type { DependencyScanReport } from '../../domains/security-compliance/dependency-advisory-engine.js';
 import type { ExcludedQualityFile, PartialQualityMetric } from '../../domains/quality-assessment/interfaces.js';
+import type { AuditOutcome, AuditRuleProfile, AuditScanEvidence } from '../../domains/visual-accessibility/interfaces.js';
 import { CallerInputError } from '../../shared/error-utils.js';
 import { assertAuditableUrl } from '../../domains/visual-accessibility/services/audit-url-policy.js';
 import { resolveAccessibilityStandard } from '../../coordination/handlers/accessibility-handler.js';
@@ -246,6 +247,14 @@ export interface AccessibilityTestResult {
   notMeasuredReason?: string;
   /** #1465: number of axe rules the page passed, when measured. */
   passedRules?: number;
+  /** #1473: the rule profile the standard resolved to (requested). */
+  profile?: AuditRuleProfile;
+  /** #1473: what ran: effective profile, applied tags, backend, engine version, coverage. */
+  scan?: AuditScanEvidence;
+  /** #1473: structured verdict; `passed` is only its severityThresholdMet. */
+  outcome?: AuditOutcome;
+  /** #1473: undecided checks that need a manual review, apart from violations. */
+  needsReview?: unknown[];
   note?: string;
   duration: number;
   savedFiles?: string[];
@@ -1099,6 +1108,9 @@ export const contractValidateConfig: DomainHandlerConfig<ContractValidateParams,
 // Accessibility Test Configuration
 // ============================================================================
 
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
 export const accessibilityTestConfig: DomainHandlerConfig<AccessibilityTestParams, AccessibilityTestResult> = {
   domain: 'visual-accessibility',
   taskType: 'test-accessibility',
@@ -1114,6 +1126,7 @@ export const accessibilityTestConfig: DomainHandlerConfig<AccessibilityTestParam
     return {
       url: params.url.trim(),
       standard: resolveAccessibilityStandard(params.standard),
+      includeBestPractices: params.includeBestPractices === true,
       includeScreenReader: params.includeScreenReader || false,
       routingTier: routingResult?.decision.tier,
       useAgentBooster: routingResult?.useAgentBooster,
@@ -1138,6 +1151,11 @@ export const accessibilityTestConfig: DomainHandlerConfig<AccessibilityTestParam
     ...(data.measured === true && typeof data.passedRules === 'number' ? { passedRules: data.passedRules } : {}),
     ...(data.measured !== true && typeof data.notMeasuredReason === 'string'
       ? { notMeasuredReason: data.notMeasuredReason } : {}),
+    // #1473: requested and effective profile, engine, applied tags and the structured outcome
+    ...(isObject(data.profile) ? { profile: data.profile as unknown as AuditRuleProfile } : {}),
+    ...(isObject(data.scan) ? { scan: data.scan as unknown as AuditScanEvidence } : {}),
+    ...(isObject(data.outcome) ? { outcome: data.outcome as unknown as AuditOutcome } : {}),
+    needsReview: Array.isArray(data.needsReview) ? data.needsReview : [],
     ...(typeof data.note === 'string' ? { note: data.note } : {}),
     duration,
     savedFiles,

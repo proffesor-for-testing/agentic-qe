@@ -33,6 +33,7 @@ import {
   ContrastAnalysis,
   KeyboardNavigationReport,
   AuditOptions,
+  AuditRuleProfile,
   EUComplianceReport,
   EUComplianceOptions,
 } from '../interfaces.js';
@@ -44,6 +45,7 @@ import {
 } from '../../../integrations/vibium/index.js';
 import { CallerInputError, toError } from '../../../shared/error-utils.js';
 import { auditUrlProblem } from './audit-url-policy.js';
+import { notRunEvidence } from './audit-profile.js';
 import { reapOrphanedAuditSessions } from '../../../integrations/browser/agent-browser/audit-sessions.js';
 import {
   AgentBrowserClient,
@@ -190,7 +192,9 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
       const urlProblem = auditUrlProblem(url);
       if (urlProblem) return err(new CallerInputError(urlProblem));
 
-      const wcagLevel = options?.wcagLevel || this.config.defaultWCAGLevel;
+      // #1473: a rule profile fixes the level too; level-only callers keep their level
+      const wcagLevel = options?.profile?.wcagLevel ?? (options?.wcagLevel || this.config.defaultWCAGLevel);
+      const profile = options?.profile;
       const failures: string[] = [];
 
       if (this.shouldUseBrowserMode()) {
@@ -202,7 +206,7 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
           if (browserResult.success) return await this.measuredReport(browserResult.value);
           // #1465: an error page (404, 500, ...) loaded fine but is not the page asked for
           if (isPageStatusError(browserResult.error)) {
-            return ok(this.notMeasuredReport(url, wcagLevel, browserResult.error.message));
+            return ok(this.notMeasuredReport(url, wcagLevel, browserResult.error.message, profile));
           }
           const errorMsg = getErrorMessage(browserResult);
           failures.push(errorMsg);
@@ -221,7 +225,7 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
       }
 
       if (this.config.simulationMode) return this.auditSimulated(url, wcagLevel, options);
-      return ok(this.notMeasuredReport(url, wcagLevel, this.notMeasuredReason(failures)));
+      return ok(this.notMeasuredReport(url, wcagLevel, this.notMeasuredReason(failures), profile));
     } catch (error) {
       return err(toError(error));
     }
@@ -263,7 +267,9 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
   }
 
   /** A report that says nothing was measured: no violations, no passes, no verdict. */
-  private notMeasuredReport(url: string, wcagLevel: 'A' | 'AA' | 'AAA', reason: string): AccessibilityReport {
+  private notMeasuredReport(
+    url: string, wcagLevel: 'A' | 'AA' | 'AAA', reason: string, profile?: AuditRuleProfile,
+  ): AccessibilityReport {
     return {
       url,
       timestamp: new Date(),
@@ -276,6 +282,7 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
       wcagLevel,
       measured: false,
       notMeasuredReason: reason,
+      scan: notRunEvidence('none', profile),
     };
   }
 
@@ -335,6 +342,7 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
         wcagLevel,
         measured: false,
         notMeasuredReason: 'simulation mode: synthetic results, the page was not loaded',
+        scan: notRunEvidence('simulation', options?.profile),
       };
 
       return ok(report);
