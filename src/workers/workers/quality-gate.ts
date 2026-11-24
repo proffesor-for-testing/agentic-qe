@@ -11,6 +11,11 @@
  * the gate is not evaluated: nothing is stored and an info finding names the
  * unmeasured metrics. A status without the measured stamp (the invented one
  * written by <= 3.15.6) is ignored and replaced by the next measured verdict.
+ *
+ * #1474: the worker judges the candidate of the checkout it runs in. Only
+ * evidence bound to that candidate counts; an unavailable candidate (no Git
+ * work tree) is insufficient evidence. A stored verdict records the candidate,
+ * the receipts it used and the effective thresholds.
  */
 
 import { BaseWorker } from '../base-worker';
@@ -25,10 +30,15 @@ import {
   INSUFFICIENT_EVIDENCE,
   QUALITY_METRICS,
   describeMissingMetrics,
+  describeVerdictProvenance,
   evaluateQualityEvidence,
   inspectQualityEvidence,
   type EvaluatedQualityCheck,
+  type QualityEvidenceCandidate,
+  type QualityEvidenceReceiptRef,
   type QualityEvidenceValues,
+  type QualityMetricName,
+  type QualityThreshold,
 } from '../../domains/quality-assessment/quality-evidence.js';
 
 const CONFIG: WorkerConfig = {
@@ -46,7 +56,8 @@ const CONFIG: WorkerConfig = {
 
 const CURRENT_KEY = 'quality-gate:current';
 const HISTORY_KEY = 'quality-gate:history';
-const SCHEMA_VERSION = 1;
+/** 2 (#1474): verdicts carry candidate, receipts and thresholds. */
+const SCHEMA_VERSION = 2;
 const MAX_HISTORY = 100;
 
 /** A gate verdict on measured evidence (#1043), stored with the stamp. */
@@ -58,13 +69,16 @@ interface MeasuredGateStatus {
   passedChecks: number;
   failedChecks: number;
   checks: EvaluatedQualityCheck[];
+  candidate: QualityEvidenceCandidate;
+  receipts: Record<QualityMetricName, QualityEvidenceReceiptRef>;
+  thresholds: Record<QualityMetricName, QualityThreshold>;
 }
 
-/** The stored status when it is a measured verdict, else `null`. */
+/** The stored status when it is a measured verdict (current or v1), else `null`. */
 function measuredStatus(raw: unknown): MeasuredGateStatus | null {
   if (!raw || typeof raw !== 'object') return null;
   const r = raw as Record<string, unknown>;
-  if (r.measured !== true || r.schemaVersion !== SCHEMA_VERSION || typeof r.passed !== 'boolean'
+  if (r.measured !== true || (r.schemaVersion !== SCHEMA_VERSION && r.schemaVersion !== 1) || typeof r.passed !== 'boolean'
     || !Array.isArray(r.checks)) return null;
   return r as unknown as MeasuredGateStatus;
 }
@@ -83,7 +97,7 @@ export class QualityGateWorker extends BaseWorker {
     const findings: WorkerFinding[] = [];
     const recommendations: WorkerRecommendation[] = [];
 
-    const { values, problems } = await inspectQualityEvidence(context.memory);
+    const { values, problems, candidate, receipts } = await inspectQualityEvidence(context.memory);
     const measuredValues = Object.fromEntries(
       QUALITY_METRICS.map((m) => [m, values[m] ?? 'unmeasured'])
     ) as Record<string, number | string>;
@@ -97,7 +111,7 @@ export class QualityGateWorker extends BaseWorker {
         title: 'Quality Gate Not Evaluated: Insufficient Evidence',
         description: `${unmeasured.length} of ${QUALITY_METRICS.length} gate metrics have no usable measured evidence ` +
           `(${unmeasured.join(', ')}), so no verdict was reached and nothing was stored.`,
-        context: { status: INSUFFICIENT_EVIDENCE, unmeasured, problems },
+        context: { status: INSUFFICIENT_EVIDENCE, unmeasured, problems, candidate },
       });
       for (const advice of describeMissingMetrics(unmeasured)) {
         recommendations.push({
@@ -141,6 +155,9 @@ export class QualityGateWorker extends BaseWorker {
       passedChecks: evaluation.checks.length - failed.length,
       failedChecks: failed.length,
       checks: evaluation.checks,
+      ...describeVerdictProvenance({
+        candidate, receipts: receipts as Record<QualityMetricName, QualityEvidenceReceiptRef>,
+      }),
     };
 
     this.analyzeGateResults(status, findings, recommendations);

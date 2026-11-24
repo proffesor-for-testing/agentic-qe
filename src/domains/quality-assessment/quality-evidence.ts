@@ -1,7 +1,32 @@
+import { randomUUID } from 'node:crypto';
 import type { MemoryBackend } from '../../kernel/interfaces.js';
+import {
+  describeCandidate,
+  isQualityEvidenceCandidate,
+  resolveQualityEvidenceCandidate,
+  type QualityEvidenceCandidate,
+} from './evidence-candidate.js';
+import {
+  InsufficientQualityEvidenceError,
+  type QualityEvidenceProblemCode,
+  type UnusableQualityEvidence,
+} from './quality-evidence-errors.js';
+
+export {
+  INSUFFICIENT_EVIDENCE,
+  InsufficientQualityEvidenceError,
+  describeMissingMetrics,
+  type QualityEvidenceProblemCode,
+  type UnusableQualityEvidence,
+} from './quality-evidence-errors.js';
+export { resolveQualityEvidenceCandidate, type QualityEvidenceCandidate } from './evidence-candidate.js';
 
 export const QUALITY_EVIDENCE_NAMESPACE = 'quality-assessment';
 export const DEFAULT_QUALITY_EVIDENCE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+/** Current evidence record format (#1474: candidate-bound receipts). */
+export const QUALITY_EVIDENCE_SCHEMA_VERSION = 2;
+/** Immutable receipts are kept 30 days (seconds, the StoreOptions.ttl unit). */
+const RECEIPT_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 export const QUALITY_METRICS = [
   'coverage',
@@ -16,12 +41,19 @@ export const QUALITY_METRICS = [
 export type QualityMetricName = typeof QUALITY_METRICS[number];
 export type QualityEvidenceValues = Record<QualityMetricName, number>;
 
+/**
+ * One measurement receipt (#1474). It is bound, when it is recorded, to the
+ * candidate the measurement describes, and carries an immutable receipt id.
+ */
 export interface QualityEvidenceRecord {
-  schemaVersion: 1;
+  schemaVersion: typeof QUALITY_EVIDENCE_SCHEMA_VERSION;
+  receiptId: string;
   metric: QualityMetricName;
   value: number;
   measuredAt: string;
   source: string;
+  /** The candidate (project + HEAD + dirty-tree fingerprint) observed at measurement time. */
+  candidate: QualityEvidenceCandidate;
   /**
    * The test run this figure came from, when it came from one (#1027 NB1).
    * Coverage and testsPassing written from one run share the runId.
@@ -31,12 +63,28 @@ export interface QualityEvidenceRecord {
   runStatus?: 'passed' | 'failed';
 }
 
+/** A record in the pre-#1474 format: no candidate, no receipt id. Never gate evidence. */
+export type LegacyQualityEvidenceRecord = Omit<QualityEvidenceRecord, 'schemaVersion' | 'receiptId' | 'candidate'>
+  & { schemaVersion: 1 };
+
 /** Metadata of an evidence write; `runId`/`runStatus` scope it to one test run. */
 export interface QualityEvidenceMetadata {
   measuredAt: string;
   source: string;
   runId?: string;
   runStatus?: 'passed' | 'failed';
+  /** The measured candidate; resolved from the project checkout when omitted. */
+  candidate?: QualityEvidenceCandidate;
+}
+
+/** Where a gate input came from: the receipt and the key it was read from. */
+export interface QualityEvidenceReceiptRef {
+  metric: QualityMetricName;
+  receiptId: string;
+  key: string;
+  measuredAt: string;
+  source: string;
+  runId?: string;
 }
 
 export interface QualityThreshold {
@@ -64,46 +112,61 @@ export interface EvaluatedQualityCheck {
   severity: QualityThreshold['severity'];
 }
 
-function evidenceKey(metric: QualityMetricName): string {
+/** Evidence of one candidate: subject-qualified, so another candidate's writes never land here. */
+export function candidateEvidenceKey(candidateId: string, metric: QualityMetricName): string {
+  return `quality-evidence:v2:${candidateId}:${metric}:latest`;
+}
+/** The most recent receipt of a metric for any candidate (diagnostics and trend readers). */
+function latestEvidenceKey(metric: QualityMetricName): string {
+  return `quality-evidence:v2:latest:${metric}`;
+}
+function receiptKey(receiptId: string): string {
+  return `quality-evidence:receipt:${receiptId}`;
+}
+/** The pre-#1474 key: read only to report legacy, unbound evidence. */
+function legacyEvidenceKey(metric: QualityMetricName): string {
   return `quality-evidence:${metric}:latest`;
+}
+
+class EvidenceProblem extends Error {
+  constructor(readonly code: QualityEvidenceProblemCode, message: string) { super(message); }
 }
 
 function parseMeasuredAt(measuredAt: unknown, now: number, maxAgeMs: number): number {
   if (typeof measuredAt !== 'string') {
-    throw new Error('Measured quality evidence is malformed: measuredAt is required.');
+    throw new EvidenceProblem('malformed', 'Measured quality evidence is malformed: measuredAt is required.');
   }
   const timestamp = Date.parse(measuredAt);
   if (!Number.isFinite(timestamp)) {
-    throw new Error('Measured quality evidence is malformed: measuredAt is invalid.');
+    throw new EvidenceProblem('malformed', 'Measured quality evidence is malformed: measuredAt is invalid.');
   }
   if (timestamp > now + 60_000) {
-    throw new Error('Measured quality evidence is malformed: measuredAt is in the future.');
+    throw new EvidenceProblem('future-dated', 'Measured quality evidence is malformed: measuredAt is in the future.');
   }
   if (now - timestamp > maxAgeMs) {
-    throw new Error('Measured quality evidence is stale. Run the relevant quality analyzers again.');
+    throw new EvidenceProblem('stale', 'Measured quality evidence is stale. Run the relevant quality analyzers again.');
   }
   return timestamp;
 }
 
-function validateRecord(
-  record: unknown,
-  metric: QualityMetricName,
-  now: number,
-  maxAgeMs: number,
-): asserts record is QualityEvidenceRecord {
+/** Shape, value and freshness checks shared by both record formats. */
+function validateMeasurement(
+  record: unknown, metric: QualityMetricName, version: 1 | 2, now: number, maxAgeMs: number,
+): void {
   if (!record || typeof record !== 'object') {
-    throw new Error(`No measured quality evidence found for ${metric}.`);
+    throw new EvidenceProblem('missing', `No measured quality evidence found for ${metric}.`);
   }
   const candidate = record as Partial<QualityEvidenceRecord>;
   if (
-    candidate.schemaVersion !== 1
+    candidate.schemaVersion !== version
     || candidate.metric !== metric
     || !Number.isFinite(candidate.value)
     || candidate.value! < 0
     || typeof candidate.source !== 'string'
     || candidate.source.trim().length === 0
+    || (version === 2 && (typeof candidate.receiptId !== 'string' || !isQualityEvidenceCandidate(candidate.candidate)))
   ) {
-    throw new Error(`Measured quality evidence for ${metric} is malformed or incomplete.`);
+    throw new EvidenceProblem('malformed', `Measured quality evidence for ${metric} is malformed or incomplete.`);
   }
   parseMeasuredAt(candidate.measuredAt, now, maxAgeMs);
 }
@@ -118,26 +181,36 @@ export async function writeQualityEvidence(
   if (metadata.source.trim().length === 0) {
     throw new Error('Quality evidence source is required.');
   }
+  for (const metric of QUALITY_METRICS) {
+    const value = values[metric];
+    if (value !== undefined && (!Number.isFinite(value) || value < 0)) {
+      throw new Error(`Quality evidence value for ${metric} must be a non-negative finite number.`);
+    }
+  }
+  // #1474: bind every record of this write to the candidate measured now.
+  const candidate = metadata.candidate ?? resolveQualityEvidenceCandidate();
+  const options = { namespace: QUALITY_EVIDENCE_NAMESPACE, persist: true };
 
   for (const metric of QUALITY_METRICS) {
     const value = values[metric];
     if (value === undefined) continue;
-    if (!Number.isFinite(value) || value < 0) {
-      throw new Error(`Quality evidence value for ${metric} must be a non-negative finite number.`);
-    }
     const record: QualityEvidenceRecord = {
-      schemaVersion: 1,
+      schemaVersion: QUALITY_EVIDENCE_SCHEMA_VERSION,
+      receiptId: randomUUID(),
       metric,
       value,
       measuredAt: metadata.measuredAt,
       source: metadata.source,
+      candidate,
       ...(metadata.runId ? { runId: metadata.runId } : {}),
       ...(metadata.runStatus ? { runStatus: metadata.runStatus } : {}),
     };
-    await memory.set(evidenceKey(metric), record, {
-      namespace: QUALITY_EVIDENCE_NAMESPACE,
-      persist: true,
-    });
+    // Immutable receipt first, then the pointers that name it.
+    await memory.set(receiptKey(record.receiptId), record, { ...options, ttl: RECEIPT_TTL_SECONDS });
+    if (candidate.status === 'resolved') {
+      await memory.set(candidateEvidenceKey(candidate.id, metric), record, options);
+    }
+    await memory.set(latestEvidenceKey(metric), record, options);
   }
 }
 
@@ -167,7 +240,7 @@ export function testsPassingPercent(run: TestRunCounts): number {
 export async function writeTestRunEvidence(
   memory: MemoryBackend,
   run: TestRunCounts & { runId: string },
-  options: { source: string; coverage?: number; measuredAt?: string },
+  options: { source: string; coverage?: number; measuredAt?: string; candidate?: QualityEvidenceCandidate },
 ): Promise<void> {
   const runStatus: 'passed' | 'failed' = run.failed > 0 ? 'failed' : 'passed';
   const metadata: QualityEvidenceMetadata = {
@@ -175,6 +248,7 @@ export async function writeTestRunEvidence(
     source: options.source,
     runId: run.runId,
     runStatus,
+    ...(options.candidate ? { candidate: options.candidate } : {}),
   };
   await writeQualityEvidence(memory, {
     testsPassing: testsPassingPercent(run),
@@ -182,100 +256,101 @@ export async function writeTestRunEvidence(
   }, metadata);
 }
 
-/** #996: the single status word for "a verdict cannot be reached on this evidence". */
-export const INSUFFICIENT_EVIDENCE = 'insufficient-evidence' as const;
-
-/** #996: what to run to measure a metric that has no usable evidence. */
-// Advice names only producers a user can actually run. Metrics with no
-// exposed producer say so instead of pointing at an unreachable tool.
-const NO_EXPOSED_PRODUCER = 'no MCP tool or CLI command records it yet, so supply it from your own measurement';
-const MISSING_METRIC_ADVICE: Record<string, string> = {
-  coverage: 'run the tests with coverage instrumentation enabled so measured line coverage is recorded '
-    + '(a static estimate is not measured coverage)',
-  testsPassing: 'run the test suite (test_execute_parallel, or `aqe test execute`)',
-  // The static analyzer has no security measurement; a scan reports findings separately.
-  security: 'static analysis never measures security; drop it from metrics and use '
-    + 'security_scan_comprehensive (or `aqe security`) for findings',
-  securityVulnerabilities: `a measured vulnerability count is required; ${NO_EXPOSED_PRODUCER}`,
-  criticalBugs: `a measured critical-bug count is required; ${NO_EXPOSED_PRODUCER}`,
-  codeSmells: `a measured code-smell count is required; ${NO_EXPOSED_PRODUCER}`,
-  technicalDebt: `a measured technical-debt ratio is required; ${NO_EXPOSED_PRODUCER}`,
-  duplications: `a measured duplication percentage is required; ${NO_EXPOSED_PRODUCER}`,
-  complexity: 'make sure the target contains readable TypeScript/JavaScript source the analyzer can parse',
-  maintainability: 'make sure the target contains readable TypeScript/JavaScript source the analyzer can parse',
-  testability: 'make sure the target contains readable TypeScript/JavaScript source the analyzer can parse',
-  duplication: 'make sure the target contains readable TypeScript/JavaScript source the analyzer can parse',
-};
-
-/** #996: one recommendation per unmeasured metric, naming what to run. */
-export function describeMissingMetrics(unmeasured: readonly string[]): string[] {
-  return unmeasured.map((metric) =>
-    `Insufficient evidence: ${metric} not measured — ${MISSING_METRIC_ADVICE[metric] ?? 'measure it'}.`);
+export interface QualityEvidenceReadOptions {
+  now?: number;
+  maxAgeMs?: number;
+  /** The candidate to judge; resolved from the project checkout when omitted. */
+  candidate?: QualityEvidenceCandidate;
 }
 
-/** Why a canonical metric has no usable evidence. */
-export interface UnusableQualityEvidence {
-  metric: QualityMetricName;
-  reason: string;
+/** Inspection of one candidate's evidence set. */
+export interface QualityEvidenceInspection {
+  values: Partial<QualityEvidenceValues>;
+  problems: UnusableQualityEvidence[];
+  candidate: QualityEvidenceCandidate;
+  receipts: Partial<Record<QualityMetricName, QualityEvidenceReceiptRef>>;
 }
 
-/**
- * #996: thrown when the measured gate cannot be evaluated. The message is the
- * first problem found (unchanged wording); `unmeasured` names every metric
- * whose record is absent, stale, future-dated or malformed.
- */
-export class InsufficientQualityEvidenceError extends Error {
-  readonly status = INSUFFICIENT_EVIDENCE;
-  readonly unmeasured: QualityMetricName[];
-  readonly problems: UnusableQualityEvidence[];
-
-  constructor(problems: UnusableQualityEvidence[]) {
-    super(problems[0]?.reason ?? 'Measured quality evidence is unavailable.');
-    this.name = 'InsufficientQualityEvidenceError';
-    this.problems = problems;
-    this.unmeasured = problems.map((p) => p.metric);
-  }
-
-  /** Structured, non-passing description of the gate that could not run. */
-  toDetails(): {
-    passed: false; status: typeof INSUFFICIENT_EVIDENCE; evidenceStatus: typeof INSUFFICIENT_EVIDENCE;
-    unmeasured: QualityMetricName[]; gateEvaluated: false; recommendations: string[];
-  } {
+/** Why a candidate has no record of `metric`: mismatched, legacy-unbound or missing. */
+async function diagnoseAbsent(
+  memory: Pick<MemoryBackend, 'get'>, metric: QualityMetricName,
+  candidate: QualityEvidenceCandidate & { status: 'resolved' },
+): Promise<UnusableQualityEvidence> {
+  const read = (key: string) => memory.get<unknown>(key, { namespace: QUALITY_EVIDENCE_NAMESPACE });
+  const latest = await read(latestEvidenceKey(metric)) as Partial<QualityEvidenceRecord> | undefined;
+  if (latest && isQualityEvidenceCandidate(latest.candidate) && latest.candidate.id !== candidate.id) {
     return {
-      passed: false,
-      status: INSUFFICIENT_EVIDENCE,
-      evidenceStatus: INSUFFICIENT_EVIDENCE,
-      unmeasured: this.unmeasured,
-      gateEvaluated: false,
-      recommendations: describeMissingMetrics(this.unmeasured),
+      metric, code: 'mismatched',
+      reason: `Measured quality evidence for ${metric} was recorded for candidate `
+        + `${describeCandidate(latest.candidate)}, not the candidate being gated (${describeCandidate(candidate)}). `
+        + 'Re-run the measurement on this checkout.',
+      receiptId: typeof latest.receiptId === 'string' ? latest.receiptId : undefined,
     };
   }
+  if (await read(legacyEvidenceKey(metric))) {
+    return {
+      metric, code: 'legacy-unbound',
+      reason: `Measured quality evidence for ${metric} is legacy evidence not bound to any candidate `
+        + '(recorded before evidence receipts were candidate-bound). Re-run the measurement to record a candidate-bound receipt.',
+    };
+  }
+  return { metric, code: 'missing', reason: `No measured quality evidence found for ${metric}.` };
 }
 
 /**
- * Inspect every canonical metric with the same validation, collecting each
- * absent, stale, future-dated or malformed record instead of stopping at the first.
+ * #1474: inspect the evidence of ONE candidate. Every metric is read from that
+ * candidate's own keys, so the set cannot mix receipts of different candidates;
+ * each record's binding is re-checked. Absent, legacy-unbound, mismatched,
+ * stale, future-dated and malformed evidence are all collected as problems.
  */
 export async function inspectQualityEvidence(
   memory: Pick<MemoryBackend, 'get'>,
-  options: { now?: number; maxAgeMs?: number } = {},
-): Promise<{ values: Partial<QualityEvidenceValues>; problems: UnusableQualityEvidence[] }> {
+  options: QualityEvidenceReadOptions = {},
+): Promise<QualityEvidenceInspection> {
   const now = options.now ?? Date.now();
   const maxAgeMs = options.maxAgeMs ?? DEFAULT_QUALITY_EVIDENCE_MAX_AGE_MS;
+  const candidate = options.candidate ?? resolveQualityEvidenceCandidate();
   const values: Partial<QualityEvidenceValues> = {};
   const problems: UnusableQualityEvidence[] = [];
-  const valid: Partial<Record<QualityMetricName, QualityEvidenceRecord>> = {};
+  const receipts: Partial<Record<QualityMetricName, QualityEvidenceReceiptRef>> = {};
 
+  if (candidate.status === 'unavailable') {
+    for (const metric of QUALITY_METRICS) {
+      problems.push({
+        metric, code: 'candidate-unavailable',
+        reason: `The candidate identity is unavailable: ${candidate.reason}. Measured evidence cannot be bound to it.`,
+      });
+    }
+    return { values, problems, candidate, receipts };
+  }
+
+  const valid: Partial<Record<QualityMetricName, QualityEvidenceRecord>> = {};
   for (const metric of QUALITY_METRICS) {
-    const record = await memory.get<QualityEvidenceRecord>(evidenceKey(metric), {
-      namespace: QUALITY_EVIDENCE_NAMESPACE,
-    });
+    const key = candidateEvidenceKey(candidate.id, metric);
+    const record = await memory.get<QualityEvidenceRecord>(key, { namespace: QUALITY_EVIDENCE_NAMESPACE });
+    if (record === undefined || record === null) {
+      problems.push(await diagnoseAbsent(memory, metric, candidate));
+      continue;
+    }
     try {
-      validateRecord(record, metric, now, maxAgeMs);
+      validateMeasurement(record, metric, 2, now, maxAgeMs);
+      if (record.candidate.id !== candidate.id) {
+        throw new EvidenceProblem('mismatched',
+          `Measured quality evidence for ${metric} is bound to candidate ${describeCandidate(record.candidate)}, `
+          + `not ${describeCandidate(candidate)}.`);
+      }
       values[metric] = record.value;
       valid[metric] = record;
+      receipts[metric] = {
+        metric, receiptId: record.receiptId, key, measuredAt: record.measuredAt, source: record.source,
+        ...(record.runId ? { runId: record.runId } : {}),
+      };
     } catch (error) {
-      problems.push({ metric, reason: error instanceof Error ? error.message : String(error) });
+      const code = error instanceof EvidenceProblem ? error.code : 'malformed';
+      problems.push({
+        metric, code, reason: error instanceof Error ? error.message : String(error),
+        ...(typeof record.receiptId === 'string' ? { receiptId: record.receiptId } : {}),
+      });
     }
   }
 
@@ -285,44 +360,70 @@ export async function inspectQualityEvidence(
   const coverage = valid.coverage;
   if (coverage?.runStatus === 'failed' && (!coverage.runId || valid.testsPassing?.runId !== coverage.runId)) {
     delete values.coverage;
+    delete receipts.coverage;
     problems.push({
       metric: 'coverage',
+      code: 'unpaired-failed-run',
+      receiptId: coverage.receiptId,
       reason: 'Measured coverage comes from a run with failing tests, but no testsPassing evidence '
         + 'from that same run was recorded. Re-run the test suite.',
     });
   }
-  return { values, problems };
+  return { values, problems, candidate, receipts };
 }
 
 /**
  * #1028: the latest record of ONE metric when it is usable evidence — the same
- * validation (schema, metric, finite value, source, fresh measuredAt) the gate
- * applies — or `null`. Unlike {@link inspectQualityEvidence} it returns the
- * record, so a reader can follow its `runId` to the run it came from.
+ * shape and freshness validation the gate applies — or `null`. It reads the
+ * most recent receipt of any candidate (falling back to a legacy record), so
+ * trend readers can follow its `runId`; it is not gate evidence.
  */
 export async function readQualityEvidenceRecord(
   memory: Pick<MemoryBackend, 'get'>,
   metric: QualityMetricName,
   options: { now?: number; maxAgeMs?: number } = {},
-): Promise<QualityEvidenceRecord | null> {
-  const record = await memory.get<QualityEvidenceRecord>(evidenceKey(metric), {
+): Promise<QualityEvidenceRecord | LegacyQualityEvidenceRecord | null> {
+  const now = options.now ?? Date.now();
+  const maxAgeMs = options.maxAgeMs ?? DEFAULT_QUALITY_EVIDENCE_MAX_AGE_MS;
+  const read = (key: string) => memory.get<QualityEvidenceRecord | LegacyQualityEvidenceRecord>(key, {
     namespace: QUALITY_EVIDENCE_NAMESPACE,
   });
+  const latest = await read(latestEvidenceKey(metric));
+  const [record, version] = latest ? [latest, 2 as const] : [await read(legacyEvidenceKey(metric)), 1 as const];
   try {
-    validateRecord(record, metric, options.now ?? Date.now(), options.maxAgeMs ?? DEFAULT_QUALITY_EVIDENCE_MAX_AGE_MS);
-    return record;
+    validateMeasurement(record, metric, version, now, maxAgeMs);
+    return record ?? null;
   } catch {
     return null;
   }
 }
 
+/** A coherent, candidate-bound evidence set that can be evaluated. */
+export interface QualityEvidenceSet {
+  values: QualityEvidenceValues;
+  candidate: QualityEvidenceCandidate;
+  receipts: Record<QualityMetricName, QualityEvidenceReceiptRef>;
+}
+
+/** #1474: load the requested candidate's evidence set, or throw InsufficientQualityEvidenceError. */
+export async function loadQualityEvidenceSet(
+  memory: Pick<MemoryBackend, 'get'>,
+  options: QualityEvidenceReadOptions = {},
+): Promise<QualityEvidenceSet> {
+  const { values, problems, candidate, receipts } = await inspectQualityEvidence(memory, options);
+  if (problems.length > 0) throw new InsufficientQualityEvidenceError(problems, candidate);
+  return {
+    values: values as QualityEvidenceValues,
+    candidate,
+    receipts: receipts as Record<QualityMetricName, QualityEvidenceReceiptRef>,
+  };
+}
+
 export async function loadQualityEvidence(
-  memory: MemoryBackend,
-  options: { now?: number; maxAgeMs?: number } = {},
+  memory: Pick<MemoryBackend, 'get'>,
+  options: QualityEvidenceReadOptions = {},
 ): Promise<QualityEvidenceValues> {
-  const { values, problems } = await inspectQualityEvidence(memory, options);
-  if (problems.length > 0) throw new InsufficientQualityEvidenceError(problems);
-  return values as QualityEvidenceValues;
+  return (await loadQualityEvidenceSet(memory, options)).values;
 }
 
 /** Threshold overrides a caller or user configuration may apply to the canonical defaults. */
@@ -375,4 +476,20 @@ export function evaluateQualityEvidence(
       .filter((check) => !check.passed)
       .map((check) => `${check.name} failed its measured ${check.direction} threshold.`),
   };
+}
+
+/**
+ * #1474: the provenance every measured verdict records — the candidate it
+ * judged, the receipts it used, and the effective thresholds — so a verdict
+ * can be traced to its inputs and re-derived when the policy changes.
+ */
+export function describeVerdictProvenance(
+  set: Pick<QualityEvidenceSet, 'candidate' | 'receipts'>,
+  thresholds: QualityThresholdOverrides = {},
+): {
+  candidate: QualityEvidenceCandidate;
+  receipts: Record<QualityMetricName, QualityEvidenceReceiptRef>;
+  thresholds: Record<QualityMetricName, QualityThreshold>;
+} {
+  return { candidate: set.candidate, receipts: set.receipts, thresholds: resolveQualityThresholds(thresholds) };
 }

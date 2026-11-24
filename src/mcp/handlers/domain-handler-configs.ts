@@ -92,6 +92,11 @@ function normalizeLanguage(input: string | undefined): SupportedLanguage | null 
 // Result Types (extending base types for handlers that need them)
 // ============================================================================
 
+/** A non-null, non-array object (used to pass verdict provenance through unchanged). */
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 export interface TestExecuteResult {
   taskId: string;
   status: string;
@@ -170,6 +175,12 @@ export interface QualityAssessResult {
   measuredFailures?: MeasuredFailure[];
   /** #996: false for static analysis (runGate omitted/false) — no quality gate ran. */
   gateEvaluated?: boolean;
+  /** #1474: the candidate the measured gate judged (project + HEAD + dirty-tree fingerprint). */
+  candidate?: Record<string, unknown>;
+  /** #1474: the evidence receipts the measured verdict used, by metric. */
+  receipts?: Record<string, unknown>;
+  /** #1474: the effective thresholds the measured verdict applied. */
+  thresholds?: Record<string, unknown>;
   /** #996: share of requested metrics that were measured, in [0, 1]. */
   confidence?: number;
   /** #996: plain statement of what was (and was not) evaluated. */
@@ -987,6 +998,10 @@ export const qualityAssessConfig: DomainHandlerConfig<QualityAssessParams, Quali
         ? { scoreBasis: data.scoreBasis as string[] } : {}),
       ...(measuredFailures ? { measuredFailures } : {}),
       ...(gateEvaluated !== undefined ? { gateEvaluated } : {}),
+      // #1474: the measured verdict's provenance travels with it.
+      ...(isPlainRecord(data.candidate) ? { candidate: data.candidate } : {}),
+      ...(isPlainRecord(data.receipts) ? { receipts: data.receipts } : {}),
+      ...(isPlainRecord(data.thresholds) ? { thresholds: data.thresholds } : {}),
       ...(confidence !== undefined ? { confidence } : {}),
       ...(typeof data.note === 'string' ? { note: data.note } : {}),
       duration,

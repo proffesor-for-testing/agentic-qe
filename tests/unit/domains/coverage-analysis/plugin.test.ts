@@ -215,7 +215,7 @@ describe('CoverageAnalysisPlugin', () => {
       expect(result.success).toBe(true);
       expect((result.data as { measured?: boolean }).measured).toBe(false);
       expect((await memory.get('coverage:latest')) ?? null).toBeNull();
-      expect((await memory.get('quality-evidence:coverage:latest', { namespace: 'quality-assessment' })) ?? null).toBeNull();
+      expect((await memory.get('quality-evidence:v2:latest:coverage', { namespace: 'quality-assessment' })) ?? null).toBeNull();
     });
 
     it('should return error for unknown task type', async () => {

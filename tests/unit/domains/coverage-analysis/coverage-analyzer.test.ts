@@ -405,7 +405,7 @@ describe('CoverageAnalyzerService', () => {
         expect.objectContaining({ persist: true }),
       );
       expect(memory.set).toHaveBeenCalledWith(
-        'quality-evidence:coverage:latest',
+        'quality-evidence:v2:latest:coverage',
         expect.objectContaining({ metric: 'coverage', source: 'coverage-analysis' }),
         expect.objectContaining({ namespace: 'quality-assessment', persist: true }),
       );

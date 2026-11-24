@@ -9,6 +9,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { QualityGateWorker } from '../../../../src/workers/workers/quality-gate';
 import { WorkerContext } from '../../../../src/workers/interfaces';
+import { evidenceKeyFixture } from '../../../fixtures/quality-evidence-candidates';
+
+// #1474: the worker judges its checkout's candidate; this suite's project root
+// is not a Git work tree, so resolve every checkout to one fixed candidate.
+vi.mock('../../../../src/domains/quality-assessment/evidence-candidate', async (importOriginal) =>
+  (await import('../../../fixtures/quality-evidence-candidates')).fixedCandidateModule(importOriginal));
 
 /** Measured values for every gate metric (#1043: the gate reads only measured evidence). */
 const PASSING_EVIDENCE: Record<string, number> = {
@@ -28,12 +34,9 @@ function createMockContext(overrides: Partial<{
     },
     memory: {
       get: vi.fn().mockImplementation((key: string, options?: { namespace?: string }) => {
-        const metric = /^quality-evidence:(\w+):latest$/.exec(key)?.[1];
-        if (metric && evidence && options?.namespace === 'quality-assessment' && metric in evidence) {
-          return Promise.resolve({
-            schemaVersion: 1, metric, value: evidence[metric],
-            measuredAt: new Date().toISOString(), source: 'unit-test',
-          });
+        const fixture = evidenceKeyFixture(key);
+        if (fixture && evidence && options?.namespace === 'quality-assessment' && fixture.metric in evidence) {
+          return Promise.resolve(fixture.record(evidence[fixture.metric], { source: 'unit-test' }));
         }
         if (key === 'quality-gate:history') {
           return Promise.resolve(gateHistory);

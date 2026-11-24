@@ -12,9 +12,12 @@ import type { CLIContext } from '../handlers/interfaces.js';
 import { type OutputFormat, type QualityGateResult, writeOutput, toJSON, qualityGateToMarkdown } from '../utils/ci-output.js';
 import {
   InsufficientQualityEvidenceError,
+  describeVerdictProvenance,
   evaluateQualityEvidence,
   inspectQualityEvidence,
+  loadQualityEvidenceSet,
   loadQualityEvidence as loadCanonicalQualityEvidence,
+  type QualityEvidenceSet,
   type QualityEvidenceValues,
 } from '../../domains/quality-assessment/quality-evidence.js';
 
@@ -22,13 +25,21 @@ export async function loadQualityEvidence(memory: MemoryBackend): Promise<Qualit
   return loadCanonicalQualityEvidence(memory);
 }
 
-export function evaluateMeasuredQualityEvidence(measured: QualityEvidenceValues): QualityGateResult {
-  const evaluation = evaluateQualityEvidence(measured);
+/**
+ * Evaluate measured evidence. Given the loaded set (#1474) the result also
+ * records the candidate it judged, the receipts it used and the thresholds.
+ */
+export function evaluateMeasuredQualityEvidence(
+  measured: QualityEvidenceValues | QualityEvidenceSet,
+): QualityGateResult {
+  const set = 'receipts' in measured && 'candidate' in measured ? measured as QualityEvidenceSet : undefined;
+  const evaluation = evaluateQualityEvidence(set ? set.values : measured as QualityEvidenceValues);
   return {
     passed: evaluation.passed,
     score: 'N/A',
     checks: evaluation.checks,
     recommendations: evaluation.recommendations,
+    ...(set ? describeVerdictProvenance(set) : {}),
   };
 }
 
@@ -59,6 +70,8 @@ export async function describeUnavailableQualityEvidence(
     unmeasured: details.unmeasured,
     gateEvaluated: false,
     error: reason,
+    problems: details.problems,
+    ...(details.candidate ? { candidate: details.candidate } : {}),
     recommendations: [
       `Quality gate not evaluated: ${reason}`,
       ...details.recommendations,
@@ -115,7 +128,8 @@ export function createQualityCommand(
           const memory = context.kernel!.memory;
           let gateResult: QualityGateResult;
           try {
-            gateResult = evaluateMeasuredQualityEvidence(await loadQualityEvidence(memory));
+            // #1474: only evidence bound to the checkout being gated is evaluated.
+            gateResult = evaluateMeasuredQualityEvidence(await loadQualityEvidenceSet(memory));
           } catch (error) {
             gateResult = await describeUnavailableQualityEvidence(memory, error);
           }
@@ -128,6 +142,9 @@ export function createQualityCommand(
             console.log(`  Quality Gate: ${chalk.yellow('⚠ INSUFFICIENT EVIDENCE (not evaluated)')}`);
             if (gateResult.unmeasured?.length) {
               console.log(`  Unmeasured: ${gateResult.unmeasured.join(', ')}`);
+            }
+            for (const problem of gateResult.problems ?? []) {
+              console.log(chalk.gray(`    - ${problem.metric}: ${problem.code}`));
             }
             console.log(chalk.gray(`  ${gateResult.error ?? ''}\n`));
           } else {

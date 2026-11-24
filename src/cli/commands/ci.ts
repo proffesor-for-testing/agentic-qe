@@ -29,8 +29,9 @@ import {
 } from '../utils/coverage-verdict.js';
 import {
   InsufficientQualityEvidenceError,
+  describeVerdictProvenance,
   evaluateQualityEvidence,
-  loadQualityEvidence,
+  loadQualityEvidenceSet,
 } from '../../domains/quality-assessment/quality-evidence.js';
 
 // ============================================================================
@@ -223,9 +224,15 @@ async function executePhase(
         // Use the same evidence contract as `aqe quality --gate` and registered
         // MCP quality_assess. The domain API has no evaluate() method.
         try {
-          const metrics = await loadQualityEvidence(context.kernel!.memory);
+          // #1474: the candidate is resolved from this checkout; only evidence
+          // bound to it is evaluated.
+          const evidence = await loadQualityEvidenceSet(context.kernel!.memory);
+          const metrics = evidence.values;
           const assessment = evaluateQualityEvidence(metrics, { coverage: coverageThreshold });
-          details = { ...assessment, metrics, evidenceStatus: 'measured' };
+          details = {
+            ...assessment, metrics, evidenceStatus: 'measured',
+            ...describeVerdictProvenance(evidence, { coverage: coverageThreshold }),
+          };
           status = assessment.passed ? 'passed' : 'failed';
           summary = `Quality gate: ${assessment.passed ? 'PASSED' : 'FAILED'} (${assessment.checks.filter(check => check.passed).length}/${assessment.checks.length} measured checks passed)`;
         } catch (error) {

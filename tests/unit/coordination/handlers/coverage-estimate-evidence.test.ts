@@ -28,6 +28,11 @@ import {
 import '../../../../src/domains/coverage-analysis';
 import { runJsCoverage, type JsCoverageRun } from '../../../../src/coordination/handlers/coverage-runner';
 
+// #1474: evidence is bound to the checkout's candidate; this suite's project root is
+// not a Git work tree, so resolve every checkout to one fixed candidate.
+vi.mock('../../../../src/domains/quality-assessment/evidence-candidate', async (importOriginal) =>
+  (await import('../../../../tests/fixtures/quality-evidence-candidates')).fixedCandidateModule(importOriginal));
+
 // #1126: the handlers read only targets inside the project root, and these
 // fixtures live in the OS temp dir.
 beforeEach(() => { vi.stubEnv('AQE_PROJECT_ROOT', fs.realpathSync(os.tmpdir())); });
@@ -94,7 +99,7 @@ async function seedAllButCoverage(kernel: Kernel): Promise<void> {
   }, { measuredAt: new Date().toISOString(), source: 'regression-fixture' });
 }
 
-const coverageEvidenceKey = `${QUALITY_EVIDENCE_NAMESPACE}::quality-evidence:coverage:latest`;
+const coverageEvidenceKey = `${QUALITY_EVIDENCE_NAMESPACE}::quality-evidence:v2:latest:coverage`;
 
 describe('#1008 — a static estimate is never persisted as coverage evidence', () => {
   let dir: string;

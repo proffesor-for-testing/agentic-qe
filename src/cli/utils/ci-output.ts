@@ -157,6 +157,14 @@ export interface QualityGateResult {
   gateEvaluated?: boolean;
   /** #996: why the gate could not be evaluated. */
   error?: string;
+  /** #1474: the candidate (project + HEAD + dirty-tree fingerprint) the gate judged. */
+  candidate?: unknown;
+  /** #1474: the evidence receipts the verdict used, by metric. */
+  receipts?: Record<string, unknown>;
+  /** #1474: the effective thresholds the verdict applied. */
+  thresholds?: Record<string, unknown>;
+  /** #1474: structured reason per metric when evidence is insufficient. */
+  problems?: Array<{ metric: string; code: string; reason: string; receiptId?: string }>;
 }
 
 // ============================================================================
