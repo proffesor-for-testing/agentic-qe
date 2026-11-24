@@ -17,6 +17,11 @@ describe('Claude Code plugin version sync', () => {
     expect(manifest.version).toBe(version);
   });
 
+  it('fleet Codex manifest version tracks package.json (#1475)', () => {
+    const manifest = readJson<{ version: string }>('plugins/agentic-qe-fleet/.codex-plugin/plugin.json');
+    expect(manifest.version).toBe(version);
+  });
+
   it('fleet .mcp.json pins the agentic-qe server to the package version', () => {
     const mcp = readJson<McpConfig>('plugins/agentic-qe-fleet/.mcp.json');
     const args = mcp.mcpServers?.['agentic-qe']?.args ?? [];
@@ -57,6 +62,41 @@ describe('Claude Code plugin version sync', () => {
     expect(source).not.toContain("'0.1.0'");
   });
 
+  it('--check fails on a drifted Codex manifest version and the write mode repairs it (#1475)', () => {
+    const tmp = mkdtempSync(resolve(tmpdir(), 'aqe-sync-codex-'));
+    try {
+      const files = [
+        'scripts/sync-plugin-versions.cjs',
+        'package.json',
+        '.claude-plugin/plugin.json',
+        'plugins/agentic-qe-fleet/.claude-plugin/plugin.json',
+        'plugins/agentic-qe-fleet/.codex-plugin/plugin.json',
+        'plugins/agentic-qe-fleet/.mcp.json',
+        'plugins/agentic-qe-fleet/hooks/version.ts',
+      ];
+      for (const f of files) {
+        mkdirSync(dirname(resolve(tmp, f)), { recursive: true });
+        cpSync(resolve(root, f), resolve(tmp, f));
+      }
+      const codexFile = resolve(tmp, 'plugins/agentic-qe-fleet/.codex-plugin/plugin.json');
+      const codexManifest = JSON.parse(readFileSync(codexFile, 'utf8')) as { version: string };
+      writeFileSync(codexFile, JSON.stringify({ ...codexManifest, version: '0.0.1' }, null, 2) + '\n');
+      const script = resolve(tmp, 'scripts/sync-plugin-versions.cjs');
+
+      const drift = spawnSync('node', [script, '--check'], { encoding: 'utf8' });
+      expect(drift.status).toBe(1);
+      expect(drift.stderr).toContain(`plugins/agentic-qe-fleet/.codex-plugin/plugin.json: version "0.0.1" != ${version}`);
+      expect((JSON.parse(readFileSync(codexFile, 'utf8')) as { version: string }).version).toBe('0.0.1');
+
+      const write = spawnSync('node', [script], { encoding: 'utf8' });
+      expect(write.status).toBe(0);
+      expect(readFileSync(codexFile, 'utf8')).toBe(readFileSync(resolve(root, 'plugins/agentic-qe-fleet/.codex-plugin/plugin.json'), 'utf8'));
+      expect(spawnSync('node', [script, '--check'], { encoding: 'utf8' }).status).toBe(0);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
   it('--check fails on a drifted MOD_VERSION and the write mode repairs it (#923)', () => {
     const tmp = mkdtempSync(resolve(tmpdir(), 'aqe-sync-'));
     try {
@@ -65,6 +105,7 @@ describe('Claude Code plugin version sync', () => {
         'package.json',
         '.claude-plugin/plugin.json',
         'plugins/agentic-qe-fleet/.claude-plugin/plugin.json',
+        'plugins/agentic-qe-fleet/.codex-plugin/plugin.json',
         'plugins/agentic-qe-fleet/.mcp.json',
         'plugins/agentic-qe-fleet/hooks/version.ts',
       ];

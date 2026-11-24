@@ -189,6 +189,7 @@ jobs:
             tests/integration/feedback/ \
             tests/integration/migration/ \
             tests/integration/opencode/ \
+            tests/integration/packaging/ \
             tests/integration/parsers/ \
             tests/integration/planning/ \
             tests/integration/protocols/ \

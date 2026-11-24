@@ -2,7 +2,11 @@
 # Structural smoke test for the aqe-mod hooks module (plugins/agentic-qe-fleet/hooks).
 #
 # Checks the mod's contract without running Claude Code:
-#   - hooks/hooks.json is valid JSON and names ./register.ts as its one module
+#   - the mod manifest (hooks/aqe-mod.json, named by plugin.json "hooks") is valid
+#     JSON and names ./register.ts as its one module
+#   - nothing sits at hooks/hooks.json: Codex reads that path as a lifecycle-hooks
+#     file and warns on the mod manifest's "modules" (#1475); .codex-plugin/plugin.json
+#     declares no hooks
 #   - every module file exists and stays under 500 lines (CLAUDE.md)
 #   - the module is sandbox-clean: no Node/fs/net/process imports, no imports
 #     from outside the plugin, no dynamic import(), no require, no computed $[x]
@@ -19,7 +23,9 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLUGIN_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 HOOKS_DIR="$PLUGIN_DIR/hooks"
-HOOKS_JSON="$HOOKS_DIR/hooks.json"
+HOOKS_JSON="$HOOKS_DIR/aqe-mod.json"
+MANIFEST="$PLUGIN_DIR/.claude-plugin/plugin.json"
+CODEX_MANIFEST="$PLUGIN_DIR/.codex-plugin/plugin.json"
 
 fail=0
 pass() { printf '  ok   %s\n' "$1"; }
@@ -27,12 +33,24 @@ err()  { printf '  FAIL %s\n' "$1"; fail=1; }
 
 echo "== aqe-mod (agentic-qe-fleet hooks module) contract =="
 
-# 1. hooks.json names the module.
-if jq -e . "$HOOKS_JSON" >/dev/null 2>&1; then pass "hooks.json is valid JSON"; else err "hooks/hooks.json missing or invalid JSON"; fi
+# 1. The mod manifest names the module, and plugin.json points Claude Code at it.
+if jq -e . "$HOOKS_JSON" >/dev/null 2>&1; then pass "hooks/aqe-mod.json is valid JSON"; else err "hooks/aqe-mod.json missing or invalid JSON"; fi
 if [ "$(jq -r '.modules | length' "$HOOKS_JSON" 2>/dev/null)" = "1" ] && [ "$(jq -r '.modules[0]' "$HOOKS_JSON" 2>/dev/null)" = "./register.ts" ]; then
-  pass "hooks.json modules == [\"./register.ts\"]"
+  pass "aqe-mod.json modules == [\"./register.ts\"]"
 else
-  err "hooks.json must list exactly one module, ./register.ts"
+  err "aqe-mod.json must list exactly one module, ./register.ts"
+fi
+if [ "$(jq -r '.hooks' "$MANIFEST" 2>/dev/null)" = "./hooks/aqe-mod.json" ]; then
+  pass "plugin.json hooks == ./hooks/aqe-mod.json"
+else
+  err "plugin.json must declare \"hooks\": \"./hooks/aqe-mod.json\" (Claude Code loads the mod from there)"
+fi
+# Codex loads <plugin>/hooks/hooks.json by convention and rejects a mod manifest there (#1475).
+if [ -e "$HOOKS_DIR/hooks.json" ]; then err "hooks/hooks.json must not exist (Codex parses it as lifecycle hooks; #1475)"; else pass "no hooks/hooks.json for Codex to misread"; fi
+if jq -e '.name == "agentic-qe-fleet" and (has("hooks") | not)' "$CODEX_MANIFEST" >/dev/null 2>&1; then
+  pass ".codex-plugin/plugin.json exists and declares no hooks"
+else
+  err ".codex-plugin/plugin.json missing, misnamed, or declares hooks (Codex would follow it to the mod manifest; #1475)"
 fi
 
 # 2. Module files exist and are small.
