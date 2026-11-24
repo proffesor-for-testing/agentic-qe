@@ -17,6 +17,11 @@ describe('Claude Code plugin version sync', () => {
     expect(manifest.version).toBe(version);
   });
 
+  it('fleet Codex manifest version tracks package.json (#1475)', () => {
+    const manifest = readJson<{ version: string }>('plugins/agentic-qe-fleet/.codex-plugin/plugin.json');
+    expect(manifest.version).toBe(version);
+  });
+
   it('fleet .mcp.json pins the agentic-qe server to the package version', () => {
     const mcp = readJson<McpConfig>('plugins/agentic-qe-fleet/.mcp.json');
     const args = mcp.mcpServers?.['agentic-qe']?.args ?? [];
@@ -65,6 +70,7 @@ describe('Claude Code plugin version sync', () => {
         'package.json',
         '.claude-plugin/plugin.json',
         'plugins/agentic-qe-fleet/.claude-plugin/plugin.json',
+        'plugins/agentic-qe-fleet/.codex-plugin/plugin.json',
         'plugins/agentic-qe-fleet/.mcp.json',
         'plugins/agentic-qe-fleet/hooks/version.ts',
       ];
