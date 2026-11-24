@@ -305,6 +305,7 @@
     "src/sync/schema/*.sql",
     "assets/**",
     "schemas/**",
+    "verification/anchors/qe-anchor-v1.json",
     "scripts/postinstall.cjs",
     "scripts/preinstall.cjs",
     "scripts/fetch-content.cjs",

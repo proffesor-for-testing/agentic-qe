@@ -27,6 +27,7 @@ import {
 } from './quality-verdict.js';
 import type { OracleResult } from './oracle-eval.js';
 import { findProjectRoot } from '../kernel/unified-memory.js';
+import { DEFAULT_ANCHOR_RELATIVE_PATH, defaultAnchorPath } from './anchor-path.js';
 import {
   computeVerificationArtifactDigest,
   evaluateVerificationReach,
@@ -35,8 +36,8 @@ import {
   type VerificationReachResult,
 } from './verification-reach.js';
 
-/** Default frozen anchor location, relative to the project root (ADR-117). */
-export const DEFAULT_ANCHOR_RELATIVE_PATH = 'verification/anchors/qe-anchor-v1.json';
+/** Default frozen anchor location, relative to the agentic-qe package root (ADR-117, #1454). */
+export { DEFAULT_ANCHOR_RELATIVE_PATH };
 
 export interface QualityGateRequest {
   /**
@@ -154,8 +155,12 @@ export function listChecklistIds(anchorPath?: string): string[] {
   return anchor.items.map((it) => it.id);
 }
 
+/**
+ * The default anchor is the one shipped with agentic-qe (package root, #1454);
+ * a caller-named relative anchor is a project file, resolved from the project root.
+ */
 function resolveAnchorPath(anchorPath?: string): string {
-  if (anchorPath && path.isAbsolute(anchorPath)) return anchorPath;
-  const root = findProjectRoot();
-  return path.resolve(root, anchorPath ?? DEFAULT_ANCHOR_RELATIVE_PATH);
+  if (!anchorPath) return defaultAnchorPath();
+  if (path.isAbsolute(anchorPath)) return anchorPath;
+  return path.resolve(findProjectRoot(), anchorPath);
 }

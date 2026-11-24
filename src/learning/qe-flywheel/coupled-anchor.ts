@@ -31,6 +31,7 @@ import {
 } from '../embedding-space.js';
 import { evaluateOracle } from '../../validation/oracle-eval.js';
 import { loadAnchorSet, anchorMean as meanOf, type AnchorItem } from '../../validation/anchor-set.js';
+import { defaultAnchorPath } from '../../validation/anchor-path.js';
 import type { RetrievalPolicy } from './policy.js';
 import { createCorpusScorer } from './corpus-scorer.js';
 import type { PolicyScorer, PolicyScores } from './generation.js';
@@ -58,8 +59,6 @@ export interface CoupledAnchorOptions {
   maxMutants?: number;
 }
 
-const DEFAULT_ANCHOR_PATH = new URL('../../../verification/anchors/qe-anchor-v1.json', import.meta.url).pathname;
-
 /**
  * Build the coupled anchorMean scorer: `(policy) => Promise<number>`.
  * Grades each frozen anchor item by generating a test from policy-retrieved
@@ -67,7 +66,7 @@ const DEFAULT_ANCHOR_PATH = new URL('../../../verification/anchors/qe-anchor-v1.
  * policy.
  */
 export function createCoupledAnchorScorer(opts: CoupledAnchorOptions): (policy: RetrievalPolicy) => Promise<number> {
-  const anchor = loadAnchorSet(opts.anchorPath ?? DEFAULT_ANCHOR_PATH);
+  const anchor = loadAnchorSet(opts.anchorPath ?? defaultAnchorPath()) // package root (#1454): a fixed ../../../ misses under the bundles;
   const threshold = opts.threshold ?? 0.8;
 
   return async (policy: RetrievalPolicy): Promise<number> => {

@@ -72,6 +72,20 @@ Never report exit code `3` as a pass: say which metrics are missing instead of g
 
 **Current limit.** The gate also requires `criticalBugs`, `codeSmells`, `securityVulnerabilities`, `technicalDebt` and `duplications`, and no AQE CLI command or MCP tool records those yet. Until they are supplied from your own measurement, expect exit code `3` even when tests and coverage are measured. Until then, decide on the evidence you did measure: the test run's exit code, `aqe coverage` against its threshold, and the security findings. Say plainly which gate metrics were not measured. The CI example below works this way.
 
+### Pinned-checklist verdicts
+
+For a two-gate, three-valued verdict on one artifact against a frozen checklist (the anchor ships with agentic-qe, so this works in any project from the release after 3.15.22; #1454):
+
+```bash
+# List the pinned checklists
+aqe quality-gate --list
+
+# Judge an artifact, with the mutation-oracle result
+aqe quality-gate --checklist <id> --artifact-file path/to/artifact.ts --oracle-file oracle.json --format json
+```
+
+Exit codes: `0` pass, `1` fail, `3` inconclusive. Without `--oracle-file` (or `--oracle-passed`) the mechanical gate fails closed, and without a frontier LLM provider the judge is unavailable, so the verdict is never a pass.
+
 ## Verification Checks
 
 ### Tests
