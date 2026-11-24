@@ -465,9 +465,6 @@ export function createCICommand(
 
         // Create output directory
         const outputDir = path.resolve(config.output.directory);
-        // #1474: this run's own artifacts are not part of the candidate it measures and gates.
-        ignorePathInCandidate(outputDir);
-        if (options.output) ignorePathInCandidate(path.resolve(options.output as string));
         fs.mkdirSync(outputDir, { recursive: true });
         const gateReportPath = path.join(outputDir, 'quality-gate.json');
         // Invalidate an earlier approval before executing any phase. This also
@@ -476,6 +473,9 @@ export function createCICommand(
           passed: false, status: 'not-run', evidenceStatus: 'not-run',
           enforced: config.qualityGate.enforced, phases: [],
         }), 'utf-8');
+        // #1474: once written, this run's own artifact directory is not part of the
+        // candidate it measures and gates (refused if it holds tracked content).
+        ignorePathInCandidate(outputDir, 'dir');
 
         // Invalidate prior approval even when a typo prevents any execution.
         if (phaseSelectionError) console.error(chalk.red(phaseSelectionError));
@@ -568,10 +568,10 @@ export function createCICommand(
         }
 
         // Output results
-        if (format === 'json') {
-          writeOutput(toJSON(runResult), options.output);
-        } else if (format === 'markdown') {
-          writeOutput(generateCombinedReport(runResult), options.output);
+        if (format === 'json' || format === 'markdown') {
+          writeOutput(format === 'json' ? toJSON(runResult) : generateCombinedReport(runResult), options.output);
+          // #1474: only a report written successfully, and only as that exact file.
+          if (options.output) ignorePathInCandidate(path.resolve(options.output as string), 'file');
         } else {
           // Text summary
           console.log('');

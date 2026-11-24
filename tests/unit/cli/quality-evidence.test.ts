@@ -1,5 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { mkdtemp, readFile } from 'node:fs/promises';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -11,6 +13,7 @@ import {
 } from '../../../src/cli/commands/quality.js';
 import { qualityGateToMarkdown } from '../../../src/cli/utils/ci-output.js';
 import { createGitCandidateFixture, evidenceKeyFixture } from '../../fixtures/quality-evidence-candidates.js';
+import { resolveQualityEvidenceCandidate } from '../../../src/domains/quality-assessment/evidence-candidate.js';
 
 // #1474: the gate resolves its candidate from the project checkout; point the
 // root at a Git fixture so it resolves, and answer its candidate-bound keys.
@@ -164,5 +167,42 @@ describe('quality command with unmeasured evidence (#996)', () => {
     expect(md).toMatch(/insufficient evidence/i);
     expect(md).toContain('coverage');
     expect(md).not.toContain('PASSED');
+  });
+});
+
+// #1474 re-review BLOCK: `aqe quality --gate -o <path>` must not hide real source changes.
+describe('quality --gate -o registers only its own successfully written report', () => {
+  function sourceProject(): string {
+    const root = createGitCandidateFixture('aqe-cli-o-');
+    mkdirSync(join(root, 'src'));
+    writeFileSync(join(root, 'src', 'add.mjs'), 'export const add = (a, b) => a + b;\n');
+    execFileSync('git', ['-c', 'user.email=f@example.invalid', '-c', 'user.name=f', 'add', '-A'], { cwd: root });
+    execFileSync('git', ['-c', 'user.email=f@example.invalid', '-c', 'user.name=f', 'commit', '-qm', 's'], { cwd: root });
+    vi.stubEnv('AQE_PROJECT_ROOT', root);
+    return root;
+  }
+  async function gate(root: string, output: string) {
+    const exit = vi.fn(async (_code: number) => undefined);
+    const command = createQualityCommand({ kernel: { memory: { get: async () => undefined } } } as never, exit as never, async () => true);
+    await command.parseAsync(['--gate', '--format', 'json', '--output', join(root, output)], { from: 'user' });
+    return exit.mock.calls[0]?.[0];
+  }
+
+  it('-o src: the write fails (exit 1), nothing is registered, and an edit to src still changes the candidate', async () => {
+    const root = sourceProject();
+    const before = resolveQualityEvidenceCandidate(root);
+    expect(await gate(root, 'src')).toBe(1);
+    expect(existsSync(join(root, '.agentic-qe', 'candidate-ignore.json'))).toBe(false);
+    writeFileSync(join(root, 'src', 'add.mjs'), 'export const add = (a, b) => a - b;\n');
+    expect(resolveQualityEvidenceCandidate(root).id).not.toBe(before.id);
+  });
+
+  it('-o gate.json: the written report is registered and left out of later candidates', async () => {
+    const root = sourceProject();
+    expect(await gate(root, 'gate.json')).toBe(3);
+    const after = resolveQualityEvidenceCandidate(root);
+    expect(after).toMatchObject({ dirty: false, ignored: ['file:gate.json'] });
+    writeFileSync(join(root, 'src', 'add.mjs'), 'export const add = () => 0;\n');
+    expect(resolveQualityEvidenceCandidate(root).id).not.toBe(after.id);
   });
 });

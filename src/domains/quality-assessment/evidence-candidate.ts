@@ -15,23 +15,40 @@
  */
 
 import { createHash } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { findProjectRoot } from '../../kernel/project-root.js';
+import { git, gitHead, normalizePath } from './candidate-git.js';
+import {
+  CANDIDATE_IGNORED_DIRS,
+  effectiveCandidateIgnores,
+  registerCandidateIgnore,
+  type CandidateIgnoreEntry,
+  type RejectedCandidateIgnore,
+} from './candidate-ignore-registry.js';
+
+export { CANDIDATE_IGNORED_DIRS } from './candidate-ignore-registry.js';
 
 /** Version of the candidate-identity scheme; part of every candidate id. */
-export const CANDIDATE_SCHEME = 'aqe-candidate/2';
+export const CANDIDATE_SCHEME = 'aqe-candidate/3';
 
-/**
- * Directories under the AQE project root that never belong to the candidate:
- * AQE's own store (evidence writes change `.agentic-qe/memory.db`) and the
- * default CI artifact directory, which `aqe ci run` rewrites before its gate.
- */
-export const CANDIDATE_IGNORED_DIRS: readonly string[] = ['.agentic-qe', '.aqe-ci-output'];
 
-/** How many uncommitted paths a candidate lists for diagnostics (not part of the id). */
-const LISTED_DIRTY_PATHS = 20;
+/** How many uncommitted paths a candidate lists, with digests, for diagnostics (not part of the id). */
+const LISTED_DIRTY_PATHS = 100;
+/** How many first-segment groups of uncommitted paths a candidate lists. */
+const LISTED_DIRTY_GROUPS = 200;
+
+/** Digest per first path segment over all uncommitted paths, so any difference can be located. */
+function groupDigests(digests: Map<string, string>): Record<string, string> {
+  const groups = new Map<string, string[]>();
+  for (const [rel, digest] of [...digests.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+    const slash = rel.indexOf('/');
+    const key = slash > 0 && slash < rel.length - 1 ? rel.slice(0, slash + 1) : rel;
+    groups.set(key, [...(groups.get(key) ?? []), `${rel}:${digest}`]);
+  }
+  return Object.fromEntries([...groups.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(0, LISTED_DIRTY_GROUPS)
+    .map(([key, items]) => [key, createHash('sha256').update(items.join('\n')).digest('hex').slice(0, 12)]));
+}
 
 export interface ResolvedQualityEvidenceCandidate {
   status: 'resolved';
@@ -45,10 +62,16 @@ export interface ResolvedQualityEvidenceCandidate {
   dirty: boolean;
   /** sha256 over the status and content of every uncommitted path; `clean` when none. */
   fingerprint: string;
-  /** The first uncommitted paths, sorted, for diagnostics; not part of the id. */
-  dirtyPaths?: string[];
+  /** The first uncommitted paths (sorted) with a short content digest each, for diagnostics. */
+  dirtyDigests?: Record<string, string>;
   /** How many uncommitted paths there are in total. */
   dirtyCount?: number;
+  /** Every uncommitted path grouped by its first path segment (`coverage/`, `gate.json`) → digest. */
+  dirtyGroups?: Record<string, string>;
+  /** Registered AQE output paths left out of this candidate (part of the id). */
+  ignored?: string[];
+  /** Registered paths that were not applied (e.g. they now hold tracked content). */
+  rejectedIgnores?: RejectedCandidateIgnore[];
 }
 
 export interface UnavailableQualityEvidenceCandidate {
@@ -60,48 +83,9 @@ export interface UnavailableQualityEvidenceCandidate {
 
 export type QualityEvidenceCandidate = ResolvedQualityEvidenceCandidate | UnavailableQualityEvidenceCandidate;
 
-const GIT_TIMEOUT_MS = 15_000;
 /** How deep nested repositories (submodules) are fingerprinted. */
 const MAX_NESTED_DEPTH = 3;
-const MAX_STDERR = 400;
 const HASH_CHUNK = 1024 * 1024;
-
-/**
- * Run git without prompts, optional locks, fsmonitor hooks or the untracked
- * cache (`-c core.fsmonitor=false`), so no user hook runs and the listing is
- * computed from the tree itself. Failures carry git's own stderr (bounded).
- */
-function git(cwd: string, args: string[]): string {
-  try {
-    return execFileSync('git', ['-c', 'core.fsmonitor=false', '-c', 'core.untrackedCache=false', ...args], {
-      cwd,
-      encoding: 'utf-8',
-      timeout: GIT_TIMEOUT_MS,
-      maxBuffer: 64 * 1024 * 1024,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0' },
-    });
-  } catch (error) {
-    const e = error as { stderr?: string | Buffer; code?: string; message?: string };
-    const stderr = String(e.stderr ?? '').trim().replace(/\s+/g, ' ').slice(0, MAX_STDERR);
-    throw new Error(stderr || (e.code === 'ENOENT' ? 'git is not installed' : (e.message ?? 'git failed')));
-  }
-}
-
-/** The HEAD commit of a work tree, or `unborn` before its first commit. */
-function gitHead(cwd: string): string {
-  try {
-    return git(cwd, ['rev-parse', '--verify', '--quiet', 'HEAD']).trim() || 'unborn';
-  } catch {
-    return 'unborn';
-  }
-}
-
-function normalizePath(p: string): string {
-  let real = p;
-  try { real = fs.realpathSync.native(p); } catch { real = path.resolve(p); }
-  return real.replace(/\\/g, '/').replace(/\/+$/, '') || '/';
-}
 
 /** Paths (relative to the Git top level, `/`-separated) a candidate leaves out. */
 interface IgnoreRules { dirs: string[]; files: Set<string> }
@@ -181,10 +165,7 @@ function hiddenChanges(topLevel: string, rules: IgnoreRules): string[] {
   if (flagged.length === 0) return [];
   const present = flagged.filter((rel) => fs.existsSync(path.join(topLevel, rel)));
   const hashed = present.length > 0
-    ? execFileSync('git', ['-c', 'core.fsmonitor=false', 'hash-object', '--stdin-paths'], {
-      cwd: topLevel, input: present.join('\n') + '\n', encoding: 'utf-8', timeout: GIT_TIMEOUT_MS,
-      maxBuffer: 16 * 1024 * 1024, stdio: ['pipe', 'pipe', 'ignore'],
-    }).trim().split('\n')
+    ? git(topLevel, ['hash-object', '--stdin-paths'], present.join('\n') + '\n').trim().split('\n')
     : [];
   const current = new Map(present.map((rel, i) => [rel, hashed[i]]));
   return flagged.filter((rel) => current.get(rel) !== indexBlob.get(rel));
@@ -199,81 +180,56 @@ function hiddenChanges(topLevel: string, rules: IgnoreRules): string[] {
  */
 function fingerprintWorkTree(
   topLevel: string, depth: number, rules: IgnoreRules,
-): { dirty: boolean; fingerprint: string; paths: string[] } {
+): { dirty: boolean; fingerprint: string; digests: Map<string, string> } {
   const raw = git(topLevel, [
     'status', '--porcelain=v1', '-z', '--untracked-files=all', '--no-renames', '--ignore-submodules=none',
   ]);
   const entries: string[] = [];
-  const paths: string[] = [];
+  const digests = new Map<string, string>();
+  const add = (rel: string, code: string) => {
+    const entry = `${rel}\0${code}\0${digestPath(path.join(topLevel, rel), depth)}`;
+    entries.push(entry);
+    digests.set(rel, createHash('sha256').update(entry).digest('hex').slice(0, 12));
+  };
   for (const entry of raw.split('\0')) {
     if (entry.length < 4) continue;
-    const code = entry.slice(0, 2);
     const rel = entry.slice(3);
-    if (isIgnored(rel, rules)) continue;
-    paths.push(rel);
-    entries.push(`${rel}\0${code}\0${digestPath(path.join(topLevel, rel), depth)}`);
+    if (!isIgnored(rel, rules)) add(rel, entry.slice(0, 2));
   }
-  for (const rel of hiddenChanges(topLevel, rules)) {
-    paths.push(rel);
-    entries.push(`${rel}\0hidden\0${digestPath(path.join(topLevel, rel), depth)}`);
-  }
-  if (entries.length === 0) return { dirty: false, fingerprint: 'clean', paths };
+  for (const rel of hiddenChanges(topLevel, rules)) add(rel, 'hidden');
+  if (entries.length === 0) return { dirty: false, fingerprint: 'clean', digests };
   entries.sort();
-  paths.sort();
-  return { dirty: true, fingerprint: createHash('sha256').update(entries.join('\n')).digest('hex'), paths };
+  return { dirty: true, fingerprint: createHash('sha256').update(entries.join('\n')).digest('hex'), digests };
 }
 
-function candidateId(project: string, head: string, fingerprint: string): string {
-  return createHash('sha256').update([CANDIDATE_SCHEME, project, head, fingerprint].join('\0')).digest('hex');
-}
-
-/** Project-relative paths AQE commands registered as their own output (#1474). */
-const IGNORE_FILE = path.join('.agentic-qe', 'candidate-ignore.json');
-const MAX_REGISTERED = 50;
-
-function readRegistered(project: string): string[] {
-  try {
-    const parsed = JSON.parse(fs.readFileSync(path.join(project, IGNORE_FILE), 'utf-8')) as unknown;
-    return Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === 'string').slice(0, MAX_REGISTERED) : [];
-  } catch {
-    return [];
-  }
+function candidateId(project: string, head: string, fingerprint: string, ignored: readonly string[]): string {
+  return createHash('sha256')
+    .update([CANDIDATE_SCHEME, project, head, fingerprint, ...ignored].join('\0')).digest('hex');
 }
 
 /**
- * Leave an AQE command's own output inside the checkout (the configured CI
- * output directory, a `-o` report file) out of every candidate. The path is
- * recorded in the project's `.agentic-qe/candidate-ignore.json`, so producers
- * and gates in any later process exclude it the same way. Paths outside the
- * project are ignored. Never throws.
+ * Leave an AQE command's own output (written successfully just before) out of
+ * every later candidate. `kind: 'dir'` only for an AQE output directory. See
+ * {@link registerCandidateIgnore} for what is refused. Never throws.
  */
-export function ignorePathInCandidate(absPath: string, projectRoot: string = findProjectRoot()): void {
-  try {
-    const project = normalizePath(projectRoot);
-    const target = path.resolve(absPath);
-    const parent = normalizePath(path.dirname(target));
-    const rel = path.relative(project, path.join(parent, path.basename(target))).replace(/\\/g, '/');
-    if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return;
-    const registered = readRegistered(project);
-    if (registered.includes(rel) || registered.length >= MAX_REGISTERED) return;
-    fs.mkdirSync(path.join(project, '.agentic-qe'), { recursive: true });
-    fs.writeFileSync(path.join(project, IGNORE_FILE), JSON.stringify([...registered, rel].sort(), null, 2));
-  } catch {
-    // Best effort: an unregistered path only makes the gate stricter.
-  }
+export function ignorePathInCandidate(
+  absPath: string, kind: 'file' | 'dir' = 'file', projectRoot: string = findProjectRoot(),
+): boolean {
+  return registerCandidateIgnore(absPath, kind, projectRoot);
 }
 
-function ignoreRules(project: string, topLevel: string): IgnoreRules {
+function ignoreRules(project: string, topLevel: string): IgnoreRules & {
+  ignored: string[]; rejected: RejectedCandidateIgnore[];
+} {
   const projectRel = path.relative(topLevel, project).replace(/\\/g, '/');
-  const under = (p: string) => (projectRel ? `${projectRel}/${p}` : p);
-  const dirs = CANDIDATE_IGNORED_DIRS.map(under);
-  for (const registered of readRegistered(project)) {
-    const r = registered.replace(/\/+$/, '');
-    if (!r || r.startsWith('..') || path.isAbsolute(r)) continue;
-    // A registered path covers itself and, when it is a directory, everything under it.
-    dirs.push(under(r));
+  const dirs = CANDIDATE_IGNORED_DIRS.map((dir) => (projectRel ? `${projectRel}/${dir}` : dir));
+  const files = new Set<string>();
+  const { applied, rejected } = effectiveCandidateIgnores(project, topLevel);
+  for (const entry of applied as CandidateIgnoreEntry[]) {
+    if (entry.kind === 'dir') dirs.push(entry.path); else files.add(entry.path);
   }
-  return { dirs, files: new Set() };
+  const ignored = applied.map((e) => `${e.kind}:${e.path}`).sort();
+  return { dirs, files, ignored, rejected };
 }
 
 /**
@@ -296,10 +252,19 @@ export function resolveQualityEvidenceCandidate(projectRoot: string = findProjec
   }
   const head = gitHead(topLevel);
   try {
-    const { dirty, fingerprint, paths } = fingerprintWorkTree(topLevel, 0, ignoreRules(project, topLevel));
+    const rules = ignoreRules(project, topLevel);
+    const { dirty, fingerprint, digests } = fingerprintWorkTree(topLevel, 0, rules);
+    const listed = [...digests.keys()].sort().slice(0, LISTED_DIRTY_PATHS);
     return {
-      status: 'resolved', id: candidateId(project, head, fingerprint), project, head, dirty, fingerprint,
-      ...(dirty ? { dirtyPaths: paths.slice(0, LISTED_DIRTY_PATHS), dirtyCount: paths.length } : {}),
+      status: 'resolved', id: candidateId(project, head, fingerprint, rules.ignored),
+      project, head, dirty, fingerprint,
+      ...(dirty ? {
+        dirtyDigests: Object.fromEntries(listed.map((p) => [p, digests.get(p)!])),
+        dirtyCount: digests.size,
+        dirtyGroups: groupDigests(digests),
+      } : {}),
+      ...(rules.ignored.length > 0 ? { ignored: rules.ignored } : {}),
+      ...(rules.rejected.length > 0 ? { rejectedIgnores: rules.rejected } : {}),
     };
   } catch (error) {
     return {
@@ -326,25 +291,59 @@ export function describeCandidate(candidate: QualityEvidenceCandidate): string {
   return `${head}${candidate.dirty ? `+dirty:${candidate.fingerprint.slice(0, 12)}` : ''}`;
 }
 
-/** The listed uncommitted paths of a candidate, for messages. */
-function listDirty(candidate: ResolvedQualityEvidenceCandidate): string {
-  if (!candidate.dirty) return 'none';
-  const shown = candidate.dirtyPaths ?? [];
-  const more = (candidate.dirtyCount ?? shown.length) - shown.length;
-  return shown.length === 0 ? 'unlisted' : `${shown.join(', ')}${more > 0 ? `, … ${more} more` : ''}`;
+const DIFF_SHOWN = 10;
+
+function listPaths(paths: string[]): string {
+  const shown = paths.slice(0, DIFF_SHOWN).join(', ');
+  return paths.length > DIFF_SHOWN ? `${shown}, … ${paths.length - DIFF_SHOWN} more` : shown;
+}
+
+/** Keys of two digest maps that were added, removed or whose digest changed. */
+function diffKeys(before: Record<string, string>, now: Record<string, string>) {
+  return {
+    added: Object.keys(now).filter((k) => !(k in before)),
+    removed: Object.keys(before).filter((k) => !(k in now)),
+    changed: Object.keys(now).filter((k) => k in before && before[k] !== now[k]),
+  };
+}
+
+/**
+ * The uncommitted paths that differ between two candidates at the same commit:
+ * located by first path segment over ALL uncommitted paths, then refined to
+ * files where both candidates list them.
+ */
+function describeDirtyDifference(measured: ResolvedQualityEvidenceCandidate, gated: ResolvedQualityEvidenceCandidate): string {
+  const groups = diffKeys(measured.dirtyGroups ?? {}, gated.dirtyGroups ?? {});
+  const files = diffKeys(measured.dirtyDigests ?? {}, gated.dirtyDigests ?? {});
+  // A group that changed is named by its changed files when both lists cover them.
+  const refine = (group: string) => {
+    if (!group.endsWith('/')) return [group];
+    const inGroup = [...files.added, ...files.removed, ...files.changed].filter((f) => f.startsWith(group));
+    return inGroup.length > 0 ? inGroup : [group];
+  };
+  const parts = [
+    groups.added.length ? `uncommitted since the measurement: ${listPaths(groups.added.flatMap(refine))}` : '',
+    groups.removed.length ? `no longer uncommitted: ${listPaths(groups.removed.flatMap(refine))}` : '',
+    groups.changed.length ? `content changed: ${listPaths(groups.changed.flatMap(refine))}` : '',
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join('; ') : 'the uncommitted content differs';
 }
 
 /**
  * Why two candidates differ, in terms a user can act on: a different project,
- * a different commit, or different uncommitted paths (named).
+ * a different commit, different excluded AQE outputs, or the uncommitted paths
+ * that were added, removed or changed since the measurement.
  */
 export function explainCandidateDifference(measured: QualityEvidenceCandidate, gated: QualityEvidenceCandidate): string {
   if (measured.status !== 'resolved' || gated.status !== 'resolved') return 'the candidate identity is unavailable';
   if (measured.project !== gated.project) return `it was measured in ${measured.project}, not ${gated.project}`;
   if (measured.head !== gated.head) {
-    return `it was measured at commit ${describeCandidate(measured)}, the checkout is at ${describeCandidate(gated)}`
-      + (gated.dirty ? ` with uncommitted paths: ${listDirty(gated)}` : '');
+    return `it was measured at commit ${describeCandidate(measured)}, the checkout is at ${describeCandidate(gated)}`;
   }
-  return `same commit, different uncommitted content — uncommitted now: ${listDirty(gated)}; `
-    + `at measurement: ${listDirty(measured)}`;
+  const ignoredBefore = (measured.ignored ?? []).join(', ') || 'none';
+  const ignoredNow = (gated.ignored ?? []).join(', ') || 'none';
+  if (ignoredBefore !== ignoredNow) {
+    return `same commit, but the excluded AQE outputs differ (at measurement: ${ignoredBefore}; now: ${ignoredNow})`;
+  }
+  return `same commit, different uncommitted content — ${describeDirtyDifference(measured, gated)}`;
 }

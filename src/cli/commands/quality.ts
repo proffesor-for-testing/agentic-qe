@@ -127,8 +127,6 @@ export function createQualityCommand(
           }
 
           const memory = context.kernel!.memory;
-          // #1474: the gate's own -o file is not part of the candidate it judges.
-          if (options.output) ignorePathInCandidate(options.output as string);
           let gateResult: QualityGateResult;
           try {
             // #1474: only evidence bound to the checkout being gated is evaluated.
@@ -137,10 +135,11 @@ export function createQualityCommand(
             gateResult = await describeUnavailableQualityEvidence(memory, error);
           }
 
-          if (format === 'json') {
-            writeOutput(toJSON(gateResult), options.output);
-          } else if (format === 'markdown') {
-            writeOutput(qualityGateToMarkdown(gateResult), options.output);
+          if (format === 'json' || format === 'markdown') {
+            writeOutput(format === 'json' ? toJSON(gateResult) : qualityGateToMarkdown(gateResult), options.output);
+            // #1474: once written successfully, the gate's own report file is left
+            // out of later candidates (refused if it is tracked or not a regular file).
+            if (options.output) ignorePathInCandidate(options.output as string, 'file');
           } else if (gateResult.evidenceStatus === 'insufficient-evidence') {
             console.log(`  Quality Gate: ${chalk.yellow('⚠ INSUFFICIENT EVIDENCE (not evaluated)')}`);
             if (gateResult.unmeasured?.length) {

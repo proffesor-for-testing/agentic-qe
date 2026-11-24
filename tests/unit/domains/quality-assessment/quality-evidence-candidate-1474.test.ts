@@ -294,19 +294,22 @@ describe('#1474 candidate resolution edge cases', () => {
 describe('#1474 review — candidate robustness and diagnostics', () => {
   const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd, stdio: 'ignore' });
 
-  it('a registered command output path (custom CI dir, -o file) is excluded in every later resolution', () => {
+  it('a written CI output dir and -o file are excluded in later resolutions, and the exclusion is part of the id', () => {
     const dir = createGitCandidateFixture();
     fixtures.push(dir);
-    const clean = resolveQualityEvidenceCandidate(dir);
-    ignorePathInCandidate(join(dir, 'reports', 'ci'), dir);
-    ignorePathInCandidate(join(dir, 'gate.json'), dir);
-    ignorePathInCandidate(join(tmpdir(), 'outside.json'), dir); // outside the project: ignored
     mkdirSync(join(dir, 'reports', 'ci'), { recursive: true });
     writeFileSync(join(dir, 'reports', 'ci', 'quality-gate.json'), '{}');
     writeFileSync(join(dir, 'gate.json'), '{}');
-    expect(resolveQualityEvidenceCandidate(dir).id).toBe(clean.id);
+    expect(ignorePathInCandidate(join(dir, 'reports', 'ci'), 'dir', dir)).toBe(true);
+    expect(ignorePathInCandidate(join(dir, 'gate.json'), 'file', dir)).toBe(true);
+    expect(ignorePathInCandidate(join(tmpdir(), 'outside.json'), 'file', dir)).toBe(false);
+    const registered = resolveQualityEvidenceCandidate(dir);
+    expect(registered).toMatchObject({ dirty: false, ignored: ['dir:reports/ci', 'file:gate.json'] });
+    writeFileSync(join(dir, 'reports', 'ci', 'more.json'), '{}');
+    writeFileSync(join(dir, 'gate.json'), '{"changed":true}');
+    expect(resolveQualityEvidenceCandidate(dir).id).toBe(registered.id);
     writeFileSync(join(dir, 'reports', 'other.json'), '{}');
-    expect(resolveQualityEvidenceCandidate(dir).id).not.toBe(clean.id);
+    expect(resolveQualityEvidenceCandidate(dir).id).not.toBe(registered.id);
   });
 
   it('.agentic-qe and .aqe-ci-output are excluded only at the AQE project root', () => {
@@ -331,7 +334,7 @@ describe('#1474 review — candidate robustness and diagnostics', () => {
     writeFileSync(join(dir, 'gate.json'), '{}'); // e.g. `aqe quality --gate -F json > gate.json`
     const { problems } = await gate(memory, resolveQualityEvidenceCandidate(dir));
     expect(problems[0]).toMatchObject({ code: 'mismatched' });
-    expect(problems[0].reason).toContain('uncommitted now: gate.json');
+    expect(problems[0].reason).toContain('uncommitted since the measurement: gate.json');
   });
 
   it('an unreadable file is folded into the fingerprint as a marker, not an unavailable candidate', () => {

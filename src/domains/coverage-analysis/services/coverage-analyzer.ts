@@ -203,7 +203,7 @@ export class CoverageAnalyzerService implements ICoverageAnalysisService {
 
       if (measured) {
         // Store current coverage for future delta calculations
-        await this.storeCoverageSnapshot(stored, request.runStatus, request.testRun, request.evidenceComplete !== false);
+        await this.storeCoverageSnapshot(stored, request.runStatus, request.testRun, request.evidenceComplete === true);
 
         // Store coverage vectors for similarity search + KV for quality-analyzer
         if (request.includeFileDetails) {

@@ -47,7 +47,7 @@ export interface AnalyzeCoverageRequest {
    * unmeasured or conflicting files, not older than the sources). `false`
    * keeps the measurement out of the quality-gate evidence: a stale report
    * says nothing about the current checkout, so its figure must not be bound
-   * to it. Defaults to true.
+   * to it. Fail-closed: only an explicit `true` records the coverage receipt.
    */
   evidenceComplete?: boolean;
   /**

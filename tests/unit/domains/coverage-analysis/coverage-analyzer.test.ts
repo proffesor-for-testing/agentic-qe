@@ -383,6 +383,12 @@ describe('CoverageAnalyzerService', () => {
       expect(writtenKeys()).toEqual([]);
     });
 
+    it('#1474: fail-closed — a measured report without evidenceComplete writes no coverage receipt', async () => {
+      await service.analyze({ coverageData: createCoverageData(), measured: true });
+      expect(writtenKeys()).toContain('coverage:latest');
+      expect(writtenKeys().filter((k: string) => k.startsWith('quality-evidence:'))).toEqual([]);
+    });
+
     it('#1474: a stale or incomplete report (evidenceComplete=false) writes no quality evidence for coverage', async () => {
       await service.analyze({ coverageData: createCoverageData(), measured: true, evidenceComplete: false });
       expect(writtenKeys()).toContain('coverage:latest');
@@ -408,7 +414,8 @@ describe('CoverageAnalyzerService', () => {
       ['request.measured=true', { measured: true }],
       ['coverageData.instrumented=true', { coverageData: { ...createCoverageData(), instrumented: true } }],
     ])('persists coverage:latest and coverage quality evidence for %s', async (_label, extra) => {
-      const result = await service.analyze({ coverageData: createCoverageData(), ...extra });
+      // #1474: a coverage receipt is recorded only when the caller states the report is complete.
+      const result = await service.analyze({ coverageData: createCoverageData(), evidenceComplete: true, ...extra });
 
       expect(result.success).toBe(true);
       if (result.success) expect(result.value.measured).toBe(true);

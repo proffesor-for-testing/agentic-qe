@@ -38,7 +38,11 @@ the receipt to the **candidate** it observed:
   project root, and paths AQE commands register as their own output (see
   below), are excluded;
 - `id`: a SHA-256 over the scheme version, project, HEAD and fingerprint;
-- `dirtyPaths` / `dirtyCount`: the first uncommitted paths, for diagnostics.
+- `dirtyDigests`, `dirtyGroups`, `dirtyCount`: per-path and per-first-segment
+  digests of the uncommitted paths, so a mismatch reason can name what was
+  added, removed or changed since the measurement;
+- `ignored` / `rejectedIgnores`: registered AQE output paths that were applied
+  (part of the id) or refused.
 
 Git runs with `core.fsmonitor` and the untracked cache disabled, so no user
 fsmonitor hook runs.
@@ -81,7 +85,10 @@ Shipped producers that record bound receipts today:
   `coverage_analyze_sublinear`, `aqe coverage` and the CI coverage phase. An
   existing report is recorded only when it is complete for the target and not
   older than its sources: a STALE or partial report is shown, but its figure is
-  never bound to the current checkout.
+  never bound to the current checkout. Recording is fail-closed: a caller that
+  does not state the report is complete records no coverage receipt (the
+  internal `qe/coverage/analyze` tool, which does not check freshness, never
+  does).
 
 `criticalBugs`, `codeSmells`, `securityVulnerabilities`, `technicalDebt` and
 `duplications` have no shipped CLI or MCP producer (#1009);
@@ -96,10 +103,18 @@ receipt to the checkout of the AQE project root at the time of the call.
 - Measure and gate the **same** checkout. Any commit, any edit, and any new
   untracked file that Git does not ignore changes the candidate.
 - Keep generated output out of the candidate: add coverage directories, test
-  reports and similar files to `.gitignore`. `aqe ci run` registers its
-  configured `output.directory` and its `-o` file, and `aqe quality --gate`
-  registers its `-o` file, in `.agentic-qe/candidate-ignore.json`; later runs of
-  any producer or gate leave those paths out.
+  reports and similar files to `.gitignore`.
+- AQE's own output is excluded through `.agentic-qe/candidate-ignore.json`.
+  After `aqe ci run` creates its configured `output.directory` it registers
+  that directory, and after a successful `-o` write `aqe ci run` and
+  `aqe quality --gate` register that exact file. A path is registered only
+  after it was written and only when it holds no tracked content, so
+  `-o src` or `-o package.json` registers nothing. At every resolution an entry
+  that no longer exists is pruned, and an entry that now holds tracked content
+  (or changed between file and directory) is not applied and is listed in the
+  candidate's `rejectedIgnores`. The applied entries are listed in the
+  candidate's `ignored` field and are part of its id: the first time a new
+  output path is registered the candidate changes once, so re-measure.
 - A shell redirect into the checkout (`aqe quality --gate -F json > gate.json`)
   creates the file before the gate runs, so the gate reports `mismatched` and
   names `gate.json`. Use `-o <file>`, or redirect outside the checkout.
@@ -117,6 +132,11 @@ receipt to the checkout of the AQE project root at the time of the call.
 - A receipt describes the checkout as it is when the producer records it; an
   edit made while a measurement runs is not detected.
 - The environment and tool configuration are not part of the candidate.
+- Two cases are only ever stricter than necessary: an unchanged symlink under
+  skip-worktree always counts as uncommitted, and the content of an unreadable
+  file is not hashed (it is folded in as an `unreadable:<code>` marker, so a
+  content change in a file that stays unreadable is not seen, but the file's
+  presence is).
 
 ### Migration
 
