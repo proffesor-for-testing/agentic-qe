@@ -66,7 +66,8 @@ export interface CoupledAnchorOptions {
  * policy.
  */
 export function createCoupledAnchorScorer(opts: CoupledAnchorOptions): (policy: RetrievalPolicy) => Promise<number> {
-  const anchor = loadAnchorSet(opts.anchorPath ?? defaultAnchorPath()) // package root (#1454): a fixed ../../../ misses under the bundles;
+  // The shipped anchor, from the package root (#1454): a fixed ../../../ from import.meta.url misses under the bundles.
+  const anchor = loadAnchorSet(opts.anchorPath ?? defaultAnchorPath());
   const threshold = opts.threshold ?? 0.8;
 
   return async (policy: RetrievalPolicy): Promise<number> => {
