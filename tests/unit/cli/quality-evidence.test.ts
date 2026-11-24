@@ -197,12 +197,26 @@ describe('quality --gate -o registers only its own successfully written report',
     expect(resolveQualityEvidenceCandidate(root).id).not.toBe(before.id);
   });
 
-  it('-o gate.json: the written report is registered and left out of later candidates', async () => {
+  it('-o gate-report.json: re-gating an unchanged checkout keeps the candidate measured before the report existed', async () => {
     const root = sourceProject();
-    expect(await gate(root, 'gate.json')).toBe(3);
+    const measured = resolveQualityEvidenceCandidate(root);
+    expect(await gate(root, 'gate-report.json')).toBe(3);
     const after = resolveQualityEvidenceCandidate(root);
-    expect(after).toMatchObject({ dirty: false, ignored: ['file:gate.json'] });
+    expect(after.id).toBe(measured.id);
+    expect(after).toMatchObject({ dirty: false, ignored: [{ path: 'gate-report.json' }] });
+    expect(await gate(root, 'gate-report.json')).toBe(3);
+    expect(resolveQualityEvidenceCandidate(root).id).toBe(measured.id);
     writeFileSync(join(root, 'src', 'add.mjs'), 'export const add = () => 0;\n');
-    expect(resolveQualityEvidenceCandidate(root).id).not.toBe(after.id);
+    expect(resolveQualityEvidenceCandidate(root).id).not.toBe(measured.id);
+  });
+
+  it('an -o report the user later overwrites with other content counts again', async () => {
+    const root = sourceProject();
+    const measured = resolveQualityEvidenceCandidate(root);
+    await gate(root, 'gate-report.json');
+    writeFileSync(join(root, 'gate-report.json'), 'export const notAReport = 1;\n');
+    const after = resolveQualityEvidenceCandidate(root);
+    expect(after.id).not.toBe(measured.id);
+    expect(after).toMatchObject({ rejectedIgnores: [{ path: 'gate-report.json' }] });
   });
 });

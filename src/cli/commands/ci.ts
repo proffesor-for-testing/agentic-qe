@@ -31,9 +31,20 @@ import {
   InsufficientQualityEvidenceError,
   describeVerdictProvenance,
   evaluateQualityEvidence,
-  ignorePathInCandidate,
+  recordOutputInCandidate,
   loadQualityEvidenceSet,
 } from '../../domains/quality-assessment/quality-evidence.js';
+
+/**
+ * Write a CI artifact into the checkout and record exactly what was written
+ * (#1474), so that while it holds that content it does not change the
+ * candidate this run measures and gates. Files AQE did not write are never
+ * left out.
+ */
+function writeArtifact(filePath: string, content: string, encoding: BufferEncoding = 'utf-8'): void {
+  fs.writeFileSync(filePath, content, encoding);
+  recordOutputInCandidate(filePath);
+}
 
 // ============================================================================
 // Phase Execution
@@ -96,7 +107,7 @@ async function executePhase(
           summary = `Generated ${gen.tests.length} tests (${gen.coverageEstimate == null ? 'coverage unmeasured' : `est. ${gen.coverageEstimate}% coverage`})`;
 
           const artifactPath = path.join(outputDir, 'test-generation.json');
-          fs.writeFileSync(artifactPath, toJSON(gen), 'utf-8');
+          writeArtifact(artifactPath, toJSON(gen), 'utf-8');
           artifacts.push(artifactPath);
         } else {
           status = 'failed';
@@ -171,7 +182,7 @@ async function executePhase(
         }
 
         const artifactPath = path.join(outputDir, 'coverage.json');
-        fs.writeFileSync(artifactPath, toJSON(doc), 'utf-8');
+        writeArtifact(artifactPath, toJSON(doc), 'utf-8');
         artifacts.push(artifactPath);
         break;
       }
@@ -204,7 +215,7 @@ async function executePhase(
           // Write SARIF artifact
           const { toSARIF } = await import('../utils/ci-output.js');
           const sarifPath = path.join(outputDir, 'security.sarif');
-          fs.writeFileSync(sarifPath, toSARIF({
+          writeArtifact(sarifPath, toSARIF({
             vulnerabilities: vulns as Array<{ severity: string; type: string; file: string; line: number; message: string }>,
             target,
             scanType: 'SAST',
@@ -212,7 +223,7 @@ async function executePhase(
           artifacts.push(sarifPath);
 
           const jsonPath = path.join(outputDir, 'security.json');
-          fs.writeFileSync(jsonPath, toJSON(scan), 'utf-8');
+          writeArtifact(jsonPath, toJSON(scan), 'utf-8');
           artifacts.push(jsonPath);
         } else {
           status = 'failed';
@@ -248,7 +259,7 @@ async function executePhase(
         // Each gate owns its evidence. A later passing gate must not overwrite
         // an earlier failure when a pipeline contains multiple gate phases.
         const artifactPath = path.join(outputDir, `quality-gate-${phaseIndex + 1}.json`);
-        fs.writeFileSync(artifactPath, toJSON(details), 'utf-8');
+        writeArtifact(artifactPath, toJSON(details), 'utf-8');
         artifacts.push(artifactPath);
         break;
       }
@@ -274,7 +285,7 @@ async function executePhase(
           summary = `Indexed ${idx.filesIndexed} files, ${idx.nodesCreated} nodes`;
 
           const artifactPath = path.join(outputDir, 'code-intelligence.json');
-          fs.writeFileSync(artifactPath, toJSON(idx), 'utf-8');
+          writeArtifact(artifactPath, toJSON(idx), 'utf-8');
           artifacts.push(artifactPath);
         } else {
           status = 'warning';
@@ -469,13 +480,10 @@ export function createCICommand(
         const gateReportPath = path.join(outputDir, 'quality-gate.json');
         // Invalidate an earlier approval before executing any phase. This also
         // covers early stops, disabled gates, and --phase selections without a gate.
-        fs.writeFileSync(gateReportPath, toJSON({
+        writeArtifact(gateReportPath, toJSON({
           passed: false, status: 'not-run', evidenceStatus: 'not-run',
           enforced: config.qualityGate.enforced, phases: [],
         }), 'utf-8');
-        // #1474: once written, this run's own artifact directory is not part of the
-        // candidate it measures and gates (refused if it holds tracked content).
-        ignorePathInCandidate(outputDir, 'dir');
 
         // Invalidate prior approval even when a typo prevents any execution.
         if (phaseSelectionError) console.error(chalk.red(phaseSelectionError));
@@ -549,7 +557,7 @@ export function createCICommand(
           ...(phaseSelectionError ? { configurationError: phaseSelectionError } : {}),
         };
 
-        fs.writeFileSync(gateReportPath, toJSON({
+        writeArtifact(gateReportPath, toJSON({
           ...(gateResults.length === 1 ? gateResults[0].details : {}),
           passed: qualityGatePassed,
           status: qualityGateStatus,
@@ -561,17 +569,17 @@ export function createCICommand(
         // Write combined report
         if (config.output.combinedReport) {
           const reportPath = path.join(outputDir, 'ci-report.md');
-          fs.writeFileSync(reportPath, generateCombinedReport(runResult), 'utf-8');
+          writeArtifact(reportPath, generateCombinedReport(runResult), 'utf-8');
 
           const jsonPath = path.join(outputDir, 'ci-report.json');
-          fs.writeFileSync(jsonPath, toJSON(runResult), 'utf-8');
+          writeArtifact(jsonPath, toJSON(runResult), 'utf-8');
         }
 
         // Output results
         if (format === 'json' || format === 'markdown') {
           writeOutput(format === 'json' ? toJSON(runResult) : generateCombinedReport(runResult), options.output);
-          // #1474: only a report written successfully, and only as that exact file.
-          if (options.output) ignorePathInCandidate(path.resolve(options.output as string), 'file');
+          // #1474: only a report written successfully, recorded with its exact content.
+          if (options.output) recordOutputInCandidate(path.resolve(options.output as string));
         } else {
           // Text summary
           console.log('');

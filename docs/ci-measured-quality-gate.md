@@ -41,8 +41,8 @@ the receipt to the **candidate** it observed:
 - `dirtyDigests`, `dirtyGroups`, `dirtyCount`: per-path and per-first-segment
   digests of the uncommitted paths, so a mismatch reason can name what was
   added, removed or changed since the measurement;
-- `ignored` / `rejectedIgnores`: registered AQE output paths that were applied
-  (part of the id) or refused.
+- `ignored` / `rejectedIgnores`: recorded AQE outputs that were left out (with
+  their hashes; not part of the id) or not.
 
 Git runs with `core.fsmonitor` and the untracked cache disabled, so no user
 fsmonitor hook runs.
@@ -104,17 +104,20 @@ receipt to the checkout of the AQE project root at the time of the call.
   untracked file that Git does not ignore changes the candidate.
 - Keep generated output out of the candidate: add coverage directories, test
   reports and similar files to `.gitignore`.
-- AQE's own output is excluded through `.agentic-qe/candidate-ignore.json`.
-  After `aqe ci run` creates its configured `output.directory` it registers
-  that directory, and after a successful `-o` write `aqe ci run` and
-  `aqe quality --gate` register that exact file. A path is registered only
-  after it was written and only when it holds no tracked content, so
-  `-o src` or `-o package.json` registers nothing. At every resolution an entry
-  that no longer exists is pruned, and an entry that now holds tracked content
-  (or changed between file and directory) is not applied and is listed in the
-  candidate's `rejectedIgnores`. The applied entries are listed in the
-  candidate's `ignored` field and are part of its id: the first time a new
-  output path is registered the candidate changes once, so re-measure.
+- AQE's own output is left out by content. Every file `aqe ci run` writes into
+  its output directory, its `-o` report, and the `-o` report of
+  `aqe quality --gate` are recorded after the write succeeds in
+  `.agentic-qe/candidate-ignore.json` as path → SHA-256 of what AQE wrote
+  (never a directory, never tracked content, never a path outside the project).
+  An uncommitted path is left out only while it is in that manifest, is still
+  untracked, and still holds exactly that content; it then counts as if it were
+  absent, so the exclusion does not change the candidate id: a measurement
+  taken before AQE wrote its outputs matches a gate run after it. Anything else
+  is fingerprinted normally: files AQE did not write (even inside its output
+  directory), a report the user later overwrote, and tracked files. Recorded
+  files that no longer exist are pruned; recorded files that are not left out
+  are listed in the candidate's `rejectedIgnores`, and the ones that are left
+  out in `ignored` (path and hash), so both are visible in every verdict.
 - A shell redirect into the checkout (`aqe quality --gate -F json > gate.json`)
   creates the file before the gate runs, so the gate reports `mismatched` and
   names `gate.json`. Use `-o <file>`, or redirect outside the checkout.

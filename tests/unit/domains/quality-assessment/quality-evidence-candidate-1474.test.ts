@@ -21,7 +21,7 @@ import {
   type QualityMetricName,
 } from '../../../../src/domains/quality-assessment/quality-evidence.js';
 import {
-  ignorePathInCandidate,
+  recordOutputInCandidate,
   resolveQualityEvidenceCandidate,
   type QualityEvidenceCandidate,
 } from '../../../../src/domains/quality-assessment/evidence-candidate.js';
@@ -294,22 +294,23 @@ describe('#1474 candidate resolution edge cases', () => {
 describe('#1474 review — candidate robustness and diagnostics', () => {
   const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd, stdio: 'ignore' });
 
-  it('a written CI output dir and -o file are excluded in later resolutions, and the exclusion is part of the id', () => {
+  it('recorded AQE outputs are left out while they hold what AQE wrote, without changing the id', () => {
     const dir = createGitCandidateFixture();
     fixtures.push(dir);
+    const clean = resolveQualityEvidenceCandidate(dir);
     mkdirSync(join(dir, 'reports', 'ci'), { recursive: true });
     writeFileSync(join(dir, 'reports', 'ci', 'quality-gate.json'), '{}');
     writeFileSync(join(dir, 'gate.json'), '{}');
-    expect(ignorePathInCandidate(join(dir, 'reports', 'ci'), 'dir', dir)).toBe(true);
-    expect(ignorePathInCandidate(join(dir, 'gate.json'), 'file', dir)).toBe(true);
-    expect(ignorePathInCandidate(join(tmpdir(), 'outside.json'), 'file', dir)).toBe(false);
-    const registered = resolveQualityEvidenceCandidate(dir);
-    expect(registered).toMatchObject({ dirty: false, ignored: ['dir:reports/ci', 'file:gate.json'] });
-    writeFileSync(join(dir, 'reports', 'ci', 'more.json'), '{}');
-    writeFileSync(join(dir, 'gate.json'), '{"changed":true}');
-    expect(resolveQualityEvidenceCandidate(dir).id).toBe(registered.id);
+    expect(recordOutputInCandidate(join(dir, 'reports', 'ci', 'quality-gate.json'), dir)).toBe(true);
+    expect(recordOutputInCandidate(join(dir, 'gate.json'), dir)).toBe(true);
+    expect(recordOutputInCandidate(join(tmpdir(), 'outside.json'), dir)).toBe(false);
+    const withOutputs = resolveQualityEvidenceCandidate(dir);
+    // Exactly as if the outputs were absent: same id as before they existed.
+    expect(withOutputs).toMatchObject({ id: clean.id, dirty: false });
+    expect((withOutputs as { ignored?: Array<{ path: string }> }).ignored?.map((e) => e.path))
+      .toEqual(['gate.json', 'reports/ci/quality-gate.json']);
     writeFileSync(join(dir, 'reports', 'other.json'), '{}');
-    expect(resolveQualityEvidenceCandidate(dir).id).not.toBe(registered.id);
+    expect(resolveQualityEvidenceCandidate(dir).id).not.toBe(clean.id);
   });
 
   it('.agentic-qe and .aqe-ci-output are excluded only at the AQE project root', () => {

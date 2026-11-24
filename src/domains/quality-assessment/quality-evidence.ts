@@ -21,7 +21,7 @@ export {
   type UnusableQualityEvidence,
 } from './quality-evidence-errors.js';
 export {
-  ignorePathInCandidate,
+  recordOutputInCandidate,
   resolveQualityEvidenceCandidate,
   type QualityEvidenceCandidate,
 } from './evidence-candidate.js';

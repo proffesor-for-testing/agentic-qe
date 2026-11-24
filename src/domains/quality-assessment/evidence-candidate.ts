@@ -22,15 +22,15 @@ import { git, gitHead, normalizePath } from './candidate-git.js';
 import {
   CANDIDATE_IGNORED_DIRS,
   effectiveCandidateIgnores,
-  registerCandidateIgnore,
-  type CandidateIgnoreEntry,
+  recordCandidateOutput,
+  sha256File,
   type RejectedCandidateIgnore,
 } from './candidate-ignore-registry.js';
 
 export { CANDIDATE_IGNORED_DIRS } from './candidate-ignore-registry.js';
 
 /** Version of the candidate-identity scheme; part of every candidate id. */
-export const CANDIDATE_SCHEME = 'aqe-candidate/3';
+export const CANDIDATE_SCHEME = 'aqe-candidate/4';
 
 
 /** How many uncommitted paths a candidate lists, with digests, for diagnostics (not part of the id). */
@@ -68,8 +68,8 @@ export interface ResolvedQualityEvidenceCandidate {
   dirtyCount?: number;
   /** Every uncommitted path grouped by its first path segment (`coverage/`, `gate.json`) → digest. */
   dirtyGroups?: Record<string, string>;
-  /** Registered AQE output paths left out of this candidate (part of the id). */
-  ignored?: string[];
+  /** AQE outputs left out because they still hold exactly what AQE wrote (not part of the id). */
+  ignored?: Array<{ path: string; sha256: string }>;
   /** Registered paths that were not applied (e.g. they now hold tracked content). */
   rejectedIgnores?: RejectedCandidateIgnore[];
 }
@@ -85,7 +85,6 @@ export type QualityEvidenceCandidate = ResolvedQualityEvidenceCandidate | Unavai
 
 /** How deep nested repositories (submodules) are fingerprinted. */
 const MAX_NESTED_DEPTH = 3;
-const HASH_CHUNK = 1024 * 1024;
 
 /** Paths (relative to the Git top level, `/`-separated) a candidate leaves out. */
 interface IgnoreRules { dirs: string[]; files: Set<string> }
@@ -95,19 +94,6 @@ function isIgnored(relPath: string, rules: IgnoreRules): boolean {
   return rules.files.has(p) || rules.dirs.some((dir) => p === dir || p.startsWith(`${dir}/`));
 }
 
-/** sha256 of a file, streamed in bounded chunks. */
-function hashFile(absPath: string): string {
-  const hash = createHash('sha256');
-  const buffer = Buffer.allocUnsafe(HASH_CHUNK);
-  const fd = fs.openSync(absPath, 'r');
-  try {
-    let read: number;
-    while ((read = fs.readSync(fd, buffer, 0, HASH_CHUNK, null)) > 0) hash.update(buffer.subarray(0, read));
-  } finally {
-    fs.closeSync(fd);
-  }
-  return hash.digest('hex');
-}
 
 /**
  * Content digest of one working-tree path: file bytes, link target, a nested
@@ -125,7 +111,7 @@ function digestPath(absPath: string, depth: number): string {
     }
     if (stat.isDirectory()) return digestNestedRepo(absPath, depth);
     if (!stat.isFile()) return `special:${stat.mode}`;
-    return `file:${stat.mode & 0o111 ? 'x' : '-'}:${hashFile(absPath)}`;
+    return `file:${stat.mode & 0o111 ? 'x' : '-'}:${sha256File(absPath)}`;
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     return code === 'ENOENT' ? 'deleted' : `unreadable:${code ?? 'unknown'}`;
@@ -202,34 +188,28 @@ function fingerprintWorkTree(
   return { dirty: true, fingerprint: createHash('sha256').update(entries.join('\n')).digest('hex'), digests };
 }
 
-function candidateId(project: string, head: string, fingerprint: string, ignored: readonly string[]): string {
-  return createHash('sha256')
-    .update([CANDIDATE_SCHEME, project, head, fingerprint, ...ignored].join('\0')).digest('hex');
+function candidateId(project: string, head: string, fingerprint: string): string {
+  return createHash('sha256').update([CANDIDATE_SCHEME, project, head, fingerprint].join('\0')).digest('hex');
 }
 
 /**
- * Leave an AQE command's own output (written successfully just before) out of
- * every later candidate. `kind: 'dir'` only for an AQE output directory. See
- * {@link registerCandidateIgnore} for what is refused. Never throws.
+ * Record a file AQE has just written successfully into the checkout (a CI
+ * artifact, a `-o` report) so that, while it still holds exactly that content,
+ * it is left out of every candidate. See {@link recordCandidateOutput}.
  */
-export function ignorePathInCandidate(
-  absPath: string, kind: 'file' | 'dir' = 'file', projectRoot: string = findProjectRoot(),
-): boolean {
-  return registerCandidateIgnore(absPath, kind, projectRoot);
+export function recordOutputInCandidate(absPath: string, projectRoot: string = findProjectRoot()): boolean {
+  return recordCandidateOutput(absPath, projectRoot);
 }
 
 function ignoreRules(project: string, topLevel: string): IgnoreRules & {
-  ignored: string[]; rejected: RejectedCandidateIgnore[];
+  ignored: Array<{ path: string; sha256: string }>; rejected: RejectedCandidateIgnore[];
 } {
   const projectRel = path.relative(topLevel, project).replace(/\\/g, '/');
   const dirs = CANDIDATE_IGNORED_DIRS.map((dir) => (projectRel ? `${projectRel}/${dir}` : dir));
-  const files = new Set<string>();
-  const { applied, rejected } = effectiveCandidateIgnores(project, topLevel);
-  for (const entry of applied as CandidateIgnoreEntry[]) {
-    if (entry.kind === 'dir') dirs.push(entry.path); else files.add(entry.path);
-  }
-  const ignored = applied.map((e) => `${e.kind}:${e.path}`).sort();
-  return { dirs, files, ignored, rejected };
+  const { excluded, rejected } = effectiveCandidateIgnores(project, topLevel);
+  const ignored = [...excluded.entries()].map(([p, sha256]) => ({ path: p, sha256 }))
+    .sort((a, b) => a.path.localeCompare(b.path));
+  return { dirs, files: new Set(excluded.keys()), ignored, rejected };
 }
 
 /**
@@ -256,7 +236,7 @@ export function resolveQualityEvidenceCandidate(projectRoot: string = findProjec
     const { dirty, fingerprint, digests } = fingerprintWorkTree(topLevel, 0, rules);
     const listed = [...digests.keys()].sort().slice(0, LISTED_DIRTY_PATHS);
     return {
-      status: 'resolved', id: candidateId(project, head, fingerprint, rules.ignored),
+      status: 'resolved', id: candidateId(project, head, fingerprint),
       project, head, dirty, fingerprint,
       ...(dirty ? {
         dirtyDigests: Object.fromEntries(listed.map((p) => [p, digests.get(p)!])),
@@ -339,11 +319,6 @@ export function explainCandidateDifference(measured: QualityEvidenceCandidate, g
   if (measured.project !== gated.project) return `it was measured in ${measured.project}, not ${gated.project}`;
   if (measured.head !== gated.head) {
     return `it was measured at commit ${describeCandidate(measured)}, the checkout is at ${describeCandidate(gated)}`;
-  }
-  const ignoredBefore = (measured.ignored ?? []).join(', ') || 'none';
-  const ignoredNow = (gated.ignored ?? []).join(', ') || 'none';
-  if (ignoredBefore !== ignoredNow) {
-    return `same commit, but the excluded AQE outputs differ (at measurement: ${ignoredBefore}; now: ${ignoredNow})`;
   }
   return `same commit, different uncommitted content — ${describeDirtyDifference(measured, gated)}`;
 }
