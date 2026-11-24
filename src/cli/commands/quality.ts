@@ -15,7 +15,6 @@ import {
   describeVerdictProvenance,
   evaluateQualityEvidence,
   inspectQualityEvidence,
-  recordOutputInCandidate,
   loadQualityEvidenceSet,
   loadQualityEvidence as loadCanonicalQualityEvidence,
   type QualityEvidenceSet,
@@ -137,9 +136,6 @@ export function createQualityCommand(
 
           if (format === 'json' || format === 'markdown') {
             writeOutput(format === 'json' ? toJSON(gateResult) : qualityGateToMarkdown(gateResult), options.output);
-            // #1474: once written successfully, the gate's own report is left out of
-            // later candidates while it still holds exactly this content.
-            if (options.output) recordOutputInCandidate(options.output as string);
           } else if (gateResult.evidenceStatus === 'insufficient-evidence') {
             console.log(`  Quality Gate: ${chalk.yellow('⚠ INSUFFICIENT EVIDENCE (not evaluated)')}`);
             if (gateResult.unmeasured?.length) {

@@ -105,8 +105,10 @@ receipt to the checkout of the AQE project root at the time of the call.
 - Keep generated output out of the candidate: add coverage directories, test
   reports and similar files to `.gitignore`.
 - AQE's own output is left out by content. Every file `aqe ci run` writes into
-  its output directory, its `-o` report, and the `-o` report of
-  `aqe quality --gate` are recorded after the write succeeds in
+  its output directory and every report any `aqe` command writes with `-o`
+  (for example `aqe test execute -F junit -o junit.xml`,
+  `aqe coverage -F json -o cov.json`, `aqe quality --gate -o gate.json`) are
+  recorded after the write succeeds in
   `.agentic-qe/candidate-ignore.json` as path → SHA-256 of what AQE wrote
   (never a directory, never tracked content, never a path outside the project).
   An uncommitted path is left out only while it is in that manifest, is still
@@ -135,6 +137,8 @@ receipt to the checkout of the AQE project root at the time of the call.
 - A receipt describes the checkout as it is when the producer records it; an
   edit made while a measurement runs is not detected.
 - The environment and tool configuration are not part of the candidate.
+- The manifest of recorded AQE outputs holds at most 500 files; outputs beyond
+  that are not recorded, so they count as uncommitted content (stricter only).
 - Two cases are only ever stricter than necessary: an unchanged symlink under
   skip-worktree always counts as uncommitted, and the content of an unreadable
   file is not hashed (it is folded in as an `unreadable:<code>` marker, so a

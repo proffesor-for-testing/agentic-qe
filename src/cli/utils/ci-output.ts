@@ -9,6 +9,7 @@ import { writeFileSync, readFileSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { recordOutputInCandidate } from '../../domains/quality-assessment/evidence-candidate.js';
 import type { SecurityCoverage } from '../../domains/security-compliance/interfaces.js';
 import type { SecurityScanEvidence } from '../../domains/security-compliance/scan-evidence.js';
 import type { discoverSecurityFiles } from '../../domains/security-compliance/scan-discovery.js';
@@ -191,6 +192,10 @@ export function writeOutput(content: string, outputPath?: string, summary?: stri
     const fullPath = resolve(outputPath);
     mkdirSync(dirname(fullPath), { recursive: true });
     writeFileSync(fullPath, content, 'utf-8');
+    // #1474: a CLI report written into the checkout is AQE's own output. Recorded
+    // with its exact content (never tracked, git-ignored or outside paths), it
+    // does not change the candidate measured before it existed.
+    recordOutputInCandidate(fullPath);
     if (summary) {
       console.log(summary);
     }

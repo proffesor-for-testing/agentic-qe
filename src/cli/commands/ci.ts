@@ -578,8 +578,6 @@ export function createCICommand(
         // Output results
         if (format === 'json' || format === 'markdown') {
           writeOutput(format === 'json' ? toJSON(runResult) : generateCombinedReport(runResult), options.output);
-          // #1474: only a report written successfully, recorded with its exact content.
-          if (options.output) recordOutputInCandidate(path.resolve(options.output as string));
         } else {
           // Text summary
           console.log('');
