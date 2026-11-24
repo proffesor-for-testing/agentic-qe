@@ -5,7 +5,7 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -21,6 +21,7 @@ import {
   type QualityMetricName,
 } from '../../../../src/domains/quality-assessment/quality-evidence.js';
 import {
+  ignorePathInCandidate,
   resolveQualityEvidenceCandidate,
   type QualityEvidenceCandidate,
 } from '../../../../src/domains/quality-assessment/evidence-candidate.js';
@@ -287,5 +288,102 @@ describe('#1474 candidate resolution edge cases', () => {
     await measure(memory, atWrite);
     expect((await gate(memory, atWrite)).problems).toEqual([]);
     expect((await gate(memory, atStart)).problems.every((p) => p.code === 'mismatched')).toBe(true);
+  });
+});
+
+describe('#1474 review — candidate robustness and diagnostics', () => {
+  const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd, stdio: 'ignore' });
+
+  it('a registered command output path (custom CI dir, -o file) is excluded in every later resolution', () => {
+    const dir = createGitCandidateFixture();
+    fixtures.push(dir);
+    const clean = resolveQualityEvidenceCandidate(dir);
+    ignorePathInCandidate(join(dir, 'reports', 'ci'), dir);
+    ignorePathInCandidate(join(dir, 'gate.json'), dir);
+    ignorePathInCandidate(join(tmpdir(), 'outside.json'), dir); // outside the project: ignored
+    mkdirSync(join(dir, 'reports', 'ci'), { recursive: true });
+    writeFileSync(join(dir, 'reports', 'ci', 'quality-gate.json'), '{}');
+    writeFileSync(join(dir, 'gate.json'), '{}');
+    expect(resolveQualityEvidenceCandidate(dir).id).toBe(clean.id);
+    writeFileSync(join(dir, 'reports', 'other.json'), '{}');
+    expect(resolveQualityEvidenceCandidate(dir).id).not.toBe(clean.id);
+  });
+
+  it('.agentic-qe and .aqe-ci-output are excluded only at the AQE project root', () => {
+    const dir = createGitCandidateFixture();
+    fixtures.push(dir);
+    const clean = resolveQualityEvidenceCandidate(dir);
+    mkdirSync(join(dir, 'pkg', '.aqe-ci-output'), { recursive: true });
+    writeFileSync(join(dir, 'pkg', '.aqe-ci-output', 'x.json'), '{}');
+    const nested = resolveQualityEvidenceCandidate(dir);
+    expect(nested.id).not.toBe(clean.id);
+    mkdirSync(join(dir, '.aqe-ci-output'));
+    writeFileSync(join(dir, '.aqe-ci-output', 'x.json'), '{}');
+    expect(resolveQualityEvidenceCandidate(dir).id).toBe(nested.id);
+  });
+
+  it('names the uncommitted paths when evidence was measured on other uncommitted content', async () => {
+    const dir = createGitCandidateFixture();
+    fixtures.push(dir);
+    const measured = resolveQualityEvidenceCandidate(dir);
+    const memory = createMemory();
+    await measure(memory, measured);
+    writeFileSync(join(dir, 'gate.json'), '{}'); // e.g. `aqe quality --gate -F json > gate.json`
+    const { problems } = await gate(memory, resolveQualityEvidenceCandidate(dir));
+    expect(problems[0]).toMatchObject({ code: 'mismatched' });
+    expect(problems[0].reason).toContain('uncommitted now: gate.json');
+  });
+
+  it('an unreadable file is folded into the fingerprint as a marker, not an unavailable candidate', () => {
+    const dir = createGitCandidateFixture();
+    fixtures.push(dir);
+    writeFileSync(join(dir, 'secret.txt'), 'x');
+    chmodSync(join(dir, 'secret.txt'), 0o000);
+    try {
+      const first = resolveQualityEvidenceCandidate(dir);
+      expect(first).toMatchObject({ status: 'resolved', dirty: true });
+      expect(resolveQualityEvidenceCandidate(dir).id).toBe(first.id);
+    } finally {
+      chmodSync(join(dir, 'secret.txt'), 0o644);
+    }
+  });
+
+  it('detects edits to assume-unchanged and skip-worktree files', () => {
+    const dir = createGitCandidateFixture();
+    fixtures.push(dir);
+    writeFileSync(join(dir, 'b.js'), 'b\n');
+    git(dir, 'add', 'b.js');
+    git(dir, '-c', 'user.email=f@example.invalid', '-c', 'user.name=f', 'commit', '-qm', 'b');
+    git(dir, 'update-index', '--assume-unchanged', 'index.js');
+    git(dir, 'update-index', '--skip-worktree', 'b.js');
+    const clean = resolveQualityEvidenceCandidate(dir);
+    expect(clean).toMatchObject({ dirty: false });
+    writeFileSync(join(dir, 'index.js'), 'export const a = 99;\n');
+    const hiddenA = resolveQualityEvidenceCandidate(dir);
+    expect(hiddenA.id).not.toBe(clean.id);
+    writeFileSync(join(dir, 'b.js'), 'changed\n');
+    expect(resolveQualityEvidenceCandidate(dir).id).not.toBe(hiddenA.id);
+  });
+
+  it('never runs a configured fsmonitor hook', () => {
+    const dir = createGitCandidateFixture();
+    fixtures.push(dir);
+    const marker = join(dir, '..', `fsmonitor-ran-${Date.now()}`);
+    writeFileSync(join(dir, 'hook.sh'), `#!/bin/sh\ntouch '${marker}'\n`);
+    chmodSync(join(dir, 'hook.sh'), 0o755);
+    git(dir, 'config', 'core.fsmonitor', join(dir, 'hook.sh'));
+    resolveQualityEvidenceCandidate(dir);
+    expect(existsSync(marker)).toBe(false);
+  });
+
+  it("an unavailable candidate carries git's own error (e.g. dubious ownership) and the safe.directory hint", () => {
+    const dir = mkdtempSync(join(tmpdir(), 'aqe-badgit-'));
+    fixtures.push(dir);
+    writeFileSync(join(dir, '.git'), 'gitdir: /nonexistent/aqe-1474\n');
+    const candidate = resolveQualityEvidenceCandidate(dir);
+    expect(candidate.status).toBe('unavailable');
+    if (candidate.status !== 'unavailable') return;
+    expect(candidate.reason).toMatch(/not a git repository|nonexistent/i);
+    expect(candidate.reason).toContain('safe.directory');
   });
 });

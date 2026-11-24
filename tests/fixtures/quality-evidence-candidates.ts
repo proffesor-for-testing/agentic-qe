@@ -81,6 +81,8 @@ export function createGitCandidateFixture(prefix = 'aqe-candidate-'): string {
   git('config', 'user.email', 'fixture@example.invalid');
   git('config', 'user.name', 'fixture');
   git('config', 'commit.gpgsign', 'false');
+  // Hermetic: a developer's global excludes (e.g. `.agentic-qe/`) must not change what is tracked.
+  git('config', 'core.excludesFile', '/dev/null');
   writeFileSync(join(dir, 'index.js'), 'export const a = 1;\n');
   writeFileSync(join(dir, '.gitignore'), 'ci-result.json\n*.log\n');
   git('add', '-A');

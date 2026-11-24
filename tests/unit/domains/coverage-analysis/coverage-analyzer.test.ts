@@ -383,6 +383,19 @@ describe('CoverageAnalyzerService', () => {
       expect(writtenKeys()).toEqual([]);
     });
 
+    it('#1474: a stale or incomplete report (evidenceComplete=false) writes no quality evidence for coverage', async () => {
+      await service.analyze({ coverageData: createCoverageData(), measured: true, evidenceComplete: false });
+      expect(writtenKeys()).toContain('coverage:latest');
+      expect(writtenKeys().filter((k: string) => k.startsWith('quality-evidence:'))).toEqual([]);
+
+      await service.analyze({
+        coverageData: createCoverageData(), measured: true, evidenceComplete: false,
+        testRun: { runId: 'r-1474', passed: 2, failed: 0 },
+      });
+      const evidence = writtenKeys().filter((k: string) => k.startsWith('quality-evidence:v2:latest:'));
+      expect(evidence).toEqual(['quality-evidence:v2:latest:testsPassing']);
+    });
+
     it('fails closed: no provenance at all is NOT persisted (review B2)', async () => {
       const result = await service.analyze({ coverageData: createCoverageData(), includeFileDetails: true });
       expect(result.success).toBe(true);

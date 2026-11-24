@@ -31,6 +31,7 @@ import {
   InsufficientQualityEvidenceError,
   describeVerdictProvenance,
   evaluateQualityEvidence,
+  ignorePathInCandidate,
   loadQualityEvidenceSet,
 } from '../../domains/quality-assessment/quality-evidence.js';
 
@@ -464,6 +465,9 @@ export function createCICommand(
 
         // Create output directory
         const outputDir = path.resolve(config.output.directory);
+        // #1474: this run's own artifacts are not part of the candidate it measures and gates.
+        ignorePathInCandidate(outputDir);
+        if (options.output) ignorePathInCandidate(path.resolve(options.output as string));
         fs.mkdirSync(outputDir, { recursive: true });
         const gateReportPath = path.join(outputDir, 'quality-gate.json');
         // Invalidate an earlier approval before executing any phase. This also

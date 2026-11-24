@@ -15,6 +15,7 @@ import {
   describeVerdictProvenance,
   evaluateQualityEvidence,
   inspectQualityEvidence,
+  ignorePathInCandidate,
   loadQualityEvidenceSet,
   loadQualityEvidence as loadCanonicalQualityEvidence,
   type QualityEvidenceSet,
@@ -126,6 +127,8 @@ export function createQualityCommand(
           }
 
           const memory = context.kernel!.memory;
+          // #1474: the gate's own -o file is not part of the candidate it judges.
+          if (options.output) ignorePathInCandidate(options.output as string);
           let gateResult: QualityGateResult;
           try {
             // #1474: only evidence bound to the checkout being gated is evaluated.

@@ -203,7 +203,7 @@ export class CoverageAnalyzerService implements ICoverageAnalysisService {
 
       if (measured) {
         // Store current coverage for future delta calculations
-        await this.storeCoverageSnapshot(stored, request.runStatus, request.testRun);
+        await this.storeCoverageSnapshot(stored, request.runStatus, request.testRun, request.evidenceComplete !== false);
 
         // Store coverage vectors for similarity search + KV for quality-analyzer
         if (request.includeFileDetails) {
@@ -634,7 +634,8 @@ Provide thoughtful, specific analysis based on the coverage data. Do not include
   private async storeCoverageSnapshot(
     summary: CollectedSummary,
     runStatus?: 'passed' | 'failed',
-    testRun?: AnalyzeCoverageRequest['testRun']
+    testRun?: AnalyzeCoverageRequest['testRun'],
+    evidenceComplete = true,
   ): Promise<void> {
     try {
       // Rotate: copy current coverage:latest → coverage:previous before
@@ -652,8 +653,11 @@ Provide thoughtful, specific analysis based on the coverage data. Do not include
       await this.memory.set('coverage:latest', record, { persist: true });
       if (testRun) {
         // #1027 NB1: the run's testsPassing and coverage, under one runId.
-        await writeTestRunEvidence(this.memory, testRun, { source: 'coverage-analysis', coverage: summary.line });
-      } else {
+        // #1474: an incomplete or stale report keeps its coverage out of the gate.
+        await writeTestRunEvidence(this.memory, testRun, {
+          source: 'coverage-analysis', ...(evidenceComplete ? { coverage: summary.line } : {}),
+        });
+      } else if (evidenceComplete) {
         // No counts: a failing run's coverage carries runStatus but no runId,
         // so the gate will not pair it with any testsPassing (fail-closed).
         await writeQualityEvidence(this.memory, { coverage: summary.line }, {

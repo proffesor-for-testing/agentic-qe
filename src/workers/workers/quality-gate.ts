@@ -8,7 +8,7 @@
  * validation (`inspectQualityEvidence`) and thresholds
  * (`evaluateQualityEvidence` / `resolveQualityThresholds`) the quality_assess
  * tool uses. When any metric lacks usable evidence (absent, stale, malformed)
- * the gate is not evaluated: nothing is stored and an info finding names the
+ * the gate is not evaluated: no verdict is stored and an info finding names the
  * unmeasured metrics. A status without the measured stamp (the invented one
  * written by <= 3.15.6) is ignored and replaced by the next measured verdict.
  *
@@ -110,7 +110,7 @@ export class QualityGateWorker extends BaseWorker {
         domain: 'quality-assessment',
         title: 'Quality Gate Not Evaluated: Insufficient Evidence',
         description: `${unmeasured.length} of ${QUALITY_METRICS.length} gate metrics have no usable measured evidence ` +
-          `(${unmeasured.join(', ')}), so no verdict was reached and nothing was stored.`,
+          `(${unmeasured.join(', ')}), so no verdict was reached.`,
         context: { status: INSUFFICIENT_EVIDENCE, unmeasured, problems, candidate },
       });
       for (const advice of describeMissingMetrics(unmeasured)) {
@@ -122,6 +122,14 @@ export class QualityGateWorker extends BaseWorker {
           estimatedImpact: 'medium',
           effort: 'low',
           autoFixable: false,
+        });
+      }
+      // #1474: an earlier verdict (possibly another candidate's PASS) must not
+      // stand as the current one; replace it with this candidate's insufficient status.
+      if (await context.memory.get<unknown>(CURRENT_KEY) !== undefined) {
+        await context.memory.set(CURRENT_KEY, {
+          measured: false, status: INSUFFICIENT_EVIDENCE, schemaVersion: SCHEMA_VERSION,
+          evaluatedAt: new Date().toISOString(), passed: false, candidate, unmeasured, problems,
         });
       }
       context.logger.info('Quality gate evaluation complete', { status: INSUFFICIENT_EVIDENCE, unmeasured });
@@ -249,7 +257,8 @@ export class QualityGateWorker extends BaseWorker {
     findings: WorkerFinding[]
   ): Promise<void> {
     const previous = measuredStatus(await context.memory.get<unknown>(CURRENT_KEY));
-    if (!previous) return;
+    // #1474: a regression or improvement is only meaningful for the same candidate.
+    if (!previous || previous.candidate?.id !== current.candidate.id) return;
 
     if (previous.passed && !current.passed) {
       findings.push({

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { MemoryBackend } from '../../kernel/interfaces.js';
 import {
   describeCandidate,
+  explainCandidateDifference,
   isQualityEvidenceCandidate,
   resolveQualityEvidenceCandidate,
   type QualityEvidenceCandidate,
@@ -19,13 +20,17 @@ export {
   type QualityEvidenceProblemCode,
   type UnusableQualityEvidence,
 } from './quality-evidence-errors.js';
-export { resolveQualityEvidenceCandidate, type QualityEvidenceCandidate } from './evidence-candidate.js';
+export {
+  ignorePathInCandidate,
+  resolveQualityEvidenceCandidate,
+  type QualityEvidenceCandidate,
+} from './evidence-candidate.js';
 
 export const QUALITY_EVIDENCE_NAMESPACE = 'quality-assessment';
 export const DEFAULT_QUALITY_EVIDENCE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 /** Current evidence record format (#1474: candidate-bound receipts). */
 export const QUALITY_EVIDENCE_SCHEMA_VERSION = 2;
-/** Immutable receipts are kept 30 days (seconds, the StoreOptions.ttl unit). */
+/** Receipts and pointers expire after 30 days (seconds), well past the 24 h freshness window. */
 const RECEIPT_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 export const QUALITY_METRICS = [
@@ -54,10 +59,7 @@ export interface QualityEvidenceRecord {
   source: string;
   /** The candidate (project + HEAD + dirty-tree fingerprint) observed at measurement time. */
   candidate: QualityEvidenceCandidate;
-  /**
-   * The test run this figure came from, when it came from one (#1027 NB1).
-   * Coverage and testsPassing written from one run share the runId.
-   */
+  /** The test run this figure came from (#1027 NB1); one run's coverage and testsPassing share it. */
   runId?: string;
   /** Whether that run's tests passed (#1027 NB1). */
   runStatus?: 'passed' | 'failed';
@@ -189,7 +191,7 @@ export async function writeQualityEvidence(
   }
   // #1474: bind every record of this write to the candidate measured now.
   const candidate = metadata.candidate ?? resolveQualityEvidenceCandidate();
-  const options = { namespace: QUALITY_EVIDENCE_NAMESPACE, persist: true };
+  const options = { namespace: QUALITY_EVIDENCE_NAMESPACE, persist: true, ttl: RECEIPT_TTL_SECONDS };
 
   for (const metric of QUALITY_METRICS) {
     const value = values[metric];
@@ -206,7 +208,7 @@ export async function writeQualityEvidence(
       ...(metadata.runStatus ? { runStatus: metadata.runStatus } : {}),
     };
     // Immutable receipt first, then the pointers that name it.
-    await memory.set(receiptKey(record.receiptId), record, { ...options, ttl: RECEIPT_TTL_SECONDS });
+    await memory.set(receiptKey(record.receiptId), record, options);
     if (candidate.status === 'resolved') {
       await memory.set(candidateEvidenceKey(candidate.id, metric), record, options);
     }
@@ -281,9 +283,10 @@ async function diagnoseAbsent(
   if (latest && isQualityEvidenceCandidate(latest.candidate) && latest.candidate.id !== candidate.id) {
     return {
       metric, code: 'mismatched',
-      reason: `Measured quality evidence for ${metric} was recorded for candidate `
-        + `${describeCandidate(latest.candidate)}, not the candidate being gated (${describeCandidate(candidate)}). `
-        + 'Re-run the measurement on this checkout.',
+      reason: `Measured quality evidence for ${metric} was recorded for a different candidate than the one `
+        + `being gated: ${explainCandidateDifference(latest.candidate, candidate)}. `
+        + 'Re-run the measurement on this checkout (an output file written into the checkout, e.g. a shell '
+        + 'redirect, also changes it).',
       receiptId: typeof latest.receiptId === 'string' ? latest.receiptId : undefined,
     };
   }

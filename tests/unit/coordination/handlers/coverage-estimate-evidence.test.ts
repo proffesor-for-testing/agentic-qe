@@ -181,6 +181,28 @@ describe('#1008 — a static estimate is never persisted as coverage evidence', 
     });
     await expect(loadQualityEvidence(kernel.memory as never)).resolves.toMatchObject({ coverage: 75 });
   }, 60000);
+
+  it('#1474: a STALE report (sources newer than it) is reported but never becomes quality evidence', async () => {
+    const lcov = path.join(dir, 'coverage', 'lcov.info');
+    fs.mkdirSync(path.dirname(lcov));
+    fs.writeFileSync(lcov, [
+      'TN:', `SF:${path.join(dir, 'src', 'math.ts')}`,
+      'DA:1,1', 'DA:2,1', 'DA:3,1', 'DA:4,1', 'LF:4', 'LH:4', 'end_of_record', '',
+    ].join('\n'));
+    // The report was written on an earlier checkout; the source changed since.
+    const past = new Date(Date.now() - 60 * 60 * 1000);
+    fs.utimesSync(lcov, past, past);
+    const kernel = createKernel();
+    await seedAllButCoverage(kernel);
+
+    const data = await analyze(kernel, dir);
+
+    expect(data.measured).toBe(true);
+    expect(data.staleReport).toBeDefined();
+    expect(kernel.store.has(coverageEvidenceKey)).toBe(false);
+    await expect(loadQualityEvidence(kernel.memory as never))
+      .rejects.toThrow('No measured quality evidence found for coverage.');
+  }, 60000);
 });
 
 describe('#1008 — every non-measured outcome leaves coverage evidence untouched', () => {

@@ -68,6 +68,42 @@ describe('#1474 — quality-gate worker candidate identity', () => {
     expect(result.metrics.domainMetrics).toMatchObject({ gateStatus: 'insufficient-evidence', gatePassed: 'unmeasured' });
   });
 
+  it('a moved candidate replaces the earlier PASS with an insufficient current status', async () => {
+    const root = createGitCandidateFixture('aqe-worker-1474-');
+    dirs.push(root);
+    vi.stubEnv('AQE_PROJECT_ROOT', root);
+    const store = namespacedStore();
+    await measureHere(store);
+    await new QualityGateWorker().execute(contextFor(store.memory));
+    expect(store.read('quality-gate:current')).toMatchObject({ measured: true, passed: true });
+    commitFixtureChange(root, 'export const a = 2;\n');
+
+    await new QualityGateWorker().execute(contextFor(store.memory));
+
+    expect(store.read('quality-gate:current')).toMatchObject({
+      measured: false, status: 'insufficient-evidence', passed: false, candidate: { status: 'resolved' },
+    });
+    expect(store.read('quality-gate:history')).toHaveLength(1);
+  });
+
+  it('a failure on a new candidate is not reported as a regression of another candidate', async () => {
+    const root = createGitCandidateFixture('aqe-worker-1474-');
+    dirs.push(root);
+    vi.stubEnv('AQE_PROJECT_ROOT', root);
+    const store = namespacedStore();
+    await measureHere(store);
+    await new QualityGateWorker().execute(contextFor(store.memory));
+    commitFixtureChange(root, 'export const a = 2;\n');
+    await writeQualityEvidence(store.memory as unknown as MemoryBackend, { ...PASSING, coverage: 10 }, {
+      measuredAt: new Date().toISOString(), source: 'unit-test-measurement',
+    });
+
+    const result = await new QualityGateWorker().execute(contextFor(store.memory));
+
+    expect(store.read('quality-gate:current')).toMatchObject({ measured: true, passed: false });
+    expect(result.findings.some((f) => f.type === 'quality-gate-regression')).toBe(false);
+  });
+
   it('unavailable candidate (no Git work tree): insufficient evidence, nothing stored', async () => {
     const root = mkdtempSync(join(tmpdir(), 'aqe-worker-nongit-'));
     dirs.push(root);

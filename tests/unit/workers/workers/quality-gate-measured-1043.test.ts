@@ -143,8 +143,9 @@ describe('#1043 — quality-gate worker evaluates measured evidence only', () =>
     store.memory.set.mockClear();
 
     const unmeasured = await new QualityGateWorker().execute(contextFor(store.memory));
-    expect(store.memory.set).not.toHaveBeenCalled();
-    expect(store.read('quality-gate:current')).toEqual(LEGACY_INVENTED_STATUS);
+    // #1474: an earlier status never stands as current; it is replaced by an insufficient one.
+    expect(store.writtenKeys()).toEqual(['quality-gate:current']);
+    expect(store.read('quality-gate:current')).toMatchObject({ measured: false, status: 'insufficient-evidence', passed: false });
     expect(JSON.stringify(unmeasured)).not.toMatch(INVENTED);
 
     await measure(store, PASSING);

@@ -31,9 +31,17 @@ the receipt to the **candidate** it observed:
 - `project`: the real path of the AQE project root;
 - `head`: the Git HEAD commit (`unborn` before the first commit);
 - `fingerprint`: `clean`, or a SHA-256 over the status and current content of
-  every uncommitted path `git status` reports (tracked changes and untracked,
-  non-ignored files). `.agentic-qe/` and `.aqe-ci-output/` are excluded;
-- `id`: a SHA-256 over the scheme version, project, HEAD and fingerprint.
+  every uncommitted path: tracked changes, untracked non-ignored files,
+  submodules and nested repositories (recursively), and assume-unchanged or
+  skip-worktree files that differ from the index. Unreadable or vanished files
+  are folded in as a marker. `.agentic-qe/` and `.aqe-ci-output/` at the AQE
+  project root, and paths AQE commands register as their own output (see
+  below), are excluded;
+- `id`: a SHA-256 over the scheme version, project, HEAD and fingerprint;
+- `dirtyPaths` / `dirtyCount`: the first uncommitted paths, for diagnostics.
+
+Git runs with `core.fsmonitor` and the untracked cache disabled, so no user
+fsmonitor hook runs.
 
 The gate resolves the candidate to judge independently, from the checkout at
 gate time, and reads only that candidate's keys
@@ -48,9 +56,9 @@ is applied. Otherwise the gate reports insufficient evidence, with one
 |---|---|
 | `missing` | nothing was ever recorded for the metric |
 | `legacy-unbound` | only a pre-candidate (`schemaVersion: 1`) record exists |
-| `mismatched` | the latest receipt is bound to a different candidate (another commit, other uncommitted content, or another project) |
+| `mismatched` | the latest receipt is bound to a different candidate (another commit, other uncommitted content, or another project); the reason names the commits or the uncommitted paths |
 | `stale` / `future-dated` / `malformed` | this candidate's receipt is older than 24 hours, dated in the future, or invalid |
-| `candidate-unavailable` | the project is not a Git work tree, or `git` is unavailable, so no candidate can be identified |
+| `candidate-unavailable` | the project is not a Git work tree, or `git` cannot read it, so no candidate can be identified; the reason carries git's own error |
 | `unpaired-failed-run` | coverage from a run with failing tests lacks that run's `testsPassing` |
 
 Independent measurements of the same candidate combine; they need not come
@@ -59,18 +67,64 @@ from one run. A measured verdict records the `candidate`, the `receipts` it used
 `thresholds`, on the CLI JSON output, the CI phase artifact, the MCP result and
 the worker's stored `quality-gate:current` verdict. Changing a threshold
 re-evaluates the same receipts into a new verdict.
+When the worker finds the evidence insufficient it replaces an earlier
+`quality-gate:current` verdict with an `insufficient-evidence` status for the
+current candidate, so another candidate's pass does not linger; it reports a
+regression or improvement only between verdicts of the same candidate.
+
+### Producers
+
+Shipped producers that record bound receipts today:
+
+- `testsPassing`: `aqe test execute` and MCP `test_execute_parallel`;
+- `coverage`: the coverage run of those test executions, MCP
+  `coverage_analyze_sublinear`, `aqe coverage` and the CI coverage phase. An
+  existing report is recorded only when it is complete for the target and not
+  older than its sources: a STALE or partial report is shown, but its figure is
+  never bound to the current checkout.
+
+`criticalBugs`, `codeSmells`, `securityVulnerabilities`, `technicalDebt` and
+`duplications` have no shipped CLI or MCP producer (#1009);
+`security_scan_comprehensive` reports findings but records no
+`securityVulnerabilities` evidence. There is no public command for an external
+tool to write a bound receipt yet; programmatic callers use
+`writeQualityEvidence` from the quality-assessment domain, which binds the
+receipt to the checkout of the AQE project root at the time of the call.
+
+### Keeping the candidate stable
+
+- Measure and gate the **same** checkout. Any commit, any edit, and any new
+  untracked file that Git does not ignore changes the candidate.
+- Keep generated output out of the candidate: add coverage directories, test
+  reports and similar files to `.gitignore`. `aqe ci run` registers its
+  configured `output.directory` and its `-o` file, and `aqe quality --gate`
+  registers its `-o` file, in `.agentic-qe/candidate-ignore.json`; later runs of
+  any producer or gate leave those paths out.
+- A shell redirect into the checkout (`aqe quality --gate -F json > gate.json`)
+  creates the file before the gate runs, so the gate reports `mismatched` and
+  names `gate.json`. Use `-o <file>`, or redirect outside the checkout.
+- In a CI container whose checkout is owned by another user, Git refuses the
+  repository ("detected dubious ownership") and the candidate is unavailable.
+  Run `git config --global --add safe.directory <checkout>` before AQE.
+
+### Limits
+
+- The candidate is the **whole Git repository** at the AQE project root's work
+  tree: in a monorepo, a change in any package changes every package's
+  candidate.
+- Git-ignored inputs (for example a local `.env` or a generated file the tests
+  read) are not part of the candidate.
+- A receipt describes the checkout as it is when the producer records it; an
+  edit made while a measurement runs is not detected.
+- The environment and tool configuration are not part of the candidate.
 
 ### Migration
 
 Evidence recorded before this contract has no candidate and is reported as
 `legacy-unbound`: it can no longer pass the gate. Re-run the measurements on
-the checkout you want to gate (for example `aqe test execute`, the coverage
-run and the security scan, plus your own producers for the other metrics),
-then run the gate on that same checkout without changing it in between. Keep
-generated output that is not part of the candidate (reports, coverage
-directories, a non-default CI output directory) in `.gitignore`; any other
-untracked or modified file changes the candidate. Outside a Git work tree the
-gate cannot identify a candidate and always reports insufficient evidence.
+the checkout you want to gate (see Producers), then run the gate on that same
+checkout without changing it in between. Outside a Git work tree the gate
+cannot identify a candidate and always reports insufficient evidence.
 
 ## Enforcement and partial runs
 
