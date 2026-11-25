@@ -10,11 +10,11 @@
 # 4. AQE MCP integration for shared learning (NEW)
 # 5. ReasoningBank pattern storage (NEW)
 #
-# Schema: docs/schemas/skill-eval.schema.json
-# MCP Spec: docs/specs/skill-validation-mcp-integration.md
+# Schema: .validation/schemas/skill-eval.schema.json
+# MCP Spec: .validation/skill-validation-mcp-integration.md
 # Runner: https://github.com/proffesor-for-testing/agentic-qe/blob/main/scripts/run-skill-eval.ts
 #
-# For a comprehensive example, see: docs/templates/security-testing-eval.template.yaml
+# For a comprehensive example, see: .validation/templates/security-testing-eval.template.yaml
 # =============================================================================
 
 skill: REPLACE_WITH_SKILL_NAME

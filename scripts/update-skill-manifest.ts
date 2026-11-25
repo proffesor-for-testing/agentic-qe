@@ -531,7 +531,7 @@ To upgrade a skill to a higher trust tier:
 3. Run \`npm run skills:update-manifest\` (in an agentic-qe checkout)
 
 ### Tier 1 -> Tier 2 (Add Validator)
-1. Create \`{skill}/scripts/validate-config.json\` (or .ts/.js)
+1. Create \`{skill}/scripts/validate-config.json\` (validator config)
 2. Add \`trust_tier: 2\` and validation paths to frontmatter
 3. Run \`npm run skills:update-manifest\` (in an agentic-qe checkout)
 

@@ -147,8 +147,8 @@ skip to step N. Ensure you have the required prerequisite data from prior steps.
 
 | Model | When to Use | Agent Spawn |
 |-------|-------------|-------------|
-| **Workflow** (PRIMARY, ADR-102) | Harness with the Workflow tool | `Workflow({ name: "qcsd-development-review", args: { sourcePath, testPath } })` |
-| **Task Tool** (fallback) | Claude Code sessions without Workflow support | `Task({ subagent_type, run_in_background: true })` |
+| **Task Tool** (PRIMARY) | Claude Code sessions, including every project set up by `aqe init` | `Task({ subagent_type, run_in_background: true })` |
+| **Workflow** (ADR-102) | Only when the harness has the Workflow tool AND the project has `.claude/workflows/qcsd-development-review.js` (the agentic-qe repository does; `aqe init` does not install it) | `Workflow({ name: "qcsd-development-review", args: { sourcePath, testPath } })` |
 | **MCP Tools** | MCP server available | `fleet_init({})` / `task_submit({})` |
 | **CLI** | Terminal/scripts | `swarm init` / `agent spawn` |
 
@@ -169,9 +169,10 @@ killed findings are retained under `killed` with their refutations for audit.
 Args: `sourcePath` (required), `testPath`, `dimensions` (subset of
 `tdd-adherence|complexity|coverage-gaps`), `maxFindings` per dimension (default 5).
 
-When the Workflow tool is unavailable, fall back to the Task-tool protocol
-below — the report format and gates are identical, minus the adversarial
-verification stage (note this in the report header as `verification: none`).
+When the Workflow tool or the workflow file is unavailable (any project set up by
+`aqe init`), use the Task-tool protocol below — the report format and gates are
+identical, minus the adversarial verification stage (note this in the report header
+as `verification: none`).
 
 ---
 
