@@ -9,6 +9,7 @@ import * as os from 'os';
 import {
   hashAttestation,
   collectMetrics,
+  collectUnboundFiles,
   buildAttestation,
   formatMarkdown,
   handleProve,
@@ -43,6 +44,7 @@ describe('Proof-of-Quality Command', () => {
         qualityGatePassed: true,
       },
       evidence: unavailableAttestationEvidence('fixture'),
+      unboundFiles: { junit: null, coverageSummary: null },
       metrics: {
         testCount: 42,
         passRate: 95.2,
@@ -73,17 +75,18 @@ describe('Proof-of-Quality Command', () => {
     });
   });
 
-  // ---- collectMetrics ----
+  // ---- collectMetrics / collectUnboundFiles ----
 
   describe('collectMetrics', () => {
     it('should handle missing files gracefully', async () => {
       const metrics = await collectMetrics(tmpDir);
-      expect(metrics.testCount).toBe(0);
-      expect(metrics.passRate).toBe(0);
-      expect(metrics.coveragePercent).toBe(0);
+      // #1453: without evidence nothing is measured.
+      expect(metrics.testCount).toBeNull();
+      expect(metrics.passRate).toBeNull();
+      expect(metrics.coveragePercent).toBeNull();
       // #1453: no recorded scan is no measurement, and earns no score.
       expect(metrics.vulnerabilities).toBeNull();
-      expect(metrics.qualityScore).toBe(0);
+      expect(metrics.qualityScore).toBeNull();
     });
 
     it('should read junit.xml when present', async () => {
@@ -92,9 +95,10 @@ describe('Proof-of-Quality Command', () => {
 </testsuites>`;
       fs.writeFileSync(path.join(tmpDir, 'junit.xml'), junit);
 
-      const metrics = await collectMetrics(tmpDir);
-      expect(metrics.testCount).toBe(50);
-      expect(metrics.passRate).toBe(90); // (50-5)/50 * 100
+      const files = await collectUnboundFiles(tmpDir);
+      expect(files.junit).toEqual({ testCount: 50, passRate: 90 }); // (50-5)/50 * 100
+      // #1453: an unbound file never feeds the metrics.
+      expect((await collectMetrics(tmpDir)).passRate).toBeNull();
     });
 
     it('should read coverage-summary.json when present', async () => {
@@ -105,8 +109,8 @@ describe('Proof-of-Quality Command', () => {
         JSON.stringify({ total: { lines: { pct: 82.5 } } }),
       );
 
-      const metrics = await collectMetrics(tmpDir);
-      expect(metrics.coveragePercent).toBe(82.5);
+      expect((await collectUnboundFiles(tmpDir)).coverageSummary).toEqual({ linesPct: 82.5 });
+      expect((await collectMetrics(tmpDir)).coveragePercent).toBeNull();
     });
 
     it('should detect memory.db patterns', async () => {
@@ -174,7 +178,6 @@ describe('Proof-of-Quality Command', () => {
       expect(md).toContain('|-------|--------|');
       expect(md).toContain('|--------|-------|');
       expect(md).toContain(`\`${att.hash}\``);
-      expect(md).toContain('| Tests | 20 |');
       expect(md).toContain('| Quality Score | 93/100 |');
     });
 
@@ -184,7 +187,7 @@ describe('Proof-of-Quality Command', () => {
         vulnerabilities: 0, qualityScore: 30, patternsUsed: 0,
       });
       const md = formatMarkdown(att);
-      expect(md).toContain('| Tests Executed | UNMEASURED (evidence-store-unavailable) |');
+      expect(md).toContain('| Tests Executed | UNMEASURED (evidence-store-unavailable: ');
       expect(md).toContain('| Quality Gate | NOT EVALUATED (insufficient evidence) |');
     });
   });

@@ -13,6 +13,7 @@ import {
   buildAttestation,
   collectAttestationEvidence,
   collectMetrics,
+  collectUnboundFiles,
   createProveCommand,
   formatMarkdown,
   handleProve,
@@ -65,7 +66,7 @@ async function gateExitCode(memory: ReturnType<typeof mapMemory>): Promise<numbe
 
 async function attest(memory: ReturnType<typeof mapMemory>, root = '/nonexistent-1453') {
   const evidence = await collectAttestationEvidence(memory as never, { candidate });
-  return buildAttestation(root, await collectMetrics(root, evidence), evidence);
+  return buildAttestation(root, await collectMetrics(root, evidence), evidence, await collectUnboundFiles(root));
 }
 
 describe('#1453 aqe prove attests measured evidence only', () => {
@@ -94,13 +95,12 @@ describe('#1453 aqe prove attests measured evidence only', () => {
     const att = await attest(memory, tmpDir);
 
     expect(await gateExitCode(memory)).toBe(3);
-    expect(att.metrics.testCount).toBe(10);
-    expect(att.metrics.coveragePercent).toBe(80);
     expect(att.attestation).toEqual({
       testsExecuted: false, coverageChecked: false, securityScanned: false, qualityGatePassed: false,
     });
-    // No security credit without a recorded scan: 100*0.4 + 80*0.3.
-    expect(att.metrics.qualityScore).toBe(64);
+    // The files are reported as unbound and feed neither the metrics nor the score.
+    expect(att.unboundFiles).toEqual({ junit: { testCount: 10, passRate: 100 }, coverageSummary: { linesPct: 80 } });
+    expect(att.metrics).toMatchObject({ testCount: null, passRate: null, coveragePercent: null, qualityScore: null });
   });
 
   it('marks every flag unmeasured when no evidence store is available', async () => {
@@ -140,6 +140,35 @@ describe('#1453 aqe prove attests measured evidence only', () => {
     expect(att.attestation.securityScanned).toBe(true);
     expect(att.evidence.securityScanned).toMatchObject({ status: 'measured', value: 3, source: 'test-fixture' });
     expect(att.metrics.vulnerabilities).toBe(3);
+    // Measured is not passed: the flag row says MEASURED, only the gate row says PASSED/FAILED.
+    const md = formatMarkdown(att);
+    expect(md).toContain('| Security Scanned | MEASURED (securityVulnerabilities = 3) |');
+    expect(md).not.toContain('PASS |');
+  });
+
+  it('takes every metric from the same receipts as the flags, so the document cannot contradict itself', async () => {
+    const memory = mapMemory();
+    await record(memory, PASSING);
+    fs.writeFileSync(path.join(tmpDir, 'junit.xml'), '<testsuites tests="4" failures="3"></testsuites>');
+
+    const att = await attest(memory, tmpDir);
+
+    expect(att.metrics).toMatchObject({
+      testCount: null, passRate: 100, coveragePercent: 90, vulnerabilities: 0,
+      qualityScore: Math.round(100 * 0.4 + 90 * 0.3 + 100 * 0.3),
+    });
+    expect(att.unboundFiles.junit).toEqual({ testCount: 4, passRate: 25 });
+    expect(att.attestation.qualityGatePassed).toBe(true);
+  });
+
+  it('gives no quality score while any of its inputs is unmeasured', async () => {
+    const memory = mapMemory();
+    await writeTestRunEvidence(memory as never, { runId: 'run-2', passed: 3, failed: 0 },
+      { source: 'aqe test execute', coverage: 70, candidate });
+
+    const att = await attest(memory);
+
+    expect(att.metrics).toMatchObject({ passRate: 100, coveragePercent: 70, vulnerabilities: null, qualityScore: null });
   });
 
   it('qualityGatePassed is true exactly when the measured gate passes the same evidence', async () => {
@@ -208,24 +237,42 @@ describe('#1453 aqe prove attests measured evidence only', () => {
   it('shows unmeasured checks and an unevaluated gate in Markdown', async () => {
     const md = formatMarkdown(await attest(mapMemory()));
 
-    expect(md).toContain('| Security Scanned | UNMEASURED (missing) |');
+    expect(md).toContain('| Security Scanned | UNMEASURED (missing: No measured quality evidence found for securityVulnerabilities.) |');
     expect(md).toContain('| Quality Gate | NOT EVALUATED (insufficient evidence) |');
-    expect(md).toContain('| Vulnerabilities | unmeasured (no recorded scan) |');
+    expect(md).toContain('| Vulnerabilities | unmeasured |');
+    expect(md).toContain('| Quality Score | unmeasured |');
   });
 
-  it('changes the hash when the evidence changes', async () => {
+  it('changes the hash when only the evidence changes', async () => {
     const empty = await collectAttestationEvidence(mapMemory() as never, { candidate });
     const memory = mapMemory();
     await record(memory, PASSING);
     const measured = await collectAttestationEvidence(memory as never, { candidate });
     const metrics = await collectMetrics(tmpDir);
+    // Pin the clock so the timestamp is identical across the builds.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-25T00:00:00.000Z'));
+    try {
+      const a = buildAttestation(tmpDir, metrics, empty);
+      const b = buildAttestation(tmpDir, metrics, measured);
 
-    expect(buildAttestation(tmpDir, metrics, empty).hash).not.toBe(buildAttestation(tmpDir, metrics, measured).hash);
+      expect(a.timestamp).toBe(b.timestamp);
+      expect(buildAttestation(tmpDir, metrics, empty).hash).toBe(a.hash);
+      expect(b.hash).not.toBe(a.hash);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
 describe('#1453 createProveCommand reads the evidence store the gate reads', () => {
-  beforeEach(() => { vi.stubEnv('AQE_PROJECT_ROOT', createGitCandidateFixture('aqe-prove-1453-')); });
+  beforeEach(() => {
+    const root = createGitCandidateFixture('aqe-prove-1453-');
+    // An initialized project: prove reads its evidence store, never creates one.
+    fs.mkdirSync(path.join(root, '.agentic-qe'));
+    fs.writeFileSync(path.join(root, '.agentic-qe', 'memory.db'), '');
+    vi.stubEnv('AQE_PROJECT_ROOT', root);
+  });
   afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 
   it('attests from context.kernel.memory for the resolved checkout', async () => {
@@ -259,6 +306,34 @@ describe('#1453 createProveCommand reads the evidence store the gate reads', () 
 
     expect(before.status).toBe('resolved');
     expect(resolveQualityEvidenceCandidate().id).toBe(before.id);
+  });
+
+  it.each([
+    ['no .agentic-qe at all', false],
+    ['only the empty .agentic-qe directory CLI startup leaves', true],
+  ])('refuses, without creating a store, in a project where AQE is not initialized (%s)', async (_label, emptyDir) => {
+    const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'prove-1453-bare-'));
+    if (emptyDir) fs.mkdirSync(path.join(bare, '.agentic-qe'));
+    vi.stubEnv('AQE_PROJECT_ROOT', bare);
+    const { clearProjectRootCache } = await import('../../../../src/kernel/project-root.js');
+    clearProjectRootCache();
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const init = vi.fn(async () => true);
+    const exit = vi.fn(async () => undefined as never);
+    try {
+      await createProveCommand({} as never, exit, init).parseAsync(['node', 'prove']);
+
+      expect(exit).toHaveBeenCalledWith(1);
+      expect(init).not.toHaveBeenCalled();
+      expect(log).not.toHaveBeenCalled();
+      expect(error.mock.calls.join(' ')).toMatch(/not initialized/);
+      expect(fs.existsSync(path.join(bare, '.agentic-qe'))).toBe(emptyDir);
+      expect(fs.existsSync(path.join(bare, '.agentic-qe', 'memory.db'))).toBe(false);
+    } finally {
+      clearProjectRootCache();
+      fs.rmSync(bare, { recursive: true, force: true });
+    }
   });
 
   it('produces no attestation when the evidence store cannot be opened', async () => {

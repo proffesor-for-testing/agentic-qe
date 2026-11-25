@@ -18,9 +18,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { CLIContext } from '../handlers/interfaces.js';
 import type { MemoryBackend } from '../../kernel/interfaces.js';
+import { findProjectRoot } from '../../kernel/project-root.js';
 import { readConfinedText } from '../../shared/io/confined-read.js';
 import type { QualityGateResult } from '../utils/ci-output.js';
 import {
+  InsufficientQualityEvidenceError,
   inspectQualityEvidence,
   loadQualityEvidenceSet,
   recordOutputInCandidate,
@@ -90,6 +92,14 @@ export interface AttestationEvidence {
   qualityGate: AttestationGateEvidence;
 }
 
+/** Report files on disk, read for information only (#1453). */
+export interface AttestationUnboundFiles {
+  /** `junit.xml` at the project root. */
+  junit: { testCount: number; passRate: number } | null;
+  /** `coverage/coverage-summary.json` (line coverage %). */
+  coverageSummary: { linesPct: number } | null;
+}
+
 export interface QualityAttestation {
   version: string;
   timestamp: string;
@@ -103,16 +113,28 @@ export interface QualityAttestation {
   };
   /** Why each flag has the value it has: receipts used, or why it is unmeasured. */
   evidence: AttestationEvidence;
-  /** Informational readings of on-disk reports; they never set an attestation flag. */
+  /**
+   * #1453: values of the same candidate-bound receipts the flags are read
+   * from; null when unmeasured. They never contradict `attestation`.
+   */
   metrics: {
-    testCount: number;
-    passRate: number;
-    coveragePercent: number;
-    /** Vulnerabilities of a recorded security scan; null when no scan was recorded (#1453). */
+    /** Always null: evidence receipts carry the pass rate, not test counts (see `unboundFiles`). */
+    testCount: number | null;
+    /** testsPassing receipt (% of tests passed). */
+    passRate: number | null;
+    /** coverage receipt (line coverage %). */
+    coveragePercent: number | null;
+    /** securityVulnerabilities receipt (count of a recorded scan). */
     vulnerabilities: number | null;
-    qualityScore: number;
+    /** Weighted heuristic of the three values above; null unless all three are measured. */
+    qualityScore: number | null;
     patternsUsed: number;
   };
+  /**
+   * Report files found on disk. They are not bound to the checkout (they may
+   * be stale or from another run), never set a flag and never feed a metric.
+   */
+  unboundFiles: AttestationUnboundFiles;
   hash: string;
   generatedBy: string;
 }
@@ -194,7 +216,14 @@ export async function collectAttestationEvidence(
   try {
     gate = evaluateMeasuredQualityEvidence(await loadQualityEvidenceSet(memory, readOptions));
   } catch (error) {
-    gate = await describeUnavailableQualityEvidence(memory as MemoryBackend, error);
+    // Describe the problems of THIS candidate (the inspection above), never re-resolve it.
+    const insufficient = error instanceof InsufficientQualityEvidenceError
+      ? error
+      : inspection.problems.length > 0
+        ? new InsufficientQualityEvidenceError(inspection.problems, inspection.candidate)
+        : undefined;
+    if (!insufficient) throw error;
+    gate = await describeUnavailableQualityEvidence(memory as MemoryBackend, insufficient);
   }
   const exitCode = getMeasuredQualityExitCode(gate);
   const qualityGate: AttestationGateEvidence = gate.evidenceStatus === 'insufficient-evidence'
@@ -215,36 +244,47 @@ export async function collectAttestationEvidence(
   };
 }
 
-/**
- * Weighted heuristic score of the informational metrics. Security counts only
- * when a scan was recorded (#1453): no scan earns no credit.
- */
-function computeQualityScore(metrics: QualityAttestation['metrics']): number {
-  const security = metrics.vulnerabilities === null
-    ? 0
-    : Math.max(0, 100 - metrics.vulnerabilities * 10);
-  return Math.round(metrics.passRate * 0.4 + metrics.coveragePercent * 0.3 + security * 0.3);
+function measuredValue(entry: AttestationEvidenceEntry): number | null {
+  return entry.status === 'measured' && entry.value !== undefined ? entry.value : null;
 }
 
 /**
- * Collect informational quality metrics from project artifacts on disk. The
- * vulnerability count comes only from a recorded security scan in `evidence`.
+ * Weighted heuristic score of the measured values; null unless the pass rate,
+ * coverage and vulnerability count are all measured (#1453: no partial credit).
+ */
+function computeQualityScore(m: Pick<QualityAttestation['metrics'], 'passRate' | 'coveragePercent' | 'vulnerabilities'>): number | null {
+  if (m.passRate === null || m.coveragePercent === null || m.vulnerabilities === null) return null;
+  const security = Math.max(0, 100 - m.vulnerabilities * 10);
+  return Math.round(m.passRate * 0.4 + m.coveragePercent * 0.3 + security * 0.3);
+}
+
+/**
+ * #1453: the attestation metrics, taken from the same candidate-bound
+ * receipts as the flags. Without evidence every value is unmeasured (null).
  */
 export async function collectMetrics(
   projectRoot: string,
-  evidence?: AttestationEvidence,
+  evidence: AttestationEvidence = unavailableAttestationEvidence('No evidence store was read.'),
 ): Promise<QualityAttestation['metrics']> {
-  const scan = evidence?.securityScanned;
-  const metrics: QualityAttestation['metrics'] = {
-    testCount: 0,
-    passRate: 0,
-    coveragePercent: 0,
-    vulnerabilities: scan?.status === 'measured' && scan.value !== undefined ? scan.value : null,
-    qualityScore: 0,
-    patternsUsed: 0,
+  const measured = {
+    passRate: measuredValue(evidence.testsExecuted),
+    coveragePercent: measuredValue(evidence.coverageChecked),
+    vulnerabilities: measuredValue(evidence.securityScanned),
   };
+  let patternsUsed = 0;
+  try {
+    if (fs.existsSync(path.join(projectRoot, '.agentic-qe', 'memory.db'))) patternsUsed = 1;
+  } catch { /* non-critical */ }
+  return { testCount: null, ...measured, qualityScore: computeQualityScore(measured), patternsUsed };
+}
 
-  // Check for junit.xml (test results)
+/**
+ * Read the report files a project may hold on disk, for information only:
+ * they are not bound to the checkout (#1453).
+ */
+export async function collectUnboundFiles(projectRoot: string): Promise<AttestationUnboundFiles> {
+  const files: AttestationUnboundFiles = { junit: null, coverageSummary: null };
+
   try {
     const junitPath = path.join(projectRoot, 'junit.xml');
     if (fs.existsSync(junitPath)) {
@@ -252,34 +292,23 @@ export async function collectMetrics(
       const testsMatch = content.match(/tests="(\d+)"/);
       const failsMatch = content.match(/failures="(\d+)"/);
       if (testsMatch) {
-        metrics.testCount = parseInt(testsMatch[1], 10);
+        const testCount = parseInt(testsMatch[1], 10);
         const failures = failsMatch ? parseInt(failsMatch[1], 10) : 0;
-        metrics.passRate = metrics.testCount > 0
-          ? ((metrics.testCount - failures) / metrics.testCount) * 100
-          : 0;
+        files.junit = { testCount, passRate: testCount > 0 ? ((testCount - failures) / testCount) * 100 : 0 };
       }
     }
   } catch { /* non-critical */ }
 
-  // Check for coverage summary
   try {
     // #1337: confined read, so a FIFO cannot hang the command and a report
     // symlinked out of the project is not read. Missing or refused: skipped.
     const coveragePath = path.join(projectRoot, 'coverage', 'coverage-summary.json');
     const coverage = JSON.parse(await readConfinedText(coveragePath, { projectRoot, outsideRoot: 'allow' }));
-    metrics.coveragePercent = coverage?.total?.lines?.pct ?? 0;
+    const pct = coverage?.total?.lines?.pct;
+    if (typeof pct === 'number' && Number.isFinite(pct)) files.coverageSummary = { linesPct: pct };
   } catch { /* non-critical: missing, refused, or unparseable */ }
 
-  // Check for memory.db patterns
-  try {
-    const dbPath = path.join(projectRoot, '.agentic-qe', 'memory.db');
-    if (fs.existsSync(dbPath)) {
-      metrics.patternsUsed = 1;
-    }
-  } catch { /* non-critical */ }
-
-  metrics.qualityScore = computeQualityScore(metrics);
-  return metrics;
+  return files;
 }
 
 /**
@@ -290,6 +319,7 @@ export function buildAttestation(
   projectRoot: string,
   metrics: QualityAttestation['metrics'],
   evidence: AttestationEvidence = unavailableAttestationEvidence('No evidence store was read.'),
+  unboundFiles: AttestationUnboundFiles = { junit: null, coverageSummary: null },
 ): QualityAttestation {
   const data: Omit<QualityAttestation, 'hash'> = {
     version: ATTESTATION_VERSION,
@@ -303,6 +333,7 @@ export function buildAttestation(
     },
     evidence,
     metrics,
+    unboundFiles,
     generatedBy: 'agentic-qe prove',
   };
 
@@ -310,9 +341,15 @@ export function buildAttestation(
   return { ...data, hash };
 }
 
-function flagCell(value: boolean, entry: AttestationEvidenceEntry): string {
-  if (value) return 'PASS';
-  return entry.status === 'unmeasured' ? `UNMEASURED (${entry.code ?? 'missing'})` : 'FAIL';
+/** An evidence flag says whether a check was measured, not whether it passed: that is the gate's row. */
+function flagCell(entry: AttestationEvidenceEntry): string {
+  return entry.status === 'measured'
+    ? `MEASURED (${entry.metric} = ${entry.value})`
+    : `UNMEASURED (${entry.code ?? 'missing'}: ${entry.reason ?? 'no measured evidence'})`;
+}
+
+function valueCell(value: number | null, unit = ''): string {
+  return value === null ? 'unmeasured' : `${Number.isInteger(value) ? value : value.toFixed(1)}${unit}`;
 }
 
 function gateCell(gate: AttestationGateEvidence): string {
@@ -338,20 +375,19 @@ export function formatMarkdown(att: QualityAttestation): string {
     '',
     '| Check | Status |',
     '|-------|--------|',
-    `| Tests Executed | ${flagCell(att.attestation.testsExecuted, ev.testsExecuted)} |`,
-    `| Coverage Checked | ${flagCell(att.attestation.coverageChecked, ev.coverageChecked)} |`,
-    `| Security Scanned | ${flagCell(att.attestation.securityScanned, ev.securityScanned)} |`,
+    `| Tests Executed | ${flagCell(ev.testsExecuted)} |`,
+    `| Coverage Checked | ${flagCell(ev.coverageChecked)} |`,
+    `| Security Scanned | ${flagCell(ev.securityScanned)} |`,
     `| Quality Gate | ${gateCell(ev.qualityGate)} |`,
     '',
     '## Metrics',
     '',
     '| Metric | Value |',
     '|--------|-------|',
-    `| Tests | ${att.metrics.testCount} |`,
-    `| Pass Rate | ${att.metrics.passRate.toFixed(1)}% |`,
-    `| Coverage | ${att.metrics.coveragePercent.toFixed(1)}% |`,
-    `| Vulnerabilities | ${att.metrics.vulnerabilities ?? 'unmeasured (no recorded scan)'} |`,
-    `| Quality Score | ${att.metrics.qualityScore}/100 |`,
+    `| Pass Rate | ${valueCell(att.metrics.passRate, '%')} |`,
+    `| Coverage | ${valueCell(att.metrics.coveragePercent, '%')} |`,
+    `| Vulnerabilities | ${valueCell(att.metrics.vulnerabilities)} |`,
+    `| Quality Score | ${att.metrics.qualityScore === null ? 'unmeasured' : `${att.metrics.qualityScore}/100`} |`,
     '',
     '---',
     `*${att.generatedBy}*`,
@@ -377,7 +413,7 @@ export async function handleProve(options: {
     })
     : unavailableAttestationEvidence('No evidence store was available to read measured evidence from.');
   const metrics = await collectMetrics(projectRoot, evidence);
-  const attestation = buildAttestation(projectRoot, metrics, evidence);
+  const attestation = buildAttestation(projectRoot, metrics, evidence, await collectUnboundFiles(projectRoot));
 
   const content = options.format === 'markdown'
     ? formatMarkdown(attestation)
@@ -387,7 +423,7 @@ export async function handleProve(options: {
     fs.writeFileSync(options.output, content);
     // #1474: an attestation written into the checkout is AQE's own output and
     // does not change the candidate it attests.
-    recordOutputInCandidate(path.resolve(options.output));
+    recordOutputInCandidate(path.resolve(options.output), options.projectRoot);
     console.log(`Quality attestation written to ${options.output}`);
   } else {
     console.log(content);
@@ -407,9 +443,19 @@ export function createProveCommand(
   return new Command('prove')
     .description('Generate a Proof-of-Quality attestation from measured evidence')
     .option('-F, --format <format>', 'Output format (json|markdown)', 'json')
-    .option('-o, --output <path>', 'Write attestation to file')
+    .option('-o, --output <path>',
+      'Write attestation to file (keeps the attested candidate stable; a shell redirect into the checkout does not)')
     .action(async (options) => {
-      // The evidence store `aqe quality --gate` reads (#1453).
+      // #1453: an attestation only reads evidence; it never creates a store.
+      // The store file, not the directory: CLI startup creates an empty
+      // `.agentic-qe` directory before any command runs.
+      if (!fs.existsSync(path.join(findProjectRoot(), '.agentic-qe', 'memory.db'))) {
+        console.error('AQE is not initialized in this project, so there is no measured evidence to attest. '
+          + 'Run `aqe init` first.');
+        await cleanupAndExit(1);
+        return;
+      }
+      // The evidence store `aqe quality --gate` reads.
       if (!await ensureInitialized()) return;
       try {
         await handleProve({

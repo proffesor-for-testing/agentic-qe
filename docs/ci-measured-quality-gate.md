@@ -123,6 +123,12 @@ receipt to the checkout of the AQE project root at the time of the call.
 - A shell redirect into the checkout (`aqe quality --gate -F json > gate.json`)
   creates the file before the gate runs, so the gate reports `mismatched` and
   names `gate.json`. Use `-o <file>`, or redirect outside the checkout.
+- The same applies to `aqe prove`, which attests the receipts of the current
+  checkout and reports the gate's verdict for it: `aqe prove -o proof.json`
+  keeps the candidate stable, while `aqe prove > proof.json` inside the
+  checkout creates the file before `prove` runs: that attestation and every
+  later `aqe prove` or `aqe quality --gate` find only `mismatched` evidence
+  (all flags false, gate exit 3) while the file is there.
 - In a CI container whose checkout is owned by another user, Git refuses the
   repository ("detected dubious ownership") and the candidate is unavailable.
   Run `git config --global --add safe.directory <checkout>` before AQE.
