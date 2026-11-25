@@ -64,6 +64,35 @@ function coveredByFiles(path: string): boolean {
   });
 }
 
+/** Undo the JSON string escapes that matter for paths: `\n`, `\"` and `\\`. */
+function unescapeJsonString(raw: string): string {
+  return raw.replace(/\\(["\\n])/g, (_, c: string) => (c === 'n' ? '\n' : c));
+}
+
+/**
+ * CommonMark fenced code blocks: an opening fence is 3+ backticks or tildes (up to 3
+ * spaces of indent; a backtick fence's info string may not contain a backtick). It
+ * closes only on a line of the same character, at least as long, with nothing after it.
+ */
+export class FenceTracker {
+  private open: { char: string; len: number } | null = null;
+
+  /** Feed one line; returns true if the line is part of a code block (fences included). */
+  step(line: string): boolean {
+    if (this.open) {
+      const close = /^ {0,3}(`{3,}|~{3,})[ \t]*$/.exec(line);
+      if (close && close[1][0] === this.open.char && close[1].length >= this.open.len) this.open = null;
+      return true;
+    }
+    const opening = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+    if (opening && !(opening[1][0] === '`' && opening[2].includes('`'))) {
+      this.open = { char: opening[1][0], len: opening[1].length };
+      return true;
+    }
+    return false;
+  }
+}
+
 /**
  * Check one link target. URLs, in-page anchors and placeholder targets (`{x}`, `$X`,
  * `<skill>`-style names) are not paths. An absolute path never resolves inside a
@@ -95,18 +124,15 @@ export function findBrokenReferences(projectRoot: string, trees = INSTALLED_TREE
       const where = relative(projectRoot, file);
       const owner = ownerDir(treeRoot, file);
       const prose = PROSE.test(file);
-      // JSON prompts escape newlines; check them line by line like the other files.
-      const text = file.endsWith('.json') ? readFileSync(file, 'utf8').replace(/\\n/g, '\n') : readFileSync(file, 'utf8');
-      const markdown = file.endsWith('.md');
-      let fence: string | null = null;
+      // JSON prompts escape newlines, quotes and backslashes; unescape them so the
+      // prompt is checked line by line like any other file.
+      const raw = readFileSync(file, 'utf8');
+      const text = file.endsWith('.json') ? unescapeJsonString(raw) : raw;
+      const fences = file.endsWith('.md') ? new FenceTracker() : null;
       text.split(/\r?\n/).forEach((line, i) => {
         const at = `${where}:${i + 1}`;
-        const marker = markdown ? /^\s{0,3}(`{3,}|~{3,})/.exec(line) : null;
-        if (marker) {
-          if (!fence) fence = marker[1][0];
-          else if (marker[1][0] === fence) fence = null;
-        }
-        if (prose && !fence && !marker) {
+        const inCode = fences ? fences.step(line) : false;
+        if (prose && !inCode) {
           for (const m of line.matchAll(MD_INLINE)) checkLinkTarget(m[1], file, at, broken);
           const def = MD_REFDEF.exec(line);
           if (def) checkLinkTarget(def[1], file, at, broken);
@@ -121,8 +147,10 @@ export function findBrokenReferences(projectRoot: string, trees = INSTALLED_TREE
         for (const m of line.matchAll(PROJECT_PATH)) {
           const ref = clean(m[0]);
           // `qe-*.md`, `{name}/` and `<skill>/` are patterns, not paths.
-          if (/^[*{<]/.test(line.slice(m.index! + m[0].length)) || RUNTIME_OUTPUT.test(ref)) continue;
-          if (!existsSync(join(projectRoot, ref))) broken.push(`${at}: path ${ref}`);
+          if (/^[*{<]/.test(line.slice(m.index! + m[0].length))) continue;
+          // A run-history file appears at run time, but the skill dir it lives in must exist.
+          const target = RUNTIME_OUTPUT.test(ref) ? dirname(ref) : ref;
+          if (!existsSync(join(projectRoot, target))) broken.push(`${at}: path ${target}`);
         }
         for (const m of line.matchAll(SCRIPT)) {
           const ref = m[0];

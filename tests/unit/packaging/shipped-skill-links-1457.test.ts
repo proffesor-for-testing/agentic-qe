@@ -66,6 +66,7 @@ describe('installed skills, agents and OpenCode configs have no broken reference
       '.kiro/skills/qcsd-ideation-swarm/steps/01-flag-detection.md',
       '.claude/agents/v3/qe-qx-partner.md',
       '.opencode/agent/qe-qx-partner.md',
+      '.opencode/skills/qcsd-ideation-swarm/SKILL.md',
     ]) {
       const text = readFileSync(join(projectRoot, rel), 'utf8');
       expect(text, rel).toContain('fetch-content.cjs');
@@ -141,15 +142,49 @@ describe('installed skills, agents and OpenCode configs have no broken reference
   it('checks links in OpenCode, Kiro agent and guidance files too', () => {
     const found = probe({
       '.opencode/agent/probe-1457.md': 'See [x](../missing-agent.md).',
-      '.kiro/agents/probe-1457.json': '{"prompt": "Read [y](missing.md)\\nthen .claude/agents/v3/qe-gone.md"}',
+      '.kiro/agents/probe-1457.json':
+        '{"prompt": "Read [y](missing.md)\\nthen .claude/agents/v3/qe-gone.md\\nand [t](titled-missing.md \\"Title\\")\\nC:\\\\x [w](..\\\\x.md)"}',
       '.claude/guidance/probe-1457.md': '[adr](../../docs/adrs/ADR-000.md)',
     });
     expect(found.sort()).toEqual([
       '.claude/guidance/probe-1457.md:1: link ../../docs/adrs/ADR-000.md',
       '.kiro/agents/probe-1457.json:1: link missing.md',
       '.kiro/agents/probe-1457.json:2: path .claude/agents/v3/qe-gone.md',
+      '.kiro/agents/probe-1457.json:3: link titled-missing.md',
       '.opencode/agent/probe-1457.md:1: link ../missing-agent.md',
     ]);
+  });
+
+  it('tracks fenced code blocks the way CommonMark does', () => {
+    const md = '.claude/skills/qe-test-generation/probe-1457.md';
+    const found = probe({
+      [md]: [
+        '````md', //                       1 opens a 4-backtick fence
+        '```', //                          2 too short: still inside
+        '[in-fence](missing-1.md)', //     3 not a link (inside the fence)
+        '~~~~', //                         4 other character: still inside
+        '```` not-a-close', //             5 has text after it: still inside
+        '````', //                         6 closes
+        '[after](missing-2.md)', //        7 checked
+        '~~~ js', //                       8 tilde fence with info string
+        '[x](missing-3.md)', //            9 inside
+        '~~~', //                         10 closes
+        '``` a`b', //                     11 backtick in info string: not a fence
+        '[y](missing-4.md)', //           12 checked
+      ].join('\n'),
+    });
+    expect(found).toEqual([`${md}:7: link missing-2.md`, `${md}:12: link missing-4.md`]);
+  });
+
+  it('allows run-history.json to be absent but not the skill it belongs to', () => {
+    const md = '.claude/skills/qe-test-generation/probe-1457.md';
+    const found = probe({
+      [md]: [
+        'History: .claude/skills/qe-test-generation/run-history.json',
+        'History: .claude/skills/qe-no-such-skill/run-history.json',
+      ].join('\n'),
+    });
+    expect(found).toEqual([`${md}:2: path .claude/skills/qe-no-such-skill`]);
   });
 
   it('does not report things that are not paths', () => {

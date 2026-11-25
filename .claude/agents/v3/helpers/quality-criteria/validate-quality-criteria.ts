@@ -3,7 +3,7 @@
  * Quality Criteria Output Validator
  * Validates HTML output from qe-quality-criteria-recommender agent
  *
- * Usage: npx ts-node scripts/validate-quality-criteria.ts <path-to-html>
+ * Usage: npx tsx .claude/helpers/v3/quality-criteria/validate-quality-criteria.ts <path-to-html>
  */
 
 import * as fs from 'fs';
