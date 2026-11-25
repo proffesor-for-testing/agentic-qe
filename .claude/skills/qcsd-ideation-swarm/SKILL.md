@@ -37,7 +37,7 @@ parallel_batches: 2
 last_updated: 2026-01-28
 # v7.5.1 Changelog: Added prominent follow-up recommendation box at end of swarm execution (Phase URL-9)
 # v7.5.0 Changelog: Added HAS_VIDEO flag detection with /a11y-ally follow-up recommendation for video caption generation
-# v7.4.0 Changelog: Automated browser cascade via scripts/fetch-content.js with 30s per-tier timeouts
+# v7.4.0 Changelog: Automated browser cascade via the package fetch-content.cjs script with 30s per-tier timeouts
 # v7.2.0 Changelog: Added 5-tier browser cascade (Vibium -> agent-browser -> Playwright+Stealth -> WebFetch -> WebSearch)
 html_output: true
 enforcement_level: strict

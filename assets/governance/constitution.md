@@ -3,7 +3,7 @@
 **Version**: 1.0.0
 **Date**: 2026-02-03
 **Authority**: Architecture Team
-**ADR Reference**: [ADR-058](../../docs/adrs/ADR-058-guidance-governance-integration.md)
+**ADR Reference**: [ADR-058](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/implementation/adrs/ADR-058-guidance-governance-integration.md)
 
 ---
 

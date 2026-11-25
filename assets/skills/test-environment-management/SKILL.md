@@ -189,7 +189,7 @@ const envFleet = await FleetManager.coordinate({
 
 ## Related Skills
 - [test-data-management](../test-data-management/) - Data for environments
-- [continuous-testing-shift-left](../continuous-testing-shift-left/) - CI/CD environments
+- [shift-left-testing](../shift-left-testing/) - CI/CD environments
 - [chaos-engineering-resilience](../chaos-engineering-resilience/) - Environment resilience
 
 ---
