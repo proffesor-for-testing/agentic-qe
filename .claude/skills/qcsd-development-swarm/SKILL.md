@@ -200,13 +200,15 @@ skip to step N. Ensure you have the required prerequisite data from prior steps.
 
 ### Workflow execution (ADR-102)
 
-`.claude/workflows/qcsd-development-review.js` runs the review as a deterministic
-pipeline: one finder per quality dimension (TDD adherence, complexity, coverage
+The [`qcsd-development-review.js`](https://github.com/proffesor-for-testing/agentic-qe/blob/main/.claude/workflows/qcsd-development-review.js)
+Claude Code workflow in the agentic-qe repository (`aqe init` does not install it) runs
+the review as a deterministic pipeline: one finder per quality dimension (TDD adherence, complexity, coverage
 gaps — `args.dimensions` selects a subset) → **3 blind adversarial refuters per
 finding** (Loki-mode, ADR-074: refuters see only the bare claim + evidence,
 never the finder's confidence or each other; uncertainty defaults to refuted)
 → deterministic synthesis into `finding-verdict@1` envelopes (ADR-103,
-`schemas/finding-verdict.schema.json`). A finding survives only if fewer than
+[finding-verdict.schema.json](https://github.com/proffesor-for-testing/agentic-qe/blob/main/schemas/finding-verdict.schema.json), also shipped in
+the agentic-qe npm package). A finding survives only if fewer than
 ⌈N/2⌉ refuters kill it. The final report contains ONLY confirmed findings;
 killed findings are retained under `killed` with their refutations for audit.
 

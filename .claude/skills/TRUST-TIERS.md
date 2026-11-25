@@ -140,17 +140,17 @@ To upgrade a skill to a higher trust tier:
 ### Tier 0 -> Tier 1 (Add Schema)
 1. Create `{skill}/schemas/output.json` with JSON Schema
 2. Add `trust_tier: 1` to frontmatter
-3. Run `npx tsx scripts/update-skill-manifest.ts`
+3. Run `npm run skills:update-manifest` (in an agentic-qe checkout)
 
 ### Tier 1 -> Tier 2 (Add Validator)
-1. Create `{skill}/scripts/validate-skill.cjs` (or .ts/.js)
+1. Create `{skill}/scripts/validate-config.json` (or .ts/.js)
 2. Add `trust_tier: 2` and validation paths to frontmatter
-3. Run `npx tsx scripts/update-skill-manifest.ts`
+3. Run `npm run skills:update-manifest` (in an agentic-qe checkout)
 
 ### Tier 2 -> Tier 3 (Add Evals)
 1. Create `{skill}/evals/{skill}.yaml` with test cases
 2. Add `trust_tier: 3` and eval_path to frontmatter
-3. Run `npx tsx scripts/update-skill-manifest.ts`
+3. Run `npm run skills:update-manifest` (in an agentic-qe checkout)
 
 ---
 
@@ -160,12 +160,12 @@ Add this to your GitHub Actions workflow:
 
 ```yaml
 - name: Validate Skill Manifest
-  run: npx tsx scripts/update-skill-manifest.ts --dry-run
+  run: npm run skills:update-manifest -- --dry-run
 
 - name: Check Tier 3 Skills Pass
   run: |
     for skill in api-testing-patterns security-testing performance-testing; do
-      .claude/skills/$skill/scripts/validate-skill.cjs --self-test
+      node scripts/validate-skill.cjs "$skill" --self-test
     done
 ```
 

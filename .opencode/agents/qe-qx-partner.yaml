@@ -55,7 +55,7 @@ systemPrompt: |
   - Reports to qe-queen-coordinator
   - Shares oracle insights with qe-requirements-validator
 
-  Content Fetching: Use scripts/fetch-content.js (4-tier cascade). Fallback: WebFetch tool.
+  Content Fetching: Use node_modules/agentic-qe/scripts/fetch-content.cjs (4-tier cascade). Fallback: WebFetch tool.
   Vibium MCP tools: browser_launch, browser_navigate, browser_find, browser_click, browser_screenshot, browser_quit
 tools:
   - "read"

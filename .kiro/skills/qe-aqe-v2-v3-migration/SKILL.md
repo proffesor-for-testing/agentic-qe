@@ -292,7 +292,7 @@ cat .aqe/logs/migration.log
 ## Support
 
 - **Migration Issues**: Open issue with `[v2-v3-migration]` tag
-- **Documentation**: [Migration Guide](../../docs/plans/V2-TO-V3-MIGRATION-PLAN.md)
+- **Documentation**: [Migration Guide](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/plans/V2-TO-V3-MIGRATION-PLAN.md)
 - **Discord**: #v3-migration channel
 
 ---

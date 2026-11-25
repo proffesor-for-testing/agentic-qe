@@ -92,6 +92,20 @@ describe('#1017 init leaves the user test-runner inventory unchanged', () => {
  * remove AQE's unmodified copies so the user's vitest is back to 3 tests, and
  * must keep a copy the user edited.
  */
+/**
+ * #1457 corrected one path in the testability template after the rename; the copy
+ * 3.13.0–3.15.5 shipped still has the old path, so undo that fix to get its bytes.
+ */
+function asShippedBefore1457(relPath: string, bytes: Buffer): Buffer {
+  if (!relPath.endsWith('testability-scoring.spec.template.js')) return bytes;
+  return Buffer.from(
+    bytes.toString('utf8').replace(
+      'node .claude/skills/testability-scoring/scripts/generate-html-report.js',
+      'node .claude/skills/testability-scorer/scripts/generate-html-report.js',
+    ),
+  );
+}
+
 describe('#1017 init cleans the pre-3.15.6 fixtures out of an existing install', () => {
   const QE_COURT = '.claude/skills/qe-court/evals/fixtures/seeded-mutant-delivery';
   const RETIRED: Record<string, string> = {
@@ -107,7 +121,7 @@ describe('#1017 init cleans the pre-3.15.6 fixtures out of an existing install',
     await createSkillsInstaller({ projectRoot: root }).install();
     await createAgentsInstaller({ projectRoot: root }).install();
     for (const [rel, source] of Object.entries(RETIRED)) {
-      writeFileSync(join(root, rel), readFileSync(join(REPO, source)));
+      writeFileSync(join(root, rel), asShippedBefore1457(rel, readFileSync(join(REPO, source))));
       // 3.15.5 did not have the renamed files yet.
       rmSync(join(root, dirname(rel), source.split('/').pop()!), { force: true });
     }

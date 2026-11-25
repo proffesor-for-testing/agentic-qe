@@ -1,7 +1,7 @@
 # Skill Validation Infrastructure
 
 **Version**: 1.0.0
-**ADR**: [ADR-056: Deterministic Skill Validation System](../../v3/implementation/adrs/ADR-056-skill-validation-system.md)
+**ADR**: [ADR-056: Deterministic Skill Validation System](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/implementation/adrs/ADR-056-skill-validation-system.md)
 
 This directory contains the validation infrastructure for AQE skills - ensuring skill outputs are deterministic and trustworthy.
 
@@ -15,8 +15,6 @@ This directory contains the validation infrastructure for AQE skills - ensuring 
 │   ├── skill-output-meta.schema.json    # Meta-schema for skill schemas
 │   └── skill-eval.schema.json           # Evaluation suite schema
 ├── templates/                # Templates for skill authors
-│   ├── validate.template.sh             # Bash validator template
-│   ├── validator-lib.cjs                 # Shared validation utilities
 │   ├── eval.template.yaml               # Evaluation suite template
 │   ├── security-testing-eval.template.yaml  # Domain-specific example
 │   └── skill-frontmatter.example.yaml   # Frontmatter example
@@ -37,7 +35,7 @@ This directory contains the validation infrastructure for AQE skills - ensuring 
 |-------|---------|-------|
 | **L0** | Intent (SKILL.md) | Declarative instructions |
 | **L1** | Schema | `schemas/*.schema.json` |
-| **L2** | Validator | `templates/validate.template.sh` |
+| **L2** | Validator | `<skill>/scripts/validate-config.json` |
 | **L3** | Eval Suite | `templates/eval.template.yaml` |
 
 ## Trust Tiers
@@ -54,22 +52,21 @@ This directory contains the validation infrastructure for AQE skills - ensuring 
 
 ### Validate a Skill Output
 
-```bash
-# Using the template directly
-.validation/templates/validate.template.sh output.json
+Validated skills describe their checks in `<skill>/scripts/validate-config.json` (required
+fields, schema path, required terms). The agentic-qe repository runs them with its
+[validate-skill.cjs](https://github.com/proffesor-for-testing/agentic-qe/blob/main/scripts/validate-skill.cjs) runner:
 
-# With options
-.validation/templates/validate.template.sh --verbose output.json
-.validation/templates/validate.template.sh --json output.json  # JSON output
-.validation/templates/validate.template.sh --self-test         # Self-test mode
+```bash
+# AQE_REPO: an agentic-qe checkout
+node "$AQE_REPO/scripts/validate-skill.cjs" <skill-name> output.json [--json] [--verbose]
+node "$AQE_REPO/scripts/validate-skill.cjs" <skill-name> --self-test
 ```
 
 ### Create a Skill Validator
 
-1. Copy `templates/validate.template.sh` to your skill's directory
-2. Customize the configuration section at the top
-3. Add skill-specific validation in `run_skill_specific_validation()`
-4. Update the output schema path
+1. Copy an existing skill's `<skill>/scripts/validate-config.json` into your skill
+2. Set `skillName`, `schemaPath` and the required fields and terms
+3. Point `schemaPath` at your skill's output schema
 
 ### Create an Eval Suite
 
@@ -94,7 +91,7 @@ When creating a new skill:
 
 1. **Start with SKILL.md** (Trust Tier 0)
 2. **Add output schema** in `your-skill/schemas/output.schema.json` (Trust Tier 1)
-3. **Add validator script** in `your-skill/validate-skill.cjs` (Trust Tier 2)
+3. **Add validator config** in `your-skill/scripts/validate-config.json` (Trust Tier 2)
 4. **Add eval suite** in `your-skill/eval.yaml` (Trust Tier 3)
 5. **Enable CI + MCP learning** (Trust Tier 4)
 

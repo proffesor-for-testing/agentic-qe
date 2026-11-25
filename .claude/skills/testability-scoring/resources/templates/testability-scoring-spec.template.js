@@ -509,7 +509,7 @@ test.describe('Comprehensive Testability Analysis - Sauce Demo Shopify', () => {
 
     // Generate HTML report using the enhanced script
     const { exec } = require('child_process');
-    exec(`node .claude/skills/testability-scorer/scripts/generate-html-report.js "${jsonPath}" "${htmlPath}"`,
+    exec(`node .claude/skills/testability-scoring/scripts/generate-html-report.js "${jsonPath}" "${htmlPath}"`,
       (error, stdout, stderr) => {
         if (error) {
           console.error(`Error generating HTML: ${error.message}`);

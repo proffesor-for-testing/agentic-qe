@@ -34,13 +34,17 @@ Skill invocations are logged to `${CLAUDE_PLUGIN_DATA}/skill-usage.log`:
 
 ## Hook Configuration
 
+The skill does not ship a logging hook. Add your own script (for example
+`.claude/hooks/log-skill-usage.sh`) that appends one line per invocation in the format
+above, and register it in `.claude/settings.json`:
+
 ```json
 {
   "hooks": {
     "PreToolUse": [
       {
         "matcher": "Skill",
-        "hook": ".claude/skills/skill-stats/scripts/log-usage.sh"
+        "hooks": [{ "type": "command", "command": ".claude/hooks/log-skill-usage.sh" }]
       }
     ]
   }

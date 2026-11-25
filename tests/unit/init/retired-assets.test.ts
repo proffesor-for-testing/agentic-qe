@@ -22,13 +22,26 @@ const REPO = join(__dirname, '..', '..', '..');
 const SOURCE = join(REPO, 'assets', 'skills');
 const QC = '.claude/skills/qe-court/evals/fixtures/seeded-mutant-delivery';
 const TS = '.claude/skills/testability-scoring/resources/templates';
-/** The bytes 3.13.0–3.15.5 shipped under the retired names now ship under the new ones. */
+/** The bytes 3.13.0–3.15.5 shipped under the retired names now ship under the new ones (see asShippedBefore1457). */
 const SHIPPED: Record<string, string> = {
   [`${QC}/budget.test.ts`]: 'qe-court/evals/fixtures/seeded-mutant-delivery/budget-tests.ts.fixture',
   [`${QC}/budget.ts`]: 'qe-court/evals/fixtures/seeded-mutant-delivery/budget.ts.fixture',
   [`${TS}/testability-scoring.spec.template.js`]: 'testability-scoring/resources/templates/testability-scoring-spec.template.js',
 };
-const shipped = (relPath: string) => readFileSync(join(SOURCE, SHIPPED[relPath]));
+/**
+ * #1457 corrected one path in the testability template after the rename; the copy
+ * 3.13.0–3.15.5 shipped still has the old path, so undo that fix to get its bytes.
+ */
+function asShippedBefore1457(relPath: string, bytes: Buffer): Buffer {
+  if (!relPath.endsWith('testability-scoring.spec.template.js')) return bytes;
+  return Buffer.from(
+    bytes.toString('utf8').replace(
+      'node .claude/skills/testability-scoring/scripts/generate-html-report.js',
+      'node .claude/skills/testability-scorer/scripts/generate-html-report.js',
+    ),
+  );
+}
+const shipped = (relPath: string) => asShippedBefore1457(relPath, readFileSync(join(SOURCE, SHIPPED[relPath])));
 // Pre-3.15.6 README/yaml as shipped (pinned by sha256 in RETIRED_ASSET_GROUPS).
 const OLD_README = '# Seeded-mutant delivery (qe-court acceptance fixture)\n';
 

@@ -64,8 +64,8 @@ interface RefCheck {
 
 /**
  * Check every relative path a generated Kiro skill references:
- * - markdown link targets must resolve from the referencing file (unless the
- *   link is already broken in the Claude source skill);
+ * - markdown link targets must resolve from the referencing file (a link already
+ *   broken in the Claude source skill is reported separately, and also fails);
  * - `.kiro/skills/...` paths must resolve from the project root;
  * - no path may still point into the skill's own `.claude/skills/<source>/` dir;
  * - any path that resolves inside the Claude source skill must resolve in Kiro.
@@ -91,8 +91,8 @@ function checkSkillReferences(projectRoot: string): RefCheck {
         if (!ref || /^[a-z]+:/i.test(ref) || ref.startsWith('/')) continue;
         result.checked++;
         if (existsSync(join(dirname(file), ref))) continue;
-        // A link already broken in the Claude source is an upstream content bug,
-        // not a conversion gap; record it separately.
+        // A link already broken in the Claude source is a content bug, not a
+        // conversion gap; record it separately so the failure says which (#1457).
         if (existsSync(join(sourceDir, relFromSkill, ref))) {
           result.violations.push(`${where}: link target ${ref} missing`);
         } else {
@@ -187,9 +187,10 @@ describe('KiroInstaller skill supporting files (#1414)', () => {
     });
 
     it('every relative path referenced by every generated Kiro skill exists', () => {
-      const { checked, violations } = checkSkillReferences(projectRoot);
+      const { checked, violations, brokenInSource } = checkSkillReferences(projectRoot);
       expect(checked).toBeGreaterThan(50);
       expect(violations).toEqual([]);
+      expect(brokenInSource, 'links already broken in the Claude source skill (#1457)').toEqual([]);
     });
   });
 

@@ -12,7 +12,7 @@
 #
 # Schema: docs/schemas/skill-eval.schema.json
 # MCP Spec: docs/specs/skill-validation-mcp-integration.md
-# Runner: scripts/run-skill-eval.ts
+# Runner: https://github.com/proffesor-for-testing/agentic-qe/blob/main/scripts/run-skill-eval.ts
 #
 # For a comprehensive example, see: docs/templates/security-testing-eval.template.yaml
 # =============================================================================

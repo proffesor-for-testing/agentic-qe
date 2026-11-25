@@ -67,7 +67,7 @@ Planned:
 
 ```bash
 # SINGLE COMMAND - handles all tiers automatically with 30s timeout per tier:
-node /workspaces/agentic-qe/scripts/fetch-content.js "${URL}" "${OUTPUT_FOLDER}" --timeout 30000
+node node_modules/agentic-qe/scripts/fetch-content.cjs "${URL}" "${OUTPUT_FOLDER}" --timeout 30000
 ```
 
 **The script automatically cascades through these tiers:**
@@ -600,7 +600,7 @@ When multiple stakeholders matter simultaneously, QX bridges QA and UX to:
 - Shares oracle problem insights with qe-requirements-validator
 
 **Content Fetching** (see `<content_fetch_cascade>` section):
-- **Primary**: Use `scripts/fetch-content.js` for automated 4-tier cascade
+- **Primary**: Use `node_modules/agentic-qe/scripts/fetch-content.cjs` for automated 4-tier cascade
 - **Fallback**: WebFetch tool if script not available
 - **Never**: Manually retry Vibium - use the cascade instead
 

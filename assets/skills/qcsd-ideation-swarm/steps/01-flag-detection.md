@@ -9,8 +9,21 @@
 
 ### URL Mode Check
 
-If a URL was provided, this step also includes the URL-based content fetch cascade.
-Use the Read tool to read `steps/01a-url-fetch.md` for the URL fetch protocol if applicable.
+If a URL was provided, fetch the page before flag detection and use the fetched
+content as the epic content:
+
+1. Run the browser cascade that ships with the agentic-qe package (Playwright+Stealth,
+   then HTTP fetch, then a WebSearch fallback; 30s per tier):
+
+   ```bash
+   node node_modules/agentic-qe/scripts/fetch-content.cjs "${URL}" "${OUTPUT_FOLDER}" --timeout 30000
+   # global install: node "$(npm root -g)/agentic-qe/scripts/fetch-content.cjs" ...
+   ```
+
+2. Read `${OUTPUT_FOLDER}/content.html`, and note the tier that succeeded from
+   `${OUTPUT_FOLDER}/fetch-result.json`.
+3. If the script is not installed or every tier fails, use the WebFetch tool instead
+   and state in the report which method produced the content.
 
 ### Flag Detection (Check ALL flags)
 

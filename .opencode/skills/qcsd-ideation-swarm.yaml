@@ -19,10 +19,10 @@ steps:
     prompt: |
       **You MUST follow ALL phases in order. Skipping phases is a FAILURE.**
   - name: phase-url-1-setup-and-content-fetch-auto
-    description: "**The browser cascade is now FULLY AUTOMATED via `scripts/fetch-content.js`.**"
+    description: "**The browser cascade is now FULLY AUTOMATED via `node_modules/agentic-qe/scripts/fetch-content.cjs`.**"
     tools: ["bash", "read", "grep"]
     prompt: |
-      **The browser cascade is now FULLY AUTOMATED via `scripts/fetch-content.js`.**
+      **The browser cascade is now FULLY AUTOMATED via `node_modules/agentic-qe/scripts/fetch-content.cjs`.**
   - name: phase-url-2-programmatic-flag-detection-
     description: "**You MUST detect flags from the fetched content. Do NOT skip this phase.**"
     tools: ["bash", "read", "edit"]
