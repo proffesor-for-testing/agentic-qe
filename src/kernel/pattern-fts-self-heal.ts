@@ -27,7 +27,7 @@
  * never modifies qe_patterns rows.
  */
 
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType } from '../shared/sqlite-types.js';
 import { toErrorMessage } from '../shared/error-utils.js';
 import {
   QE_PATTERNS_FTS_TABLE_DDL,

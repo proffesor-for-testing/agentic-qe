@@ -18,7 +18,7 @@
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import type { Database } from 'better-sqlite3';
+import type { SqliteDatabase as Database } from '../../shared/sqlite-types.js';
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { openDatabase } from '../../shared/safe-db.js';

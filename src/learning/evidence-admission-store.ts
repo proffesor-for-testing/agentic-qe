@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType } from '../shared/sqlite-types.js';
 import type { LearningAdmissionResult, LearningEvidenceManifest } from './learning-evidence-admission.js';
 
 export interface PersistLearningEvidenceOptions {

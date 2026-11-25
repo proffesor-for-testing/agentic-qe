@@ -16,7 +16,7 @@
  * applicable as soon as a measured success is recorded for it.
  */
 
-import type { Database } from 'better-sqlite3';
+import type { SqliteDatabase as Database } from '../../../shared/sqlite-types.js';
 import type { Pattern } from '../interfaces';
 import { MEASURED_USAGE_SQL, USAGE_RUN_SQL } from '../../../learning/usage-outcome.js';
 import { revokedAmong } from '../../../learning/curation-revocation.js';

@@ -16,7 +16,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType } from '../shared/sqlite-types.js';
 import { getUnifiedMemory, writeWhenUnlockedOn } from '../kernel/unified-memory.js';
 import { ensureEndpointEmbeddingSpaceIdentity, getActiveEmbeddingSpaceIdentity } from './real-embeddings.js';
 import { HNSWEmbeddingIndex } from '../integrations/embeddings/index/HNSWIndex.js';

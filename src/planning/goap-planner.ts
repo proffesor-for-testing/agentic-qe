@@ -12,7 +12,7 @@
  * @version 3.0.0
  */
 
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType } from '../shared/sqlite-types.js';
 import { randomUUID } from 'crypto';
 import { safeJsonParse } from '../shared/safe-json.js';
 import { writeWhenUnlockedOn } from '../shared/sqlite-write-queue.js';

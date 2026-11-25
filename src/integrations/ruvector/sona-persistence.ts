@@ -24,7 +24,7 @@
  * ```
  */
 
-import { type Database as DatabaseType, type Statement } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType, SqliteStatement as Statement } from '../../shared/sqlite-types.js';
 import { v4 as uuidv4 } from 'uuid';
 import {
   QESONA,

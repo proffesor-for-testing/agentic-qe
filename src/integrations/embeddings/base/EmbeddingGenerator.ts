@@ -44,9 +44,9 @@ import { EmbeddingCache } from '../cache/EmbeddingCache.js';
 // needed for in-process/local embeddings; consumers using an embedding endpoint
 // (e.g. Cognitum /v1/embeddings) never load it. It is therefore imported lazily
 // inside `initialize()` so its absence degrades gracefully instead of failing at
-// module load. The `Tensor` type import below is `import type` — fully erased at
-// compile time, so it creates no runtime dependency.
-import type { Tensor } from '@huggingface/transformers';
+// module load. Its `Tensor` type is NOT imported here: this class is part of the
+// published declarations, and a type import would make consumers resolve
+// '@huggingface/transformers' (TS2307 with skipLibCheck: false, #1443).
 import { cosineSimilarity } from '../../../shared/utils/vector-math.js';
 
 /**
@@ -56,12 +56,23 @@ import { cosineSimilarity } from '../../../shared/utils/vector-math.js';
  * The library's types are JSDoc-based and not easily importable, so we
  * define the minimal interface we actually use.
  */
+/**
+ * The part of a transformers `Tensor` that AQE reads (#1443). Structural, so a
+ * real `Tensor` from '@huggingface/transformers' satisfies it.
+ */
+interface FeatureExtractionTensor {
+  /** Flat tensor values (a typed array for feature-extraction output). */
+  readonly data: ArrayLike<number | bigint> | unknown[];
+  /** Tensor shape. */
+  readonly dims: number[];
+}
+
 interface FeatureExtractionPipeline {
   /**
    * Extract features from input text
    * @param text Input text(s) to extract features from
    * @param options Extraction options including pooling and normalization
-   * @returns Promise resolving to a Tensor with embedding data
+   * @returns Promise resolving to a tensor with embedding data
    */
   (
     text: string | string[],
@@ -71,7 +82,7 @@ interface FeatureExtractionPipeline {
       quantize?: boolean;
       precision?: 'binary' | 'ubinary';
     }
-  ): Promise<Tensor>;
+  ): Promise<FeatureExtractionTensor>;
 
   /**
    * Dispose of the pipeline and free resources

@@ -9,7 +9,7 @@
  *   2. Child tables after their parents (trajectory_steps after qe_trajectories, etc.)
  */
 
-import Database from 'better-sqlite3';
+import type { SqliteDatabase } from '../../shared/sqlite-types.js';
 import { LEARNING_EVIDENCE_SCHEMA } from '../../migrations/20260830_add_learning_evidence_tables.js';
 
 /**
@@ -216,7 +216,7 @@ const BRAIN_TABLE_DDL: readonly string[] = [
  * Ensure all 31 brain-exportable tables exist in the target database.
  * Creates tables in FK-aware order so parent tables come before children.
  */
-export function ensureAllBrainTables(db: Database.Database): void {
+export function ensureAllBrainTables(db: SqliteDatabase): void {
   for (const ddl of BRAIN_TABLE_DDL) {
     db.exec(ddl);
   }

@@ -9,7 +9,7 @@
  * - Confidence decay over time
  */
 
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType } from '../shared/sqlite-types.js';
 import { PROMOTION_THRESHOLD, type QEPattern, type QEDomain, type QEPatternType } from './qe-patterns.js';
 import { AsymmetricLearningEngine, type AsymmetricLearningConfig } from './asymmetric-learning.js';
 import { safeJsonParse } from '../shared/safe-json.js';

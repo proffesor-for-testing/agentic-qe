@@ -139,7 +139,7 @@ export async function writeVersionToDb(projectRoot: string, version: string): Pr
  * This MUST succeed or initialization fails - no fallbacks.
  */
 export async function initializePersistenceDatabase(projectRoot: string): Promise<boolean> {
-  type DatabaseConstructor = new (filename: string) => import('better-sqlite3').Database;
+  type DatabaseConstructor = new (filename: string) => import('../shared/sqlite-types.js').SqliteDatabase;
   let Database: DatabaseConstructor | null = null;
   try {
     const mod = await import('better-sqlite3');

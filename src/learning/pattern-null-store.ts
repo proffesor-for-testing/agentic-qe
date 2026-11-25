@@ -13,7 +13,7 @@
  * SQLitePatternStore.getDatabase().
  */
 import { v4 as uuidv4 } from 'uuid';
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType } from '../shared/sqlite-types.js';
 import { applyMigration } from '../migrations/20260611_add_pattern_nulls_table.js';
 import { writeWhenUnlockedOn } from '../shared/sqlite-write-queue.js';
 

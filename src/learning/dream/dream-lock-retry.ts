@@ -7,7 +7,7 @@
  * attempt and retry asynchronously, so other work runs between attempts.
  */
 
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType } from '../../shared/sqlite-types.js';
 
 /** Longest a single dream write attempt blocks the process on a locked database. */
 export const DREAM_LOCK_WAIT_MS = 200;

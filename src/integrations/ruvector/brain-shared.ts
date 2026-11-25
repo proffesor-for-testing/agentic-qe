@@ -18,7 +18,7 @@
 
 import { createHash } from 'crypto';
 import { existsSync, readFileSync, writeFileSync, openSync, writeSync, closeSync } from 'fs';
-import Database from 'better-sqlite3';
+import type { SqliteDatabase } from '../../shared/sqlite-types.js';
 import { ensureAllBrainTables } from './brain-table-ddl.js';
 import { validateTableName } from '../../shared/sql-safety.js';
 
@@ -219,7 +219,7 @@ export function sha256(data: string): string {
   return createHash('sha256').update(data, 'utf-8').digest('hex');
 }
 
-export function tableExists(db: Database.Database, name: string): boolean {
+export function tableExists(db: SqliteDatabase, name: string): boolean {
   const row = db.prepare(
     "SELECT COUNT(*) as cnt FROM sqlite_master WHERE type='table' AND name=?"
   ).get(name) as { cnt: number };
@@ -227,7 +227,7 @@ export function tableExists(db: Database.Database, name: string): boolean {
 }
 
 export function countRows(
-  db: Database.Database, table: string,
+  db: SqliteDatabase, table: string,
   whereClause?: string, params?: unknown[]
 ): number {
   if (!tableExists(db, table)) return 0;
@@ -239,7 +239,7 @@ export function countRows(
 }
 
 export function queryAll(
-  db: Database.Database, table: string,
+  db: SqliteDatabase, table: string,
   whereClause?: string, params?: unknown[]
 ): unknown[] {
   if (!tableExists(db, table)) return [];
@@ -254,7 +254,7 @@ export function queryAll(
  * Memory-efficient for large tables (e.g., concept_edges with 68K+ rows).
  */
 export function* queryIterator(
-  db: Database.Database, table: string,
+  db: SqliteDatabase, table: string,
   whereClause?: string, params?: unknown[]
 ): Generator<unknown> {
   if (!tableExists(db, table)) return;
@@ -339,7 +339,7 @@ export function remapPatternReferences(
 // --- Generic merge for TEXT PK tables ---
 
 /** Dynamically insert a row into any table using its column keys. */
-function dynamicInsert(db: Database.Database, tableName: string, row: Record<string, unknown>): void {
+function dynamicInsert(db: SqliteDatabase, tableName: string, row: Record<string, unknown>): void {
   const validated = validateTableName(tableName);
   const keys = Object.keys(row);
   const cols = keys.join(', ');
@@ -351,7 +351,7 @@ function dynamicInsert(db: Database.Database, tableName: string, row: Record<str
 
 /** Dynamically update a row in any table using its column keys minus the PK. */
 function dynamicUpdate(
-  db: Database.Database, tableName: string, row: Record<string, unknown>, idColumn: string
+  db: SqliteDatabase, tableName: string, row: Record<string, unknown>, idColumn: string
 ): void {
   const validated = validateTableName(tableName);
   const keys = Object.keys(row).filter(k => k !== idColumn);
@@ -367,7 +367,7 @@ function dynamicUpdate(
  * Uses strategy-based conflict resolution identical to the pattern-specific merges.
  */
 export function mergeGenericRow(
-  db: Database.Database, tableName: string, row: Record<string, unknown>,
+  db: SqliteDatabase, tableName: string, row: Record<string, unknown>,
   idColumn: string, strategy: MergeStrategy,
   timestampColumn?: string, confidenceColumn?: string,
   patternIds?: Map<string, string>,
@@ -455,7 +455,7 @@ export function mergeGenericRow(
  * Deduplicates by checking composite columns; inserts if no match found.
  */
 export function mergeAppendOnlyRow(
-  db: Database.Database, tableName: string,
+  db: SqliteDatabase, tableName: string,
   row: Record<string, unknown>, dedupColumns: readonly string[], preserveId = false
 ): MergeResult {
   const validated = validateTableName(tableName);
@@ -480,29 +480,29 @@ export function mergeAppendOnlyRow(
 
 // --- Legacy typed merge functions (keep for backward compat) ---
 
-export function mergePattern(db: Database.Database, pattern: PatternRow, strategy: MergeStrategy): MergeResult {
+export function mergePattern(db: SqliteDatabase, pattern: PatternRow, strategy: MergeStrategy): MergeResult {
   return mergeGenericRow(db, 'qe_patterns', pattern as unknown as Record<string, unknown>,
     'id', strategy, 'updated_at', 'confidence');
 }
 
-export function mergeQValue(db: Database.Database, qv: QValueRow, strategy: MergeStrategy): MergeResult {
+export function mergeQValue(db: SqliteDatabase, qv: QValueRow, strategy: MergeStrategy): MergeResult {
   return mergeGenericRow(db, 'rl_q_values', qv as unknown as Record<string, unknown>,
     'id', strategy, 'updated_at', 'q_value');
 }
 
-export function mergeDreamInsight(db: Database.Database, insight: DreamInsightRow, strategy: MergeStrategy): MergeResult {
+export function mergeDreamInsight(db: SqliteDatabase, insight: DreamInsightRow, strategy: MergeStrategy): MergeResult {
   return mergeGenericRow(db, 'dream_insights', insight as unknown as Record<string, unknown>,
     'id', strategy, 'created_at', 'confidence_score');
 }
 
-export function mergeWitnessEntry(db: Database.Database, entry: WitnessRow, _strategy: MergeStrategy): MergeResult {
+export function mergeWitnessEntry(db: SqliteDatabase, entry: WitnessRow, _strategy: MergeStrategy): MergeResult {
   return mergeAppendOnlyRow(db, 'witness_chain', entry as unknown as Record<string, unknown>,
     ['action_hash', 'timestamp']);
 }
 
 // --- SQL Insert/Update helpers (kept for backward compat and tests) ---
 
-export function insertPattern(db: Database.Database, p: PatternRow): void {
+export function insertPattern(db: SqliteDatabase, p: PatternRow): void {
   db.prepare(`
     INSERT INTO qe_patterns (
       id, pattern_type, qe_domain, domain, name, description,
@@ -520,7 +520,7 @@ export function insertPattern(db: Database.Database, p: PatternRow): void {
   );
 }
 
-export function updatePattern(db: Database.Database, p: PatternRow): void {
+export function updatePattern(db: SqliteDatabase, p: PatternRow): void {
   db.prepare(`
     UPDATE qe_patterns SET
       pattern_type = ?, qe_domain = ?, domain = ?, name = ?, description = ?,
@@ -539,7 +539,7 @@ export function updatePattern(db: Database.Database, p: PatternRow): void {
   );
 }
 
-export function insertQValue(db: Database.Database, qv: QValueRow): void {
+export function insertQValue(db: SqliteDatabase, qv: QValueRow): void {
   db.prepare(`
     INSERT INTO rl_q_values (id, algorithm, agent_id, state_key, action_key, q_value, visits, last_reward, domain, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -548,7 +548,7 @@ export function insertQValue(db: Database.Database, qv: QValueRow): void {
     qv.created_at ?? null, qv.updated_at ?? null);
 }
 
-export function updateQValue(db: Database.Database, qv: QValueRow): void {
+export function updateQValue(db: SqliteDatabase, qv: QValueRow): void {
   db.prepare(`
     UPDATE rl_q_values SET algorithm = ?, agent_id = ?, state_key = ?, action_key = ?,
       q_value = ?, visits = ?, last_reward = ?, domain = ?, updated_at = ?
@@ -558,7 +558,7 @@ export function updateQValue(db: Database.Database, qv: QValueRow): void {
     qv.updated_at ?? null, qv.id);
 }
 
-export function insertDreamInsight(db: Database.Database, ins: DreamInsightRow): void {
+export function insertDreamInsight(db: SqliteDatabase, ins: DreamInsightRow): void {
   db.prepare(`
     INSERT INTO dream_insights (id, cycle_id, insight_type, source_concepts, description,
       novelty_score, confidence_score, actionable, applied, suggested_action, pattern_id, created_at)
@@ -568,7 +568,7 @@ export function insertDreamInsight(db: Database.Database, ins: DreamInsightRow):
     ins.suggested_action ?? null, ins.pattern_id ?? null, ins.created_at ?? null);
 }
 
-export function updateDreamInsight(db: Database.Database, ins: DreamInsightRow): void {
+export function updateDreamInsight(db: SqliteDatabase, ins: DreamInsightRow): void {
   db.prepare(`
     UPDATE dream_insights SET cycle_id = ?, insight_type = ?, source_concepts = ?, description = ?,
       novelty_score = ?, confidence_score = ?, actionable = ?, applied = ?,
@@ -579,7 +579,7 @@ export function updateDreamInsight(db: Database.Database, ins: DreamInsightRow):
     ins.suggested_action ?? null, ins.pattern_id ?? null, ins.created_at ?? null, ins.id);
 }
 
-export function insertWitnessEntry(db: Database.Database, entry: WitnessRow): void {
+export function insertWitnessEntry(db: SqliteDatabase, entry: WitnessRow): void {
   db.prepare(`
     INSERT INTO witness_chain (prev_hash, action_hash, action_type, action_data, timestamp, actor)
     VALUES (?, ?, ?, ?, ?, ?)
@@ -590,12 +590,12 @@ export function insertWitnessEntry(db: Database.Database, entry: WitnessRow): vo
 // --- Table creation (delegates to brain-table-ddl.ts) ---
 
 /** Ensure all brain-related tables exist in the target database. */
-export function ensureTargetTables(db: Database.Database): void {
+export function ensureTargetTables(db: SqliteDatabase): void {
   ensureAllBrainTables(db);
 }
 
 /** Execute the real importer; dry runs roll back rows and schema, including nested calls. */
-export function runImportTransaction(db: Database.Database, dryRun: boolean, importer: () => void): void {
+export function runImportTransaction(db: SqliteDatabase, dryRun: boolean, importer: () => void): void {
   const rollback = Symbol('brain import dry run');
   const transaction = db.transaction(() => {
     ensureTargetTables(db);

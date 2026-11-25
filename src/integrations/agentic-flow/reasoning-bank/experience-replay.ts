@@ -14,7 +14,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import type { Database as DatabaseType, Statement } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType, SqliteStatement as Statement } from '../../../shared/sqlite-types.js';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../../../kernel/unified-memory.js';
 import type { QEDomain } from '../../../learning/qe-patterns.js';
 import {

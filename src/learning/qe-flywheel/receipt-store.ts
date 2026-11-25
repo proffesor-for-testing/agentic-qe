@@ -12,7 +12,7 @@
  * run against an in-memory database.
  */
 
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType } from '../../shared/sqlite-types.js';
 import { reconstructLineage, type LineageResult } from './generation.js';
 import type { EvolveReceipt } from './receipt.js';
 import type { SealedInputs } from '../../validation/gate-reexecute.js';

@@ -13,7 +13,7 @@
  * - Regret tracking integration (Task 2.4)
  */
 
-import { type Database as DatabaseType } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType } from '../shared/sqlite-types.js';
 import { openDatabase } from '../shared/safe-db.js';
 import { isUnqueuedFallback, queuedConnectionFor, writeWhenUnlockedOn } from '../shared/sqlite-write-queue.js';
 import path from 'node:path';

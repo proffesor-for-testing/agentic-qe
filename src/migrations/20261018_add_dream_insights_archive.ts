@@ -17,7 +17,7 @@
  * foreign key, so deleting a dream cycle does not cascade into the archive.
  */
 
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType } from '../shared/sqlite-types.js';
 
 export const MIGRATION_VERSION = '20261018_add_dream_insights_archive';
 

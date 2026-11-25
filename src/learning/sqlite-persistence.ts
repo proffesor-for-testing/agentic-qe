@@ -12,7 +12,7 @@
  * - Unified storage via UnifiedMemoryManager (ADR-046)
  */
 
-import { type Database as DatabaseType, type Statement } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType, SqliteStatement as Statement } from '../shared/sqlite-types.js';
 import { openDatabase } from '../shared/safe-db.js';
 import { v4 as uuidv4 } from 'uuid';
 import { safeJsonParse } from '../shared/safe-json.js';

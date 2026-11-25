@@ -12,7 +12,7 @@
  * @see /docs/plans/GOAP-V3-RUVECTOR-NEURAL-BACKBONE.md
  */
 
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType } from '../../shared/sqlite-types.js';
 import {
   HYPERGRAPH_NODES_SCHEMA,
   HYPERGRAPH_EDGES_SCHEMA,

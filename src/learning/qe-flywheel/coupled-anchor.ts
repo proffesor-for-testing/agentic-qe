@@ -21,7 +21,7 @@
  * (the LLM step is the metered part — bind it deliberately).
  */
 
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType } from '../../shared/sqlite-types.js';
 import { computeRealEmbedding, getActiveEmbeddingSpaceIdentity } from '../real-embeddings.js';
 import {
   EmbeddingSpaceError,

@@ -5,7 +5,7 @@
  * Used by PullSyncAgent for cloud → local data flow.
  */
 
-import { type Database as DatabaseType } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType } from '../../shared/sqlite-types.js';
 import { openDatabase } from '../../shared/safe-db.js';
 import { validateTableName, validateIdentifier } from '../../shared/sql-safety.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
