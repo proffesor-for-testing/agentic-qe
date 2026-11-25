@@ -14,6 +14,7 @@ import { Result, ok, DomainName } from '../shared/types/index.js';
 import type { WorkflowContext } from './workflow-types.js';
 import { MEASURED_COVERAGE_SESSION_SQL } from '../feedback/coverage-session-provenance.js';
 import { EXECUTED_TEST_OUTCOME_SQL } from '../feedback/test-outcome-provenance.js';
+import { OBSERVED_ROUTING_OUTCOME_SQL } from '../routing/routing-outcomes-migration.js';
 import { getUnifiedMemory } from '../kernel/unified-memory.js';
 
 // ============================================================================
@@ -285,10 +286,12 @@ const routingAccuracyCheck: DeterministicAction = {
       const db = tryGetDb();
       if (db) {
         try {
+          // #1481: count observed outcomes only, not open or stale sentinels.
           const row = db.prepare(`
             SELECT COUNT(*) as total,
                    SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successful
             FROM routing_outcomes
+            WHERE ${OBSERVED_ROUTING_OUTCOME_SQL}
           `).get() as { total: number; successful: number } | undefined;
 
           totalOutcomes = totalOutcomes ?? (row?.total ?? 0);

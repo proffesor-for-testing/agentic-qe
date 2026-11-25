@@ -20,9 +20,11 @@ import { safeJsonParse } from '../shared/safe-json.js';
 import { toErrorMessage } from '../shared/error-utils.js';
 import { isBusyError } from '../learning/dream/dream-lock-retry.js';
 import { EMACalibrator, type EMAConfig } from './calibration/index.js';
-import { AutoEscalationTracker, type EscalationConfig, type EscalationState } from './escalation/index.js';
 import type { RoutingConfig, AgentTier } from './routing-config.js';
-import { ensureRoutingOutcomesAdr095Columns } from './routing-outcomes-migration.js';
+import {
+  ensureRoutingOutcomesAdr095Columns,
+  OBSERVED_ROUTING_OUTCOME_SQL,
+} from './routing-outcomes-migration.js';
 import {
   EconomicRoutingModel,
   type EconomicRoutingConfig,
@@ -113,7 +115,6 @@ export class RoutingFeedbackCollector {
   private router: QETaskRouter | null = null;
   private db: UnifiedMemoryManager | null = null;
   private calibrator: EMACalibrator | null = null;
-  private escalationTracker: AutoEscalationTracker | null = null;
   private economicModel: EconomicRoutingModel | null = null;
   private economicPersistCounter = 0;
   private static readonly ECONOMIC_PERSIST_INTERVAL = 10;
@@ -125,12 +126,12 @@ export class RoutingFeedbackCollector {
     this.maxOutcomes = maxOutcomes;
     this.outcomeStore = new OutcomeStore(maxOutcomes);
 
-    // Auto-enable from declarative config flags
+    // Auto-enable from declarative config flags. `enableAutoEscalation` is
+    // no longer read here (#1481): the collector's escalation state was only
+    // logged and never changed a routing decision. Tier escalation that does
+    // act lives in the free-tier ladder (src/routing/free-tier/ladder.ts).
     if (routingConfig?.enableEMACalibration) {
       this.enableCalibration();
-    }
-    if (routingConfig?.enableAutoEscalation) {
-      this.enableAutoEscalation();
     }
   }
 
@@ -153,13 +154,17 @@ export class RoutingFeedbackCollector {
   }
 
   /**
-   * Load persisted outcomes from the database into memory
+   * Load persisted outcomes from the database into memory.
+   * Only rows with an observed outcome are loaded (#1481): open route
+   * sentinels and swept stale sentinels are routing decisions, not results.
    */
   private async loadFromDb(): Promise<void> {
     if (!this.db) return;
     const database = this.db.getDatabase();
     const rows = database.prepare(`
-      SELECT * FROM routing_outcomes ORDER BY created_at DESC LIMIT ?
+      SELECT * FROM routing_outcomes
+      WHERE ${OBSERVED_ROUTING_OUTCOME_SQL}
+      ORDER BY created_at DESC LIMIT ?
     `).all(this.maxOutcomes) as RoutingOutcomeRow[];
 
     for (const row of rows.reverse()) {
@@ -299,8 +304,8 @@ export class RoutingFeedbackCollector {
     const lower = agentName.toLowerCase();
     if (lower.includes('booster') || lower === 'tier-0') return 'booster';
     if (lower === 'tier-1' || lower.includes('haiku')) return 'haiku';
-    if (lower === 'tier-2' || lower.includes('sonnet')) return 'sonnet';
-    if (lower.includes('opus')) return 'opus';
+    if (lower === 'tier-2' || lower === 'tier-3' || lower.includes('sonnet')) return 'sonnet';
+    if (lower === 'tier-4' || lower.includes('opus')) return 'opus';
     // Default: most qe-* agents run at sonnet tier
     return 'sonnet';
   }
@@ -425,22 +430,6 @@ export class RoutingFeedbackCollector {
   }
 
   /**
-   * Enable auto-escalation tracking for tier promotion/demotion.
-   * Once enabled, every recorded outcome updates the agent's escalation state.
-   */
-  enableAutoEscalation(config?: Partial<EscalationConfig>): void {
-    this.escalationTracker = new AutoEscalationTracker(config);
-  }
-
-  /**
-   * Get the current escalation state for an agent.
-   * Returns null if auto-escalation is not enabled or agent has no state.
-   */
-  getEscalationState(agentId: string): EscalationState | null {
-    return this.escalationTracker?.getState(agentId) ?? null;
-  }
-
-  /**
    * Enable economic routing model for quality-weighted cost optimization.
    * Once enabled, every recorded outcome feeds economic quality estimates
    * and the neural router receives cost-adjusted rewards.
@@ -455,11 +444,11 @@ export class RoutingFeedbackCollector {
   }
 
   /**
-   * Get the economic routing report.
-   * Returns null if economic routing is not enabled.
+   * Get the economic routing report, scored for `taskComplexity` (0-1,
+   * default 0.5). Returns null if economic routing is not enabled.
    */
-  getEconomicReport(): EconomicReport | null {
-    return this.economicModel?.getEconomicReport() ?? null;
+  getEconomicReport(taskComplexity?: number): EconomicReport | null {
+    return this.economicModel?.getEconomicReport(taskComplexity) ?? null;
   }
 
   /**
@@ -523,20 +512,6 @@ export class RoutingFeedbackCollector {
       // Persist every 10 outcomes to avoid excessive writes
       if (this.persistCount % 10 === 0) {
         this.persistCalibratorState();
-      }
-    }
-
-    // Update auto-escalation tracking if enabled
-    if (this.escalationTracker) {
-      const baseTier = decision.recommended === usedAgent ? 'sonnet' : 'haiku';
-      const escalationAction = this.escalationTracker.recordOutcome(usedAgent, outcome.success, baseTier);
-
-      // Apply escalation/de-escalation recommendation
-      if (escalationAction.action !== 'none') {
-        console.log(
-          `[RoutingFeedbackCollector] Agent "${usedAgent}" ${escalationAction.action}d: ` +
-          `${escalationAction.previousTier} → ${escalationAction.newTier}`
-        );
       }
     }
 

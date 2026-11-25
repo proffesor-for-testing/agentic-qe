@@ -144,7 +144,20 @@ export interface RoutingMetricsResult {
     agentBoosterStats: {
       eligible: number;
       used: number;
-      successRate: number;
+      fallbackToLLM: number;
+      /** Over observed Tier 0 outcomes; null until one is reported (#1481) */
+      successRate: number | null;
+      observedOutcomes: number;
+    };
+    /**
+     * Observed task outcomes (#1481). A routing decision is counted in
+     * totalDecisions only; success and failure come from executed tasks.
+     */
+    outcomeStats: {
+      observed: number;
+      successful: number;
+      failed: number;
+      successRate: number | null;
     };
     budgetStats: {
       totalSpentUsd: number;
@@ -170,7 +183,14 @@ export async function handleRoutingMetrics(
       modelRouterMetrics: {
         totalDecisions: metrics.totalDecisions,
         avgDecisionTimeMs: metrics.avgDecisionTimeMs,
-        agentBoosterStats: metrics.agentBoosterStats,
+        agentBoosterStats: {
+          eligible: metrics.agentBoosterStats.eligible,
+          used: metrics.agentBoosterStats.used,
+          fallbackToLLM: metrics.agentBoosterStats.fallbackToLLM,
+          successRate: metrics.agentBoosterStats.successRate,
+          observedOutcomes: metrics.agentBoosterStats.observedOutcomes,
+        },
+        outcomeStats: metrics.outcomeStats,
         budgetStats: metrics.budgetStats,
       },
     };
@@ -201,6 +221,8 @@ export interface RoutingEconomicsParams {
 }
 
 export interface RoutingEconomicsResult {
+  /** The complexity the tiers were scored for */
+  taskComplexity: number;
   tierEfficiency: Array<{
     tier: string;
     qualityScore: number;
@@ -221,6 +243,15 @@ export interface RoutingEconomicsResult {
 export async function handleRoutingEconomics(
   params: RoutingEconomicsParams,
 ): Promise<ToolResult<RoutingEconomicsResult>> {
+  const taskComplexity = params.taskComplexity ?? 0.5;
+  if (typeof taskComplexity !== 'number' || !Number.isFinite(taskComplexity)
+      || taskComplexity < 0 || taskComplexity > 1) {
+    return {
+      success: false,
+      error: `taskComplexity must be a number between 0 and 1, got ${JSON.stringify(params.taskComplexity)}`,
+    };
+  }
+
   try {
     const { createRoutingFeedbackCollector } = await import('../../routing/routing-feedback.js');
     const { getGlobalCostTracker } = await import('../../shared/llm/cost-tracker.js');
@@ -228,12 +259,10 @@ export async function handleRoutingEconomics(
     // Create collector, initialize to load persisted state from DB, then enable economic routing
     const collector = createRoutingFeedbackCollector(100);
     await collector.initialize();
-    collector.enableEconomicRouting(
-      { ...(params.taskComplexity != null ? {} : {}) },
-      getGlobalCostTracker(),
-    );
+    collector.enableEconomicRouting({}, getGlobalCostTracker());
 
-    const report = collector.getEconomicReport();
+    // #1481: score the tiers for the caller's complexity, not a fixed 0.5.
+    const report = collector.getEconomicReport(taskComplexity);
     if (!report) {
       return { success: false, error: 'Economic routing is not available' };
     }
@@ -247,6 +276,7 @@ export async function handleRoutingEconomics(
     return {
       success: true,
       data: {
+        taskComplexity,
         tierEfficiency,
         currentHourlyCostUsd: report.currentHourlyCostUsd,
         currentDailyCostUsd: report.currentDailyCostUsd,

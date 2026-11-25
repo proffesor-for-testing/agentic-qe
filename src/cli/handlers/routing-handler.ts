@@ -46,7 +46,14 @@ export class RoutingHandler implements ICommandHandler {
       .option('-c, --complexity <value>', 'Task complexity for scoring (0-1)', '0.5')
       .option('--json', 'Output as JSON')
       .action(async (options: { complexity: string; json?: boolean }) => {
-        await this.executeEconomics(parseFloat(options.complexity) || 0.5, !!options.json);
+        // #1481: `|| 0.5` turned an explicit 0 into 0.5; reject bad input instead.
+        const complexity = Number(options.complexity);
+        if (!Number.isFinite(complexity) || complexity < 0 || complexity > 1) {
+          console.error(chalk.red(`\n  --complexity must be a number between 0 and 1, got "${options.complexity}"\n`));
+          await this.cleanupAndExit(1);
+          return;
+        }
+        await this.executeEconomics(complexity, !!options.json);
       });
 
     routing
@@ -76,7 +83,8 @@ export class RoutingHandler implements ICommandHandler {
       await collector.initialize();
       collector.enableEconomicRouting({}, getGlobalCostTracker());
 
-      const report = collector.getEconomicReport();
+      // #1481: the report (and its JSON form) is scored for --complexity.
+      const report = collector.getEconomicReport(complexity);
       if (!report) {
         console.error(chalk.red('\n  Economic routing is not available.\n'));
         await this.cleanupAndExit(1);
@@ -84,7 +92,11 @@ export class RoutingHandler implements ICommandHandler {
       }
 
       if (json) {
-        console.log(JSON.stringify(report, (_k, v) => (v === Infinity ? 'Infinity' : v), 2));
+        console.log(JSON.stringify(
+          { taskComplexity: complexity, ...report },
+          (_k, v) => (v === Infinity ? 'Infinity' : v),
+          2,
+        ));
         await this.cleanupAndExit(0);
         return;
       }
@@ -97,7 +109,7 @@ export class RoutingHandler implements ICommandHandler {
       console.log(chalk.gray('  Tier       Quality  Cost/Task    Q/$       Score'));
       console.log(chalk.gray('  ' + '\u2500'.repeat(50)));
 
-      const scores = collector.getEconomicScore(complexity) ?? report.tierEfficiency;
+      const scores = report.tierEfficiency;
       for (const s of scores) {
         const qpd = isFinite(s.qualityPerDollar) ? s.qualityPerDollar.toFixed(1) : '\u221E';
         console.log(

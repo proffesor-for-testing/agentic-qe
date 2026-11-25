@@ -34,6 +34,7 @@ import {
 
 // ADR-051: Task Router for outcome recording
 import { getTaskRouter, type TaskRouterService } from '../mcp/services/task-router';
+import type { ModelTier } from '../integrations/agentic-flow';
 
 // ADR-083 Task 3.2: Coherence-gated agent actions
 import {
@@ -172,6 +173,37 @@ type TaskHandler = (task: QueenTask, kernel: QEKernel) => Promise<Result<unknown
 function getModelForTier(tier: number): string {
   if (tier === 0) return 'agent-booster'; // Special case - WASM transforms
   return getClaudeModelForTier(tier); // Tier 3 = extended thinking, same model as tier 2
+}
+
+/**
+ * Quality score for an executed task's routing outcome (#1481).
+ *
+ * Success dominates: a failed task scores 0 whatever its duration, and a
+ * successful one scores 0.6-1.0 with a bonus for speed. The previous formula
+ * (0.25*success + 0.325 + 0.10*durationTier) put a failed and a successful
+ * task only 0.25 apart, so failures barely moved the learned tier quality.
+ */
+export function routingOutcomeQuality(success: boolean, durationMs: number): number {
+  if (!success) return 0;
+  const durationTier =
+    durationMs < 100 ? 1.0 :
+    durationMs < 500 ? 0.8 :
+    durationMs < 2000 ? 0.6 :
+    durationMs < 5000 ? 0.4 :
+    durationMs < 10000 ? 0.2 : 0.1;
+  return 0.6 + 0.4 * durationTier;
+}
+
+/**
+ * The tier the router recommended for a task, read from the payload the
+ * routed MCP handlers attach (`routingTier`). Undefined when the task was
+ * submitted without a routing decision.
+ */
+function recommendedTierOf(task: QueenTask): number | undefined {
+  const tier = (task.payload as Record<string, unknown> | undefined)?.routingTier;
+  return typeof tier === 'number' && Number.isInteger(tier) && tier >= 0 && tier <= 4
+    ? tier
+    : undefined;
 }
 
 /**
@@ -509,8 +541,12 @@ export class DomainTaskExecutor implements TaskHandlerContext {
   // ============================================================================
 
   /**
-   * Record task outcome for TinyDancer learning loop
-   * Uses fire-and-forget pattern to not block task completion
+   * Record an executed task's observed outcome for the routing learning loop.
+   * Uses fire-and-forget pattern to not block task completion.
+   *
+   * `tier` is the tier the task actually ran on. It can differ from the
+   * router's recommendation (payload.routingTier), e.g. when Agent Booster
+   * falls back to an LLM tier, and followedRecommendation reflects that.
    */
   private async recordOutcome(
     task: QueenTask,
@@ -522,33 +558,41 @@ export class DomainTaskExecutor implements TaskHandlerContext {
       const router = await this.getTaskRouterInstance();
       if (!router) return;
 
+      // #1481: the routing decision was recorded as "decided" only; this is
+      // the observed outcome that routing_metrics success rates count. A
+      // rejected tier must not stop the feedback-loop record below.
+      try {
+        router.recordOutcome(tier as ModelTier, success, durationMs);
+      } catch (error) {
+        logger.warn('router.recordOutcome rejected the outcome', {
+          error: toErrorMessage(error),
+          taskId: task.id,
+          tier,
+        });
+      }
+
+      const recommendedTier = recommendedTierOf(task);
+      const followedRecommendation = recommendedTier !== undefined && recommendedTier === tier;
+
       // Log outcome for debugging and metrics
       console.debug(
         `[TaskExecutor] Outcome recorded: task=${task.id}, tier=${tier}, ` +
+        `recommendedTier=${recommendedTier ?? 'none'}, ` +
         `model=${getModelForTier(tier)}, success=${success}, duration=${durationMs}ms`
       );
 
       // ADR-023: Record routing outcome for learning feedback loop.
-      // qualityScore uses the 6-dim outcome formula (matches the post-task
-      // hook UPDATE path) instead of a binary success?0.8:0.2.
       if (this.qualityFeedbackLoop) {
-        const targetDomains = task.targetDomains || [];
-        const successScore = success ? 1 : 0;
-        const durationTier =
-          durationMs < 100 ? 1.0 :
-          durationMs < 500 ? 0.8 :
-          durationMs < 2000 ? 0.6 :
-          durationMs < 5000 ? 0.4 :
-          durationMs < 10000 ? 0.2 : 0.1;
-        const qualityScore = 0.25 * successScore + 0.325 + 0.10 * durationTier;
         await this.qualityFeedbackLoop.recordRoutingOutcome({
           taskId: task.id,
           taskDescription: task.type,
-          recommendedAgent: String(tier),
-          usedAgent: String(tier),
-          followedRecommendation: true,
+          // 'tier-N' names let the collector attribute the row to its model
+          // tier; a task submitted without a routing decision is 'unrouted'.
+          recommendedAgent: recommendedTier === undefined ? 'unrouted' : `tier-${recommendedTier}`,
+          usedAgent: `tier-${tier}`,
+          followedRecommendation,
           success,
-          qualityScore,
+          qualityScore: routingOutcomeQuality(success, durationMs),
           durationMs,
           timestamp: new Date(),
           error: success ? undefined : 'Task execution failed',
@@ -570,10 +614,12 @@ export class DomainTaskExecutor implements TaskHandlerContext {
 
     // ADR-051: Extract routing tier from payload (default to Tier 2 - Sonnet)
     const payload = task.payload as Record<string, unknown>;
-    const routingTier = (payload?.routingTier as number) ?? 2;
+    // `let`: an Agent Booster fallback runs the task on an LLM tier, and the
+    // outcome must be attributed to the tier that actually ran (#1481).
+    let routingTier = (payload?.routingTier as number) ?? 2;
     const useAgentBooster = (payload?.useAgentBooster as boolean) ?? false;
     const compiledContext = (payload?.compiledContext as string) ?? undefined;
-    const modelId = getModelForTier(routingTier);
+    let modelId = getModelForTier(routingTier);
 
     // BMAD-005: Attach compiled context to task metadata for domain handlers
     if (compiledContext && task.payload) {
@@ -609,7 +655,11 @@ export class DomainTaskExecutor implements TaskHandlerContext {
           return boosterResult;
         }
         // Fall through to normal execution with Tier 1 (Haiku) as fallback
-        console.debug(`[TaskExecutor] Agent Booster fallback to Tier 1 for task ${task.id}`);
+        if (routingTier === 0) {
+          routingTier = 1;
+          modelId = getModelForTier(routingTier);
+        }
+        console.debug(`[TaskExecutor] Agent Booster fallback to Tier ${routingTier} for task ${task.id}`);
       }
 
       const handler = this.taskHandlers.get(task.type);

@@ -34,6 +34,7 @@ import {
 } from './embedding-space.js';
 import { recordPatternUsage } from './pattern-usage-recorder.js';
 import { MEASURED_USAGE_SQL, USAGE_RUN_SQL } from './usage-outcome.js';
+import { OBSERVED_ROUTING_OUTCOME_SQL } from '../routing/routing-outcomes-migration.js';
 
 /**
  * SQLite persistence configuration
@@ -963,7 +964,8 @@ export class SQLitePatternStore {
     };
 
     // routing_outcomes carries (success, quality_score) per closed turn.
-    // Sentinels still have quality_score = -1, so filter to closed rows.
+    // Open sentinels (quality_score = -1) and swept stale sentinels carry no
+    // observed outcome, so the quality average skips them (#1481).
     const routing = safeGet<{
       total: number;
       closed: number;
@@ -972,8 +974,8 @@ export class SQLitePatternStore {
     }>(`
       SELECT
         COUNT(*) AS total,
-        COUNT(CASE WHEN quality_score >= 0 THEN 1 END) AS closed,
-        AVG(CASE WHEN quality_score >= 0 THEN quality_score END) AS avg_q,
+        COUNT(CASE WHEN ${OBSERVED_ROUTING_OUTCOME_SQL} THEN 1 END) AS closed,
+        AVG(CASE WHEN ${OBSERVED_ROUTING_OUTCOME_SQL} THEN quality_score END) AS avg_q,
         COALESCE(SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END), 0) AS succ
       FROM routing_outcomes
     `);

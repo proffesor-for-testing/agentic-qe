@@ -41,6 +41,7 @@ import { getActiveEmbeddingSpaceIdentity } from '../../learning/real-embeddings.
 import { inspectEmbeddingSpaceRows } from '../../learning/embedding-space.js';
 import { committedPendingIndexPatternId } from '../../learning/pattern-mutation-error.js';
 import { formatLearningOutcomes, formatPatternSuccessRate } from '../../learning/usage-outcome.js';
+import { OBSERVED_ROUTING_OUTCOME_SQL } from '../../routing/routing-outcomes-migration.js';
 
 // Extracted helpers
 import {
@@ -1767,14 +1768,14 @@ function registerLoopHealthCommand(learning: Command): void {
             const exploitQ = db
               .prepare(
                 `SELECT AVG(quality_score) AS avgQ FROM routing_outcomes
-                  WHERE exploration = 0 AND quality_score >= 0
+                  WHERE exploration = 0 AND ${OBSERVED_ROUTING_OUTCOME_SQL}
                     AND created_at >= datetime('now', '-7 days')`,
               )
               .get() as { avgQ: number | null };
             const exploreQ = db
               .prepare(
                 `SELECT AVG(quality_score) AS avgQ FROM routing_outcomes
-                  WHERE exploration = 1 AND quality_score >= 0
+                  WHERE exploration = 1 AND ${OBSERVED_ROUTING_OUTCOME_SQL}
                     AND created_at >= datetime('now', '-7 days')`,
               )
               .get() as { avgQ: number | null };

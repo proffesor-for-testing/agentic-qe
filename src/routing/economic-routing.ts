@@ -245,10 +245,14 @@ export class EconomicRoutingModel {
   }
 
   /**
-   * Get economic efficiency report.
+   * Get economic efficiency report for a task complexity (0-1).
+   * Defaults to mid-complexity (0.5); out-of-range values are clamped (#1481).
    */
-  getEconomicReport(): EconomicReport {
-    const tierEfficiency = this.scoreTiers(0.5); // mid-complexity as baseline
+  getEconomicReport(taskComplexity = 0.5): EconomicReport {
+    const complexity = Number.isFinite(taskComplexity)
+      ? Math.max(0, Math.min(1, taskComplexity))
+      : 0.5;
+    const tierEfficiency = this.scoreTiers(complexity);
     const currentHourlyCostUsd = this.costTracker.getCurrentCost('hour');
     const currentDailyCostUsd = this.costTracker.getCurrentCost('day');
 

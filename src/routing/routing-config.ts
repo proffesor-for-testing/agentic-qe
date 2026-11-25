@@ -93,8 +93,12 @@ export interface RoutingConfig {
   verbose: boolean;
   /** Enable EMA-based agent calibration for voting weights (default: true) */
   enableEMACalibration: boolean;
-  /** Enable automatic tier escalation/de-escalation on consecutive outcomes (default: true) */
-  enableAutoEscalation: boolean;
+  /**
+   * @deprecated Ignored since #1481. The routing feedback collector computed
+   * an escalation state but never applied it to a routing decision, so the
+   * path was removed. Tier escalation that acts lives in the free-tier ladder.
+   */
+  enableAutoEscalation?: boolean;
   /** Enable neural model routing via NeuralTinyDancerRouter (ADR-082, Task 2.1).
    *  When true, createSmartTinyDancerRouter returns a NeuralTinyDancerRouter
    *  that runs alongside (shadow mode) or replaces rule-based routing.
@@ -186,7 +190,6 @@ export const DEFAULT_ROUTING_CONFIG: RoutingConfig = {
   fallback: DEFAULT_FALLBACK_CONFIG,
   verbose: false,
   enableEMACalibration: true,
-  enableAutoEscalation: true,
   enableNeuralRouting: false,
 };
 

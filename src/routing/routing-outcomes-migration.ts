@@ -20,6 +20,21 @@ import { isBusyError } from '../learning/dream/dream-lock-retry.js';
 let migrated = false;
 
 /**
+ * Error tag the post-route orphan sweep writes on route sentinels that were
+ * never closed by a real outcome (#465).
+ */
+export const STALE_SENTINEL_ERROR = 'stale-sentinel';
+
+/**
+ * SQL predicate selecting only `routing_outcomes` rows that carry an observed
+ * outcome (#1481). It excludes open sentinels (`quality_score = -1`, the task
+ * has not finished) and swept `stale-sentinel` rows (closed with a placeholder
+ * score, never observed). Metric readers AND this in; rows are not modified.
+ */
+export const OBSERVED_ROUTING_OUTCOME_SQL =
+  `(quality_score >= 0 AND (error IS NULL OR error <> '${STALE_SENTINEL_ERROR}'))`;
+
+/**
  * Add the ADR-095 columns to routing_outcomes if they don't already exist.
  * Safe to call multiple times — second and later calls are no-ops.
  *
