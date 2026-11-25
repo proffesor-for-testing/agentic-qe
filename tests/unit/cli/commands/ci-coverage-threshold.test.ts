@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -6,12 +6,20 @@ import type { CLIContext } from '../../../../src/cli/handlers/interfaces.js';
 import type { CIConfig } from '../../../../src/cli/utils/ci-config.js';
 import { getDefaultCIConfig } from '../../../../src/cli/utils/ci-config.js';
 import { createCICommand } from '../../../../src/cli/commands/ci.js';
+import { createGitCandidateFixture, evidenceKeyFixture } from '../../../fixtures/quality-evidence-candidates.js';
 
 // Exercise the registered command with programmatic configuration. A YAML
 // parser defect cannot explain these threshold results.
 vi.mock('../../../../src/cli/utils/ci-config.js', () => ({
   findCIConfigFile: () => null, parseCIConfigFile: vi.fn(), getDefaultCIConfig: vi.fn(),
 }));
+
+// #1474: the gate resolves its candidate from the project checkout; point the
+// root at a Git fixture so it resolves, and answer its candidate-bound keys.
+beforeAll(() => {
+  vi.stubEnv('AQE_PROJECT_ROOT', createGitCandidateFixture('aqe-ci-gate-'));
+  return () => vi.unstubAllEnvs();
+});
 
 const fixtures: string[] = [];
 afterEach(() => {
@@ -32,8 +40,8 @@ async function run(coverage: number, threshold?: number, criticalBugs = 0, args:
   const values = { coverage, testsPassing: 100, criticalBugs, codeSmells: 0,
     securityVulnerabilities: 0, technicalDebt: 0, duplications: 0 };
   const get = vi.fn(async (key: string) => {
-    const metric = key.split(':')[1] as keyof typeof values;
-    return { schemaVersion: 1, metric, value: values[metric], source: 'measured-fixture', measuredAt: new Date().toISOString() };
+    const fixture = evidenceKeyFixture(key);
+    return fixture?.record(values[fixture.metric as keyof typeof values]);
   });
   const context = { kernel: { memory: { get } } } as unknown as CLIContext;
   const cleanup = vi.fn(async (_code: number) => undefined);

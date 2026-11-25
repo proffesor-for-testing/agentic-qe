@@ -344,11 +344,15 @@ export function registerCoverageHandlers(ctx: TaskHandlerContext): void {
       // Analyze coverage using the real CoverageAnalyzerService
       // #1008: the analyzer persists only measured coverage; a static estimate
       // is returned below, labelled, but never stored as evidence.
+      // #1474: decided BEFORE anything is stored — a stale or incomplete report
+      // is not quality-gate evidence for the current checkout.
+      const evidenceComplete = describeEvidence(evidence, projectRoot ?? targetPath).length === 0;
       const analysisResult = await analyzer.analyze({
         coverageData,
         threshold,
         includeFileDetails: payload.detectGaps,
         measured: !provenance.estimated,
+        evidenceComplete,
         // #1027 N7: per-file records use absolute keys; N4: failing-suite coverage is labelled.
         ...(projectRoot ? { projectRoot } : {}),
         ...(runStatus && !provenance.estimated ? { runStatus } : {}),

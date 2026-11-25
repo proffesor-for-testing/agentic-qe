@@ -29,6 +29,11 @@ import '../../../src/domains/security-compliance';
 import '../../../src/domains/code-intelligence';
 import '../../../src/domains/quality-assessment';
 
+// #1474: evidence is bound to the checkout's candidate; this suite's project root is
+// not a Git work tree, so resolve every checkout to one fixed candidate.
+vi.mock('../../../src/domains/quality-assessment/evidence-candidate', async (importOriginal) =>
+  (await import('../../../tests/fixtures/quality-evidence-candidates')).fixedCandidateModule(importOriginal));
+
 // #1465: test-accessibility runs the real audit service; keep this unit test
 // off the browser by having the service report that no browser is available.
 vi.mock('../../../src/domains/visual-accessibility/services/accessibility-tester.js', () => ({

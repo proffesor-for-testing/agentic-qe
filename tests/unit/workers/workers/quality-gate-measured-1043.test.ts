@@ -12,7 +12,7 @@
  * the unmeasured metrics. A status without the measured stamp (written by
  * <= 3.15.6) is ignored and replaced.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { QualityGateWorker } from '../../../../src/workers/workers/quality-gate';
 import type { MemoryBackend } from '../../../../src/kernel/interfaces';
 import {
@@ -20,6 +20,11 @@ import {
   type QualityEvidenceValues,
 } from '../../../../src/domains/quality-assessment/quality-evidence';
 import { namespacedStore, contextFor, type NamespacedStore } from './measured-worker-store';
+
+// #1474: the worker judges its checkout's candidate; this suite's project root
+// is not a Git work tree, so resolve every checkout to one fixed candidate.
+vi.mock('../../../../src/domains/quality-assessment/evidence-candidate', async (importOriginal) =>
+  (await import('../../../fixtures/quality-evidence-candidates')).fixedCandidateModule(importOriginal));
 
 const PASSING: QualityEvidenceValues = {
   coverage: 86.5,
@@ -91,7 +96,10 @@ describe('#1043 — quality-gate worker evaluates measured evidence only', () =>
     const result = await new QualityGateWorker().execute(contextFor(store.memory));
 
     const current = store.read('quality-gate:current') as Record<string, any>;
-    expect(current).toMatchObject({ measured: true, schemaVersion: 1, passed: true });
+    // #1474: schema 2 verdicts name the candidate, receipts and thresholds they used.
+    expect(current).toMatchObject({ measured: true, schemaVersion: 2, passed: true, candidate: { status: 'resolved' } });
+    expect(Object.keys(current.receipts)).toHaveLength(7);
+    expect(current.thresholds.coverage).toMatchObject({ value: 80 });
     expect(current.checks).toHaveLength(7);
     expect(current.checks).toContainEqual(expect.objectContaining({ name: 'coverage', value: 86.5, threshold: 80, passed: true }));
     expect(store.read('quality-gate:history')).toEqual([expect.objectContaining({ measured: true, passed: true })]);
@@ -135,8 +143,9 @@ describe('#1043 — quality-gate worker evaluates measured evidence only', () =>
     store.memory.set.mockClear();
 
     const unmeasured = await new QualityGateWorker().execute(contextFor(store.memory));
-    expect(store.memory.set).not.toHaveBeenCalled();
-    expect(store.read('quality-gate:current')).toEqual(LEGACY_INVENTED_STATUS);
+    // #1474: an earlier status never stands as current; it is replaced by an insufficient one.
+    expect(store.writtenKeys()).toEqual(['quality-gate:current']);
+    expect(store.read('quality-gate:current')).toMatchObject({ measured: false, status: 'insufficient-evidence', passed: false });
     expect(JSON.stringify(unmeasured)).not.toMatch(INVENTED);
 
     await measure(store, PASSING);

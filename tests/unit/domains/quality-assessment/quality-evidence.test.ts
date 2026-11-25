@@ -7,6 +7,10 @@ import {
   writeQualityEvidence,
   type QualityEvidenceValues,
 } from '../../../../src/domains/quality-assessment/quality-evidence.js';
+import { fixtureCandidate } from '../../../fixtures/quality-evidence-candidates.js';
+
+// #1474: evidence is bound to a candidate; these cases fix one explicitly.
+const candidate = fixtureCandidate('A');
 
 function createMemory() {
   const values = new Map<string, unknown>();
@@ -38,36 +42,40 @@ describe('quality evidence contract', () => {
     await writeQualityEvidence(memory as never, passingValues, {
       measuredAt,
       source: 'quality-analyzer',
+      candidate,
     });
     const loaded = await loadQualityEvidence(memory as never, {
       now: Date.parse(measuredAt) + 1_000,
+      candidate,
     });
 
     expect(loaded).toEqual(passingValues);
     expect(memory.set).toHaveBeenCalledWith(
-      'quality-evidence:criticalBugs:latest',
-      expect.objectContaining({ measuredAt, source: 'quality-analyzer' }),
+      `quality-evidence:v2:${candidate.id}:criticalBugs:latest`,
+      expect.objectContaining({ measuredAt, source: 'quality-analyzer', schemaVersion: 2, candidate }),
       expect.objectContaining({ namespace: QUALITY_EVIDENCE_NAMESPACE, persist: true }),
     );
   });
 
   it('should fail closed when configured evidence is missing', async () => {
-    await expect(loadQualityEvidence(createMemory() as never)).rejects.toThrow(
+    await expect(loadQualityEvidence(createMemory() as never, { candidate })).rejects.toThrow(
       /no measured quality evidence/i,
     );
   });
 
   it('should fail closed when evidence is malformed', async () => {
     const memory = createMemory();
-    memory.values.set(`${QUALITY_EVIDENCE_NAMESPACE}:quality-evidence:coverage:latest`, {
-      schemaVersion: 1,
+    memory.values.set(`${QUALITY_EVIDENCE_NAMESPACE}:quality-evidence:v2:${candidate.id}:coverage:latest`, {
+      schemaVersion: 2,
+      receiptId: 'r-nan',
+      candidate,
       metric: 'coverage',
       value: Number.NaN,
       measuredAt: new Date().toISOString(),
       source: 'coverage-analysis',
     });
 
-    await expect(loadQualityEvidence(memory as never)).rejects.toThrow(/malformed/i);
+    await expect(loadQualityEvidence(memory as never, { candidate })).rejects.toThrow(/malformed/i);
   });
 
   it('should fail closed when evidence is stale', async () => {
@@ -75,9 +83,11 @@ describe('quality evidence contract', () => {
     await writeQualityEvidence(memory as never, passingValues, {
       measuredAt: '2026-08-01T00:00:00.000Z',
       source: 'quality-analyzer',
+      candidate,
     });
 
     await expect(loadQualityEvidence(memory as never, {
+      candidate,
       now: Date.parse('2026-08-03T00:00:00.000Z'),
       maxAgeMs: 60_000,
     })).rejects.toThrow(/stale/i);
