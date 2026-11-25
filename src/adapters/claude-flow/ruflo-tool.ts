@@ -11,6 +11,7 @@
  * output without a JSON result, or a result that reports `success: false`.
  */
 
+import { realpathSync } from 'node:fs';
 import { resolve as resolvePath } from 'node:path';
 import { resolveCliPackage } from './detect.js';
 import { runCommandTree } from './process-tree.js';
@@ -112,23 +113,34 @@ export function rufloErrorText(error: unknown): string {
  * one at a time, in call order (PROJECT_QUEUE). Other processes are not covered (#1492).
  *
  * Each call is a ruflo process: 1.1-1.5 s and about 350 MB RSS (3.76.0 and 3.80.7). On
- * timeout the whole process tree is killed (runCommandTree).
+ * timeout the whole process tree is killed (runCommandTree), and the project's calls fail
+ * at once for TIMEOUT_COOL_DOWN_MS instead of each waiting for its own timeout.
+ *
+ * The queue key is the project's real path, so `/a/link` and `/a/real` share a queue.
  */
 export function runRufloTool(
   tool: RufloToolName,
   params: Record<string, unknown>,
   options: RufloToolOptions = {},
 ): Promise<RufloToolResult> {
-  const cwd = resolvePath(options.cwd ?? process.cwd());
+  const cwd = projectKey(options.cwd ?? process.cwd());
   const timeoutMs = options.timeoutMs ?? 15000;
   // ruflo-argv-unverifiable: `tool` is a RufloToolName; RUFLO_TOOLS is checked against the snapshot
   const argv = rufloToolArgv(tool, params, options.cliPkg ?? resolveCliPackage());
   // Queued synchronously, so calls run in the order they were made.
   return PROJECT_QUEUE.run(cwd, async (): Promise<RufloToolResult> => {
+    const coolingUntil = TIMED_OUT_UNTIL.get(cwd) ?? 0;
+    if (Date.now() < coolingUntil) {
+      return {
+        ok: false,
+        reason: `ruflo mcp exec ${tool} skipped: a ruflo call in ${cwd} timed out; retrying after ${new Date(coolingUntil).toISOString()}`,
+      };
+    }
     let stdout: string;
     try {
       stdout = await runCommandTree('npx', argv, { cwd, timeoutMs });
     } catch (error) {
+      if ((error as { killed?: boolean }).killed === true) TIMED_OUT_UNTIL.set(cwd, Date.now() + TIMEOUT_COOL_DOWN_MS);
       return { ok: false, reason: `ruflo mcp exec ${tool} failed: ${rufloErrorText(error)}` };
     }
     const data = parseMcpExecOutput(stdout);
@@ -159,5 +171,23 @@ export class KeyedSerialQueue {
   }
 }
 
-/** One queue per resolved project directory for every ruflo `mcp exec` in this process. */
+/** One queue per project (real path) for every ruflo `mcp exec` in this process. */
 const PROJECT_QUEUE = new KeyedSerialQueue();
+
+/** After a timed-out (killed) ruflo call, the project's calls fail at once for this long. */
+export const TIMEOUT_COOL_DOWN_MS = 30_000;
+const TIMED_OUT_UNTIL = new Map<string, number>();
+
+/** Forget timed-out projects (tests, or a caller that knows ruflo works again). */
+export function clearRufloTimeouts(): void {
+  TIMED_OUT_UNTIL.clear();
+}
+
+/** The real path of `dir` (symlinks resolved), else its resolved path. */
+export function projectKey(dir: string): string {
+  try {
+    return realpathSync(dir);
+  } catch {
+    return resolvePath(dir);
+  }
+}

@@ -8,6 +8,11 @@
  * SIGTERM, then SIGKILL after a grace period. On Windows there are no process groups;
  * `taskkill /T /F` ends the process tree instead.
  *
+ * A detached group no longer receives the terminal's Ctrl-C or dies with this process,
+ * so live groups are tracked and killed when this process exits or gets SIGINT/SIGTERM.
+ * Those handlers are installed only while a group is live, and a signal is re-raised
+ * afterwards when nothing else handles it, so the default Ctrl-C behaviour stays.
+ *
  * No shell is used: `args` are passed as an argv array.
  */
 
@@ -44,6 +49,51 @@ function killTree(pid: number, signal: NodeJS.Signals): void {
   }
 }
 
+/** Process groups (leader pids) of commands still running. */
+const liveGroups = new Set<number>();
+const SIGNALS = ['SIGINT', 'SIGTERM'] as const;
+
+function killLiveGroups(): void {
+  for (const pid of liveGroups) killTree(pid, 'SIGKILL');
+  liveGroups.clear();
+}
+
+function onExit(): void {
+  killLiveGroups();
+}
+
+function onSignal(signal: NodeJS.Signals): void {
+  killLiveGroups();
+  removeHandlers();
+  // Without other listeners Node would have ended the process: do that now.
+  if (process.listenerCount(signal) === 0) process.kill(process.pid, signal);
+}
+
+function installHandlers(): void {
+  process.on('exit', onExit);
+  for (const signal of SIGNALS) process.on(signal, onSignal);
+}
+
+function removeHandlers(): void {
+  process.off('exit', onExit);
+  for (const signal of SIGNALS) process.off(signal, onSignal);
+}
+
+function trackGroup(pid: number): void {
+  if (liveGroups.size === 0) installHandlers();
+  liveGroups.add(pid);
+}
+
+function untrackGroup(pid: number): void {
+  if (!liveGroups.delete(pid)) return;
+  if (liveGroups.size === 0) removeHandlers();
+}
+
+/** Number of tracked live process groups (for tests). */
+export function liveGroupCount(): number {
+  return liveGroups.size;
+}
+
 /** stdout of `command args`; rejects with a RunCommandTreeError on non-zero exit, timeout or overflow. */
 export function runCommandTree(command: string, args: string[], options: RunCommandTreeOptions): Promise<string> {
   const maxBuffer = options.maxBuffer ?? 16 * 1024 * 1024;
@@ -56,9 +106,11 @@ export function runCommandTree(command: string, args: string[], options: RunComm
       detached: process.platform !== 'win32',
       windowsHide: true,
     });
-    let stdout = '';
-    let stderr = '';
+    // Buffers, decoded once at the end: a multi-byte character may span two chunks.
+    const out: Buffer[] = [];
+    const err: Buffer[] = [];
     let size = 0;
+    if (child.pid !== undefined && process.platform !== 'win32') trackGroup(child.pid);
     let killedFor: string | null = null;
     let graceTimer: NodeJS.Timeout | undefined;
 
@@ -73,8 +125,7 @@ export function runCommandTree(command: string, args: string[], options: RunComm
     const collect = (which: 'out' | 'err') => (chunk: Buffer) => {
       size += chunk.length;
       if (size > maxBuffer) return end(`output exceeded ${maxBuffer} bytes`);
-      if (which === 'out') stdout += chunk.toString('utf8');
-      else stderr += chunk.toString('utf8');
+      (which === 'out' ? out : err).push(chunk);
     };
     child.stdout!.on('data', collect('out'));
     child.stderr!.on('data', collect('err'));
@@ -82,8 +133,8 @@ export function runCommandTree(command: string, args: string[], options: RunComm
     const fail = (message: string, code: number | null, signal: NodeJS.Signals | null, cause?: Error) =>
       reject(
         Object.assign(new Error(message), {
-          stdout,
-          stderr,
+          stdout: Buffer.concat(out).toString('utf8'),
+          stderr: Buffer.concat(err).toString('utf8'),
           code,
           signal,
           killed: killedFor !== null,
@@ -93,6 +144,7 @@ export function runCommandTree(command: string, args: string[], options: RunComm
       );
 
     child.on('error', (error) => {
+      if (child.pid !== undefined) untrackGroup(child.pid);
       clearTimeout(timer);
       clearTimeout(graceTimer);
       fail(`could not run ${command}: ${error.message}`, null, null, error);
@@ -103,8 +155,9 @@ export function runCommandTree(command: string, args: string[], options: RunComm
       clearTimeout(graceTimer);
       // A killed leader may leave group members that ignored SIGTERM.
       if (killedFor !== null && child.pid !== undefined) killTree(child.pid, 'SIGKILL');
+      if (child.pid !== undefined) untrackGroup(child.pid);
       if (killedFor !== null) return fail(killedFor, code, signal);
-      if (code === 0) return resolve(stdout);
+      if (code === 0) return resolve(Buffer.concat(out).toString('utf8'));
       fail(`Command failed with exit code ${code ?? signal}: ${command} ${args.slice(0, 4).join(' ')}`, code, signal);
     });
   });

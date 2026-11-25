@@ -51,7 +51,17 @@ vi.mock('../../../../src/kernel/unified-memory.js', () => ({
   }),
 }));
 
-import { KeyedSerialQueue, parseMcpExecOutput, runRufloTool } from '../../../../src/adapters/claude-flow/ruflo-tool.js';
+import { mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import {
+  KeyedSerialQueue,
+  TIMEOUT_COOL_DOWN_MS,
+  clearRufloTimeouts,
+  parseMcpExecOutput,
+  projectKey,
+  runRufloTool,
+} from '../../../../src/adapters/claude-flow/ruflo-tool.js';
 import { TrajectoryBridge } from '../../../../src/adapters/claude-flow/trajectory-bridge.js';
 import { ModelRouterBridge, confidenceFraction } from '../../../../src/adapters/claude-flow/model-router-bridge.js';
 import { PretrainBridge, parseTransferOutput } from '../../../../src/adapters/claude-flow/pretrain-bridge.js';
@@ -74,6 +84,7 @@ const argvOf = (call: number) => execFile.mock.calls[call][1] as string[];
 const syncArgvOf = (call: number) => execFileSync.mock.calls[call][1] as string[];
 
 beforeEach(() => {
+  clearRufloTimeouts();
   execFile.mockReset();
   execFileSync.mockReset();
   run.mockReset();
@@ -196,6 +207,62 @@ describe('runRufloTool project queue', () => {
       'hooks_intelligence_pattern-store',
       'hooks_intelligence_pattern-search',
     ]);
+  });
+
+  // Round-3 review: one timed-out call made every queued call wait its own timeout.
+  it('should_failQueuedCallsAtOnce_when_aCallInTheProjectTimedOut', async () => {
+    execFile.mockImplementationOnce(exit1('', '', { killed: true, message: 'timed out after 15000 ms' }));
+    const started = Date.now();
+    const results = await Promise.all([
+      runRufloTool('hooks_intelligence_trajectory-start', { task: 'a' }, { cwd: '/slow' }),
+      runRufloTool('hooks_intelligence_trajectory-step', { trajectoryId: 't', action: 's' }, { cwd: '/slow' }),
+      runRufloTool('hooks_intelligence_trajectory-end', { trajectoryId: 't' }, { cwd: '/slow' }),
+    ]);
+    expect(results[0]).toEqual({ ok: false, reason: expect.stringContaining('timed out after 15000 ms') });
+    expect(results.slice(1)).toEqual([
+      { ok: false, reason: expect.stringMatching(/^ruflo mcp exec hooks_intelligence_trajectory-step skipped: a ruflo call in \/slow timed out/) },
+      { ok: false, reason: expect.stringMatching(/skipped: a ruflo call in \/slow timed out/) },
+    ]);
+    expect(execFile).toHaveBeenCalledTimes(1); // the skipped calls started no ruflo
+    expect(Date.now() - started).toBeLessThan(1000);
+    expect(TIMEOUT_COOL_DOWN_MS).toBe(30_000);
+
+    // Other projects are unaffected, and the project works again after the cool-down.
+    replies(reply(STEP_RECORDED), reply(STEP_RECORDED));
+    expect(await runRufloTool('hooks_intelligence_pattern-search', { query: 'q' }, { cwd: '/fast' })).toMatchObject({ ok: true });
+    const now = Date.now();
+    const spy = vi.spyOn(Date, 'now').mockReturnValue(now + TIMEOUT_COOL_DOWN_MS + 1);
+    expect(await runRufloTool('hooks_intelligence_pattern-search', { query: 'q' }, { cwd: '/slow' })).toMatchObject({ ok: true });
+    spy.mockRestore();
+  });
+
+  it('should_notCoolDown_when_rufloOnlyExitsNonZero', async () => {
+    replies(exit1('[ERROR] Tool not found: x\n'), reply(STEP_RECORDED));
+    await runRufloTool('hooks_intelligence_pattern-search', { query: 'q' }, { cwd: '/err' });
+    expect(await runRufloTool('hooks_intelligence_pattern-search', { query: 'q' }, { cwd: '/err' })).toMatchObject({ ok: true });
+  });
+
+  // Round-3 review: `/link` and `/real` named one project but got two queues.
+  it('should_shareOneQueue_when_theProjectIsNamedThroughASymlink', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'aqe-1455-key-'));
+    const realDir = mkdtempSync(join(root, 'real-'));
+    const linkDir = join(root, 'link');
+    symlinkSync(realDir, linkDir);
+    try {
+      const max = trackConcurrency();
+      await Promise.all([
+        runRufloTool('hooks_intelligence_pattern-search', { query: 'a' }, { cwd: realDir }),
+        runRufloTool('hooks_intelligence_pattern-search', { query: 'b' }, { cwd: linkDir }),
+        runRufloTool('hooks_intelligence_pattern-search', { query: 'c' }, { cwd: `${linkDir}/.` }),
+      ]);
+      const key = realpathSync(realDir);
+      expect(projectKey(linkDir)).toBe(key);
+      expect([...max.keys()]).toEqual([key]); // every call ran in the real path
+      expect(max.get(key)).toBe(1);
+      expect(projectKey('/no/such/dir/../x')).toBe('/no/such/x'); // fallback: path.resolve
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('should_runProjectsInParallel_when_cwdsDiffer', async () => {
