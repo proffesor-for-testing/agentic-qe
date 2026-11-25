@@ -183,7 +183,7 @@ describe('post-route trains rl_q_values from resolved route sentinels (issue #49
 
     const hooks = new Command('hooks');
     registerRoutingHooks(hooks);
-    await hooks.parseAsync(['post-route', '--success', 'false', '--json'], { from: 'user' });
+    await hooks.parseAsync(['post-route', '--outcome', 'failure', '--json'], { from: 'user' });
 
     expect(updateHookRouterQValueMock).toHaveBeenCalledTimes(1);
     expect(updateHookRouterQValueMock.mock.calls[0][0]).toMatchObject({

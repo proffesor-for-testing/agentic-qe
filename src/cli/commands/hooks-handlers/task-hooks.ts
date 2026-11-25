@@ -364,8 +364,8 @@ export function registerTaskHooks(hooks: Command): void {
     .command('post-task')
     .description('Record task outcome for pattern learning')
     .option('--task-id <id>', 'Task identifier')
-    .option('--outcome <result>', 'Observed task result: success | failure (#1481)')
-    .option('--success [bool]', 'Deprecated for routing: only "false" counts as an observed result; use --outcome (#1481)')
+    .option('--outcome <result>', 'Observed task result: success | failure. Only this records a routing outcome (#1481)')
+    .option('--success [bool]', 'Whether task succeeded, for pattern learning. Deprecated and ignored for routing outcomes: use --outcome (#1481)')
     .option('--agent <name>', 'Agent that executed the task')
     .option('--duration <ms>', 'Task duration in milliseconds')
     .option('-d, --description <desc>', 'Task description — fallback Q-state source when pre-task bridge is absent (issue #499)')
@@ -376,10 +376,10 @@ export function registerTaskHooks(hooks: Command): void {
       try {
         // #1481: the installed PostToolUse hook passed a constant
         // `--success true`. Routing outcomes (the routing_outcomes sentinel
-        // and the hook-router Q-value) record only an observed result.
+        // and the hook-router Q-value) record only an --outcome result.
         const observed = resolveObservedHookOutcome(options);
         // The other learning streams keep their previous reading of --success
-        // (absent or "true" = success): they are outside #1481's scope.
+        // (absent or "true" = success); tracked separately in #1493.
         const success = observed !== null
           ? observed === 'success'
           : options.success !== 'false' && options.success !== false;

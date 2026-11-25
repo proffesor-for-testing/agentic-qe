@@ -170,17 +170,18 @@ describe('post-route (issue #451)', () => {
     expect(byId['route-old']).toMatchObject({ success: 0, error: 'stale-sentinel' });
     expect(byId['route-old'].quality_score).toBeCloseTo(0.325, 5);
 
-    // Pre-task sentinels are NEVER touched by post-route — discriminator gates
-    // both LIMIT-1 close and the stale sweep.
-    expect(byId['pre-task-mid']).toMatchObject({ success: 0, quality_score: -1 });
+    // The LIMIT-1 close never takes a pre-task sentinel. This one is over 30
+    // minutes old, so post-task can no longer close it and the sweep retires
+    // it (#1481).
+    expect(byId['pre-task-mid']).toMatchObject({ success: 0, error: 'stale-sentinel' });
   });
 
-  it('uses quality_score = 0.425 when --success false', async () => {
+  it('uses quality_score = 0.425 when --outcome failure', async () => {
     insertRouteSentinel(db, 'route-fail', '2026-05-12 10:00:00');
 
     const hooks = new Command('hooks');
     registerRoutingHooks(hooks);
-    await hooks.parseAsync(['post-route', '--success', 'false', '--json'], { from: 'user' });
+    await hooks.parseAsync(['post-route', '--outcome', 'failure', '--json'], { from: 'user' });
 
     const out = parseJsonOutput();
     expect(out).toMatchObject({ success: true, resolved: true, turnSuccess: false });
@@ -192,7 +193,8 @@ describe('post-route (issue #451)', () => {
   });
 
   it('is a no-op when no route sentinel exists (only pre-task sentinels present)', async () => {
-    insertPreTaskSentinel(db, 'pre-task-only', '2026-05-12 10:00:00');
+    // Younger than 30 minutes, so post-task still owns it and the sweep skips it.
+    insertPreTaskSentinel(db, 'pre-task-only', new Date(Date.now() - 60_000).toISOString().replace('T', ' ').slice(0, 19));
 
     const hooks = new Command('hooks');
     registerRoutingHooks(hooks);
@@ -223,6 +225,7 @@ describe('post-route (issue #451)', () => {
   // observes nothing, so the sentinel must not become a success.
   it.each([
     ['the installed constant --success true', ['--success', 'true']],
+    ['--success false (ignored for routing; use --outcome)', ['--success', 'false']],
     ['no result flag (the new installed command)', []],
   ])('leaves the sentinel open for %s', async (_label, flags) => {
     insertRouteSentinel(db, 'route-turn', '2026-05-12 10:00:00');
@@ -286,5 +289,42 @@ describe('post-route (issue #451)', () => {
     expect(parseJsonOutput()).toMatchObject({ success: false });
     const row = db.prepare('SELECT quality_score FROM routing_outcomes WHERE id = ?').get('route-turn') as { quality_score: number };
     expect(row.quality_score).toBe(-1);
+  });
+});
+
+// #1481 round 2: repro from review. An unobserved post-task leaves its
+// pre-task sentinel open; once it is 2h old the next post-route sweeps it.
+describe('post-route sweeps orphaned pre-task sentinels (#1481)', () => {
+  let db: Database.Database;
+  let logSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    db = new Database(':memory:');
+    seedRoutingOutcomes(db);
+    umMock.getDatabase.mockReturnValue(db);
+    logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    logSpy.mockRestore();
+    db.close();
+  });
+
+  it('retires a 2h-old pre-task sentinel and the route sentinel', async () => {
+    const twoHoursAgo = new Date(Date.now() - 2 * 3600_000).toISOString().replace('T', ' ').slice(0, 19);
+    insertPreTaskSentinel(db, 'pre-task-orphan', twoHoursAgo);
+    insertRouteSentinel(db, 'route-orphan', twoHoursAgo);
+
+    const hooks = new Command('hooks');
+    registerRoutingHooks(hooks);
+    await hooks.parseAsync(['post-route', '--json'], { from: 'user' });
+
+    const out = JSON.parse(String(logSpy.mock.calls.at(-1)?.[0]));
+    expect(out.staleSwept).toBe(2);
+    const rows = db.prepare('SELECT id, quality_score, error FROM routing_outcomes ORDER BY id').all();
+    expect(rows).toEqual([
+      { id: 'pre-task-orphan', quality_score: 0.325, error: 'stale-sentinel' },
+      { id: 'route-orphan', quality_score: 0.325, error: 'stale-sentinel' },
+    ]);
   });
 });

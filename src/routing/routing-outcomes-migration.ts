@@ -35,9 +35,8 @@ export const HOOK_ROUTING_ROW_ID_PREFIX = 'route-';
 
 /**
  * Error tag a hook writes when it closes its sentinel with an OBSERVED result
- * (`--outcome success|failure`, or an explicit `--success false`). Hook rows
- * without it were closed by the installed hooks' constant `--success true`,
- * which observes nothing (#1481).
+ * (`--outcome success|failure`). Hook rows without it were closed by the
+ * installed hooks' constant `--success true`, which observes nothing (#1481).
  */
 export const OBSERVED_HOOK_OUTCOME_TAG = 'observed';
 
@@ -60,32 +59,44 @@ export const OBSERVED_ROUTING_OUTCOME_SQL =
   ` AND COALESCE(error, '') <> '${STALE_SENTINEL_ERROR}'` +
   ` AND (id NOT LIKE '${HOOK_ROUTING_ROW_ID_PREFIX}%' OR error = '${OBSERVED_HOOK_OUTCOME_TAG}'))`;
 
+/**
+ * When the #1020 evidence gate shipped: from then on the task executor stops
+ * recording evidence-less runs as successes. Older outcomes may count such
+ * runs, and nothing stored tells them apart.
+ */
+export const EVIDENCE_GATE_DATE = new Date('2026-10-23T00:00:00Z');
+
+/** The same instant in SQLite `datetime('now')` text form, for SQL compares. */
+export const EVIDENCE_GATE_SQL_DATETIME = '2026-10-23 00:00:00';
+
+/** Caveat shown when every observed outcome predates the #1020 gate. */
+export function preEvidenceGateCaveat(count: number): string {
+  return `all ${count} observed outcomes predate evidence-gated execution (#1020)`;
+}
+
 /** An outcome a hook observed, or null when it saw no result. */
 export type ObservedHookOutcome = 'success' | 'failure' | null;
 
 /**
  * Resolve what a post-route / post-task hook actually observed (#1481).
  *
- * - `--outcome success|failure` is an observed result.
- * - `--success false` is an observed failure: no installer emits it, so only
- *   a caller that saw the failure passes it.
- * - `--success true`, a bare `--success`, or no flag is NOT an observation.
- *   Every installed hook (Claude Code Stop/PostToolUse, the init wizard, the
- *   Codex adapter) emitted a constant `--success true`, and existing installs
- *   keep that command until re-init, so the CLI cannot tell it from a real
- *   success. Use `--outcome success` to report one.
+ * Only `--outcome success|failure` is an observed result. `--success` is
+ * ignored for routing outcomes, whatever its value: every installed hook
+ * (Claude Code Stop/PostToolUse, the init wizard, the Codex adapter) emitted
+ * a constant `--success true`, and existing installs keep that command until
+ * re-init, so the CLI cannot tell it from a real result. Honouring only
+ * `--success false` would make a `--success $status` caller record failures
+ * and never successes.
  *
  * Throws on an `--outcome` value other than success/failure.
  */
 export function resolveObservedHookOutcome(options: {
   outcome?: unknown;
-  success?: unknown;
 }): ObservedHookOutcome {
   if (options.outcome !== undefined) {
     if (options.outcome === 'success' || options.outcome === 'failure') return options.outcome;
     throw new Error(`--outcome must be "success" or "failure", got ${JSON.stringify(options.outcome)}`);
   }
-  if (options.success === false || options.success === 'false') return 'failure';
   return null;
 }
 

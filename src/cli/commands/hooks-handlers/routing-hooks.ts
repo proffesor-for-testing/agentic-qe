@@ -242,13 +242,13 @@ export function registerRoutingHooks(hooks: Command): void {
   hooks
     .command('post-route')
     .description('Close the most-recent route sentinel from a Stop hook (#451)')
-    .option('--outcome <result>', 'Observed turn result: success | failure (#1481)')
-    .option('--success [bool]', 'Deprecated: only "false" counts as an observed result; use --outcome (#1481)')
+    .option('--outcome <result>', 'Observed turn result: success | failure. Only this records a routing outcome (#1481)')
+    .option('--success [bool]', 'Deprecated and ignored: use --outcome to record a routing outcome (#1481)')
     .option('--json', 'Output as JSON')
     .action(async (options) => {
       try {
         // #1481: the installed Stop hook passed a constant `--success true`,
-        // which observes nothing. Only an observed result closes the sentinel;
+        // which observes nothing. Only --outcome closes the sentinel;
         // otherwise it stays open and the stale sweep below retires it.
         const observed = resolveObservedHookOutcome(options);
         const success = observed === 'success';
@@ -328,12 +328,13 @@ export function registerRoutingHooks(hooks: Command): void {
         // belong to UNKNOWN historical turns and shouldn't inherit the
         // current turn's outcome. Tag with error='stale-sentinel' so
         // precision-sensitive queries can filter them out.
-        // Discriminator mirrors the LIMIT-1 close above and #451's symmetric
-        // design: route sentinels are owned by post-route, pre-task sentinels
-        // (task_json carries "taskId") are owned by post-task. Sweeping a
-        // pre-task sentinel here would race with updateRoutingOutcomeQuality
-        // and break the ownership split. If pre-task sentinels orphan, that
-        // belongs in a separate fix.
+        // Route sentinels (owned by post-route) are swept after 5 minutes.
+        // Pre-task sentinels (task_json carries "taskId") are owned by
+        // post-task, which can close one only within 30 minutes of its
+        // creation (updateRoutingOutcomeQuality). #1481: post-task now closes
+        // a sentinel only for an observed result, so the installed hooks
+        // leave pre-task sentinels open; sweep them once post-task can no
+        // longer reach them (30 minutes), so the sweep never races it.
         const staleResult = db.prepare(`
           UPDATE routing_outcomes
           SET success = 0,
@@ -341,8 +342,10 @@ export function registerRoutingHooks(hooks: Command): void {
               duration_ms = 0,
               error = 'stale-sentinel'
           WHERE quality_score = -1
-            AND task_json NOT LIKE '%"taskId"%'
-            AND created_at < datetime('now', '-300 seconds')
+            AND (
+              (task_json NOT LIKE '%"taskId"%' AND created_at < datetime('now', '-300 seconds'))
+              OR (task_json LIKE '%"taskId"%' AND created_at < datetime('now', '-30 minutes'))
+            )
         `).run();
 
         if (options.json) {

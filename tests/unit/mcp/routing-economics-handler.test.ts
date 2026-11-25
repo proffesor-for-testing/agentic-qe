@@ -120,6 +120,13 @@ describe('handleRoutingEconomics MCP handler', () => {
     expect(result.data!.taskComplexity).toBe(0.5);
   });
 
+  it('accepts a decimal string like the CLI ("0.9")', async () => {
+    const result = await handleRoutingEconomics({ taskComplexity: '0.9' as unknown as number });
+
+    expect(result.success).toBe(true);
+    expect(result.data!.taskComplexity).toBe(0.9);
+  });
+
   it('treats taskComplexity null as omitted (0.5 default), like the CLI', async () => {
     const result = await handleRoutingEconomics({ taskComplexity: null });
 

@@ -61,14 +61,24 @@ describe('post-task records routing outcomes only when observed (#1481)', () => 
 
     expect(updateRoutingOutcomeQualityMock).not.toHaveBeenCalled();
     expect(updateHookRouterQValueMock).not.toHaveBeenCalled();
-    // Non-routing learning streams keep their previous reading of --success.
+    // Non-routing learning streams keep their previous reading of --success (#1493).
     expect(persistTaskOutcomeMock.mock.calls[0][0].success).toBe(true);
+  });
+
+  // A third-party `--success $status` must not record only the failures.
+  it('ignores --success false for routing too (symmetric with --success true)', async () => {
+    await postTask('--success', 'false');
+
+    expect(updateRoutingOutcomeQualityMock).not.toHaveBeenCalled();
+    expect(updateHookRouterQValueMock).not.toHaveBeenCalled();
+    expect(persistTaskOutcomeMock.mock.calls[0][0].success).toBe(false);
   });
 
   it.each([
     [['--outcome', 'success'], true],
     [['--outcome', 'failure'], false],
-    [['--success', 'false'], false],
+    // --outcome wins over a conflicting legacy --success for routing
+    [['--success', 'true', '--outcome', 'failure'], false],
   ])('records an observed result for %j', async (flags, success) => {
     await postTask(...flags);
 
@@ -79,8 +89,9 @@ describe('post-task records routing outcomes only when observed (#1481)', () => 
 
   it('rejects an --outcome that is not success or failure', () => {
     expect(() => resolveObservedHookOutcome({ outcome: 'maybe' })).toThrow('--outcome must be');
-    expect(resolveObservedHookOutcome({ success: 'true' })).toBeNull();
-    expect(resolveObservedHookOutcome({ success: true })).toBeNull();
+    for (const success of ['true', true, 'false', false]) {
+      expect(resolveObservedHookOutcome({ success } as never)).toBeNull();
+    }
     expect(resolveObservedHookOutcome({})).toBeNull();
   });
 });

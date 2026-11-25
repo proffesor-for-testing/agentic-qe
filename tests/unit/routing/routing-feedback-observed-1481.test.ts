@@ -149,4 +149,48 @@ describe('routing outcomes: read-time sentinel exclusion (#1481)', () => {
       totalOutcomes: 4, successfulOutcomes: 2, successRate: 50, source: 'database',
     });
   });
+
+  // Round 2: pre-#1481 executor rows ('outcome-' id, tier number as both the
+  // recommended and the used agent) carry a constant followed=1.
+  it('keeps legacy executor rows as outcomes but out of follow stats', async () => {
+    const legacy = holder.db!.prepare(`
+      INSERT INTO routing_outcomes (id, task_json, decision_json, used_agent,
+        followed_recommendation, success, quality_score, duration_ms, error, created_at)
+      VALUES (?, '{"description":"scan-security"}', ?, ?, 1, 1, 0.675, 120, NULL, ?)
+    `);
+    legacy.run('outcome-legacy-1', '{"recommended":"2","reasoning":"Recorded from feedback"}', '2', '2026-08-01 10:00:00');
+    legacy.run('outcome-legacy-2', '{"recommended":"0","reasoning":"Recorded from feedback"}', '0', '2026-08-02 10:00:00');
+    const collector = createRoutingFeedbackCollector(100);
+    await collector.initialize();
+
+    const accuracy = collector.analyzeRoutingAccuracy();
+
+    expect(accuracy.totalOutcomes).toBe(6);
+    expect(accuracy.followKnownOutcomes).toBe(3);
+    expect(accuracy.followedRecommendations).toBe(3);
+  });
+
+  it('adds a caveat when every observed outcome predates the #1020 evidence gate', async () => {
+    holder.db!.exec(`UPDATE routing_outcomes SET created_at = '2026-08-01 10:00:00'`);
+    const collector = createRoutingFeedbackCollector(100);
+    await collector.initialize();
+
+    expect(collector.analyzeRoutingAccuracy().caveat)
+      .toBe('all 4 observed outcomes predate evidence-gated execution (#1020)');
+
+    const action = findDeterministicAction('learning-optimization', 'routing-check')!;
+    const result = await action.execute({}, {
+      input: {}, results: {}, metadata: { executionId: 'e', workflowId: 'w', startedAt: new Date() },
+    } as never);
+    expect(result.value).toMatchObject({
+      totalOutcomes: 4, caveat: 'all 4 observed outcomes predate evidence-gated execution (#1020)',
+    });
+  });
+
+  it('adds no caveat once an observed outcome is newer than the gate', async () => {
+    const collector = createRoutingFeedbackCollector(100);
+    await collector.initialize();
+
+    expect(collector.analyzeRoutingAccuracy().caveat).toBeUndefined();
+  });
 });

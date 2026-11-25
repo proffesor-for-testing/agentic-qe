@@ -24,12 +24,22 @@ import type { RoutingConfig, AgentTier } from './routing-config.js';
 import type { EscalationConfig, EscalationState } from './escalation/index.js';
 import {
   ensureRoutingOutcomesAdr095Columns,
+  EVIDENCE_GATE_DATE,
   isHookRoutingRowId,
   OBSERVED_ROUTING_OUTCOME_SQL,
+  preEvidenceGateCaveat,
 } from './routing-outcomes-migration.js';
 
 /** Recommended-agent value for a task submitted without a routing decision. */
 export const UNROUTED_RECOMMENDATION = 'unrouted';
+
+/**
+ * Pre-#1481 task-executor rows stored the tier number ('0'-'4') as both the
+ * recommended and the used agent, so followed_recommendation was always 1.
+ * New executor rows use 'tier-N' / 'unrouted'.
+ */
+const LEGACY_EXECUTOR_TIER_AGENT = /^[0-4]$/;
+
 
 /**
  * Whether an outcome can say if the recommendation was followed (#1481).
@@ -133,6 +143,8 @@ export interface RoutingAccuracy {
   recommendationSuccessRate: number | null;
   overrideSuccessRate: number | null;
   confidenceCorrelation: number;
+  /** Set when every observed outcome predates the #1020 evidence gate */
+  caveat?: string;
 }
 
 /**
@@ -205,9 +217,13 @@ export class RoutingFeedbackCollector {
         usedAgent: row.used_agent,
         followedRecommendation: Boolean(row.followed_recommendation),
         // Hook rows wrote followed_recommendation = 1 before knowing which
-        // agent ran, so it says nothing (#1481).
+        // agent ran, and legacy executor rows wrote the same tier on both
+        // sides, so neither says anything about following (#1481). They still
+        // count as observed outcomes.
         followedRecommendationKnown: !isHookRoutingRowId(row.id)
-          && decision?.recommended !== UNROUTED_RECOMMENDATION,
+          && decision?.recommended !== UNROUTED_RECOMMENDATION
+          && !(LEGACY_EXECUTOR_TIER_AGENT.test(row.used_agent)
+            && LEGACY_EXECUTOR_TIER_AGENT.test(String(decision?.recommended ?? ''))),
         outcome: {
           success: Boolean(row.success),
           qualityScore: row.quality_score,
@@ -671,6 +687,9 @@ export class RoutingFeedbackCollector {
       overrideSuccessRate: rate(overriddenSuccess, overridden.length),
       // Higher confidence should correlate with success
       confidenceCorrelation: this.calculateConfidenceCorrelation(outcomes),
+      ...(outcomes.length > 0 && outcomes.every(o => new Date(o.timestamp) < EVIDENCE_GATE_DATE)
+        ? { caveat: preEvidenceGateCaveat(outcomes.length) }
+        : {}),
     };
   }
 

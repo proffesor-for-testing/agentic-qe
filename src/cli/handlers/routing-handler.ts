@@ -179,6 +179,9 @@ export class RoutingHandler implements ICommandHandler {
       console.log(`  Rec success rate:      ${pct(accuracy.recommendationSuccessRate)}`);
       console.log(`  Override success rate:  ${pct(accuracy.overrideSuccessRate)}`);
       console.log(`  Confidence correlation: ${chalk.cyan(accuracy.confidenceCorrelation.toFixed(3))}`);
+      if (accuracy.caveat) {
+        console.log(chalk.yellow(`  Caveat: ${accuracy.caveat}`));
+      }
 
       // Recommendations
       const recs = collector.getImprovementRecommendations();
