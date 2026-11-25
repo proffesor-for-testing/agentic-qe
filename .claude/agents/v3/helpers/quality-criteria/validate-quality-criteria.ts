@@ -150,7 +150,7 @@ function printReport(report: ValidationReport): void {
 // Main execution
 const args = process.argv.slice(2);
 if (args.length === 0) {
-  console.error('Usage: npx ts-node scripts/validate-quality-criteria.ts <path-to-html>');
+  console.error('Usage: npx tsx .claude/helpers/v3/quality-criteria/validate-quality-criteria.ts <path-to-html>');
   process.exit(1);
 }
 
