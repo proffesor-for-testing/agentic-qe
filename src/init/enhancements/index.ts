@@ -8,6 +8,7 @@ import type { EnhancementRegistry as EnhancementRegistryType, EnhancementAdapter
 export type {
   EnhancementAdapter,
   ClaudeFlowAdapter,
+  ClaudeFlowCallResult,
   ClaudeFlowFeatures,
   RuVectorAdapter,
   EnhancementRegistry,

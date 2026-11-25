@@ -20,7 +20,12 @@
  * The snapshot is built from `--help` output: the commands ruflo registers
  * (`commandLoaders` in @claude-flow/cli, next to the binary; else the top-level help
  * plus HIDDEN_COMMANDS), their SUBCOMMANDS and OPTIONS. An alias is kept only when
- * `ruflo <parent> <alias> --help` prints the help of its target.
+ * `ruflo <parent> <alias> --help` prints the help of its target. `mcpTools` lists the
+ * MCP tool names from `ruflo mcp tools --format json`.
+ *
+ * Two kinds of call are checked: shell commands in text (extractCalls, #1417) and
+ * argv lists in src/ code that runs `npx --no-install <ruflo> ...` (extractArgvCalls,
+ * #1455), including the MCP tools that code runs through `ruflo mcp exec`.
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
@@ -104,17 +109,31 @@ export function registeredCommands(bin) {
 
 function helpRunner(bin) {
   const cwd = mkdtempSync(join(tmpdir(), 'ruflo-surface-'));
-  const run = (args) => {
-    const r = spawnSync(bin, [...args, '--help'], {
+  const raw = (args) => {
+    const r = spawnSync(bin, args, {
       cwd,
       input: '', // `mcp start --help` starts the server, which exits when stdin closes
       encoding: 'utf8',
       timeout: 60_000,
+      maxBuffer: 64 * 1024 * 1024,
       env: { ...process.env, NO_COLOR: '1', FORCE_COLOR: '0' },
     });
-    return `${r.stdout ?? ''}${r.stderr ?? ''}`;
+    return { stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
   };
-  return { run, dispose: () => rmSync(cwd, { recursive: true, force: true }) };
+  const run = (args) => {
+    const r = raw([...args, '--help']);
+    return `${r.stdout}${r.stderr}`;
+  };
+  return { run, raw, dispose: () => rmSync(cwd, { recursive: true, force: true }) };
+}
+
+/** Sorted MCP tool names from `ruflo mcp tools --format json`. */
+function mcpToolNames(raw) {
+  const { stdout } = raw(['mcp', 'tools', '--format', 'json']);
+  const start = stdout.indexOf('[');
+  const tools = start === -1 ? null : JSON.parse(stdout.slice(start, stdout.lastIndexOf(']') + 1));
+  if (!Array.isArray(tools) || tools.length === 0) throw new Error('could not read `ruflo mcp tools --format json`');
+  return [...new Set(tools.map((t) => t.name))].sort();
 }
 
 function describeNode(run, path, depth) {
@@ -145,7 +164,7 @@ function describeNode(run, path, depth) {
 }
 
 export function snapshot(bin) {
-  const { run, dispose } = helpRunner(bin);
+  const { run, raw, dispose } = helpRunner(bin);
   try {
     const top = run([]);
     const version = /ruflo v(\d+\.\d+\.\d+)/.exec(top.replace(ANSI, ''))?.[1];
@@ -160,7 +179,7 @@ export function snapshot(bin) {
       const node = describeNode(run, [name], 1);
       if (node) commands[name] = node;
     }
-    return { tool: 'ruflo', version, globalFlags: parseFlags(s['GLOBAL OPTIONS'] ?? []), commands };
+    return { tool: 'ruflo', version, globalFlags: parseFlags(s['GLOBAL OPTIONS'] ?? []), commands, mcpTools: mcpToolNames(raw) };
   } finally {
     dispose();
   }
@@ -329,6 +348,169 @@ export function findInvalidCalls(content, surface) {
     const reason = checkCall(c.tokens, surface);
     return reason ? [{ line: c.line, text: c.text, reason }] : [];
   });
+}
+
+// ---------------------------------------------------------------------------
+// argv lists in source code (#1455)
+// ---------------------------------------------------------------------------
+
+/** Start of a JS string literal at `i`, and the index after it, or null. */
+function readString(src, i) {
+  const q = src[i];
+  if (q !== '"' && q !== "'" && q !== '`') return null;
+  let j = i + 1;
+  let text = '';
+  let interpolated = false;
+  while (j < src.length && src[j] !== q) {
+    if (src[j] === '\\') {
+      text += src[j + 1] ?? '';
+      j += 2;
+      continue;
+    }
+    if (q === '`' && src[j] === '$' && src[j + 1] === '{') interpolated = true;
+    text += src[j];
+    j++;
+  }
+  return { text, interpolated, end: j + 1 };
+}
+
+/**
+ * The comma-separated elements of the list that starts after `open` (an index just past
+ * `(` or `[`), up to its matching close. Returns { elements: string[], end }.
+ */
+function splitList(src, open) {
+  const elements = [];
+  let depth = 0;
+  let cur = '';
+  let i = open;
+  for (; i < src.length; i++) {
+    const c = src[i];
+    const str = readString(src, i);
+    if (str) {
+      cur += src.slice(i, str.end);
+      i = str.end - 1;
+      continue;
+    }
+    if (c === '/' && src[i + 1] === '/') {
+      const nl = src.indexOf('\n', i);
+      i = nl === -1 ? src.length : nl;
+      continue;
+    }
+    if ('([{'.includes(c)) depth++;
+    if (')]}'.includes(c)) {
+      if (depth === 0) break;
+      depth--;
+    }
+    if (c === ',' && depth === 0) {
+      elements.push(cur.trim());
+      cur = '';
+      continue;
+    }
+    cur += c;
+  }
+  if (cur.trim()) elements.push(cur.trim());
+  return { elements, end: i };
+}
+
+/**
+ * Tokens of argv elements: a plain string literal is a word or flag as written; any
+ * other expression is a value, and the flag literals inside it (`...(x ? ['--a', x] : [])`)
+ * are flags.
+ */
+function argvTokens(elements) {
+  const tokens = [];
+  for (const el of elements) {
+    const str = readString(el, 0);
+    if (str && str.end === el.length && !str.interpolated) {
+      tokens.push({ text: str.text, quoted: false, startsQuoted: false });
+      continue;
+    }
+    tokens.push({ text: el, quoted: true, startsQuoted: true });
+    for (let i = 0; i < el.length; i++) {
+      const inner = readString(el, i);
+      if (!inner) continue;
+      if (/^--?[a-zA-Z][\w-]*$/.test(inner.text)) tokens.push({ text: inner.text, quoted: false, startsQuoted: false });
+      i = inner.end - 1;
+    }
+  }
+  return tokens;
+}
+
+const lineAt = (src, index) => src.slice(0, index).split('\n').length;
+
+/** `[..., '--no-install', <pkg>, ...]`: the elements after <pkg> are ruflo's argv. */
+const NO_INSTALL_ARRAY = /(['"])--no-install\1\s*,/g;
+/** Helpers whose arguments are ruflo's argv (claude-flow-adapter.ts). */
+const ARGV_HELPER = /\bcfCliArgs\(/g;
+/** Calls naming the ruflo MCP tool they run through `ruflo mcp exec`. */
+const TOOL_CALL = /\b(?:runRufloTool|rufloToolArgv)\(\s*(['"])([\w-]+)\1/g;
+/** Flags appended to an argv after it was built are not checked. */
+const ARGV_PUSH = /\bargs\.push\(\s*(['"])--?[a-zA-Z]/g;
+
+/**
+ * ruflo argv lists in TypeScript/JavaScript source: arrays with `'--no-install', <pkg>`
+ * whose package is resolved at run time (the bridges' `npx --no-install <cliPkg>`), and
+ * cfCliArgs(...) calls. Returns { line, text, tokens } per call.
+ */
+export function extractArgvCalls(content) {
+  const calls = [];
+  for (const m of content.matchAll(NO_INSTALL_ARRAY)) {
+    const { elements } = splitList(content, m.index + m[0].length);
+    const argv = elements.slice(1); // elements[0] is the package
+    calls.push({ line: lineAt(content, m.index), text: argv.join(' '), tokens: argvTokens(argv) });
+  }
+  for (const m of content.matchAll(ARGV_HELPER)) {
+    const { elements } = splitList(content, m.index + m[0].length);
+    if (/^\s*function\b/.test(content.slice(content.lastIndexOf('\n', m.index) + 1, m.index))) continue; // the definition
+    calls.push({ line: lineAt(content, m.index), text: elements.join(' '), tokens: argvTokens(elements) });
+  }
+  return calls.sort((a, b) => a.line - b.line);
+}
+
+/** The MCP tools `content` runs through `ruflo mcp exec`: [{ line, tool }]. */
+export function extractToolCalls(content) {
+  return [...content.matchAll(TOOL_CALL)].map((m) => ({ line: lineAt(content, m.index), tool: m[2] }));
+}
+
+/**
+ * Like checkCall, and an unquoted word after a command with no subcommands is reported:
+ * ruflo ignores it, as `hooks intelligence trajectory-start` showed (#1455).
+ */
+export function checkArgvCall(tokens, surface) {
+  let node = { subcommands: surface.commands };
+  const path = [];
+  for (const t of tokens) {
+    if (!looksLikeWord(t)) break;
+    const subs = node.subcommands;
+    if (!subs || Object.keys(subs).length === 0) {
+      return `'${path.join(' ')}' has no subcommand '${t.text}'`;
+    }
+    const name = node.aliases?.[t.text] ?? t.text;
+    if (!subs[name]) break; // checkCall reports it
+    node = subs[name];
+    path.push(name);
+  }
+  return checkCall(tokens, surface);
+}
+
+/** All invalid argv calls and MCP tool names in `content`: [{ line, text, reason }]. */
+export function findInvalidArgvCalls(content, surface) {
+  const calls = extractArgvCalls(content);
+  const invalid = calls.flatMap((c) => {
+    const reason = checkArgvCall(c.tokens, surface);
+    return reason ? [{ line: c.line, text: c.text, reason }] : [];
+  });
+  for (const { line, tool } of extractToolCalls(content)) {
+    if (!Array.isArray(surface.mcpTools)) invalid.push({ line, text: tool, reason: 'the snapshot has no mcpTools list' });
+    else if (!surface.mcpTools.includes(tool)) invalid.push({ line, text: tool, reason: `unknown MCP tool '${tool}'` });
+  }
+  if (calls.length > 0) {
+    for (const m of content.matchAll(ARGV_PUSH)) {
+      const line = lineAt(content, m.index);
+      invalid.push({ line, text: content.split('\n')[line - 1].trim(), reason: 'flag appended with args.push() is not checked; put it in the argv list' });
+    }
+  }
+  return invalid.sort((a, b) => a.line - b.line);
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {

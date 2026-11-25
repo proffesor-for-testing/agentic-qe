@@ -133,6 +133,7 @@ export {
 export type {
   EnhancementAdapter,
   ClaudeFlowAdapter,
+  ClaudeFlowCallResult,
   ClaudeFlowFeatures,
   EnhancementRegistry,
 } from './enhancements/index.js';

@@ -8,10 +8,17 @@
  * - 3-tier model routing
  * - Pretrain analysis
  * - Pattern storage with HNSW
+ *
+ * Trajectories and patterns go through ruflo's MCP tools via `ruflo mcp exec`
+ * (#1455): ruflo has no `hooks intelligence trajectory-*` / `pattern-*` CLI
+ * subcommands. Those calls report `unavailable` or `failed` instead of an
+ * invented id or an empty success.
  */
 
-import type { ClaudeFlowAdapter, ClaudeFlowFeatures } from './types.js';
+import type { ClaudeFlowAdapter, ClaudeFlowCallResult, ClaudeFlowFeatures } from './types.js';
 import { detectClaudeFlow } from '../../adapters/claude-flow/detect.js';
+import { confidenceFraction } from '../../adapters/claude-flow/model-router-bridge.js';
+import { runRufloTool, type RufloToolName } from '../../adapters/claude-flow/ruflo-tool.js';
 import { safeJsonParse } from '../../shared/safe-json.js';
 
 /** Shared execFileSync options */
@@ -107,27 +114,27 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
     };
   }
 
+  /** Run a ruflo intelligence tool, or report why it could not run. */
+  private async tool(
+    name: RufloToolName,
+    params: Record<string, unknown>,
+    timeoutMs?: number
+  ): Promise<ClaudeFlowCallResult<Record<string, unknown>>> {
+    if (!this.available) return UNAVAILABLE;
+    const result = await runRufloTool(name, params, { cwd: process.cwd(), timeoutMs });
+    return result.ok ? { status: 'ok', value: result.data } : { status: 'failed', reason: result.reason };
+  }
+
   /**
-   * Start a SONA trajectory
+   * Start a SONA trajectory; the value is ruflo's trajectory id.
    */
-  async startTrajectory(task: string, agent?: string): Promise<string> {
-    if (!this.available) {
-      // Return a dummy trajectory ID for standalone mode
-      return `aqe-trajectory-${Date.now()}`;
-    }
-
-    try {
-      const { execFileSync } = await import('child_process');
-      const { bin, args } = cfCliArgs('hooks', 'intelligence', 'trajectory-start', '--task', task);
-      if (agent) { args.push('--agent', agent); }
-      const result = execFileSync(bin, args, { ...EXEC_OPTS, timeout: 10000 });
-
-      // Parse trajectory ID from result
-      const match = result.match(/trajectoryId[:\s]+["']?([^"'\s]+)/i);
-      return match?.[1] || `cf-trajectory-${Date.now()}`;
-    } catch {
-      return `aqe-trajectory-${Date.now()}`;
-    }
+  async startTrajectory(task: string, agent?: string): Promise<ClaudeFlowCallResult<string>> {
+    const r = await this.tool('hooks_intelligence_trajectory-start', agent ? { task, agent } : { task });
+    if (r.status !== 'ok') return r;
+    const id = r.value.trajectoryId;
+    return typeof id === 'string' && id.length > 0
+      ? { status: 'ok', value: id }
+      : { status: 'failed', reason: 'ruflo returned no trajectoryId' };
   }
 
   /**
@@ -138,19 +145,17 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
     action: string,
     result?: string,
     quality?: number
-  ): Promise<void> {
-    if (!this.available) return;
-
-    try {
-      const { execFileSync } = await import('child_process');
-      const { bin, args } = cfCliArgs('hooks', 'intelligence', 'trajectory-step', '--trajectory-id', trajectoryId, '--action', action);
-      if (result) { args.push('--result', result); }
-      if (quality !== undefined) { args.push('--quality', String(quality)); }
-      execFileSync(bin, args, { ...EXEC_OPTS, timeout: 10000 });
-    } catch (error) {
-      // Non-critical: trajectory tracking is optional
-      console.debug('[ClaudeFlowAdapter] Trajectory step failed:', error instanceof Error ? error.message : error);
-    }
+  ): Promise<ClaudeFlowCallResult> {
+    const r = await this.tool('hooks_intelligence_trajectory-step', {
+      trajectoryId,
+      action,
+      ...(result ? { result } : {}),
+      ...(quality !== undefined ? { quality } : {}),
+    });
+    if (r.status !== 'ok') return r;
+    return r.value.recorded === true
+      ? { status: 'ok', value: undefined }
+      : { status: 'failed', reason: `ruflo did not record the step (${String(r.value.implementation ?? 'recorded: false')})` };
   }
 
   /**
@@ -160,18 +165,16 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
     trajectoryId: string,
     success: boolean,
     feedback?: string
-  ): Promise<void> {
-    if (!this.available) return;
-
-    try {
-      const { execFileSync } = await import('child_process');
-      const { bin, args } = cfCliArgs('hooks', 'intelligence', 'trajectory-end', '--trajectory-id', trajectoryId, '--success', String(success));
-      if (feedback) { args.push('--feedback', feedback); }
-      execFileSync(bin, args, { ...EXEC_OPTS, timeout: 10000 });
-    } catch (error) {
-      // Non-critical: trajectory end is optional
-      console.debug('[ClaudeFlowAdapter] Trajectory end failed:', error instanceof Error ? error.message : error);
-    }
+  ): Promise<ClaudeFlowCallResult> {
+    const r = await this.tool(
+      'hooks_intelligence_trajectory-end',
+      { trajectoryId, success, ...(feedback ? { feedback } : {}) },
+      30000
+    );
+    if (r.status !== 'ok') return r;
+    return r.value.trajectory != null
+      ? { status: 'ok', value: undefined }
+      : { status: 'failed', reason: `ruflo did not end the trajectory (${String(r.value.note ?? 'trajectory not found')})` };
   }
 
   /**
@@ -194,7 +197,7 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
 
       return {
         model: (modelMatch?.[1]?.toLowerCase() as 'haiku' | 'sonnet' | 'opus') || 'sonnet',
-        confidence: confMatch ? parseFloat(confMatch[1]) : 0.7,
+        confidence: confMatch ? confidenceFraction(confMatch[1]) : 0.7,
       };
     } catch (error) {
       // Non-critical: model routing failed, using fallback
@@ -251,25 +254,25 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
   }
 
   /**
-   * Store a pattern
+   * Store a pattern; the value is ruflo's pattern id.
    */
   async storePattern(
     pattern: string,
     type: string,
     confidence: number,
     metadata?: Record<string, unknown>
-  ): Promise<void> {
-    if (!this.available) return;
-
-    try {
-      const { execFileSync } = await import('child_process');
-      const { bin, args } = cfCliArgs('hooks', 'intelligence', 'pattern-store', '--pattern', pattern, '--type', type, '--confidence', String(confidence));
-      if (metadata) { args.push('--metadata', JSON.stringify(metadata)); }
-      execFileSync(bin, args, { ...EXEC_OPTS, timeout: 10000 });
-    } catch (error) {
-      // Non-critical: pattern storage is optional
-      console.debug('[ClaudeFlowAdapter] Pattern storage failed:', error instanceof Error ? error.message : error);
-    }
+  ): Promise<ClaudeFlowCallResult<string>> {
+    const r = await this.tool('hooks_intelligence_pattern-store', {
+      pattern,
+      type,
+      confidence,
+      ...(metadata ? { metadata } : {}),
+    });
+    if (r.status !== 'ok') return r;
+    const id = r.value.patternId;
+    return typeof id === 'string' || typeof id === 'number'
+      ? { status: 'ok', value: String(id) }
+      : { status: 'failed', reason: 'ruflo returned no patternId' };
   }
 
   /**
@@ -278,28 +281,21 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
   async searchPatterns(
     query: string,
     topK: number = 5
-  ): Promise<Array<{ pattern: string; similarity: number }>> {
-    if (!this.available) {
-      return [];
-    }
-
-    try {
-      const { execFileSync } = await import('child_process');
-      const { bin, args } = cfCliArgs('hooks', 'intelligence', 'pattern-search', '--query', query, '--top-k', String(topK));
-      const result = execFileSync(bin, args, { ...EXEC_OPTS, timeout: 10000 });
-
-      // Try to parse JSON result
-      try {
-        const parsed = safeJsonParse<unknown>(result);
-        return Array.isArray(parsed) ? parsed : [];
-      } catch {
-        return [];
-      }
-    } catch {
-      return [];
-    }
+  ): Promise<ClaudeFlowCallResult<Array<{ pattern: string; similarity: number }>>> {
+    const r = await this.tool('hooks_intelligence_pattern-search', { query, topK });
+    if (r.status !== 'ok') return r;
+    if (!Array.isArray(r.value.results)) return { status: 'failed', reason: 'ruflo returned no results array' };
+    return {
+      status: 'ok',
+      value: (r.value.results as Array<Record<string, unknown>>).map((hit) => ({
+        pattern: String(hit.pattern ?? ''),
+        similarity: typeof hit.similarity === 'number' ? hit.similarity : 0,
+      })),
+    };
   }
 }
+
+const UNAVAILABLE = { status: 'unavailable', reason: 'Claude Flow not available' } as const;
 
 /**
  * Create a Claude Flow adapter instance

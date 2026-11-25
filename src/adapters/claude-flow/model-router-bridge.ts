@@ -18,6 +18,15 @@ import { detectClaudeFlow, resolveCliPackage } from './detect.js';
 const cliPkg = resolveCliPackage();
 
 /**
+ * `hooks model-route` prints `Confidence: 80.5%` (ruflo 3.76.0 and 3.80.7). Return it
+ * as a 0-1 fraction (#1455); a value already in 0-1 is kept.
+ */
+export function confidenceFraction(raw: string): number {
+  const value = parseFloat(raw);
+  return value > 1 ? value / 100 : value;
+}
+
+/**
  * Task complexity indicators
  */
 const COMPLEXITY_INDICATORS = {
@@ -75,7 +84,7 @@ export class ModelRouterBridge {
         if (modelMatch) {
           return {
             model: modelMatch[1].toLowerCase() as 'haiku' | 'sonnet' | 'opus',
-            confidence: confMatch ? parseFloat(confMatch[1]) : 0.7,
+            confidence: confMatch ? confidenceFraction(confMatch[1]) : 0.7,
             reasoning: reasonMatch?.[1]?.trim(),
           };
         }
