@@ -158,7 +158,7 @@ describe('post-route trains rl_q_values from resolved route sentinels (issue #49
 
     const hooks = new Command('hooks');
     registerRoutingHooks(hooks);
-    await hooks.parseAsync(['post-route', '--success', 'true', '--json'], { from: 'user' });
+    await hooks.parseAsync(['post-route', '--outcome', 'success', '--json'], { from: 'user' });
 
     expect(updateHookRouterQValueMock).toHaveBeenCalledTimes(1);
     expect(updateHookRouterQValueMock.mock.calls[0][0]).toEqual({
@@ -173,7 +173,7 @@ describe('post-route trains rl_q_values from resolved route sentinels (issue #49
   it('does not call updateHookRouterQValue when no route sentinel exists', async () => {
     const hooks = new Command('hooks');
     registerRoutingHooks(hooks);
-    await hooks.parseAsync(['post-route', '--success', 'true', '--json'], { from: 'user' });
+    await hooks.parseAsync(['post-route', '--outcome', 'success', '--json'], { from: 'user' });
 
     expect(updateHookRouterQValueMock).not.toHaveBeenCalled();
   });
@@ -183,7 +183,7 @@ describe('post-route trains rl_q_values from resolved route sentinels (issue #49
 
     const hooks = new Command('hooks');
     registerRoutingHooks(hooks);
-    await hooks.parseAsync(['post-route', '--success', 'false', '--json'], { from: 'user' });
+    await hooks.parseAsync(['post-route', '--outcome', 'failure', '--json'], { from: 'user' });
 
     expect(updateHookRouterQValueMock).toHaveBeenCalledTimes(1);
     expect(updateHookRouterQValueMock.mock.calls[0][0]).toMatchObject({
@@ -204,7 +204,7 @@ describe('post-route trains rl_q_values from resolved route sentinels (issue #49
     const hooks = new Command('hooks');
     registerRoutingHooks(hooks);
     await expect(
-      hooks.parseAsync(['post-route', '--success', 'true', '--json'], { from: 'user' }),
+      hooks.parseAsync(['post-route', '--outcome', 'success', '--json'], { from: 'user' }),
     ).resolves.not.toThrow();
 
     // Sentinel still got resolved (the UPDATE happens before the Q-derivation
@@ -238,7 +238,7 @@ describe('post-task trains rl_q_values even when outcome.bridge is absent (issue
       [
         'post-task',
         '--agent', 'qe-test-architect',
-        '--success', 'true',
+        '--outcome', 'success',
         '--description', 'Generate vitest unit tests for the auth module',
         '--json',
       ],
@@ -285,7 +285,7 @@ describe('post-task trains rl_q_values even when outcome.bridge is absent (issue
       [
         'post-task',
         '--agent', 'qe-test-architect',
-        '--success', 'true',
+        '--outcome', 'success',
         '--description', 'this description must lose to the bridge',
         '--json',
       ],
@@ -313,7 +313,7 @@ describe('post-task trains rl_q_values even when outcome.bridge is absent (issue
     const hooks = new Command('hooks');
     registerTaskHooks(hooks);
     await hooks.parseAsync(
-      ['post-task', '--agent', 'qe-test-architect', '--success', 'true', '--json'],
+      ['post-task', '--agent', 'qe-test-architect', '--outcome', 'success', '--json'],
       { from: 'user' },
     );
 

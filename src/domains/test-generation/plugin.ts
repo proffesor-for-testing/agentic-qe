@@ -256,20 +256,20 @@ export class TestGenerationPlugin extends BaseDomainPlugin {
     );
 
     // D9: when the free tier is opted in, stand up a live RoutingFeedbackCollector
-    // (calibrator + auto-escalation enabled) so each cheap-vs-escalated outcome
-    // feeds routing confidence. Memory-only fallback if the DB is unavailable.
+    // (EMA calibrator enabled) so each cheap-vs-escalated outcome feeds routing
+    // confidence. Escalation itself is decided by the free-tier ladder.
+    // Memory-only fallback if the DB is unavailable.
     let routingFeedback: RoutingFeedbackCollector | undefined;
     const freeTierOn =
       this.pluginConfig.coordinator?.enableFreeTier === true || process.env.AQE_FREE_TIER === '1';
     if (freeTierOn) {
       routingFeedback = new RoutingFeedbackCollector(10000, {
         enableEMACalibration: true,
-        enableAutoEscalation: true,
       });
       try {
         await routingFeedback.initialize();
       } catch {
-        // memory-only is fine — recording still drives calibration/escalation
+        // memory-only is fine — recording still drives calibration
       }
     }
 

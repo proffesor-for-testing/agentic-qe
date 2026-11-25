@@ -138,7 +138,7 @@ export async function configureHooks(projectRoot: string, config: AQEInitConfig)
         hooks: [
           {
             type: 'command',
-            command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" post-task --task-id "$TOOL_RESULT_agent_id" --agent "$TOOL_INPUT_subagent_type" --success true --description "$TOOL_INPUT_prompt" --json',
+            command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" post-task --task-id "$TOOL_RESULT_agent_id" --agent "$TOOL_INPUT_subagent_type" --description "$TOOL_INPUT_prompt" --json',
             timeout: 5,
             continueOnError: true,
           },
@@ -186,11 +186,12 @@ export async function configureHooks(projectRoot: string, config: AQEInitConfig)
       {
         hooks: [
           {
-            // #451: close the route sentinel from this turn. Stop fires
-            // 1:1 with UserPromptSubmit/route — without this, route
-            // sentinels accumulate at quality_score=-1 indefinitely.
+            // #451/#1481: Stop observes no task result, so post-route gets
+            // no --outcome and leaves this turn's route sentinel open. It
+            // runs to sweep stale sentinels (route after 5 min, pre-task
+            // after 30 min) so they do not stay at quality_score=-1.
             type: 'command',
-            command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" post-route --success true --json',
+            command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" post-route --json',
             timeout: 5,
             continueOnError: true,
           },

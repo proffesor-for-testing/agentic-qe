@@ -452,6 +452,14 @@ export class TaskRouterService {
   }
 
   /**
+   * Report the observed outcome of a task that ran on `tier` (#1481).
+   * routeTask() only records a decision; this records success or failure.
+   */
+  recordOutcome(tier: ModelTier, success: boolean, durationMs?: number): void {
+    this.modelRouter.recordOutcome(tier, success, durationMs);
+  }
+
+  /**
    * Get routing log entries
    *
    * @param limit - Maximum entries to return (default: 100)

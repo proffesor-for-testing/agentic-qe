@@ -597,8 +597,18 @@ export interface TierRoutingMetrics {
   /** Times downgraded due to budget */
   readonly budgetDowngradeCount: number;
 
-  /** Success rate when using this tier (0-1) */
-  readonly successRate: number;
+  /**
+   * Success rate over OBSERVED outcomes for this tier (0-1), or null when no
+   * outcome has been reported yet. A routing decision alone is not a success
+   * (#1481); outcomes arrive through `IModelRouter.recordOutcome`.
+   */
+  readonly successRate: number | null;
+
+  /** Outcomes reported for this tier via recordOutcome */
+  readonly observedOutcomes: number;
+
+  /** Reported outcomes for this tier that succeeded */
+  readonly successfulOutcomes: number;
 
   /** Average complexity of tasks routed to this tier */
   readonly avgComplexity: number;
@@ -649,7 +659,22 @@ export interface RouterMetrics {
     readonly eligible: number;
     readonly used: number;
     readonly fallbackToLLM: number;
-    readonly successRate: number;
+    /** Success rate over observed Tier 0 outcomes, null when none reported (#1481) */
+    readonly successRate: number | null;
+    /** Tier 0 outcomes reported via recordOutcome */
+    readonly observedOutcomes: number;
+  };
+
+  /**
+   * Observed task outcomes across all tiers (#1481). `totalDecisions` counts
+   * routes; this counts only outcomes reported after execution.
+   */
+  readonly outcomeStats: {
+    readonly observed: number;
+    readonly successful: number;
+    readonly failed: number;
+    /** successful / observed, or null when nothing has been observed */
+    readonly successRate: number | null;
   };
 
   /** Budget enforcement stats */
@@ -749,6 +774,14 @@ export interface IModelRouter {
    * Get routing metrics
    */
   getMetrics(): RouterMetrics;
+
+  /**
+   * Report the observed outcome of a task that ran on `tier` (#1481).
+   * Routing decisions are recorded as decided; only this call records a
+   * success or a failure. Optional so existing implementations still
+   * type-check; callers use `router.recordOutcome?.(...)`.
+   */
+  recordOutcome?(tier: ModelTier, success: boolean, durationMs?: number): void;
 
   /**
    * Get Agent Booster health status

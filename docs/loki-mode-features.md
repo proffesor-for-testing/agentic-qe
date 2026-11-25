@@ -166,14 +166,11 @@ const tierConfig = {
 - 5 consecutive successes → de-escalate (e.g., sonnet → haiku)
 - Uses the existing fallback chain: `booster → haiku → sonnet → opus`
 
-**Enable**:
-```typescript
-import { createRoutingFeedbackCollector } from 'agentic-qe';
-
-const feedback = createRoutingFeedbackCollector(10000, {
-  enableAutoEscalation: true,
-});
-```
+**Status**: the `enableAutoEscalation` flag on `RoutingFeedbackCollector` is
+deprecated and ignored (#1481). The collector computed an escalation state but
+only logged it, so it never changed a routing decision. Escalation that does
+change the tier runs in the free-tier ladder (`src/routing/free-tier/ladder.ts`),
+which uses `AutoEscalationTracker` directly.
 
 ---
 
@@ -185,7 +182,7 @@ All flags in one place (all `true` by default — set to `false` to disable):
 // RoutingConfig
 {
   enableEMACalibration: true,       // Item 4: EMA voting weights
-  enableAutoEscalation: true,       // Item 7: Automatic tier promotion/demotion
+  // enableAutoEscalation: deprecated and ignored (#1481), see Item 7
 }
 
 // ConsensusEngineConfig

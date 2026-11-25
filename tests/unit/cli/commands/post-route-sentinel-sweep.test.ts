@@ -109,7 +109,7 @@ describe('post-route sweeps stale sentinels (#465)', () => {
     const hooks = new Command('hooks');
     registerRoutingHooks(hooks);
     await hooks.parseAsync(
-      ['post-route', '--success', String(success), '--json'],
+      ['post-route', '--outcome', success ? 'success' : 'failure', '--json'],
       { from: 'user' },
     );
   };
@@ -133,7 +133,7 @@ describe('post-route sweeps stale sentinels (#465)', () => {
       .get() as { success: number; quality_score: number; error: string | null };
     expect(fresh.success).toBe(1);
     expect(fresh.quality_score).toBeCloseTo(0.675, 5);
-    expect(fresh.error).toBeNull();
+    expect(fresh.error).toBe('observed'); // #1481: observed hook close
 
     // Stale rows: closed with conservative base (0.325), tagged stale-sentinel
     const stales = db
@@ -181,33 +181,33 @@ describe('post-route sweeps stale sentinels (#465)', () => {
     expect(resolved.error).toBeNull();
   });
 
-  it('skips pre-task sentinels (task_json LIKE %"taskId"%) — those are owned by post-task', async () => {
+  it('sweeps pre-task sentinels only once post-task can no longer close them (#1481)', async () => {
     // Pre-task sentinels carry "taskId" in task_json and are owned by
-    // post-task / updateRoutingOutcomeQuality. The discriminator
-    // `task_json NOT LIKE '%"taskId"%'` is applied to BOTH the LIMIT-1
-    // close AND the stale sweep, so even a pre-task sentinel that's been
-    // sitting around for hours stays untouched here. This mirrors the
-    // symmetric ownership split established in #451.
-    insertSentinel(db, 'pre-task-old', "datetime('now', '-1 hour')", '{"taskId":"abc"}');
+    // post-task, which closes one only within 30 minutes of its creation.
+    // #1481: post-task closes them only for an observed --outcome, so the
+    // installed hooks leave them open; the sweep retires them after 30
+    // minutes and never touches a younger one.
+    insertSentinel(db, 'pre-task-2h', "datetime('now', '-2 hours')", '{"taskId":"abc"}');
+    insertSentinel(db, 'pre-task-20m', "datetime('now', '-20 minutes')", '{"taskId":"def"}');
     insertSentinel(db, 'pre-task-fresh', "datetime('now', '-10 seconds')", '{"taskId":"xyz"}');
     insertSentinel(db, 'fresh-route', "datetime('now', '-5 seconds')");
 
     await runPostRoute(true);
 
-    // The route sentinel resolves via LIMIT-1
+    // The route sentinel resolves via LIMIT-1, never a pre-task one
     const fresh = db
       .prepare(`SELECT quality_score FROM routing_outcomes WHERE id = 'fresh-route'`)
       .get() as { quality_score: number };
     expect(fresh.quality_score).toBeCloseTo(0.675, 5);
 
-    // Both pre-task sentinels stay at -1 — old one rejected by sweep
-    // discriminator, fresh one rejected by LIMIT-1 discriminator.
-    const preTasks = db
+    const byId = Object.fromEntries((db
       .prepare(`SELECT id, quality_score, error FROM routing_outcomes WHERE id LIKE 'pre-task-%'`)
-      .all() as Array<{ id: string; quality_score: number; error: string | null }>;
-    for (const row of preTasks) {
-      expect(row.quality_score).toBe(-1);
-      expect(row.error).not.toBe('stale-sentinel');
+      .all() as Array<{ id: string; quality_score: number; error: string | null }>).map((r) => [r.id, r]));
+    expect(byId['pre-task-2h']).toMatchObject({ error: 'stale-sentinel' });
+    expect(byId['pre-task-2h'].quality_score).toBeCloseTo(0.325, 5);
+    for (const id of ['pre-task-20m', 'pre-task-fresh']) {
+      expect(byId[id].quality_score).toBe(-1);
+      expect(byId[id].error).not.toBe('stale-sentinel');
     }
   });
 });

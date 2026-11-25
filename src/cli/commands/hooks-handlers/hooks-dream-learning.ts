@@ -12,6 +12,7 @@ import {
   recordPatternUsage,
   recordPatternUsageBatch,
 } from '../../../learning/pattern-usage-recorder.js';
+import { OBSERVED_HOOK_OUTCOME_TAG } from '../../../routing/routing-outcomes-migration.js';
 
 // ============================================================================
 // Dream Scheduler State (persisted in kv_store between hook invocations)
@@ -838,7 +839,7 @@ export async function updateRoutingOutcomeQuality(opts: {
     // routing-hooks.ts's `post-route` command, which has the inverse filter.
     db.prepare(`
       UPDATE routing_outcomes
-      SET success = ?, quality_score = ?, duration_ms = ?
+      SET success = ?, quality_score = ?, duration_ms = ?, error = ?
       WHERE id IN (
         SELECT id FROM routing_outcomes
         WHERE quality_score = -1
@@ -851,6 +852,9 @@ export async function updateRoutingOutcomeQuality(opts: {
       opts.success ? 1 : 0,
       opts.qualityScore,
       opts.durationMs,
+      // #1481: callers pass only observed results; the tag lets metric
+      // readers count this hook row (OBSERVED_ROUTING_OUTCOME_SQL).
+      OBSERVED_HOOK_OUTCOME_TAG,
       opts.agent,
     );
   } catch (error) {

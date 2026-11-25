@@ -14,6 +14,11 @@ import { Result, ok, DomainName } from '../shared/types/index.js';
 import type { WorkflowContext } from './workflow-types.js';
 import { MEASURED_COVERAGE_SESSION_SQL } from '../feedback/coverage-session-provenance.js';
 import { EXECUTED_TEST_OUTCOME_SQL } from '../feedback/test-outcome-provenance.js';
+import {
+  EVIDENCE_GATE_SQL_DATETIME,
+  OBSERVED_ROUTING_OUTCOME_SQL,
+  preEvidenceGateCaveat,
+} from '../routing/routing-outcomes-migration.js';
 import { getUnifiedMemory } from '../kernel/unified-memory.js';
 
 // ============================================================================
@@ -279,20 +284,28 @@ const routingAccuracyCheck: DeterministicAction = {
     let successfulOutcomes = typeof input.successfulOutcomes === 'number' ? input.successfulOutcomes : null;
     let confidenceCorrelation = typeof input.confidenceCorrelation === 'number' ? input.confidenceCorrelation : null;
     let source: 'input' | 'database' = 'input';
+    let caveat: string | undefined;
 
     if (totalOutcomes === null || successfulOutcomes === null) {
       source = 'database';
       const db = tryGetDb();
       if (db) {
         try {
+          // #1481: count observed outcomes only, not open or stale sentinels.
           const row = db.prepare(`
             SELECT COUNT(*) as total,
-                   SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successful
+                   SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successful,
+                   MAX(created_at) as latest
             FROM routing_outcomes
-          `).get() as { total: number; successful: number } | undefined;
+            WHERE ${OBSERVED_ROUTING_OUTCOME_SQL}
+          `).get() as { total: number; successful: number; latest?: string | null } | undefined;
 
           totalOutcomes = totalOutcomes ?? (row?.total ?? 0);
           successfulOutcomes = successfulOutcomes ?? (row?.successful ?? 0);
+          if (row && row.total > 0 && typeof row.latest === 'string'
+              && row.latest < EVIDENCE_GATE_SQL_DATETIME) {
+            caveat = preEvidenceGateCaveat(row.total);
+          }
         } catch {
           // Graceful degradation
         }
@@ -304,9 +317,10 @@ const routingAccuracyCheck: DeterministicAction = {
     successfulOutcomes = successfulOutcomes ?? 0;
     confidenceCorrelation = confidenceCorrelation ?? 0;
 
+    // #1481: no observed outcome is no success rate, not 0%.
     const successRate = totalOutcomes > 0
       ? Math.round((successfulOutcomes / totalOutcomes) * 10000) / 100
-      : 0;
+      : null;
 
     return ok({
       successRate,
@@ -314,6 +328,7 @@ const routingAccuracyCheck: DeterministicAction = {
       successfulOutcomes,
       confidenceCorrelation,
       source,
+      ...(caveat ? { caveat } : {}),
     });
   },
 };

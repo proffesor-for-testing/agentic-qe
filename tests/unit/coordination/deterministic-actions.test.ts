@@ -335,7 +335,7 @@ describe('routing-accuracy action', () => {
 
     expect(result.success).toBe(true);
     const data = result.value;
-    expect(data.successRate).toBe(0);
+    expect(data.successRate).toBeNull(); // #1481: nothing observed is not 0%
     expect(data.totalOutcomes).toBe(0);
     expect(data.source).toBe('database');
   });

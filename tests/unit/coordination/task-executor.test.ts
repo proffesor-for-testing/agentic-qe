@@ -11,9 +11,14 @@ import { v4 as uuidv4 } from 'uuid';
 import {
   DomainTaskExecutor,
   createTaskExecutor,
+  routingOutcomeQuality,
   TaskExecutorConfig,
   TaskResult,
 } from '../../../src/coordination/task-executor';
+import { createModelRouter } from '../../../src/integrations/agentic-flow/model-router/router';
+import { createQualityFeedbackLoop } from '../../../src/feedback/feedback-loop';
+import type { RoutingFeedbackCollector } from '../../../src/routing/routing-feedback';
+import { CallerInputError } from '../../../src/shared/error-utils';
 import { QueenTask, TaskType } from '../../../src/coordination/queen-coordinator';
 import { QEKernel, EventBus, MemoryBackend, AgentCoordinator, Subscription, VectorSearchResult, StoreOptions, AgentSpawnConfig, AgentFilter, AgentInfo } from '../../../src/kernel/interfaces';
 import { DomainEvent, DomainName, Result, ok, err, AgentStatus } from '../../../src/shared/types';
@@ -1017,7 +1022,7 @@ describe('DomainTaskExecutor routing outcomes and evidence (#1020)', () => {
     recordRoutingOutcome = vi.fn(async () => {});
     executor.setQualityFeedbackLoop({ recordRoutingOutcome } as never);
     // A router stand-in: recordOutcome only needs one to exist.
-    (executor as unknown as { taskRouter: object }).taskRouter = {};
+    (executor as unknown as { taskRouter: object }).taskRouter = { recordOutcome: vi.fn() };
   });
 
   afterEach(async () => {
@@ -1045,5 +1050,154 @@ describe('DomainTaskExecutor routing outcomes and evidence (#1020)', () => {
     await settle();
 
     expect(recordRoutingOutcome).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+  });
+});
+
+// #1481: routing metrics count observed outcomes. A routed task's result is
+// reported to the model router, a failure lowers the success rate, and the
+// feedback row says whether the tier that ran was the recommended one.
+describe('DomainTaskExecutor observed routing outcomes (#1481)', () => {
+  let kernel: MockQEKernel;
+  let executor: DomainTaskExecutor;
+  let recordRoutingOutcome: ReturnType<typeof vi.fn>;
+  let modelRouter: ReturnType<typeof createModelRouter>;
+
+  const settle = async () => {
+    for (let i = 0; i < 5; i++) await new Promise((resolve) => setTimeout(resolve, 0));
+  };
+  const measured = { status: 'completed', evidenceStatus: 'measured', passed: true };
+
+  beforeEach(async () => {
+    vi.stubEnv('AQE_LLM_ROUTER_DISABLED', '1');
+    kernel = new MockQEKernel();
+    await kernel.initialize();
+    executor = createTaskExecutor(kernel, { saveResults: false });
+    recordRoutingOutcome = vi.fn(async () => {});
+    executor.setQualityFeedbackLoop({ recordRoutingOutcome } as never);
+    modelRouter = createModelRouter({ enableDecisionCache: false });
+    (executor as unknown as { taskRouter: object }).taskRouter = {
+      recordOutcome: (tier: 0 | 1 | 2 | 3 | 4, success: boolean, durationMs?: number) =>
+        modelRouter.recordOutcome(tier, success, durationMs),
+    };
+  });
+
+  afterEach(async () => {
+    await kernel.dispose();
+    vi.unstubAllEnvs();
+  });
+
+  it('a failed task lowers the success rate', async () => {
+    let calls = 0;
+    executor.registerHandler('assess-quality', async () =>
+      ++calls === 1 ? ok(measured) : err(new Error('assessment crashed')));
+
+    await executor.execute(createTestTask('assess-quality', { routingTier: 2 }));
+    await settle();
+    expect(modelRouter.getMetrics().byTier[2]?.successRate).toBe(1);
+
+    const failed = await executor.execute(createTestTask('assess-quality', { routingTier: 2 }));
+    await settle();
+
+    expect(failed.success).toBe(false);
+    const metrics = modelRouter.getMetrics();
+    expect(metrics.byTier[2]?.successRate).toBe(0.5);
+    expect(metrics.outcomeStats).toEqual({ observed: 2, successful: 1, failed: 1, successRate: 0.5 });
+  });
+
+  // The real feedback loop derives followedRecommendation from
+  // recommendedAgent vs usedAgent; assert what it records, not the input.
+  const recordedOutcomes = (loop: ReturnType<typeof createQualityFeedbackLoop>) =>
+    (loop as unknown as { routingFeedback: RoutingFeedbackCollector }).routingFeedback.exportOutcomes();
+
+  it('records whether the recommended tier is the one that ran', async () => {
+    const loop = createQualityFeedbackLoop();
+    executor.setQualityFeedbackLoop(loop);
+    executor.registerHandler('assess-quality', async () => ok(measured));
+
+    await executor.execute(createTestTask('assess-quality', { routingTier: 2 }));
+    await executor.execute(createTestTask('assess-quality'));
+    await settle();
+
+    const [routed, unrouted] = recordedOutcomes(loop);
+    expect(routed).toMatchObject({ usedAgent: 'tier-2', followedRecommendation: true });
+    expect(routed.followedRecommendationKnown).toBe(true);
+    // No routing decision on the payload: there was nothing to follow, and
+    // the outcome stays out of follow/override stats.
+    expect(unrouted).toMatchObject({ usedAgent: 'tier-2', followedRecommendationKnown: false });
+    const accuracy = loop.getRoutingAnalysis();
+    expect(accuracy.totalOutcomes).toBe(2);
+    expect(accuracy.recommendationFollowRate).toBe(1);
+  });
+
+  it('attributes an Agent Booster fallback to the tier that ran', async () => {
+    const loop = createQualityFeedbackLoop();
+    executor.setQualityFeedbackLoop(loop);
+    executor.registerHandler('assess-quality', async () => ok(measured));
+
+    // assess-quality has no booster transform, so a Tier 0 route falls back to Tier 1.
+    await executor.execute(createTestTask('assess-quality', { routingTier: 0 }));
+    await settle();
+
+    const [outcome] = recordedOutcomes(loop);
+    expect(outcome).toMatchObject({
+      usedAgent: 'tier-1', followedRecommendation: false, followedRecommendationKnown: true,
+    });
+    expect(outcome.decision.recommended).toBe('tier-0');
+    const metrics = modelRouter.getMetrics();
+    expect(metrics.byTier[1]?.observedOutcomes).toBe(1);
+    expect(metrics.byTier[0]).toBeUndefined();
+  });
+
+  it('records no routing outcome when the caller input is rejected', async () => {
+    executor.registerHandler('assess-quality', async () =>
+      err(new CallerInputError('filePath cannot be read: ../../etc/passwd')));
+
+    const result = await executor.execute(createTestTask('assess-quality', { routingTier: 2 }));
+    await settle();
+
+    expect(result.success).toBe(false);
+    expect(recordRoutingOutcome).not.toHaveBeenCalled();
+    expect(modelRouter.getMetrics().outcomeStats.observed).toBe(0);
+  });
+
+  it('records no routing outcome when a handler throws a caller input error', async () => {
+    executor.registerHandler('assess-quality', async () => {
+      throw new CallerInputError('Invalid payload: missing target');
+    });
+
+    await executor.execute(createTestTask('assess-quality', { routingTier: 2 }));
+    await settle();
+
+    expect(recordRoutingOutcome).not.toHaveBeenCalled();
+    expect(modelRouter.getMetrics().outcomeStats.observed).toBe(0);
+  });
+
+  it('weights success so a failed and a successful task are far apart', async () => {
+    let calls = 0;
+    executor.registerHandler('assess-quality', async () =>
+      ++calls === 1 ? ok(measured) : err(new Error('assessment crashed')));
+
+    await executor.execute(createTestTask('assess-quality', { routingTier: 2 }));
+    await executor.execute(createTestTask('assess-quality', { routingTier: 2 }));
+    await settle();
+
+    const [ok1, fail1] = recordRoutingOutcome.mock.calls.map((c) => c[0].qualityScore as number);
+    expect(fail1).toBe(0);
+    expect(ok1).toBeGreaterThanOrEqual(0.6);
+    // Pure-function bounds: the slowest success still beats the fastest failure by 0.6.
+    expect(routingOutcomeQuality(true, 60_000) - routingOutcomeQuality(false, 1)).toBeGreaterThanOrEqual(0.6);
+  });
+
+  it('still records the feedback row when the router rejects the tier', async () => {
+    executor.registerHandler('assess-quality', async () => ok(measured));
+
+    await executor.execute(createTestTask('assess-quality', { routingTier: 7 }));
+    await settle();
+
+    // routingTier 7 is not a model tier: the router throws, the feedback loop still records.
+    expect(recordRoutingOutcome).toHaveBeenCalledWith(expect.objectContaining({
+      recommendedAgent: 'unrouted', usedAgent: 'tier-7', success: true,
+    }));
+    expect(modelRouter.getMetrics().outcomeStats.observed).toBe(0);
   });
 });

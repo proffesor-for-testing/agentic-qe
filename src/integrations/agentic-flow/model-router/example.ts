@@ -156,8 +156,11 @@ async function example4_metrics() {
     await router.route({ task });
   }
 
-  // Get metrics
+  // Get metrics. Success rates stay null until outcomes are reported with
+  // router.recordOutcome(tier, success) after the task has run (#1481).
   const metrics = router.getMetrics();
+  const formatRate = (rate: number | null) =>
+    rate === null ? 'n/a (no outcomes reported)' : `${(rate * 100).toFixed(1)}%`;
 
   console.log('Routing Metrics:');
   console.log(`  Total decisions: ${metrics.totalDecisions}`);
@@ -168,7 +171,7 @@ async function example4_metrics() {
   console.log(`  Eligible: ${metrics.agentBoosterStats.eligible}`);
   console.log(`  Used: ${metrics.agentBoosterStats.used}`);
   console.log(`  Fallback to LLM: ${metrics.agentBoosterStats.fallbackToLLM}`);
-  console.log(`  Success rate: ${(metrics.agentBoosterStats.successRate * 100).toFixed(1)}%\n`);
+  console.log(`  Success rate: ${formatRate(metrics.agentBoosterStats.successRate)}\n`);
 
   console.log('Budget Stats:');
   console.log(`  Total spent: $${metrics.budgetStats.totalSpentUsd.toFixed(4)}`);
@@ -180,7 +183,7 @@ async function example4_metrics() {
     console.log(`  Tier ${tier}:`);
     console.log(`    Selections: ${stats.selectionCount}`);
     console.log(`    Avg complexity: ${stats.avgComplexity.toFixed(1)}`);
-    console.log(`    Success rate: ${(stats.successRate * 100).toFixed(1)}%`);
+    console.log(`    Success rate: ${formatRate(stats.successRate)}`);
   }
 }
 
