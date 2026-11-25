@@ -101,21 +101,44 @@ export function rufloErrorText(error: unknown): string {
   return String(error);
 }
 
-/** Run one ruflo MCP tool via `npx --no-install <ruflo> mcp exec`. */
+/** stdout of `npx <args>`, run without a shell and without blocking the event loop. */
+function execNpx(args: string[], cwd: string | undefined, timeoutMs: number): Promise<string> {
+  return import('child_process').then(
+    ({ execFile }) =>
+      new Promise<string>((resolve, reject) => {
+        execFile(
+          'npx',
+          args,
+          { encoding: 'utf-8', timeout: timeoutMs, cwd, maxBuffer: 16 * 1024 * 1024, windowsHide: true },
+          (error, stdout, stderr) => {
+            if (!error) return resolve(String(stdout));
+            const killed = (error as { killed?: boolean }).killed === true;
+            reject(
+              Object.assign(error, {
+                stdout: String(stdout ?? ''),
+                stderr: String(stderr ?? ''),
+                message: killed ? `timed out after ${timeoutMs} ms` : error.message,
+              })
+            );
+          }
+        );
+      })
+  );
+}
+
+/**
+ * Run one ruflo MCP tool via `npx --no-install <ruflo> mcp exec`. Asynchronous: each call
+ * is a ruflo process (about 1.4 s, 3 s cold, measured on 3.76.0).
+ */
 export async function runRufloTool(
   tool: RufloToolName,
   params: Record<string, unknown>,
   options: RufloToolOptions = {},
 ): Promise<RufloToolResult> {
-  const { execFileSync } = await import('child_process');
   let stdout: string;
   try {
-    stdout = execFileSync('npx', rufloToolArgv(tool, params, options.cliPkg ?? resolveCliPackage()), {
-      encoding: 'utf-8',
-      timeout: options.timeoutMs ?? 15000,
-      cwd: options.cwd,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    // ruflo-argv-unverifiable: `tool` is a RufloToolName; RUFLO_TOOLS is checked against the snapshot
+    stdout = await execNpx(rufloToolArgv(tool, params, options.cliPkg ?? resolveCliPackage()), options.cwd, options.timeoutMs ?? 15000);
   } catch (error) {
     return { ok: false, reason: `ruflo mcp exec ${tool} failed: ${rufloErrorText(error)}` };
   }
@@ -126,4 +149,24 @@ export async function runRufloTool(
     return { ok: false, reason: `ruflo ${tool} reported failure: ${String(why)}` };
   }
   return { ok: true, data };
+}
+
+/**
+ * Runs tasks with the same key one after another (#1455). ruflo loses steps when
+ * several `mcp exec` processes write one trajectory at once (5 parallel steps: 2
+ * returned `recorded: false`, `totalSteps` 1, on 3.76.0).
+ */
+export class KeyedSerialQueue {
+  private tails = new Map<string, Promise<unknown>>();
+
+  run<T>(key: string, task: () => Promise<T>): Promise<T> {
+    const prev = this.tails.get(key) ?? Promise.resolve();
+    const next = prev.then(task, task);
+    const tail = next.catch(() => undefined);
+    this.tails.set(key, tail);
+    void tail.then(() => {
+      if (this.tails.get(key) === tail) this.tails.delete(key);
+    });
+    return next;
+  }
 }

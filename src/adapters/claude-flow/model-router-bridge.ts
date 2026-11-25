@@ -19,11 +19,11 @@ const cliPkg = resolveCliPackage();
 
 /**
  * `hooks model-route` prints `Confidence: 80.5%` (ruflo 3.76.0 and 3.80.7). Return it
- * as a 0-1 fraction (#1455); a value already in 0-1 is kept.
+ * as a 0-1 fraction (#1455): a value with `%` is divided by 100, one without is kept.
  */
 export function confidenceFraction(raw: string): number {
   const value = parseFloat(raw);
-  return value > 1 ? value / 100 : value;
+  return raw.trim().endsWith('%') ? value / 100 : value;
 }
 
 /**
@@ -78,7 +78,7 @@ export class ModelRouterBridge {
 
         // Parse result
         const modelMatch = result.match(/model[:\s]+["']?(haiku|sonnet|opus)/i);
-        const confMatch = result.match(/confidence[:\s]+([0-9.]+)/i);
+        const confMatch = result.match(/confidence[:\s]+([0-9.]+%?)/i);
         const reasonMatch = result.match(/reason(?:ing)?[:\s]+["']?([^"'\n]+)/i);
 
         if (modelMatch) {

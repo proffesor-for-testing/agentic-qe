@@ -18,7 +18,7 @@
 import type { ClaudeFlowAdapter, ClaudeFlowCallResult, ClaudeFlowFeatures } from './types.js';
 import { detectClaudeFlow } from '../../adapters/claude-flow/detect.js';
 import { confidenceFraction } from '../../adapters/claude-flow/model-router-bridge.js';
-import { runRufloTool, type RufloToolName } from '../../adapters/claude-flow/ruflo-tool.js';
+import { KeyedSerialQueue, runRufloTool, type RufloToolName } from '../../adapters/claude-flow/ruflo-tool.js';
 import { safeJsonParse } from '../../shared/safe-json.js';
 
 /** Shared execFileSync options */
@@ -39,6 +39,7 @@ function cfCliArgs(...subcommand: string[]): { bin: string; args: string[] } {
   })();
   return {
     bin: 'npx',
+    // ruflo-argv-unverifiable: forwards cfCliArgs(...) arguments; each call site is checked
     args: ['--no-install', pkg, ...subcommand],
   };
 }
@@ -52,6 +53,8 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
   readonly name = 'claude-flow' as const;
   private initialized = false;
   private available = false;
+  /** ruflo calls of one trajectory run in order (#1455). */
+  private trajectoryQueue = new KeyedSerialQueue();
 
   /**
    * Check if Claude Flow is available (no npm auto-install)
@@ -121,6 +124,7 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
     timeoutMs?: number
   ): Promise<ClaudeFlowCallResult<Record<string, unknown>>> {
     if (!this.available) return UNAVAILABLE;
+    // ruflo-argv-unverifiable: `name` is a RufloToolName; RUFLO_TOOLS is checked against the snapshot
     const result = await runRufloTool(name, params, { cwd: process.cwd(), timeoutMs });
     return result.ok ? { status: 'ok', value: result.data } : { status: 'failed', reason: result.reason };
   }
@@ -146,12 +150,14 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
     result?: string,
     quality?: number
   ): Promise<ClaudeFlowCallResult> {
-    const r = await this.tool('hooks_intelligence_trajectory-step', {
-      trajectoryId,
-      action,
-      ...(result ? { result } : {}),
-      ...(quality !== undefined ? { quality } : {}),
-    });
+    const r = await this.trajectoryQueue.run(trajectoryId, () =>
+      this.tool('hooks_intelligence_trajectory-step', {
+        trajectoryId,
+        action,
+        ...(result ? { result } : {}),
+        ...(quality !== undefined ? { quality } : {}),
+      })
+    );
     if (r.status !== 'ok') return r;
     return r.value.recorded === true
       ? { status: 'ok', value: undefined }
@@ -166,10 +172,8 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
     success: boolean,
     feedback?: string
   ): Promise<ClaudeFlowCallResult> {
-    const r = await this.tool(
-      'hooks_intelligence_trajectory-end',
-      { trajectoryId, success, ...(feedback ? { feedback } : {}) },
-      30000
+    const r = await this.trajectoryQueue.run(trajectoryId, () =>
+      this.tool('hooks_intelligence_trajectory-end', { trajectoryId, success, ...(feedback ? { feedback } : {}) }, 30000)
     );
     if (r.status !== 'ok') return r;
     return r.value.trajectory != null
@@ -193,7 +197,7 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
 
       // Parse result
       const modelMatch = result.match(/model[:\s]+["']?(haiku|sonnet|opus)/i);
-      const confMatch = result.match(/confidence[:\s]+([0-9.]+)/i);
+      const confMatch = result.match(/confidence[:\s]+([0-9.]+%?)/i);
 
       return {
         model: (modelMatch?.[1]?.toLowerCase() as 'haiku' | 'sonnet' | 'opus') || 'sonnet',

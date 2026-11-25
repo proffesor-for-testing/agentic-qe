@@ -23,14 +23,16 @@ import { toErrorMessage } from '../../shared/error-utils.js';
 
 /**
  * Counts from `ruflo hooks transfer from-project` text output (3.76.0, 3.80.7):
- * `Transferred N patterns`, then table rows `Skipped (<reason>) | N`.
+ * `Transferred N patterns`, then table rows `Skipped (<reason>) | N`. Null when the
+ * output has no `Transferred N patterns` line.
  */
-export function parseTransferOutput(output: string): { transferred: number; skipped: number } {
+export function parseTransferOutput(output: string): { transferred: number; skipped: number } | null {
   const text = stripAnsi(output);
   const transferred = /Transferred\s+(\d+)\s+patterns?/i.exec(text);
+  if (!transferred) return null;
   let skipped = 0;
   for (const m of text.matchAll(/Skipped \([^)]*\)\s*\|\s*(\d+)/g)) skipped += parseInt(m[1], 10);
-  return { transferred: transferred ? parseInt(transferred[1], 10) : 0, skipped };
+  return { transferred: parseInt(transferred[1], 10), skipped };
 }
 
 /**
@@ -144,9 +146,17 @@ export class PretrainBridge {
           ['--no-install', cliPkg, 'hooks', 'transfer', 'from-project', '--source', sourcePath, '--min-confidence', String(minConfidence)],
           { encoding: 'utf-8', timeout: 60000, cwd: this.options.projectRoot }
         );
-        return parseTransferOutput(result);
+        return (
+          parseTransferOutput(result) ?? {
+            transferred: 0,
+            skipped: 0,
+            error: 'ruflo exited 0 without a "Transferred N patterns" line',
+          }
+        );
       } catch (error) {
-        // Non-critical: ruflo exits 1 when nothing was transferred or the path is rejected
+        // Non-critical: ruflo exits 1 when the source has no transferable patterns
+        // ("No patterns found in source project") or the path is rejected; a source whose
+        // patterns are all duplicates exits 0 with "Transferred 0 patterns".
         const message = rufloErrorText(error);
         console.debug('[PretrainBridge] Claude Flow transferPatterns failed:', message);
         return { transferred: 0, skipped: 0, error: message };

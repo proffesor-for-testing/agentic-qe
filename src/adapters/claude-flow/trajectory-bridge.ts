@@ -16,7 +16,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { Trajectory } from './types.js';
 import { detectClaudeFlow, resolveCliPackage } from './detect.js';
-import { runRufloTool, type RufloToolOptions } from './ruflo-tool.js';
+import { KeyedSerialQueue, runRufloTool, type RufloToolOptions } from './ruflo-tool.js';
 
 const cliPkg = resolveCliPackage();
 
@@ -26,6 +26,8 @@ const cliPkg = resolveCliPackage();
 export class TrajectoryBridge {
   private claudeFlowAvailable = false;
   private localTrajectories: Map<string, Trajectory> = new Map();
+  /** ruflo calls of one trajectory run in order (#1455). */
+  private rufloQueue = new KeyedSerialQueue();
 
   constructor(private options: { projectRoot: string }) {}
 
@@ -86,7 +88,12 @@ export class TrajectoryBridge {
   }
 
   /**
-   * Record a trajectory step
+   * Record a trajectory step.
+   *
+   * The step is stored locally at once, in call order. It is sent to ruflo only for a
+   * trajectory ruflo started; an unknown id is never sent (#1455). ruflo calls for one
+   * trajectory run one at a time, and the returned promise settles when this step's
+   * ruflo call has.
    */
   async recordStep(
     trajectoryId: string,
@@ -95,9 +102,18 @@ export class TrajectoryBridge {
     quality?: number
   ): Promise<void> {
     const trajectory = this.localTrajectories.get(trajectoryId);
+    if (!trajectory) return;
 
-    // A trajectory ruflo did not start is not sent to ruflo.
-    if (this.claudeFlowAvailable && trajectory?.rufloTracked !== false) {
+    trajectory.steps.push({
+      id: `step-${trajectory.steps.length + 1}`,
+      action,
+      result,
+      quality,
+      timestamp: Date.now(),
+    });
+
+    if (!this.claudeFlowAvailable || trajectory.rufloTracked !== true) return;
+    await this.rufloQueue.run(trajectoryId, async () => {
       const step = await runRufloTool(
         'hooks_intelligence_trajectory-step',
         {
@@ -109,28 +125,17 @@ export class TrajectoryBridge {
         this.rufloOptions()
       );
       if (!step.ok || step.data.recorded !== true) {
-        // Non-critical: the step is still recorded locally below
+        // Non-critical: the step is recorded locally
         console.debug(
           '[TrajectoryBridge] ruflo did not record the trajectory step:',
           step.ok ? String(step.data.implementation ?? 'recorded: false') : step.reason
         );
       }
-    }
-
-    // Store locally
-    if (trajectory) {
-      trajectory.steps.push({
-        id: `step-${trajectory.steps.length + 1}`,
-        action,
-        result,
-        quality,
-        timestamp: Date.now(),
-      });
-    }
+    });
   }
 
   /**
-   * End a trajectory
+   * End a trajectory, after its pending ruflo step calls.
    */
   async endTrajectory(
     trajectoryId: string,
@@ -139,19 +144,21 @@ export class TrajectoryBridge {
   ): Promise<Trajectory | undefined> {
     const trajectory = this.localTrajectories.get(trajectoryId);
 
-    if (this.claudeFlowAvailable && trajectory?.rufloTracked !== false) {
-      const ended = await runRufloTool(
-        'hooks_intelligence_trajectory-end',
-        { trajectoryId, success, ...(feedback ? { feedback } : {}) },
-        { ...this.rufloOptions(), timeoutMs: 30000 }
-      );
-      if (!ended.ok || ended.data.trajectory == null) {
-        // Non-critical: the local trajectory is still completed below
-        console.debug(
-          '[TrajectoryBridge] ruflo did not end the trajectory:',
-          ended.ok ? String(ended.data.note ?? 'trajectory not found') : ended.reason
+    if (this.claudeFlowAvailable && trajectory?.rufloTracked === true) {
+      await this.rufloQueue.run(trajectoryId, async () => {
+        const ended = await runRufloTool(
+          'hooks_intelligence_trajectory-end',
+          { trajectoryId, success, ...(feedback ? { feedback } : {}) },
+          { ...this.rufloOptions(), timeoutMs: 30000 }
         );
-      }
+        if (!ended.ok || ended.data.trajectory == null) {
+          // Non-critical: the local trajectory is still completed below
+          console.debug(
+            '[TrajectoryBridge] ruflo did not end the trajectory:',
+            ended.ok ? String(ended.data.note ?? 'trajectory not found') : ended.reason
+          );
+        }
+      });
     }
 
     // Complete local trajectory

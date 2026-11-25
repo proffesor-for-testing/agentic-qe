@@ -79,7 +79,7 @@ describe('ruflo argv calls in src/ (#1455)', () => {
         '\n',
       );
       expect(findInvalidArgvCalls(code, surface)).toEqual([
-        expect.objectContaining({ line: 2, reason: expect.stringMatching(/args\.push\(\) is not checked/) }),
+        expect.objectContaining({ line: 2, reason: expect.stringMatching(/^UNVERIFIABLE: flag added with push\(\)/) }),
       ]);
     });
 
@@ -91,15 +91,60 @@ describe('ruflo argv calls in src/ (#1455)', () => {
       ]);
     });
 
-    it('should_skipTheHelperDefinition_when_itOnlyForwardsItsArguments', () => {
+    it('should_checkHelperCallSites_when_theHelperForwardsItsArguments', () => {
       const code = [
         'function cfCliArgs(...subcommand: string[]) {',
         "  return { bin: 'npx', args: ['--no-install', pkg, ...subcommand] };",
         '}',
         "cfCliArgs('hooks', 'model-route', '--task', task);",
+        "cfCliArgs('hooks', 'intelligence', 'pattern-store');",
       ].join('\n');
-      expect(extractArgvCalls(code).map((c: { line: number }) => c.line)).toEqual([2, 4]);
-      expect(invalid(code)).toEqual([]);
+      expect(extractArgvCalls(code).map((c: { line: number }) => c.line)).toEqual([2, 4, 5]);
+      // The forwarding body is unverifiable until marked; the call sites are checked.
+      expect(invalid(code)).toEqual([
+        'UNVERIFIABLE: ...subcommand can add any subcommand or flag',
+        "'hooks intelligence' has no subcommand 'pattern-store'",
+      ]);
+    });
+
+    // Review of #1455 (PR #1489): argv shapes the first version of the checker passed.
+    it.each([
+      ['argv.push of a flag', "const argv = ['--no-install', p, 'hooks', 'model-route', '--task', t]; argv.push('--bogus', x);", /^UNVERIFIABLE: flag added with push/],
+      ['spread of a variable', "execFileSync('npx', ['--no-install', p, 'hooks', 'model-route', ...extra]);", /^UNVERIFIABLE: \.\.\.extra/],
+      ['variable command path', "execFileSync('npx', ['--no-install', p, ...rufloArgs]);", /^UNVERIFIABLE: \.\.\.rufloArgs/],
+      ['variable subcommand', "execFileSync('npx', ['--no-install', p, 'hooks', sub, '--task', t]);", /^UNVERIFIABLE: the command path after 'hooks' is not a literal/],
+      ['variable after a leaf', "execFileSync('npx', ['--no-install', p, 'hooks', 'intelligence', sub, '--task', t]);", /^'hooks intelligence' has no flag --task$/],
+      ['no --no-install', "execFileSync('npx', ['ruflo', 'hooks', 'intelligence', 'trajectory-start']);", /^'hooks intelligence' has no subcommand 'trajectory-start'$/],
+      ['ruflo binary', "execFileSync('ruflo', ['hooks', 'intelligence', 'trajectory-start']);", /^'hooks intelligence' has no subcommand 'trajectory-start'$/],
+      ['pinned spec', "spawn('npx', ['-y', RUFLO_PINNED_SPEC, 'hooks', 'bogus-cmd']);", /^unknown subcommand 'hooks bogus-cmd'$/],
+      ['versioned spec', "spawn('npx', ['-y', 'ruflo@3.76.0', 'truth']);", /^unknown command 'truth'$/],
+      ['concat', "execFileSync('npx', ['--no-install', p].concat(['hooks', 'nope']));", /^unknown subcommand 'hooks nope'$/],
+      ['concat of a variable', "execFileSync('npx', ['--no-install', p].concat(rest));", /^UNVERIFIABLE: \.\.\.rest/],
+      ['tool name variable', "const tool = 'hooks_bogus'; runRufloTool(tool as any, {});", /^UNVERIFIABLE: the MCP tool name is not a literal$/],
+      ['adapter tool method', "this.tool('hooks_bogus_x', {})", /^unknown MCP tool 'hooks_bogus_x'$/],
+      ['mcp exec --tool literal', "['--no-install', p, 'mcp', 'exec', '--tool', 'hooks_bogus', '--params', '{}']", /^unknown MCP tool 'hooks_bogus'$/],
+      ['template literal', "execFileSync('npx', ['--no-install', p, `hooks`, 'intelligence', 'trajectory-start']);", /^'hooks intelligence' has no subcommand 'trajectory-start'$/],
+      ['block comment', "execFileSync('npx', ['--no-install', p, /* c */ 'hooks', 'intelligence', 'trajectory-start']);", /^'hooks intelligence' has no subcommand 'trajectory-start'$/],
+      ['line comment', "execFileSync('npx', ['--no-install', p, // c\n 'hooks', 'intelligence', 'trajectory-start']);", /^'hooks intelligence' has no subcommand 'trajectory-start'$/],
+      ['global --format value', "execFileSync('npx', ['--no-install', p, 'hooks', 'build-agents', '--format', 'yaml']);", /^--format must be one of text, json, table, not 'yaml'$/],
+    ])('should_reject_when_%s', (_name, code, reason) => {
+      const reasons = invalid(code);
+      expect(reasons).toHaveLength(1);
+      expect(reasons[0]).toMatch(reason);
+    });
+
+    it('should_acceptAnUnverifiableCall_when_markedWithAReason', () => {
+      const marked = ['// ruflo-argv-unverifiable: forwards the checked call sites', "args: ['--no-install', pkg, ...subcommand],"].join('\n');
+      expect(invalid(marked)).toEqual([]);
+      const noReason = ['// ruflo-argv-unverifiable:', "args: ['--no-install', pkg, ...subcommand],"].join('\n');
+      expect(invalid(noReason)).toHaveLength(1);
+      // The marker never hides a real error.
+      expect(invalid("// ruflo-argv-unverifiable: because\n['--no-install', p, 'truth']")).toEqual(["unknown command 'truth'"]);
+    });
+
+    it('should_ignorePackageLists_when_theyOnlyNamePackages', () => {
+      expect(extractArgvCalls("for (const pkg of ['ruflo', '@claude-flow/cli']) {}")).toEqual([]);
+      expect(extractArgvCalls("if (servers['ruflo']) {}")).toEqual([]);
     });
 
     it('should_reportAnUnquotedWordAfterALeafCommand_when_rufloWouldIgnoreIt', () => {

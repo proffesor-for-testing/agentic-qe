@@ -191,6 +191,11 @@ export class AQELearningEngine {
 
   // Task tracking
   private activeTasks: Map<string, TaskExecution> = new Map();
+  /**
+   * Task id -> TrajectoryBridge trajectory id (#1455). The task id is the experience
+   * id when experience capture is on, so it cannot be passed to the bridge itself.
+   */
+  private bridgeTrajectoryIds: Map<string, string> = new Map();
   private completedTasks = 0;
   private claudeFlowErrors = 0;
 
@@ -733,9 +738,11 @@ export class AQELearningEngine {
 
     // Try to start SONA trajectory
     let trajectoryId = id;
+    let bridgeTrajectoryId: string | undefined;
     if (this.claudeFlowBridge?.trajectory.isClaudeFlowAvailable()) {
       try {
         trajectoryId = await this.claudeFlowBridge.trajectory.startTrajectory(task, agent);
+        bridgeTrajectoryId = trajectoryId;
       } catch (error) {
         this.claudeFlowErrors++;
         console.warn(
@@ -781,6 +788,7 @@ export class AQELearningEngine {
     };
 
     this.activeTasks.set(execution.id, execution);
+    if (bridgeTrajectoryId) this.bridgeTrajectoryIds.set(execution.id, bridgeTrajectoryId);
 
     return execution.id;
   }
@@ -794,10 +802,11 @@ export class AQELearningEngine {
     result?: string,
     quality?: number
   ): Promise<void> {
-    // Try SONA trajectory step
-    if (this.claudeFlowBridge?.trajectory.isClaudeFlowAvailable()) {
+    // Try SONA trajectory step (only for a task whose trajectory the bridge started)
+    const bridgeTrajectoryId = this.bridgeTrajectoryIds.get(taskId);
+    if (bridgeTrajectoryId && this.claudeFlowBridge?.trajectory.isClaudeFlowAvailable()) {
       try {
-        await this.claudeFlowBridge.trajectory.recordStep(taskId, action, result, quality);
+        await this.claudeFlowBridge.trajectory.recordStep(bridgeTrajectoryId, action, result, quality);
       } catch (error) {
         this.claudeFlowErrors++;
         console.warn(
@@ -838,9 +847,11 @@ export class AQELearningEngine {
     feedback?: string
   ): Promise<TaskExecution | undefined> {
     // Try to end SONA trajectory
-    if (this.claudeFlowBridge?.trajectory.isClaudeFlowAvailable()) {
+    const bridgeTrajectoryId = this.bridgeTrajectoryIds.get(taskId);
+    this.bridgeTrajectoryIds.delete(taskId);
+    if (bridgeTrajectoryId && this.claudeFlowBridge?.trajectory.isClaudeFlowAvailable()) {
       try {
-        await this.claudeFlowBridge.trajectory.endTrajectory(taskId, success, feedback);
+        await this.claudeFlowBridge.trajectory.endTrajectory(bridgeTrajectoryId, success, feedback);
       } catch (error) {
         this.claudeFlowErrors++;
         console.warn(
@@ -1135,6 +1146,7 @@ export class AQELearningEngine {
       await this.reasoningBank.dispose();
     }
     this.activeTasks.clear();
+    this.bridgeTrajectoryIds.clear();
     this.initialized = false;
   }
 }
