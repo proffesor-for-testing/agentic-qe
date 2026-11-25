@@ -249,6 +249,18 @@ describe('#1453 createProveCommand reads the evidence store the gate reads', () 
     expect(att.evidence.candidate.status).toBe('resolved');
   });
 
+  it('writing the attestation into the checkout does not change the candidate it attests', async () => {
+    const { resolveQualityEvidenceCandidate } = await import(
+      '../../../../src/domains/quality-assessment/evidence-candidate.js');
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const before = resolveQualityEvidenceCandidate();
+
+    await handleProve({ memory: mapMemory() as never, output: path.join(process.env.AQE_PROJECT_ROOT!, 'proof.json') });
+
+    expect(before.status).toBe('resolved');
+    expect(resolveQualityEvidenceCandidate().id).toBe(before.id);
+  });
+
   it('produces no attestation when the evidence store cannot be opened', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     const exit = vi.fn(async () => undefined as never);
