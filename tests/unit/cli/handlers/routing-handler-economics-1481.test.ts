@@ -72,17 +72,23 @@ describe('aqe routing economics --complexity (#1481)', () => {
     expect(haiku(low)).toBeGreaterThan(haiku(high));
   });
 
+  it.each([['0', 0], ['1', 1], ['.5', 0.5], ['1.0', 1]])('accepts --complexity %s', async (value, expected) => {
+    const report = (await run(value))!;
+
+    expect(report.taskComplexity).toBe(expected);
+  });
+
   it('keeps an explicit complexity of 0', async () => {
     const report = (await run('0'))!;
 
     expect(report.taskComplexity).toBe(0);
   });
 
-  it.each([['2'], ['-1'], ['abc']])('rejects --complexity %s', async (value) => {
+  it.each([['2'], ['-1'], ['abc'], [''], [' '], ['0x1'], ['1e-1'], [' 0.5']])('rejects --complexity "%s"', async (value) => {
     const report = await run(value);
 
     expect(report).toBeNull();
     expect(exit).toHaveBeenCalledWith(1);
-    expect(String(error.mock.calls[0]?.[0])).toContain('--complexity must be a number between 0 and 1');
+    expect(String(error.mock.calls[0]?.[0])).toContain('taskComplexity must be a number between 0 and 1');
   });
 });

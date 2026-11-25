@@ -16,6 +16,9 @@ import {
   TaskResult,
 } from '../../../src/coordination/task-executor';
 import { createModelRouter } from '../../../src/integrations/agentic-flow/model-router/router';
+import { createQualityFeedbackLoop } from '../../../src/feedback/feedback-loop';
+import type { RoutingFeedbackCollector } from '../../../src/routing/routing-feedback';
+import { CallerInputError } from '../../../src/shared/error-utils';
 import { QueenTask, TaskType } from '../../../src/coordination/queen-coordinator';
 import { QEKernel, EventBus, MemoryBackend, AgentCoordinator, Subscription, VectorSearchResult, StoreOptions, AgentSpawnConfig, AgentFilter, AgentInfo } from '../../../src/kernel/interfaces';
 import { DomainEvent, DomainName, Result, ok, err, AgentStatus } from '../../../src/shared/types';
@@ -1101,35 +1104,72 @@ describe('DomainTaskExecutor observed routing outcomes (#1481)', () => {
     expect(metrics.outcomeStats).toEqual({ observed: 2, successful: 1, failed: 1, successRate: 0.5 });
   });
 
-  it('records followedRecommendation from the recommended and executed tier', async () => {
+  // The real feedback loop derives followedRecommendation from
+  // recommendedAgent vs usedAgent; assert what it records, not the input.
+  const recordedOutcomes = (loop: ReturnType<typeof createQualityFeedbackLoop>) =>
+    (loop as unknown as { routingFeedback: RoutingFeedbackCollector }).routingFeedback.exportOutcomes();
+
+  it('records whether the recommended tier is the one that ran', async () => {
+    const loop = createQualityFeedbackLoop();
+    executor.setQualityFeedbackLoop(loop);
     executor.registerHandler('assess-quality', async () => ok(measured));
 
     await executor.execute(createTestTask('assess-quality', { routingTier: 2 }));
     await executor.execute(createTestTask('assess-quality'));
     await settle();
 
-    expect(recordRoutingOutcome).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      recommendedAgent: 'tier-2', usedAgent: 'tier-2', followedRecommendation: true,
-    }));
-    // No routing decision on the payload: nothing was recommended, so it was not followed.
-    expect(recordRoutingOutcome).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      recommendedAgent: 'unrouted', usedAgent: 'tier-2', followedRecommendation: false,
-    }));
+    const [routed, unrouted] = recordedOutcomes(loop);
+    expect(routed).toMatchObject({ usedAgent: 'tier-2', followedRecommendation: true });
+    expect(routed.followedRecommendationKnown).toBe(true);
+    // No routing decision on the payload: there was nothing to follow, and
+    // the outcome stays out of follow/override stats.
+    expect(unrouted).toMatchObject({ usedAgent: 'tier-2', followedRecommendationKnown: false });
+    const accuracy = loop.getRoutingAnalysis();
+    expect(accuracy.totalOutcomes).toBe(2);
+    expect(accuracy.recommendationFollowRate).toBe(1);
   });
 
   it('attributes an Agent Booster fallback to the tier that ran', async () => {
+    const loop = createQualityFeedbackLoop();
+    executor.setQualityFeedbackLoop(loop);
     executor.registerHandler('assess-quality', async () => ok(measured));
 
     // assess-quality has no booster transform, so a Tier 0 route falls back to Tier 1.
     await executor.execute(createTestTask('assess-quality', { routingTier: 0 }));
     await settle();
 
-    expect(recordRoutingOutcome).toHaveBeenCalledWith(expect.objectContaining({
-      recommendedAgent: 'tier-0', usedAgent: 'tier-1', followedRecommendation: false,
-    }));
+    const [outcome] = recordedOutcomes(loop);
+    expect(outcome).toMatchObject({
+      usedAgent: 'tier-1', followedRecommendation: false, followedRecommendationKnown: true,
+    });
+    expect(outcome.decision.recommended).toBe('tier-0');
     const metrics = modelRouter.getMetrics();
     expect(metrics.byTier[1]?.observedOutcomes).toBe(1);
     expect(metrics.byTier[0]).toBeUndefined();
+  });
+
+  it('records no routing outcome when the caller input is rejected', async () => {
+    executor.registerHandler('assess-quality', async () =>
+      err(new CallerInputError('filePath cannot be read: ../../etc/passwd')));
+
+    const result = await executor.execute(createTestTask('assess-quality', { routingTier: 2 }));
+    await settle();
+
+    expect(result.success).toBe(false);
+    expect(recordRoutingOutcome).not.toHaveBeenCalled();
+    expect(modelRouter.getMetrics().outcomeStats.observed).toBe(0);
+  });
+
+  it('records no routing outcome when a handler throws a caller input error', async () => {
+    executor.registerHandler('assess-quality', async () => {
+      throw new CallerInputError('Invalid payload: missing target');
+    });
+
+    await executor.execute(createTestTask('assess-quality', { routingTier: 2 }));
+    await settle();
+
+    expect(recordRoutingOutcome).not.toHaveBeenCalled();
+    expect(modelRouter.getMetrics().outcomeStats.observed).toBe(0);
   });
 
   it('weights success so a failed and a successful task are far apart', async () => {

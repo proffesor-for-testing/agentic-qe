@@ -12,6 +12,7 @@ import { ICommandHandler, CLIContext } from './interfaces.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
 import { createRoutingFeedbackCollector } from '../../routing/routing-feedback.js';
 import { getGlobalCostTracker } from '../../shared/llm/cost-tracker.js';
+import { parseTaskComplexity } from '../../routing/economic-routing.js';
 
 // ============================================================================
 // Routing Handler
@@ -46,14 +47,15 @@ export class RoutingHandler implements ICommandHandler {
       .option('-c, --complexity <value>', 'Task complexity for scoring (0-1)', '0.5')
       .option('--json', 'Output as JSON')
       .action(async (options: { complexity: string; json?: boolean }) => {
-        // #1481: `|| 0.5` turned an explicit 0 into 0.5; reject bad input instead.
-        const complexity = Number(options.complexity);
-        if (!Number.isFinite(complexity) || complexity < 0 || complexity > 1) {
-          console.error(chalk.red(`\n  --complexity must be a number between 0 and 1, got "${options.complexity}"\n`));
+        // #1481: `|| 0.5` turned an explicit 0 into 0.5, and Number() took
+        // "" or "0x1". Parse strictly with the same rule as the MCP tool.
+        const parsed = parseTaskComplexity(options.complexity);
+        if (!parsed.ok) {
+          console.error(chalk.red(`\n  --complexity: ${parsed.error}\n`));
           await this.cleanupAndExit(1);
           return;
         }
-        await this.executeEconomics(complexity, !!options.json);
+        await this.executeEconomics(parsed.value, !!options.json);
       });
 
     routing
@@ -170,9 +172,12 @@ export class RoutingHandler implements ICommandHandler {
       console.log(chalk.gray('  ' + '\u2500'.repeat(40)));
       console.log(`  Total outcomes:       ${chalk.cyan(String(accuracy.totalOutcomes))}`);
       console.log(`  Followed recs:        ${chalk.cyan(String(accuracy.followedRecommendations))}`);
-      console.log(`  Override rate:         ${chalk.yellow((accuracy.overrideRate * 100).toFixed(1) + '%')}`);
-      console.log(`  Rec success rate:      ${scoreColor100(accuracy.recommendationSuccessRate * 100)}`);
-      console.log(`  Override success rate:  ${scoreColor100(accuracy.overrideSuccessRate * 100)}`);
+      // #1481: a null rate means nothing was observed for it.
+      const pct = (rate: number | null) => (rate === null ? chalk.gray('n/a') : scoreColor100(rate * 100));
+      console.log(`  Success rate:          ${pct(accuracy.successRate)}`);
+      console.log(`  Override rate:         ${accuracy.overrideRate === null ? chalk.gray('n/a') : chalk.yellow((accuracy.overrideRate * 100).toFixed(1) + '%')}`);
+      console.log(`  Rec success rate:      ${pct(accuracy.recommendationSuccessRate)}`);
+      console.log(`  Override success rate:  ${pct(accuracy.overrideSuccessRate)}`);
       console.log(`  Confidence correlation: ${chalk.cyan(accuracy.confidenceCorrelation.toFixed(3))}`);
 
       // Recommendations

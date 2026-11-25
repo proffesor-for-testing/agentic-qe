@@ -86,6 +86,33 @@ export interface EconomicReport {
 // EconomicRoutingModel
 // ============================================================================
 
+/** Default task complexity when the caller gives none */
+export const DEFAULT_TASK_COMPLEXITY = 0.5;
+
+/** A plain decimal: 0, 1, 0.5, .5, 1.0. No sign, exponent, hex or spaces. */
+const DECIMAL_RE = /^(?:\d+(?:\.\d+)?|\.\d+)$/;
+
+/**
+ * Parse a task complexity for routing economics, shared by the MCP tool and
+ * the CLI so both accept the same input (#1481). Undefined or null means
+ * "not given" and yields the 0.5 default. A finite number or a plain decimal
+ * string in [0, 1] is accepted; anything else ("", " ", "0x1", "1e-1", NaN,
+ * 1.5, true) is rejected.
+ */
+export function parseTaskComplexity(
+  value: unknown,
+): { ok: true; value: number } | { ok: false; error: string } {
+  if (value === undefined || value === null) return { ok: true, value: DEFAULT_TASK_COMPLEXITY };
+  let n: number | null = null;
+  if (typeof value === 'number') n = value;
+  else if (typeof value === 'string' && DECIMAL_RE.test(value)) n = Number(value);
+  if (n !== null && Number.isFinite(n) && n >= 0 && n <= 1) return { ok: true, value: n };
+  return {
+    ok: false,
+    error: `taskComplexity must be a number between 0 and 1, got ${JSON.stringify(value) ?? String(value)}`,
+  };
+}
+
 /** EMA smoothing factor for quality estimate updates */
 const EMA_ALPHA = 0.15;
 

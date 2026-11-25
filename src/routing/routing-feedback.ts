@@ -21,10 +21,25 @@ import { toErrorMessage } from '../shared/error-utils.js';
 import { isBusyError } from '../learning/dream/dream-lock-retry.js';
 import { EMACalibrator, type EMAConfig } from './calibration/index.js';
 import type { RoutingConfig, AgentTier } from './routing-config.js';
+import type { EscalationConfig, EscalationState } from './escalation/index.js';
 import {
   ensureRoutingOutcomesAdr095Columns,
+  isHookRoutingRowId,
   OBSERVED_ROUTING_OUTCOME_SQL,
 } from './routing-outcomes-migration.js';
+
+/** Recommended-agent value for a task submitted without a routing decision. */
+export const UNROUTED_RECOMMENDATION = 'unrouted';
+
+/**
+ * Whether an outcome can say if the recommendation was followed (#1481).
+ * Hook rows store a placeholder followed_recommendation, and an unrouted task
+ * had no recommendation to follow.
+ */
+function isFollowKnown(o: RoutingOutcome): boolean {
+  return o.followedRecommendationKnown !== false
+    && o.decision?.recommended !== UNROUTED_RECOMMENDATION;
+}
 import {
   EconomicRoutingModel,
   type EconomicRoutingConfig,
@@ -89,7 +104,7 @@ class OutcomeStore {
 
   getRecentOverrides(limit = 50): RoutingOutcome[] {
     return this.outcomes
-      .filter(o => !o.followedRecommendation)
+      .filter(o => isFollowKnown(o) && !o.followedRecommendation)
       .slice(-limit);
   }
 
@@ -105,6 +120,20 @@ class OutcomeStore {
 // ============================================================================
 // Routing Feedback Collector
 // ============================================================================
+
+/** Routing accuracy over observed outcomes (#1481: rates are null when empty) */
+export interface RoutingAccuracy {
+  totalOutcomes: number;
+  /** Success rate over all observed outcomes */
+  successRate: number | null;
+  /** Outcomes where it is known whether the recommendation was followed */
+  followKnownOutcomes: number;
+  followedRecommendations: number;
+  overrideRate: number | null;
+  recommendationSuccessRate: number | null;
+  overrideSuccessRate: number | null;
+  confidenceCorrelation: number;
+}
 
 /**
  * Collects and processes routing feedback for continuous learning
@@ -168,12 +197,17 @@ export class RoutingFeedbackCollector {
     `).all(this.maxOutcomes) as RoutingOutcomeRow[];
 
     for (const row of rows.reverse()) {
+      const decision = safeJsonParse(row.decision_json) as QERoutingDecision;
       const outcome: RoutingOutcome = {
         id: row.id,
         task: safeJsonParse(row.task_json),
-        decision: safeJsonParse(row.decision_json),
+        decision,
         usedAgent: row.used_agent,
         followedRecommendation: Boolean(row.followed_recommendation),
+        // Hook rows wrote followed_recommendation = 1 before knowing which
+        // agent ran, so it says nothing (#1481).
+        followedRecommendationKnown: !isHookRoutingRowId(row.id)
+          && decision?.recommended !== UNROUTED_RECOMMENDATION,
         outcome: {
           success: Boolean(row.success),
           qualityScore: row.quality_score,
@@ -430,6 +464,23 @@ export class RoutingFeedbackCollector {
   }
 
   /**
+   * @deprecated No-op since #1481. The escalation state this enabled was only
+   * logged and never changed a routing decision. Tier escalation that acts
+   * lives in the free-tier ladder (src/routing/free-tier/ladder.ts).
+   */
+  enableAutoEscalation(_config?: Partial<EscalationConfig>): void {
+    // Intentionally empty: see the deprecation note.
+  }
+
+  /**
+   * @deprecated Always null since #1481: auto-escalation is not tracked by
+   * the collector (null has always meant "not enabled").
+   */
+  getEscalationState(_agentId: string): EscalationState | null {
+    return null;
+  }
+
+  /**
    * Enable economic routing model for quality-weighted cost optimization.
    * Once enabled, every recorded outcome feeds economic quality estimates
    * and the neural router receives cost-adjusted rewards.
@@ -487,6 +538,7 @@ export class RoutingFeedbackCollector {
       decision,
       usedAgent,
       followedRecommendation: usedAgent === decision.recommended,
+      followedRecommendationKnown: decision.recommended !== UNROUTED_RECOMMENDATION,
       outcome,
       timestamp: new Date(),
       advisorConsultation: resolvedAdvisor,
@@ -541,12 +593,12 @@ export class RoutingFeedbackCollector {
     const totalDuration = outcomes.reduce((sum, o) => sum + o.outcome.durationMs, 0);
     const totalQuality = outcomes.reduce((sum, o) => sum + o.outcome.qualityScore, 0);
 
-    // Count overrides
+    // Count overrides (only where following is known, #1481)
     const overriddenCount = outcomes.filter(
-      o => o.decision.recommended !== o.usedAgent && o.decision.recommended === agentId
+      o => isFollowKnown(o) && o.decision.recommended !== o.usedAgent && o.decision.recommended === agentId
     ).length;
     const selectedOverOthersCount = outcomes.filter(
-      o => o.decision.recommended !== o.usedAgent && o.usedAgent === agentId
+      o => isFollowKnown(o) && o.decision.recommended !== o.usedAgent && o.usedAgent === agentId
     ).length;
 
     // Calculate trend based on recent outcomes
@@ -596,42 +648,29 @@ export class RoutingFeedbackCollector {
   /**
    * Analyze routing accuracy
    */
-  analyzeRoutingAccuracy(): {
-    totalOutcomes: number;
-    followedRecommendations: number;
-    overrideRate: number;
-    recommendationSuccessRate: number;
-    overrideSuccessRate: number;
-    confidenceCorrelation: number;
-  } {
+  analyzeRoutingAccuracy(): RoutingAccuracy {
+    // Rates are null when nothing was observed for them (#1481): no
+    // outcome is not a 0% success rate.
+    const rate = (part: number, whole: number) => (whole > 0 ? part / whole : null);
     const outcomes = this.outcomeStore.getAll();
-    if (outcomes.length === 0) {
-      return {
-        totalOutcomes: 0,
-        followedRecommendations: 0,
-        overrideRate: 0,
-        recommendationSuccessRate: 0,
-        overrideSuccessRate: 0,
-        confidenceCorrelation: 0,
-      };
-    }
+    const known = outcomes.filter(isFollowKnown);
+    const followed = known.filter(o => o.followedRecommendation);
+    const overridden = known.filter(o => !o.followedRecommendation);
 
-    const followed = outcomes.filter(o => o.followedRecommendation);
-    const overridden = outcomes.filter(o => !o.followedRecommendation);
-
+    const successes = outcomes.filter(o => o.outcome.success).length;
     const followedSuccess = followed.filter(o => o.outcome.success).length;
     const overriddenSuccess = overridden.filter(o => o.outcome.success).length;
 
-    // Calculate confidence correlation (higher confidence should correlate with success)
-    const confidenceCorrelation = this.calculateConfidenceCorrelation(outcomes);
-
     return {
       totalOutcomes: outcomes.length,
+      successRate: rate(successes, outcomes.length),
+      followKnownOutcomes: known.length,
       followedRecommendations: followed.length,
-      overrideRate: overridden.length / outcomes.length,
-      recommendationSuccessRate: followed.length > 0 ? followedSuccess / followed.length : 0,
-      overrideSuccessRate: overridden.length > 0 ? overriddenSuccess / overridden.length : 0,
-      confidenceCorrelation,
+      overrideRate: rate(overridden.length, known.length),
+      recommendationSuccessRate: rate(followedSuccess, followed.length),
+      overrideSuccessRate: rate(overriddenSuccess, overridden.length),
+      // Higher confidence should correlate with success
+      confidenceCorrelation: this.calculateConfidenceCorrelation(outcomes),
     };
   }
 
@@ -677,7 +716,9 @@ export class RoutingFeedbackCollector {
     }
 
     // Check override success rate
-    if (accuracy.overrideRate > 0.3 && accuracy.overrideSuccessRate > accuracy.recommendationSuccessRate) {
+    if (accuracy.overrideRate !== null && accuracy.overrideRate > 0.3
+        && accuracy.overrideSuccessRate !== null && accuracy.recommendationSuccessRate !== null
+        && accuracy.overrideSuccessRate > accuracy.recommendationSuccessRate) {
       recommendations.push(
         'Users are frequently overriding recommendations with better results. ' +
         'Consider adjusting routing weights or updating agent capabilities.'

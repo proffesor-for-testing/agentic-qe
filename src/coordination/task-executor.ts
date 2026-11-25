@@ -546,7 +546,8 @@ export class DomainTaskExecutor implements TaskHandlerContext {
    *
    * `tier` is the tier the task actually ran on. It can differ from the
    * router's recommendation (payload.routingTier), e.g. when Agent Booster
-   * falls back to an LLM tier, and followedRecommendation reflects that.
+   * falls back to an LLM tier. The feedback collector derives whether the
+   * recommendation was followed from recommendedAgent vs usedAgent.
    */
   private async recordOutcome(
     task: QueenTask,
@@ -572,7 +573,6 @@ export class DomainTaskExecutor implements TaskHandlerContext {
       }
 
       const recommendedTier = recommendedTierOf(task);
-      const followedRecommendation = recommendedTier !== undefined && recommendedTier === tier;
 
       // Log outcome for debugging and metrics
       console.debug(
@@ -590,7 +590,6 @@ export class DomainTaskExecutor implements TaskHandlerContext {
           // tier; a task submitted without a routing decision is 'unrouted'.
           recommendedAgent: recommendedTier === undefined ? 'unrouted' : `tier-${recommendedTier}`,
           usedAgent: `tier-${tier}`,
-          followedRecommendation,
           success,
           qualityScore: routingOutcomeQuality(success, durationMs),
           durationMs,
@@ -684,9 +683,14 @@ export class DomainTaskExecutor implements TaskHandlerContext {
 
       if (!result.success) {
         const errorMsg = 'error' in result ? (result.error as Error).message : 'Unknown error';
-        await this.publishTaskFailed(task.id, errorMsg, domain, 'error' in result && isCallerInputError(result.error));
-        // ADR-051: Record failed outcome
-        this.recordOutcome(task, routingTier, false, Date.now() - startTime).catch((e) => { logger.warn('recordOutcome failed', { error: e instanceof Error ? e.message : String(e), taskId: task.id }); });
+        const callerInputError = 'error' in result && isCallerInputError(result.error);
+        await this.publishTaskFailed(task.id, errorMsg, domain, callerInputError);
+        // ADR-051: Record failed outcome. #1481: a rejected caller input (a
+        // missing file, a path outside the project) says nothing about the
+        // tier, so it is not a routing outcome.
+        if (!callerInputError) {
+          this.recordOutcome(task, routingTier, false, Date.now() - startTime).catch((e) => { logger.warn('recordOutcome failed', { error: e instanceof Error ? e.message : String(e), taskId: task.id }); });
+        }
         const errorDetails = 'error' in result ? errorDetailsOf(result.error) : undefined;
         return {
           taskId: task.id,
@@ -744,9 +748,13 @@ export class DomainTaskExecutor implements TaskHandlerContext {
       };
     } catch (error) {
       const errorMessage = toErrorMessage(error);
-      await this.publishTaskFailed(task.id, errorMessage, domain, isCallerInputError(error));
-      // ADR-051: Record failed outcome
-      this.recordOutcome(task, routingTier, false, Date.now() - startTime).catch((e) => { logger.warn('recordOutcome failed', { error: e instanceof Error ? e.message : String(e), taskId: task.id }); });
+      const callerInputError = isCallerInputError(error);
+      await this.publishTaskFailed(task.id, errorMessage, domain, callerInputError);
+      // ADR-051: Record failed outcome, unless the caller's input was
+      // rejected: that is not a tier failure (#1481).
+      if (!callerInputError) {
+        this.recordOutcome(task, routingTier, false, Date.now() - startTime).catch((e) => { logger.warn('recordOutcome failed', { error: e instanceof Error ? e.message : String(e), taskId: task.id }); });
+      }
 
       const errorDetails = errorDetailsOf(error);
       return {

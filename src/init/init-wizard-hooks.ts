@@ -138,7 +138,7 @@ export async function configureHooks(projectRoot: string, config: AQEInitConfig)
         hooks: [
           {
             type: 'command',
-            command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" post-task --task-id "$TOOL_RESULT_agent_id" --agent "$TOOL_INPUT_subagent_type" --success true --description "$TOOL_INPUT_prompt" --json',
+            command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" post-task --task-id "$TOOL_RESULT_agent_id" --agent "$TOOL_INPUT_subagent_type" --description "$TOOL_INPUT_prompt" --json',
             timeout: 5,
             continueOnError: true,
           },
@@ -190,7 +190,7 @@ export async function configureHooks(projectRoot: string, config: AQEInitConfig)
             // 1:1 with UserPromptSubmit/route — without this, route
             // sentinels accumulate at quality_score=-1 indefinitely.
             type: 'command',
-            command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" post-route --success true --json',
+            command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" post-route --json',
             timeout: 5,
             continueOnError: true,
           },

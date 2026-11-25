@@ -92,4 +92,17 @@ describe('ModelRouter decided vs observed outcomes (#1481)', () => {
     expect(router.getMetrics().outcomeStats.observed).toBe(0);
     expect(router.getMetrics().totalDecisions).toBe(0);
   });
+
+  it('counts a decision-cache hit as a decision', async () => {
+    const router = createModelRouter({ enableDecisionCache: true });
+
+    await route(router, 'same task');
+    await route(router, 'same task');
+    router.recordOutcome(2, true);
+    router.recordOutcome(2, true);
+    const metrics = router.getMetrics();
+
+    expect(metrics.totalDecisions).toBe(2);
+    expect(metrics.outcomeStats.observed).toBeLessThanOrEqual(metrics.totalDecisions);
+  });
 });

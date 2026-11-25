@@ -216,8 +216,8 @@ export async function handleRoutingMetrics(
 // ============================================================================
 
 export interface RoutingEconomicsParams {
-  /** Task complexity score 0-1 for tier scoring (default: 0.5) */
-  taskComplexity?: number;
+  /** Task complexity score 0-1 for tier scoring (default: 0.5; null = default) */
+  taskComplexity?: number | null;
 }
 
 export interface RoutingEconomicsResult {
@@ -243,16 +243,15 @@ export interface RoutingEconomicsResult {
 export async function handleRoutingEconomics(
   params: RoutingEconomicsParams,
 ): Promise<ToolResult<RoutingEconomicsResult>> {
-  const taskComplexity = params.taskComplexity ?? 0.5;
-  if (typeof taskComplexity !== 'number' || !Number.isFinite(taskComplexity)
-      || taskComplexity < 0 || taskComplexity > 1) {
-    return {
-      success: false,
-      error: `taskComplexity must be a number between 0 and 1, got ${JSON.stringify(params.taskComplexity)}`,
-    };
-  }
-
   try {
+    const { parseTaskComplexity } = await import('../../routing/economic-routing.js');
+    // #1481: same parser as the CLI; null or omitted means the 0.5 default.
+    const parsed = parseTaskComplexity(params.taskComplexity);
+    if (!parsed.ok) {
+      return { success: false, error: parsed.error };
+    }
+    const taskComplexity = parsed.value;
+
     const { createRoutingFeedbackCollector } = await import('../../routing/routing-feedback.js');
     const { getGlobalCostTracker } = await import('../../shared/llm/cost-tracker.js');
 

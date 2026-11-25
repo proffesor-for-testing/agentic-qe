@@ -965,7 +965,8 @@ export class SQLitePatternStore {
 
     // routing_outcomes carries (success, quality_score) per closed turn.
     // Open sentinels (quality_score = -1) and swept stale sentinels carry no
-    // observed outcome, so the quality average skips them (#1481).
+    // observed outcome, nor do hook rows closed by the constant --success true;
+    // the closed count, quality average and success count skip them (#1481).
     const routing = safeGet<{
       total: number;
       closed: number;
@@ -976,7 +977,7 @@ export class SQLitePatternStore {
         COUNT(*) AS total,
         COUNT(CASE WHEN ${OBSERVED_ROUTING_OUTCOME_SQL} THEN 1 END) AS closed,
         AVG(CASE WHEN ${OBSERVED_ROUTING_OUTCOME_SQL} THEN quality_score END) AS avg_q,
-        COALESCE(SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END), 0) AS succ
+        COALESCE(SUM(CASE WHEN success = 1 AND ${OBSERVED_ROUTING_OUTCOME_SQL} THEN 1 ELSE 0 END), 0) AS succ
       FROM routing_outcomes
     `);
 

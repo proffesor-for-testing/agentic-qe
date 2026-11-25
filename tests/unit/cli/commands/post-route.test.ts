@@ -57,6 +57,7 @@ vi.mock('../../../../src/cli/commands/hooks-handlers/hooks-shared.js', async (im
 });
 
 import { registerRoutingHooks } from '../../../../src/cli/commands/hooks-handlers/routing-hooks.js';
+import { createRoutingFeedbackCollector } from '../../../../src/routing/routing-feedback.js';
 
 function seedRoutingOutcomes(db: Database.Database) {
   db.exec(`
@@ -150,7 +151,7 @@ describe('post-route (issue #451)', () => {
 
     const hooks = new Command('hooks');
     registerRoutingHooks(hooks);
-    await hooks.parseAsync(['post-route', '--success', 'true', '--json'], { from: 'user' });
+    await hooks.parseAsync(['post-route', '--outcome', 'success', '--json'], { from: 'user' });
 
     const out = parseJsonOutput();
     expect(out).toMatchObject({ success: true, resolved: true, turnSuccess: true });
@@ -162,7 +163,7 @@ describe('post-route (issue #451)', () => {
     // LIMIT-1 path: most-recent route sentinel closed with the turn's qualityScore.
     expect(byId['route-new']).toMatchObject({ success: 1 });
     expect(byId['route-new'].quality_score).toBeCloseTo(0.675, 5);
-    expect(byId['route-new'].error).toBeNull();
+    expect(byId['route-new'].error).toBe('observed'); // #1481: observed hook close
 
     // #465 sweep: older route sentinels close with the conservative base
     // score and stale-sentinel tag instead of staying at -1 forever.
@@ -195,7 +196,7 @@ describe('post-route (issue #451)', () => {
 
     const hooks = new Command('hooks');
     registerRoutingHooks(hooks);
-    await hooks.parseAsync(['post-route', '--success', 'true', '--json'], { from: 'user' });
+    await hooks.parseAsync(['post-route', '--outcome', 'success', '--json'], { from: 'user' });
 
     const out = parseJsonOutput();
     expect(out).toMatchObject({ success: true, resolved: false });
@@ -210,11 +211,80 @@ describe('post-route (issue #451)', () => {
 
     const hooks = new Command('hooks');
     registerRoutingHooks(hooks);
-    await hooks.parseAsync(['post-route', '--success', 'true', '--json'], { from: 'user' });
+    await hooks.parseAsync(['post-route', '--outcome', 'success', '--json'], { from: 'user' });
     expect(parseJsonOutput()).toMatchObject({ resolved: true });
 
     stdoutLines = [];
-    await hooks.parseAsync(['post-route', '--success', 'true', '--json'], { from: 'user' });
+    await hooks.parseAsync(['post-route', '--outcome', 'success', '--json'], { from: 'user' });
     expect(parseJsonOutput()).toMatchObject({ resolved: false });
+  });
+
+  // #1481: the installed Stop hook passed a constant --success true. It
+  // observes nothing, so the sentinel must not become a success.
+  it.each([
+    ['the installed constant --success true', ['--success', 'true']],
+    ['no result flag (the new installed command)', []],
+  ])('leaves the sentinel open for %s', async (_label, flags) => {
+    insertRouteSentinel(db, 'route-turn', '2026-05-12 10:00:00');
+
+    const hooks = new Command('hooks');
+    registerRoutingHooks(hooks);
+    await hooks.parseAsync(['post-route', ...flags, '--json'], { from: 'user' });
+
+    expect(parseJsonOutput()).toMatchObject({
+      success: true, resolved: false, observed: false, qualityScore: null, turnSuccess: null,
+    });
+    // The seeded row is >5 minutes old, so the stale sweep retires it.
+    const row = db.prepare('SELECT success, error FROM routing_outcomes WHERE id = ?').get('route-turn') as { success: number; error: string };
+    expect(row).toEqual({ success: 0, error: 'stale-sentinel' });
+  });
+
+  it('an unobserved turn adds no outcome to routing accuracy', async () => {
+    insertRouteSentinel(db, 'route-turn', new Date().toISOString().replace('T', ' ').slice(0, 19));
+
+    const hooks = new Command('hooks');
+    registerRoutingHooks(hooks);
+    await hooks.parseAsync(['post-route', '--success', 'true', '--json'], { from: 'user' });
+
+    const collector = createRoutingFeedbackCollector(100);
+    await collector.initialize();
+    const accuracy = collector.analyzeRoutingAccuracy();
+    expect(accuracy.totalOutcomes).toBe(0);
+    expect(accuracy.successRate).toBeNull();
+  });
+
+  it('records an observed --outcome and tags the hook row as observed', async () => {
+    insertRouteSentinel(db, 'route-turn', '2026-05-12 10:00:00');
+
+    const hooks = new Command('hooks');
+    registerRoutingHooks(hooks);
+    await hooks.parseAsync(['post-route', '--outcome', 'failure', '--json'], { from: 'user' });
+
+    expect(parseJsonOutput()).toMatchObject({ resolved: true, observed: true, turnSuccess: false });
+    const row = db.prepare('SELECT success, quality_score, error FROM routing_outcomes WHERE id = ?').get('route-turn') as { success: number; quality_score: number; error: string };
+    expect(row.success).toBe(0);
+    expect(row.error).toBe('observed');
+
+    const collector = createRoutingFeedbackCollector(100);
+    await collector.initialize();
+    const accuracy = collector.analyzeRoutingAccuracy();
+    expect(accuracy.totalOutcomes).toBe(1);
+    expect(accuracy.successRate).toBe(0);
+    // The hook row's followed_recommendation is a placeholder, so it does not
+    // feed follow/override stats.
+    expect(accuracy.followKnownOutcomes).toBe(0);
+    expect(accuracy.overrideRate).toBeNull();
+  });
+
+  it('rejects an --outcome that is not success or failure', async () => {
+    insertRouteSentinel(db, 'route-turn', '2026-05-12 10:00:00');
+
+    const hooks = new Command('hooks');
+    registerRoutingHooks(hooks);
+    await hooks.parseAsync(['post-route', '--outcome', 'maybe', '--json'], { from: 'user' });
+
+    expect(parseJsonOutput()).toMatchObject({ success: false });
+    const row = db.prepare('SELECT quality_score FROM routing_outcomes WHERE id = ?').get('route-turn') as { quality_score: number };
+    expect(row.quality_score).toBe(-1);
   });
 });

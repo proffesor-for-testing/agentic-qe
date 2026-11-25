@@ -1,6 +1,7 @@
 /**
  * #1481: routing metrics read only rows with an observed outcome. Open route
- * sentinels (quality_score = -1) and swept 'stale-sentinel' rows are routing
+ * sentinels (quality_score = -1), swept 'stale-sentinel' rows and hook rows
+ * closed by the installed hooks' constant --success true are routing
  * decisions, not results, and are excluded at read time. No row is modified.
  */
 
@@ -24,6 +25,7 @@ vi.mock('../../../src/kernel/unified-memory.js', async (importOriginal) => {
 
 import { createRoutingFeedbackCollector } from '../../../src/routing/routing-feedback';
 import {
+  OBSERVED_HOOK_OUTCOME_TAG,
   OBSERVED_ROUTING_OUTCOME_SQL,
   STALE_SENTINEL_ERROR,
 } from '../../../src/routing/routing-outcomes-migration';
@@ -51,6 +53,11 @@ function seed(db: Database.Database): void {
   insert.run('open-sentinel', 0, -1, null);
   insert.run('open-low-confidence-sentinel', 0, -1, 'low-confidence');
   insert.run('stale-sentinel', 0, 0.325, STALE_SENTINEL_ERROR);
+  // Hook rows (id prefix 'route-'): the legacy Stop hook closed every turn as
+  // success=1, q=0.675 without observing a result; an observed close is tagged.
+  insert.run('route-legacy-closed', 1, 0.675, null);
+  insert.run('route-legacy-closed-2', 1, 0.675, null);
+  insert.run('route-observed', 0, 0.425, OBSERVED_HOOK_OUTCOME_TAG);
 }
 
 describe('routing outcomes: read-time sentinel exclusion (#1481)', () => {
@@ -70,7 +77,7 @@ describe('routing outcomes: read-time sentinel exclusion (#1481)', () => {
       .all()
       .map((r) => (r as { id: string }).id);
 
-    expect(ids).toEqual(['observed-failure', 'observed-low-confidence', 'observed-success']);
+    expect(ids).toEqual(['observed-failure', 'observed-low-confidence', 'observed-success', 'route-observed']);
   });
 
   it('the collector loads observed outcomes only and leaves the rows intact', async () => {
@@ -78,27 +85,56 @@ describe('routing outcomes: read-time sentinel exclusion (#1481)', () => {
     await collector.initialize();
 
     const accuracy = collector.analyzeRoutingAccuracy();
-    expect(accuracy.totalOutcomes).toBe(3);
-    // 2 of 3 observed outcomes succeeded; the 3 sentinel rows are not failures.
+    expect(accuracy.totalOutcomes).toBe(4);
+    // 2 of 4 observed outcomes succeeded. Before #1481 the two legacy hook
+    // "successes" counted and the sentinels counted as failures.
+    expect(accuracy.successRate).toBe(0.5);
+    // The observed hook row counts for success but not for follow stats: its
+    // followed_recommendation was written before any agent ran.
+    expect(accuracy.followKnownOutcomes).toBe(3);
     expect(accuracy.recommendationSuccessRate).toBeCloseTo(2 / 3);
 
     const total = holder.db!.prepare('SELECT COUNT(*) AS n FROM routing_outcomes').get() as { n: number };
-    expect(total.n).toBe(6);
+    expect(total.n).toBe(9);
   });
 
-  it('a recorded failure lowers the agent success rate', async () => {
+  it('an unrouted outcome is not counted as an override', async () => {
     const collector = createRoutingFeedbackCollector(100);
     await collector.initialize();
-    const before = collector.getAgentMetrics('qe-a')!.successRate;
+    const before = collector.analyzeRoutingAccuracy();
 
     collector.recordOutcome(
       { id: 't', description: 't', complexity: 'medium', domains: [], context: {} } as never,
-      { recommended: 'qe-a', confidence: 0.8 } as never,
-      'qe-a',
+      { recommended: 'unrouted', confidence: 0.8 } as never,
+      'tier-2',
       { success: false, qualityScore: 0, durationMs: 10, error: 'failed' },
     );
+    const after = collector.analyzeRoutingAccuracy();
 
-    expect(collector.getAgentMetrics('qe-a')!.successRate).toBeLessThan(before);
+    // It is an observed failure...
+    expect(after.totalOutcomes).toBe(before.totalOutcomes + 1);
+    expect(after.successRate!).toBeLessThan(before.successRate!);
+    // ...but there was no recommendation to override.
+    expect(after.followKnownOutcomes).toBe(before.followKnownOutcomes);
+    expect(after.overrideRate).toBe(before.overrideRate);
+    expect(collector.getStats().recentOverrides).toBe(0);
+  });
+
+  it('reports null rates, not 0, when nothing was observed', () => {
+    const collector = createRoutingFeedbackCollector(100);
+    const accuracy = collector.analyzeRoutingAccuracy();
+
+    expect(accuracy).toMatchObject({
+      totalOutcomes: 0, successRate: null, overrideRate: null,
+      recommendationSuccessRate: null, overrideSuccessRate: null,
+    });
+  });
+
+  it('keeps the deprecated escalation API as an honest no-op', () => {
+    const collector = createRoutingFeedbackCollector(100, { enableAutoEscalation: true });
+    collector.enableAutoEscalation({ escalateAfterFailures: 1 } as never);
+
+    expect(collector.getEscalationState('qe-a')).toBeNull();
   });
 
   it('the routing-accuracy workflow action counts observed outcomes only', async () => {
@@ -108,9 +144,9 @@ describe('routing outcomes: read-time sentinel exclusion (#1481)', () => {
       metadata: { executionId: 'e', workflowId: 'w', startedAt: new Date() },
     } as never);
 
-    // Before #1481 the 3 sentinel rows were counted as failures: 2/6 = 33.33%.
+    // Before #1481 all 9 rows counted: 4 successes of 9 = 44.44%.
     expect(result.value).toMatchObject({
-      totalOutcomes: 3, successfulOutcomes: 2, successRate: 66.67, source: 'database',
+      totalOutcomes: 4, successfulOutcomes: 2, successRate: 50, source: 'database',
     });
   });
 });

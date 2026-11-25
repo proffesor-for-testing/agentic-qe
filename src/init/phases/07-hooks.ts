@@ -800,7 +800,7 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
           hooks: [
             {
               type: 'command',
-              command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" post-task --task-id "$TOOL_RESULT_agent_id" --agent "$TOOL_INPUT_subagent_type" --success true --description "$TOOL_INPUT_prompt" --json',
+              command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" post-task --task-id "$TOOL_RESULT_agent_id" --agent "$TOOL_INPUT_subagent_type" --description "$TOOL_INPUT_prompt" --json',
               timeout: 5,
               continueOnError: true,
             },
@@ -866,7 +866,7 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
               // — without this, `routing_outcomes` accumulates quality_score=-1
               // rows forever in direct-work sessions (no Task/Agent spawned).
               type: 'command',
-              command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" post-route --success true --json',
+              command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" post-route --json',
               timeout: 5,
               continueOnError: true,
             },

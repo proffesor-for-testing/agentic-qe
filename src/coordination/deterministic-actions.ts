@@ -307,9 +307,10 @@ const routingAccuracyCheck: DeterministicAction = {
     successfulOutcomes = successfulOutcomes ?? 0;
     confidenceCorrelation = confidenceCorrelation ?? 0;
 
+    // #1481: no observed outcome is no success rate, not 0%.
     const successRate = totalOutcomes > 0
       ? Math.round((successfulOutcomes / totalOutcomes) * 10000) / 100
-      : 0;
+      : null;
 
     return ok({
       successRate,

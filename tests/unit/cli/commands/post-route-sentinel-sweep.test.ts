@@ -109,7 +109,7 @@ describe('post-route sweeps stale sentinels (#465)', () => {
     const hooks = new Command('hooks');
     registerRoutingHooks(hooks);
     await hooks.parseAsync(
-      ['post-route', '--success', String(success), '--json'],
+      ['post-route', '--outcome', success ? 'success' : 'failure', '--json'],
       { from: 'user' },
     );
   };
@@ -133,7 +133,7 @@ describe('post-route sweeps stale sentinels (#465)', () => {
       .get() as { success: number; quality_score: number; error: string | null };
     expect(fresh.success).toBe(1);
     expect(fresh.quality_score).toBeCloseTo(0.675, 5);
-    expect(fresh.error).toBeNull();
+    expect(fresh.error).toBe('observed'); // #1481: observed hook close
 
     // Stale rows: closed with conservative base (0.325), tagged stale-sentinel
     const stales = db

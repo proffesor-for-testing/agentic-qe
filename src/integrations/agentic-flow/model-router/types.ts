@@ -778,9 +778,10 @@ export interface IModelRouter {
   /**
    * Report the observed outcome of a task that ran on `tier` (#1481).
    * Routing decisions are recorded as decided; only this call records a
-   * success or a failure.
+   * success or a failure. Optional so existing implementations still
+   * type-check; callers use `router.recordOutcome?.(...)`.
    */
-  recordOutcome(tier: ModelTier, success: boolean, durationMs?: number): void;
+  recordOutcome?(tier: ModelTier, success: boolean, durationMs?: number): void;
 
   /**
    * Get Agent Booster health status

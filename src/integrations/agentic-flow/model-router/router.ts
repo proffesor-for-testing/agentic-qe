@@ -155,8 +155,6 @@ interface RoutingEvent {
   wasDowngraded: boolean;
   wasManualOverride: boolean;
   agentBoosterEligible: boolean;
-  /** The router fell back after an internal error or timeout */
-  routingError: boolean;
 }
 
 /**
@@ -464,6 +462,9 @@ export class ModelRouter implements IModelRouter {
       // Check cache first
       const cached = this.cache.get(input);
       if (cached) {
+        // A cache hit is still a routing decision; count it so observed
+        // outcomes never outnumber decisions (#1481).
+        this.recordDecision(cached);
         return cached;
       }
 
@@ -489,7 +490,7 @@ export class ModelRouter implements IModelRouter {
 
       // Record the decision only. Success or failure is unknown until the
       // task runs and its outcome is reported via recordOutcome (#1481).
-      this.recordDecision(decision, false);
+      this.recordDecision(decision);
 
       return decision;
     } catch (error) {
@@ -501,7 +502,7 @@ export class ModelRouter implements IModelRouter {
         error instanceof Error ? error : new Error('Unknown error')
       );
 
-      this.recordDecision(fallbackDecision, true);
+      this.recordDecision(fallbackDecision);
 
       return fallbackDecision;
     }
@@ -846,7 +847,7 @@ export class ModelRouter implements IModelRouter {
   /**
    * Record a routing decision. A decision carries no success signal (#1481).
    */
-  private recordDecision(decision: RoutingDecision, routingError: boolean): void {
+  private recordDecision(decision: RoutingDecision): void {
     this.metrics.record({
       timestamp: decision.metadata.timestamp,
       tier: decision.tier,
@@ -856,7 +857,6 @@ export class ModelRouter implements IModelRouter {
       wasDowngraded: decision.budgetDecision.wasDowngraded,
       wasManualOverride: false, // Would need to track this
       agentBoosterEligible: decision.agentBoosterEligible,
-      routingError,
     });
   }
 
