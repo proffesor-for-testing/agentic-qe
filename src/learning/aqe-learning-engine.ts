@@ -171,6 +171,9 @@ export interface AQELearningEngineStats extends QEReasoningBankStats {
 // AQE Learning Engine
 // ============================================================================
 
+/** How long dispose() waits for open trajectories to end (#1455). */
+const DISPOSE_TRAJECTORY_END_MS = 30_000;
+
 /**
  * Unified AQE Learning Engine
  *
@@ -1128,9 +1131,34 @@ export class AQELearningEngine {
   // ==========================================================================
 
   /**
+   * End, as failed, the bridge trajectories of tasks that are still running, so ruflo
+   * does not keep them open (#1455). Waits at most DISPOSE_TRAJECTORY_END_MS.
+   */
+  private async endOpenTrajectories(): Promise<void> {
+    const bridge = this.claudeFlowBridge?.trajectory;
+    this.bridgeTrajectoryIds.clear();
+    if (!bridge) return;
+    const ids = bridge.openTrajectoryIds();
+    if (ids.length === 0) return;
+    const ending = Promise.allSettled(
+      ids.map((id) => bridge.endTrajectory(id, false, 'AQELearningEngine disposed before the task ended'))
+    );
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<'timeout'>((resolve) => {
+      timer = setTimeout(() => resolve('timeout'), DISPOSE_TRAJECTORY_END_MS);
+    });
+    const outcome = await Promise.race([ending, timeout]);
+    clearTimeout(timer);
+    if (outcome === 'timeout') {
+      console.warn(`[AQELearningEngine] ${ids.length} trajectory end(s) still pending after ${DISPOSE_TRAJECTORY_END_MS} ms at dispose`);
+    }
+  }
+
+  /**
    * Dispose the engine
    */
   async dispose(): Promise<void> {
+    await this.endOpenTrajectories();
     if (this._domainTransferInterval) {
       clearInterval(this._domainTransferInterval);
       this._domainTransferInterval = null;

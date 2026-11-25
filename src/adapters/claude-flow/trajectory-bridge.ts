@@ -16,7 +16,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { Trajectory } from './types.js';
 import { detectClaudeFlow, resolveCliPackage } from './detect.js';
-import { KeyedSerialQueue, runRufloTool, type RufloToolOptions } from './ruflo-tool.js';
+import { runRufloTool, type RufloToolOptions } from './ruflo-tool.js';
 
 const cliPkg = resolveCliPackage();
 
@@ -26,8 +26,6 @@ const cliPkg = resolveCliPackage();
 export class TrajectoryBridge {
   private claudeFlowAvailable = false;
   private localTrajectories: Map<string, Trajectory> = new Map();
-  /** ruflo calls of one trajectory run in order (#1455). */
-  private rufloQueue = new KeyedSerialQueue();
 
   constructor(private options: { projectRoot: string }) {}
 
@@ -90,10 +88,10 @@ export class TrajectoryBridge {
   /**
    * Record a trajectory step.
    *
-   * The step is stored locally at once, in call order. It is sent to ruflo only for a
-   * trajectory ruflo started; an unknown id is never sent (#1455). ruflo calls for one
-   * trajectory run one at a time, and the returned promise settles when this step's
-   * ruflo call has.
+   * The step is stored locally at once, in call order. It is sent to ruflo only for an
+   * open trajectory ruflo started; an unknown or ended id is never sent (#1455). ruflo
+   * calls of one project run one at a time in call order (runRufloTool), and the
+   * returned promise settles when this step's ruflo call has.
    */
   async recordStep(
     trajectoryId: string,
@@ -113,29 +111,29 @@ export class TrajectoryBridge {
     });
 
     if (!this.claudeFlowAvailable || trajectory.rufloTracked !== true) return;
-    await this.rufloQueue.run(trajectoryId, async () => {
-      const step = await runRufloTool(
-        'hooks_intelligence_trajectory-step',
-        {
-          trajectoryId,
-          action,
-          ...(result ? { result } : {}),
-          ...(quality !== undefined ? { quality } : {}),
-        },
-        this.rufloOptions()
+    const step = await runRufloTool(
+      'hooks_intelligence_trajectory-step',
+      {
+        trajectoryId,
+        action,
+        ...(result ? { result } : {}),
+        ...(quality !== undefined ? { quality } : {}),
+      },
+      this.rufloOptions()
+    );
+    if (!step.ok || step.data.recorded !== true) {
+      // Non-critical: the step is recorded locally
+      console.debug(
+        '[TrajectoryBridge] ruflo did not record the trajectory step:',
+        step.ok ? String(step.data.implementation ?? 'recorded: false') : step.reason
       );
-      if (!step.ok || step.data.recorded !== true) {
-        // Non-critical: the step is recorded locally
-        console.debug(
-          '[TrajectoryBridge] ruflo did not record the trajectory step:',
-          step.ok ? String(step.data.implementation ?? 'recorded: false') : step.reason
-        );
-      }
-    });
+    }
   }
 
   /**
-   * End a trajectory, after its pending ruflo step calls.
+   * End a trajectory: in ruflo (after its pending steps) when ruflo started it, then
+   * locally. The trajectory is removed from the bridge once ended; later steps or ends
+   * for its id are ignored.
    */
   async endTrajectory(
     trajectoryId: string,
@@ -143,41 +141,41 @@ export class TrajectoryBridge {
     feedback?: string
   ): Promise<Trajectory | undefined> {
     const trajectory = this.localTrajectories.get(trajectoryId);
+    if (!trajectory) return undefined;
+    this.localTrajectories.delete(trajectoryId);
 
-    if (this.claudeFlowAvailable && trajectory?.rufloTracked === true) {
-      await this.rufloQueue.run(trajectoryId, async () => {
-        const ended = await runRufloTool(
-          'hooks_intelligence_trajectory-end',
-          { trajectoryId, success, ...(feedback ? { feedback } : {}) },
-          { ...this.rufloOptions(), timeoutMs: 30000 }
+    if (this.claudeFlowAvailable && trajectory.rufloTracked === true) {
+      const ended = await runRufloTool(
+        'hooks_intelligence_trajectory-end',
+        { trajectoryId, success, ...(feedback ? { feedback } : {}) },
+        { ...this.rufloOptions(), timeoutMs: 30000 }
+      );
+      if (!ended.ok || ended.data.trajectory == null) {
+        // Non-critical: the local trajectory is still completed below
+        console.debug(
+          '[TrajectoryBridge] ruflo did not end the trajectory:',
+          ended.ok ? String(ended.data.note ?? 'trajectory not found') : ended.reason
         );
-        if (!ended.ok || ended.data.trajectory == null) {
-          // Non-critical: the local trajectory is still completed below
-          console.debug(
-            '[TrajectoryBridge] ruflo did not end the trajectory:',
-            ended.ok ? String(ended.data.note ?? 'trajectory not found') : ended.reason
-          );
-        }
-      });
+      }
     }
 
-    // Complete local trajectory
-    if (trajectory) {
-      trajectory.success = success;
-      trajectory.feedback = feedback;
-      trajectory.completedAt = Date.now();
+    trajectory.success = success;
+    trajectory.feedback = feedback;
+    trajectory.completedAt = Date.now();
 
-      // Persist to SQLite for local learning
-      await this.persistTrajectory(trajectory);
+    // Persist to SQLite for local learning
+    await this.persistTrajectory(trajectory);
 
-      return trajectory;
-    }
+    return trajectory;
+  }
 
-    return undefined;
+  /** Ids of trajectories started and not yet ended. */
+  openTrajectoryIds(): string[] {
+    return [...this.localTrajectories.keys()];
   }
 
   /**
-   * Get trajectory by ID
+   * Get an open trajectory by ID (an ended one has been removed)
    */
   getTrajectory(trajectoryId: string): Trajectory | undefined {
     return this.localTrajectories.get(trajectoryId);

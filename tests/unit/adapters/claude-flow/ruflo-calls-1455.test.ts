@@ -8,25 +8,28 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// `ruflo mcp exec` runs through async execFile; the kept hooks calls use execFileSync.
+// `ruflo mcp exec` runs through runCommandTree (async, kills the process tree on
+// timeout; tested for real in process-tree-1455.test.ts); the kept hooks calls use execFileSync.
 const execFile = vi.fn();
 const execFileSync = vi.fn();
-vi.mock('child_process', () => ({ execFile, execFileSync }));
+vi.mock('child_process', () => ({ execFileSync: (...a: unknown[]) => execFileSync(...a) }));
+vi.mock('../../../../src/adapters/claude-flow/process-tree.js', () => ({
+  runCommandTree: (...a: unknown[]) => execFile(...a),
+}));
 
-type ExecCallback = (error: Error | null, stdout: string, stderr: string) => void;
-/** An execFile implementation that exits 0 with `stdout`. */
+/** A runCommandTree implementation that exits 0 with `stdout`, after `ms`. */
 const reply =
-  (stdout: string, stderr = '') =>
-  (_bin: string, _args: string[], _opts: unknown, cb: ExecCallback) => {
-    setImmediate(() => cb(null, stdout, stderr));
-  };
-/** An execFile implementation that exits 1. */
+  (stdout: string, ms = 0) =>
+  (_bin: string, _args: string[], _opts: unknown) =>
+    new Promise<string>((resolve) => setTimeout(() => resolve(stdout), ms));
+/** A runCommandTree implementation that fails like a non-zero exit (or a timeout, with `extra`). */
 const exit1 =
   (stderr: string, stdout = '', extra: Record<string, unknown> = {}) =>
-  (_bin: string, _args: string[], _opts: unknown, cb: ExecCallback) => {
-    setImmediate(() => cb(Object.assign(new Error('Command failed: npx --no-install ruflo ...'), { code: 1 }, extra), stdout, stderr));
-  };
-/** Queue execFile replies, one per call. */
+  (_bin: string, _args: string[], _opts: unknown) =>
+    new Promise<string>((_resolve, reject) =>
+      setImmediate(() => reject(Object.assign(new Error('Command failed with exit code 1: npx --no-install ruflo mcp'), { code: 1, stdout, stderr }, extra)))
+    );
+/** Queue runCommandTree replies, one per call. */
 function replies(...impls: Array<ReturnType<typeof reply>>) {
   for (const impl of impls) execFile.mockImplementationOnce(impl);
 }
@@ -86,21 +89,19 @@ describe('runRufloTool', () => {
     expect(argvOf(0)).toEqual([
       '--no-install', 'ruflo', 'mcp', 'exec', '--tool', 'hooks_intelligence_trajectory-start', '--params', '{"task":"t","agent":"a"}',
     ]);
-    expect(execFile.mock.calls[0][2]).toMatchObject({ cwd: '/p', timeout: 15000 });
+    expect(execFile.mock.calls[0][2]).toMatchObject({ cwd: '/p', timeoutMs: 15000 });
     expect(execFileSync).not.toHaveBeenCalled();
     expect(r).toEqual({ ok: true, data: expect.objectContaining({ trajectoryId: 'traj-1795598815055-kmjsaq' }) });
   });
 
   it('should_notBlockTheEventLoop_when_rufloIsRunning', async () => {
-    let finish: ExecCallback | undefined;
-    execFile.mockImplementationOnce((_b: string, _a: string[], _o: unknown, cb: ExecCallback) => {
-      finish = cb;
-    });
-    const pending = runRufloTool('hooks_intelligence_pattern-search', { query: 'q' });
+    let finish: ((out: string) => void) | undefined;
+    execFile.mockImplementationOnce(() => new Promise<string>((resolve) => { finish = resolve; }));
+    const pending = runRufloTool('hooks_intelligence_pattern-search', { query: 'q' }, { cwd: '/loop' });
     let ticked = false;
     await new Promise<void>((resolve) => setImmediate(() => { ticked = true; resolve(); }));
     expect(ticked).toBe(true);
-    finish!(null, mcpExec({ results: [] }), '');
+    finish!(mcpExec({ results: [] }));
     expect(await pending).toMatchObject({ ok: true });
   });
 
@@ -111,7 +112,7 @@ describe('runRufloTool', () => {
   });
 
   it('should_reportATimeout_when_rufloIsKilled', async () => {
-    replies(exit1('[INFO] Executing tool: hooks_intelligence_trajectory-end\n', '', { killed: true, signal: 'SIGTERM' }));
+    replies(exit1('[INFO] Executing tool: hooks_intelligence_trajectory-end\n', '', { killed: true, signal: 'SIGTERM', message: 'timed out after 30000 ms' }));
     const r = await runRufloTool('hooks_intelligence_trajectory-end', { trajectoryId: 't' }, { timeoutMs: 30000 });
     expect(r).toEqual({ ok: false, reason: 'ruflo mcp exec hooks_intelligence_trajectory-end failed: timed out after 30000 ms' });
   });
@@ -128,6 +129,13 @@ describe('runRufloTool', () => {
     replies(reply(mcpExec({ success: false, error: 'sourcePath contains path traversal (..)' })));
     const r = await runRufloTool('hooks_intelligence_pattern-store', { pattern: 'p' });
     expect(r).toEqual({ ok: false, reason: expect.stringContaining('path traversal') });
+  });
+
+  it('should_succeed_when_trajectoryEndEchoesAFailedOutcome', async () => {
+    // Real 3.76.0 result of ending a trajectory with success: false.
+    replies(reply(mcpExec({ trajectoryId: 't', success: false, persisted: true, trajectory: { totalSteps: 1 } })));
+    const r = await runRufloTool('hooks_intelligence_trajectory-end', { trajectoryId: 't', success: false });
+    expect(r).toMatchObject({ ok: true, data: { success: false, trajectory: { totalSteps: 1 } } });
   });
 
   it('should_parseTheResultObject_when_textFollowsIt', () => {
@@ -153,6 +161,56 @@ describe('KeyedSerialQueue', () => {
     const next = q.run('t', () => Promise.resolve('ok'));
     await expect(failed).rejects.toThrow('x');
     expect(await next).toBe('ok');
+  });
+});
+
+describe('runRufloTool project queue', () => {
+  /** Tracks how many ruflo processes run at once, per cwd. */
+  function trackConcurrency() {
+    const inFlight = new Map<string, number>();
+    const max = new Map<string, number>();
+    execFile.mockImplementation((_b: string, _a: string[], opts: { cwd: string }) => {
+      inFlight.set(opts.cwd, (inFlight.get(opts.cwd) ?? 0) + 1);
+      max.set(opts.cwd, Math.max(max.get(opts.cwd) ?? 0, inFlight.get(opts.cwd)!));
+      return new Promise<string>((resolve) =>
+        setTimeout(() => { inFlight.set(opts.cwd, inFlight.get(opts.cwd)! - 1); resolve(STEP_RECORDED); }, 5)
+      );
+    });
+    return max;
+  }
+
+  it('should_runOneRufloProcessAtATimePerProject_when_differentTrajectoriesAndToolsAreCalled', async () => {
+    const max = trackConcurrency();
+    await Promise.all([
+      runRufloTool('hooks_intelligence_trajectory-start', { task: 'a' }, { cwd: '/proj' }),
+      runRufloTool('hooks_intelligence_trajectory-start', { task: 'b' }, { cwd: '/proj/' }), // same resolved path
+      runRufloTool('hooks_intelligence_trajectory-step', { trajectoryId: 'x', action: 's' }, { cwd: '/proj' }),
+      runRufloTool('hooks_intelligence_pattern-store', { pattern: 'p' }, { cwd: '/proj' }),
+      runRufloTool('hooks_intelligence_pattern-search', { query: 'q' }, { cwd: '/proj' }),
+    ]);
+    expect(max.get('/proj')).toBe(1);
+    expect(execFile.mock.calls.map((c) => (c[1] as string[])[5])).toEqual([
+      'hooks_intelligence_trajectory-start',
+      'hooks_intelligence_trajectory-start',
+      'hooks_intelligence_trajectory-step',
+      'hooks_intelligence_pattern-store',
+      'hooks_intelligence_pattern-search',
+    ]);
+  });
+
+  it('should_runProjectsInParallel_when_cwdsDiffer', async () => {
+    const max = trackConcurrency();
+    let both = 0;
+    const orig = execFile.getMockImplementation()!;
+    execFile.mockImplementation((b: string, a: string[], o: { cwd: string }) => { both++; return orig(b, a, o); });
+    const pending = [
+      runRufloTool('hooks_intelligence_pattern-search', { query: 'q' }, { cwd: '/one' }),
+      runRufloTool('hooks_intelligence_pattern-search', { query: 'q' }, { cwd: '/two' }),
+    ];
+    await new Promise((r) => setTimeout(r, 1));
+    expect(both).toBe(2); // both started before either finished
+    await Promise.all(pending);
+    expect([max.get('/one'), max.get('/two')]).toEqual([1, 1]);
   });
 });
 
@@ -187,28 +245,37 @@ describe('TrajectoryBridge with Claude Flow', () => {
     expect(execFile).not.toHaveBeenCalled();
   });
 
-  it('should_sendStepsOneAtATimeInOrder_when_recordedConcurrently', async () => {
+  it('should_sendStepsOneAtATimeInOrderAndPrune_when_recordedConcurrently', async () => {
     replies(reply(STARTED));
     const b = await bridge();
     const id = await b.startTrajectory('t');
 
     let inFlight = 0;
     let maxInFlight = 0;
-    execFile.mockImplementation((_b: string, args: string[], _o: unknown, cb: ExecCallback) => {
+    execFile.mockImplementation((_b: string, args: string[]) => {
       inFlight++;
       maxInFlight = Math.max(maxInFlight, inFlight);
-      setTimeout(() => {
-        inFlight--;
-        cb(null, args.includes('hooks_intelligence_trajectory-end') ? ENDED : STEP_RECORDED, '');
-      }, 5);
+      return new Promise<string>((resolve) =>
+        setTimeout(() => {
+          inFlight--;
+          resolve(args.includes('hooks_intelligence_trajectory-end') ? ENDED : STEP_RECORDED);
+        }, 5)
+      );
     });
-    await Promise.all([1, 2, 3, 4, 5].map((n) => b.recordStep(id, `step ${n}`)));
-    const done = await b.endTrajectory(id, true);
+    const steps = [1, 2, 3, 4, 5].map((n) => b.recordStep(id, `step ${n}`));
+    const done = await b.endTrajectory(id, true); // called while the steps are pending
+    await Promise.all(steps);
 
     expect(maxInFlight).toBe(1);
     const sent = execFile.mock.calls.slice(1).map((c) => JSON.parse((c[1] as string[]).at(-1)!).action ?? 'end');
     expect(sent).toEqual(['step 1', 'step 2', 'step 3', 'step 4', 'step 5', 'end']);
     expect(done?.steps.map((s) => s.action)).toEqual(['step 1', 'step 2', 'step 3', 'step 4', 'step 5']);
+    // Ended trajectories are removed: no leak, and later calls for the id are ignored.
+    expect(b.getTrajectory(id)).toBeUndefined();
+    expect(b.openTrajectoryIds()).toEqual([]);
+    await b.recordStep(id, 'late');
+    expect(await b.endTrajectory(id, true)).toBeUndefined();
+    expect(execFile).toHaveBeenCalledTimes(7);
   });
 
   it('should_trackLocallyAndStopCallingRuflo_when_rufloStartsNoTrajectory', async () => {
@@ -272,6 +339,11 @@ describe('ModelRouterBridge', () => {
     ['1', 1],
   ])('should_divideOnlyPercentages_when_parsing %s', (raw, expected) => {
     expect(confidenceFraction(raw)).toBeCloseTo(expected);
+  });
+
+  it('should_returnNull_when_theMatchIsNotANumber', () => {
+    expect(confidenceFraction('.')).toBeNull();
+    expect(confidenceFraction('.%')).toBeNull();
   });
 });
 
@@ -389,16 +461,16 @@ describe('ClaudeFlowAdapterImpl', () => {
     expect(JSON.parse(argvOf(4).at(-1)!)).toEqual({ query: 'mocks network', topK: 5 });
   });
 
-  it('should_serializeStepsOfOneTrajectory_when_calledConcurrently', async () => {
+  it('should_serializeRufloCalls_when_calledConcurrently', async () => {
     const a = await adapter();
     let inFlight = 0;
     let maxInFlight = 0;
-    execFile.mockImplementation((_b: string, _a: string[], _o: unknown, cb: ExecCallback) => {
+    execFile.mockImplementation(() => {
       inFlight++;
       maxInFlight = Math.max(maxInFlight, inFlight);
-      setTimeout(() => { inFlight--; cb(null, STEP_RECORDED, ''); }, 5);
+      return new Promise<string>((resolve) => setTimeout(() => { inFlight--; resolve(STEP_RECORDED); }, 5));
     });
-    const results = await Promise.all([1, 2, 3].map((n) => a.recordStep('traj-x', `s${n}`)));
+    const results = await Promise.all([a.recordStep('traj-x', 's1'), a.recordStep('traj-y', 's2'), a.recordStep('traj-x', 's3')]);
     expect(results.every((r) => r.status === 'ok')).toBe(true);
     expect(maxInFlight).toBe(1);
   });

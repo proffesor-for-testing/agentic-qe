@@ -18,7 +18,7 @@
 import type { ClaudeFlowAdapter, ClaudeFlowCallResult, ClaudeFlowFeatures } from './types.js';
 import { detectClaudeFlow } from '../../adapters/claude-flow/detect.js';
 import { confidenceFraction } from '../../adapters/claude-flow/model-router-bridge.js';
-import { KeyedSerialQueue, runRufloTool, type RufloToolName } from '../../adapters/claude-flow/ruflo-tool.js';
+import { runRufloTool, type RufloToolName } from '../../adapters/claude-flow/ruflo-tool.js';
 import { safeJsonParse } from '../../shared/safe-json.js';
 
 /** Shared execFileSync options */
@@ -53,8 +53,6 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
   readonly name = 'claude-flow' as const;
   private initialized = false;
   private available = false;
-  /** ruflo calls of one trajectory run in order (#1455). */
-  private trajectoryQueue = new KeyedSerialQueue();
 
   /**
    * Check if Claude Flow is available (no npm auto-install)
@@ -150,14 +148,12 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
     result?: string,
     quality?: number
   ): Promise<ClaudeFlowCallResult> {
-    const r = await this.trajectoryQueue.run(trajectoryId, () =>
-      this.tool('hooks_intelligence_trajectory-step', {
-        trajectoryId,
-        action,
-        ...(result ? { result } : {}),
-        ...(quality !== undefined ? { quality } : {}),
-      })
-    );
+    const r = await this.tool('hooks_intelligence_trajectory-step', {
+      trajectoryId,
+      action,
+      ...(result ? { result } : {}),
+      ...(quality !== undefined ? { quality } : {}),
+    });
     if (r.status !== 'ok') return r;
     return r.value.recorded === true
       ? { status: 'ok', value: undefined }
@@ -172,9 +168,7 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
     success: boolean,
     feedback?: string
   ): Promise<ClaudeFlowCallResult> {
-    const r = await this.trajectoryQueue.run(trajectoryId, () =>
-      this.tool('hooks_intelligence_trajectory-end', { trajectoryId, success, ...(feedback ? { feedback } : {}) }, 30000)
-    );
+    const r = await this.tool('hooks_intelligence_trajectory-end', { trajectoryId, success, ...(feedback ? { feedback } : {}) }, 30000);
     if (r.status !== 'ok') return r;
     return r.value.trajectory != null
       ? { status: 'ok', value: undefined }
@@ -201,7 +195,7 @@ export class ClaudeFlowAdapterImpl implements ClaudeFlowAdapter {
 
       return {
         model: (modelMatch?.[1]?.toLowerCase() as 'haiku' | 'sonnet' | 'opus') || 'sonnet',
-        confidence: confMatch ? confidenceFraction(confMatch[1]) : 0.7,
+        confidence: (confMatch && confidenceFraction(confMatch[1])) ?? 0.7,
       };
     } catch (error) {
       // Non-critical: model routing failed, using fallback

@@ -11,7 +11,9 @@
  * output without a JSON result, or a result that reports `success: false`.
  */
 
+import { resolve as resolvePath } from 'node:path';
 import { resolveCliPackage } from './detect.js';
+import { runCommandTree } from './process-tree.js';
 
 /**
  * The ruflo MCP tools AQE runs. tests/unit/packaging/ruflo-argv-surface-1455.test.ts
@@ -101,61 +103,47 @@ export function rufloErrorText(error: unknown): string {
   return String(error);
 }
 
-/** stdout of `npx <args>`, run without a shell and without blocking the event loop. */
-function execNpx(args: string[], cwd: string | undefined, timeoutMs: number): Promise<string> {
-  return import('child_process').then(
-    ({ execFile }) =>
-      new Promise<string>((resolve, reject) => {
-        execFile(
-          'npx',
-          args,
-          { encoding: 'utf-8', timeout: timeoutMs, cwd, maxBuffer: 16 * 1024 * 1024, windowsHide: true },
-          (error, stdout, stderr) => {
-            if (!error) return resolve(String(stdout));
-            const killed = (error as { killed?: boolean }).killed === true;
-            reject(
-              Object.assign(error, {
-                stdout: String(stdout ?? ''),
-                stderr: String(stderr ?? ''),
-                message: killed ? `timed out after ${timeoutMs} ms` : error.message,
-              })
-            );
-          }
-        );
-      })
-  );
-}
-
 /**
- * Run one ruflo MCP tool via `npx --no-install <ruflo> mcp exec`. Asynchronous: each call
- * is a ruflo process (about 1.4 s, 3 s cold, measured on 3.76.0).
+ * Run one ruflo MCP tool via `npx --no-install <ruflo> mcp exec`, asynchronously.
+ *
+ * Every `mcp exec` reads and rewrites the same files in the project (`.claude-flow/`,
+ * `.swarm/`), so concurrent calls lose each other's writes: 3 parallel trajectory starts
+ * recorded 1 trajectory on ruflo 3.76.0. Calls for one project directory therefore run
+ * one at a time, in call order (PROJECT_QUEUE). Other processes are not covered (#1492).
+ *
+ * Each call is a ruflo process: 1.1-1.5 s and about 350 MB RSS (3.76.0 and 3.80.7). On
+ * timeout the whole process tree is killed (runCommandTree).
  */
-export async function runRufloTool(
+export function runRufloTool(
   tool: RufloToolName,
   params: Record<string, unknown>,
   options: RufloToolOptions = {},
 ): Promise<RufloToolResult> {
-  let stdout: string;
-  try {
-    // ruflo-argv-unverifiable: `tool` is a RufloToolName; RUFLO_TOOLS is checked against the snapshot
-    stdout = await execNpx(rufloToolArgv(tool, params, options.cliPkg ?? resolveCliPackage()), options.cwd, options.timeoutMs ?? 15000);
-  } catch (error) {
-    return { ok: false, reason: `ruflo mcp exec ${tool} failed: ${rufloErrorText(error)}` };
-  }
-  const data = parseMcpExecOutput(stdout);
-  if (!data) return { ok: false, reason: `ruflo mcp exec ${tool} printed no JSON result` };
-  if (data.success === false) {
-    const why = data.error ?? data.message ?? 'success: false';
-    return { ok: false, reason: `ruflo ${tool} reported failure: ${String(why)}` };
-  }
-  return { ok: true, data };
+  const cwd = resolvePath(options.cwd ?? process.cwd());
+  const timeoutMs = options.timeoutMs ?? 15000;
+  // ruflo-argv-unverifiable: `tool` is a RufloToolName; RUFLO_TOOLS is checked against the snapshot
+  const argv = rufloToolArgv(tool, params, options.cliPkg ?? resolveCliPackage());
+  // Queued synchronously, so calls run in the order they were made.
+  return PROJECT_QUEUE.run(cwd, async (): Promise<RufloToolResult> => {
+    let stdout: string;
+    try {
+      stdout = await runCommandTree('npx', argv, { cwd, timeoutMs });
+    } catch (error) {
+      return { ok: false, reason: `ruflo mcp exec ${tool} failed: ${rufloErrorText(error)}` };
+    }
+    const data = parseMcpExecOutput(stdout);
+    if (!data) return { ok: false, reason: `ruflo mcp exec ${tool} printed no JSON result` };
+    // ruflo reports a failed tool as `{ success: false, error | message }`. A bare
+    // `success: false` is data: trajectory-end echoes the trajectory's own outcome.
+    if (data.success === false && (data.error !== undefined || data.message !== undefined)) {
+      const why = data.error ?? data.message;
+      return { ok: false, reason: `ruflo ${tool} reported failure: ${String(why)}` };
+    }
+    return { ok: true, data };
+  });
 }
 
-/**
- * Runs tasks with the same key one after another (#1455). ruflo loses steps when
- * several `mcp exec` processes write one trajectory at once (5 parallel steps: 2
- * returned `recorded: false`, `totalSteps` 1, on 3.76.0).
- */
+/** Runs tasks with the same key one after another, in call order; a rejection does not stop the queue. */
 export class KeyedSerialQueue {
   private tails = new Map<string, Promise<unknown>>();
 
@@ -170,3 +158,6 @@ export class KeyedSerialQueue {
     return next;
   }
 }
+
+/** One queue per resolved project directory for every ruflo `mcp exec` in this process. */
+const PROJECT_QUEUE = new KeyedSerialQueue();

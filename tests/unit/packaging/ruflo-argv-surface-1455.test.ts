@@ -127,6 +127,19 @@ describe('ruflo argv calls in src/ (#1455)', () => {
       ['block comment', "execFileSync('npx', ['--no-install', p, /* c */ 'hooks', 'intelligence', 'trajectory-start']);", /^'hooks intelligence' has no subcommand 'trajectory-start'$/],
       ['line comment', "execFileSync('npx', ['--no-install', p, // c\n 'hooks', 'intelligence', 'trajectory-start']);", /^'hooks intelligence' has no subcommand 'trajectory-start'$/],
       ['global --format value', "execFileSync('npx', ['--no-install', p, 'hooks', 'build-agents', '--format', 'yaml']);", /^--format must be one of text, json, table, not 'yaml'$/],
+      // Round-2 review of PR #1489 (r2probe.mjs).
+      ['marker over a bad path', "// ruflo-argv-unverifiable: extra flags come from config\nexecFileSync('npx', ['--no-install', p, 'hooks', 'intelligence', 'trajectory-start', ...extra]);", /^'hooks intelligence' has no subcommand 'trajectory-start'$/],
+      ['marker over a bad tool', "// ruflo-argv-unverifiable: extra flags come from config\nexecFileSync('npx', ['--no-install', p, 'mcp', 'exec', '--tool', 'hooks_bogus', ...extra]);", /^unknown MCP tool 'hooks_bogus'$/],
+      ['marker two lines up', "// ruflo-argv-unverifiable: extra flags come from config\n\n\nexecFileSync('npx', ['--no-install', p, ...rufloArgs]);", /^UNVERIFIABLE: \.\.\.rufloArgs/],
+      ['cliPkg without --no-install', "execFileSync('npx', [cliPkg, 'hooks', 'intelligence', 'trajectory-start']);", /^'hooks intelligence' has no subcommand 'trajectory-start'$/],
+      ['splice of a flag', "const args = ['--no-install', p, 'hooks', 'model-route']; args.splice(4, 0, '--bogus');", /^UNVERIFIABLE: flag added with push\(\)\/unshift\(\)\/splice\(\) or by index/],
+      ['index assignment of a flag', "const args = ['--no-install', p, 'hooks', 'model-route']; args[4] = '--bogus';", /^UNVERIFIABLE: flag added with push\(\)\/unshift\(\)\/splice\(\) or by index/],
+      ['command string', "execSync(`npx --no-install ruflo hooks intelligence trajectory-start --task x`);", /^'hooks intelligence' has no subcommand 'trajectory-start'$/],
+      ['pinned-spec command string', "const c = `npx ${RUFLO_PINNED_SPEC} hooks intelligence pattern-store`;", /^'hooks intelligence' has no subcommand 'pattern-store'$/],
+      ['ternary in the path', "execFileSync('npx', ['--no-install', p, 'hooks', ok ? 'model-route' : 'nope']);", /^UNVERIFIABLE: the command path after 'hooks' is not a literal/],
+      ['-t tool', "execFileSync('npx', ['--no-install', p, 'mcp', 'exec', '-t', 'hooks_bogus']);", /^unknown MCP tool 'hooks_bogus'$/],
+      ['--tool=value', "execFileSync('npx', ['--no-install', p, 'mcp', 'exec', '--tool=hooks_bogus']);", /^unknown MCP tool 'hooks_bogus'$/],
+      ['--format=value', "execFileSync('npx', ['--no-install', p, 'hooks', 'metrics', '--format=yaml']);", /^--format must be one of text, json, table, not 'yaml'$/],
     ])('should_reject_when_%s', (_name, code, reason) => {
       const reasons = invalid(code);
       expect(reasons).toHaveLength(1);

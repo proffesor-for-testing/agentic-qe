@@ -15,14 +15,18 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { ruflo, execFile } = vi.hoisted(() => {
-  type ExecCallback = (error: Error | null, stdout: string, stderr: string) => void;
-
-  /** A fake ruflo: trajectories it started, and every tool call it got. */
+const { ruflo, runCommandTree } = vi.hoisted(() => {
+  /**
+   * A fake ruflo: trajectories it started, and every tool call it got. Like real ruflo
+   * (every `mcp exec` rewrites the project's state files), a call that overlaps another
+   * one in the same project loses its write.
+   */
   const ruflo = {
     open: new Map<string, number>(),
     calls: [] as Array<{ tool: string; params: Record<string, unknown> }>,
     next: 1,
+    inFlight: 0,
+    lostWrites: 0,
   };
 
   function answer(tool: string, params: Record<string, unknown>): Record<string, unknown> {
@@ -48,18 +52,34 @@ const { ruflo, execFile } = vi.hoisted(() => {
     }
   }
 
-  const execFile = vi.fn((_bin: string, args: string[], _opts: unknown, cb: ExecCallback) => {
+  const runCommandTree = vi.fn((_bin: string, args: string[]) => {
     const tool = args[args.indexOf('--tool') + 1];
     const params = JSON.parse(args[args.indexOf('--params') + 1]) as Record<string, unknown>;
     ruflo.calls.push({ tool, params });
-    setImmediate(() => cb(null, `[OK] Tool executed\n\nResult:\n${JSON.stringify(answer(tool, params), null, 2)}\n`, ''));
+    const overlapped = ruflo.inFlight > 0;
+    ruflo.inFlight++;
+    return new Promise<string>((resolve) =>
+      setTimeout(() => {
+        ruflo.inFlight--;
+        let result: Record<string, unknown>;
+        if (overlapped) {
+          // The other process rewrote the state file: this write is gone.
+          ruflo.lostWrites++;
+          const snapshot = new Map(ruflo.open);
+          result = answer(tool, params);
+          ruflo.open = snapshot;
+        } else {
+          result = answer(tool, params);
+        }
+        resolve(`[OK] Tool executed\n\nResult:\n${JSON.stringify(result, null, 2)}\n`);
+      }, 3)
+    );
   });
-  return { ruflo, execFile };
+  return { ruflo, runCommandTree };
 });
 
-vi.mock('child_process', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('child_process')>()),
-  execFile,
+vi.mock('../../../src/adapters/claude-flow/process-tree.js', () => ({
+  runCommandTree: (...a: unknown[]) => runCommandTree(...(a as [string, string[]])),
 }));
 vi.mock('../../../src/adapters/claude-flow/detect.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../src/adapters/claude-flow/detect.js')>()),
@@ -104,6 +124,8 @@ describe('AQELearningEngine with Claude Flow (#1455)', () => {
     ruflo.open.clear();
     ruflo.calls.length = 0;
     ruflo.next = 1;
+    ruflo.inFlight = 0;
+    ruflo.lostWrites = 0;
     vi.spyOn(console, 'debug').mockImplementation(() => {});
     engine = createAQELearningEngine(
       createMockMemoryBackend(),
@@ -152,6 +174,38 @@ describe('AQELearningEngine with Claude Flow (#1455)', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ agent: 'qe-test-architect', success: 1, feedback: 'fine' });
     expect((JSON.parse(rows[0].steps_json) as Array<{ action: string }>).map((s) => s.action)).toEqual(['analyze', 'generate']);
+  });
+
+  // The round-2 review's r2conc scenario: 3 tasks at once, their steps at once.
+  it('should_recordEveryStepAndCloseEveryTrajectory_when_tasksRunConcurrently', async () => {
+    const ids = await Promise.all([
+      engine.startTask('task A', 'qe-a'),
+      engine.startTask('task B', 'qe-b'),
+      engine.startTask('task C', 'qe-c'),
+    ]);
+    await Promise.all(ids.flatMap((id) => [engine.recordStep(id, 's1', 'ok', 0.9), engine.recordStep(id, 's2', 'ok', 0.8)]));
+    await Promise.all(ids.map((id) => engine.endTask(id, true)));
+
+    expect(ruflo.lostWrites).toBe(0);
+    expect(ruflo.calls.filter((c) => c.tool.endsWith('trajectory-start'))).toHaveLength(3);
+    expect(ruflo.open.size).toBe(0);
+    expect(console.debug).not.toHaveBeenCalledWith(expect.stringContaining('[TrajectoryBridge]'), expect.anything());
+  });
+
+  it('should_endTheRufloTrajectory_when_disposedMidTask', async () => {
+    const taskId = await engine.startTask('task D mid-dispose', 'qe-d');
+    const pending = engine.recordStep(taskId, 's1', 'ok', 0.5);
+    await engine.dispose();
+    await pending;
+
+    expect(ruflo.open.size).toBe(0);
+    expect(ruflo.calls.at(-1)).toMatchObject({
+      tool: 'hooks_intelligence_trajectory-end',
+      params: { trajectoryId: 'traj-fake-1', success: false, feedback: 'AQELearningEngine disposed before the task ended' },
+    });
+    const ruflowCalls = ruflo.calls.length;
+    expect(await engine.endTask(taskId, true)).toBeUndefined(); // already cleared
+    expect(ruflo.calls).toHaveLength(ruflowCalls);
   });
 
   it('should_notCallRuflo_when_aStepIsForAnUnknownTask', async () => {
