@@ -20,7 +20,14 @@
  * The snapshot is built from `--help` output: the commands ruflo registers
  * (`commandLoaders` in @claude-flow/cli, next to the binary; else the top-level help
  * plus HIDDEN_COMMANDS), their SUBCOMMANDS and OPTIONS. An alias is kept only when
- * `ruflo <parent> <alias> --help` prints the help of its target.
+ * `ruflo <parent> <alias> --help` prints the help of its target. `mcpTools` lists the
+ * MCP tool names from `ruflo mcp tools --format json`.
+ *
+ * Two kinds of call are checked: shell commands in text (extractCalls, #1417) and
+ * argv lists in src/ code that runs ruflo (extractArgvCalls, #1455), including the MCP
+ * tools that code runs through `ruflo mcp exec`. An argv whose command path is not all
+ * literal, or that a variable spread or push() can extend, is UNVERIFIABLE: a finding,
+ * unless the call's lines (or the line above) carry `ruflo-argv-unverifiable: <reason>`.
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
@@ -104,17 +111,31 @@ export function registeredCommands(bin) {
 
 function helpRunner(bin) {
   const cwd = mkdtempSync(join(tmpdir(), 'ruflo-surface-'));
-  const run = (args) => {
-    const r = spawnSync(bin, [...args, '--help'], {
+  const raw = (args) => {
+    const r = spawnSync(bin, args, {
       cwd,
       input: '', // `mcp start --help` starts the server, which exits when stdin closes
       encoding: 'utf8',
       timeout: 60_000,
+      maxBuffer: 64 * 1024 * 1024,
       env: { ...process.env, NO_COLOR: '1', FORCE_COLOR: '0' },
     });
-    return `${r.stdout ?? ''}${r.stderr ?? ''}`;
+    return { stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
   };
-  return { run, dispose: () => rmSync(cwd, { recursive: true, force: true }) };
+  const run = (args) => {
+    const r = raw([...args, '--help']);
+    return `${r.stdout}${r.stderr}`;
+  };
+  return { run, raw, dispose: () => rmSync(cwd, { recursive: true, force: true }) };
+}
+
+/** Sorted MCP tool names from `ruflo mcp tools --format json`. */
+function mcpToolNames(raw) {
+  const { stdout } = raw(['mcp', 'tools', '--format', 'json']);
+  const start = stdout.indexOf('[');
+  const tools = start === -1 ? null : JSON.parse(stdout.slice(start, stdout.lastIndexOf(']') + 1));
+  if (!Array.isArray(tools) || tools.length === 0) throw new Error('could not read `ruflo mcp tools --format json`');
+  return [...new Set(tools.map((t) => t.name))].sort();
 }
 
 function describeNode(run, path, depth) {
@@ -145,7 +166,7 @@ function describeNode(run, path, depth) {
 }
 
 export function snapshot(bin) {
-  const { run, dispose } = helpRunner(bin);
+  const { run, raw, dispose } = helpRunner(bin);
   try {
     const top = run([]);
     const version = /ruflo v(\d+\.\d+\.\d+)/.exec(top.replace(ANSI, ''))?.[1];
@@ -160,7 +181,7 @@ export function snapshot(bin) {
       const node = describeNode(run, [name], 1);
       if (node) commands[name] = node;
     }
-    return { tool: 'ruflo', version, globalFlags: parseFlags(s['GLOBAL OPTIONS'] ?? []), commands };
+    return { tool: 'ruflo', version, globalFlags: parseFlags(s['GLOBAL OPTIONS'] ?? []), commands, mcpTools: mcpToolNames(raw) };
   } finally {
     dispose();
   }
@@ -272,7 +293,7 @@ export function extractCalls(content, version) {
   return calls;
 }
 
-const looksLikeWord = (t) => !t.quoted && /^[a-z][a-z0-9-]*$/.test(t.text);
+export const looksLikeWord = (t) => !t.quoted && /^[a-z][a-z0-9-]*$/.test(t.text);
 
 /** A placeholder such as `<command>` or `[options]` in prose: not checkable. */
 const isPlaceholder = (t) => !t.quoted && /^[<[{]/.test(t.text);
@@ -330,6 +351,9 @@ export function findInvalidCalls(content, surface) {
     return reason ? [{ line: c.line, text: c.text, reason }] : [];
   });
 }
+
+// argv lists in source code (#1455): scripts/ruflo-argv-surface.mjs
+export { checkArgvCall, extractArgvCalls, extractToolCalls, findInvalidArgvCalls } from './ruflo-argv-surface.mjs';
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const [cmd, bin] = process.argv.slice(2);

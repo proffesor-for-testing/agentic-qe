@@ -4,20 +4,36 @@
  *
  * When Claude Flow is available:
  * - Uses 4-step pretrain pipeline for codebase understanding
- * - Generates optimized agent configurations
  * - Transfers learned patterns
+ *
+ * Always:
+ * - Generates basic agent configurations
  *
  * When not available:
  * - Uses AQE's built-in project analyzer
- * - Generates basic agent configurations
  */
 
 import type { PretrainResult } from './types.js';
 import { detectClaudeFlow, resolveCliPackage } from './detect.js';
+import { rufloErrorText, stripAnsi } from './ruflo-tool.js';
 
 const cliPkg = resolveCliPackage();
 import { safeJsonParse } from '../../shared/safe-json.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
+
+/**
+ * Counts from `ruflo hooks transfer from-project` text output (3.76.0, 3.80.7):
+ * `Transferred N patterns`, then table rows `Skipped (<reason>) | N`. Null when the
+ * output has no `Transferred N patterns` line.
+ */
+export function parseTransferOutput(output: string): { transferred: number; skipped: number } | null {
+  const text = stripAnsi(output);
+  const transferred = /Transferred\s+(\d+)\s+patterns?/i.exec(text);
+  if (!transferred) return null;
+  let skipped = 0;
+  for (const m of text.matchAll(/Skipped \([^)]*\)\s*\|\s*(\d+)/g)) skipped += parseInt(m[1], 10);
+  return { transferred: parseInt(transferred[1], 10), skipped };
+}
 
 /**
  * Pretrain Bridge for codebase analysis
@@ -98,32 +114,19 @@ export class PretrainBridge {
   }
 
   /**
-   * Generate agent configurations from analysis
+   * Generate agent configurations.
+   *
+   * Returns AQE's basic QE agent configs. This no longer runs
+   * `ruflo hooks build-agents --format <yaml|json>` (#1455): in ruflo 3.76.0 and 3.80.7
+   * `--format` is the global output format, so `--format yaml` exits 1
+   * ("Must be one of: text, json, table"), and `--format json` writes
+   * `./agents/*.yaml` into the project and prints a log line plus an object, never the
+   * array this method returns (it returned `[]`). ruflo's own flag is `--config-format`,
+   * which also writes `./agents/`.
    */
   async generateAgentConfigs(
-    format: 'yaml' | 'json' = 'yaml'
+    _format: 'yaml' | 'json' = 'yaml'
   ): Promise<Record<string, unknown>[]> {
-    if (this.claudeFlowAvailable) {
-      try {
-        const { execFileSync } = await import('child_process');
-        const result = execFileSync('npx',
-          ['--no-install', cliPkg, 'hooks', 'build-agents', '--format', format],
-          { encoding: 'utf-8', timeout: 60000, cwd: this.options.projectRoot }
-        );
-
-        try {
-          return safeJsonParse<Record<string, unknown>[]>(result);
-        } catch (error) {
-          console.debug('[PretrainBridge] Agent config parse error:', error instanceof Error ? error.message : error);
-          return [];
-        }
-      } catch (error) {
-        // Non-critical: Claude Flow unavailable, using local generation
-        console.debug('[PretrainBridge] Claude Flow generateAgentConfigs failed:', error instanceof Error ? error.message : error);
-      }
-    }
-
-    // Generate basic QE agent configs
     return this.generateLocalAgentConfigs();
   }
 
@@ -133,29 +136,34 @@ export class PretrainBridge {
   async transferPatterns(
     sourcePath: string,
     minConfidence: number = 0.7
-  ): Promise<{ transferred: number; skipped: number }> {
+  ): Promise<{ transferred: number; skipped: number; error?: string }> {
     if (this.claudeFlowAvailable) {
       try {
         const { execFileSync } = await import('child_process');
+        // #1455: `hooks transfer` only lists its subcommands (and exits 0);
+        // the transfer is `hooks transfer from-project --source <path>`.
         const result = execFileSync('npx',
-          ['--no-install', cliPkg, 'hooks', 'transfer', '--source-path', sourcePath, '--min-confidence', String(minConfidence)],
+          ['--no-install', cliPkg, 'hooks', 'transfer', 'from-project', '--source', sourcePath, '--min-confidence', String(minConfidence)],
           { encoding: 'utf-8', timeout: 60000, cwd: this.options.projectRoot }
         );
-
-        const transferredMatch = result.match(/transferred[:\s]+(\d+)/i);
-        const skippedMatch = result.match(/skipped[:\s]+(\d+)/i);
-
-        return {
-          transferred: transferredMatch ? parseInt(transferredMatch[1]) : 0,
-          skipped: skippedMatch ? parseInt(skippedMatch[1]) : 0,
-        };
+        return (
+          parseTransferOutput(result) ?? {
+            transferred: 0,
+            skipped: 0,
+            error: 'ruflo exited 0 without a "Transferred N patterns" line',
+          }
+        );
       } catch (error) {
-        // Non-critical: Claude Flow pattern transfer failed
-        console.debug('[PretrainBridge] Claude Flow transferPatterns failed:', error instanceof Error ? error.message : error);
+        // Non-critical: ruflo exits 1 when the source has no transferable patterns
+        // ("No patterns found in source project") or the path is rejected; a source whose
+        // patterns are all duplicates exits 0 with "Transferred 0 patterns".
+        const message = rufloErrorText(error);
+        console.debug('[PretrainBridge] Claude Flow transferPatterns failed:', message);
+        return { transferred: 0, skipped: 0, error: message };
       }
     }
 
-    return { transferred: 0, skipped: 0 };
+    return { transferred: 0, skipped: 0, error: 'Claude Flow not available' };
   }
 
   /**

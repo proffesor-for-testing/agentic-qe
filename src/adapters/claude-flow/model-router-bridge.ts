@@ -18,6 +18,17 @@ import { detectClaudeFlow, resolveCliPackage } from './detect.js';
 const cliPkg = resolveCliPackage();
 
 /**
+ * `hooks model-route` prints `Confidence: 80.5%` (ruflo 3.76.0 and 3.80.7). Return it
+ * as a 0-1 fraction (#1455): a value with `%` is divided by 100, one without is kept.
+ * Null when `raw` is not a number (the parse regex also matches `.`).
+ */
+export function confidenceFraction(raw: string): number | null {
+  const value = parseFloat(raw);
+  if (!Number.isFinite(value)) return null;
+  return raw.trim().endsWith('%') ? value / 100 : value;
+}
+
+/**
  * Task complexity indicators
  */
 const COMPLEXITY_INDICATORS = {
@@ -69,13 +80,13 @@ export class ModelRouterBridge {
 
         // Parse result
         const modelMatch = result.match(/model[:\s]+["']?(haiku|sonnet|opus)/i);
-        const confMatch = result.match(/confidence[:\s]+([0-9.]+)/i);
+        const confMatch = result.match(/confidence[:\s]+([0-9.]+%?)/i);
         const reasonMatch = result.match(/reason(?:ing)?[:\s]+["']?([^"'\n]+)/i);
 
         if (modelMatch) {
           return {
             model: modelMatch[1].toLowerCase() as 'haiku' | 'sonnet' | 'opus',
-            confidence: confMatch ? parseFloat(confMatch[1]) : 0.7,
+            confidence: (confMatch && confidenceFraction(confMatch[1])) ?? 0.7,
             reasoning: reasonMatch?.[1]?.trim(),
           };
         }
