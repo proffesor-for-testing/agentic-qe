@@ -42,3 +42,11 @@ export {
   createLLMError,
   isLLMError,
 } from './llm';
+
+// AQE-owned SQLite connection types used in public signatures (#1443)
+export type {
+  SqliteDatabase,
+  SqliteStatement,
+  SqliteTransaction,
+  SqliteRunResult,
+} from './sqlite-types';

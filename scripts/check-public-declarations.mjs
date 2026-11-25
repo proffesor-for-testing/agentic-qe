@@ -34,13 +34,38 @@ export function packageNameOf(specifier) {
   return specifier.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0];
 }
 
-/** Module specifiers a declaration file imports (comments are ignored). */
+/**
+ * Module specifiers a declaration file imports: import/export declarations,
+ * `import('x')` types, `import x = require('x')` and `/// <reference types>`.
+ * Comments are ignored, and so is the name in `declare module 'x' {}`: that
+ * declares or augments a module rather than importing it (imports inside the
+ * block are still collected).
+ */
 export function declarationImports(text) {
-  const info = ts.preProcessFile(text, true, true);
-  return [
-    ...info.importedFiles.map((ref) => ref.fileName),
-    ...info.typeReferenceDirectives.map((ref) => ref.fileName),
-  ];
+  const source = ts.createSourceFile('x.d.ts', text, ts.ScriptTarget.Latest, false);
+  const found = source.typeReferenceDirectives.map((ref) => ref.fileName);
+  const add = (node) => {
+    if (node && ts.isStringLiteralLike(node)) found.push(node.text);
+  };
+  const visit = (node) => {
+    if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) add(node.moduleSpecifier);
+    else if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)) {
+      add(node.moduleReference.expression);
+    } else if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument)) add(node.argument.literal);
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return found;
+}
+
+/** Does a `#subpath` specifier match a key of the package's `imports` field? */
+export function matchesImportsField(specifier, imports) {
+  return Object.keys(imports ?? {}).some((key) => {
+    const star = key.indexOf('*');
+    if (star === -1) return key === specifier;
+    return specifier.startsWith(key.slice(0, star)) && specifier.endsWith(key.slice(star + 1))
+      && specifier.length >= key.length - 1;
+  });
 }
 
 /**
@@ -62,18 +87,30 @@ export function typesPackageFor(name) {
   return `@types/${name.startsWith('@') ? name.slice(1).replace('/', '__') : name}`;
 }
 
+/** Reasons that only matter when a typed export can reach the import. */
+export const OPTIONAL_REASONS = new Set([
+  'optional dependency (not guaranteed installed)',
+  'optional peer dependency (not guaranteed installed)',
+]);
+
 /**
- * Classify one package import from a declaration file. Returns null when a
- * consumer can resolve its types, otherwise a reason string.
+ * Classify one non-relative import from a declaration file. Returns null when
+ * a consumer can resolve its types, otherwise a reason string.
  */
-export function unresolvableReason(name, manifest, hasOwnTypes) {
+export function unresolvableReason(specifier, manifest, hasOwnTypes) {
+  if (specifier.startsWith('#')) {
+    return matchesImportsField(specifier, manifest.imports) ? null : 'no matching package.json "imports" entry';
+  }
+  const name = packageNameOf(specifier);
   if (BUILTINS.has(name) || name === manifest.name) return null;
-  const installed = {
-    ...manifest.dependencies,
-    ...manifest.optionalDependencies,
-    ...manifest.peerDependencies,
-  };
-  if (!(name in installed)) {
+  if (manifest.optionalDependencies && name in manifest.optionalDependencies) {
+    return 'optional dependency (not guaranteed installed)';
+  }
+  const peers = manifest.peerDependencies ?? {};
+  if (name in peers && manifest.peerDependenciesMeta?.[name]?.optional) {
+    return 'optional peer dependency (not guaranteed installed)';
+  }
+  if (!(name in (manifest.dependencies ?? {})) && !(name in peers)) {
     return manifest.devDependencies && name in manifest.devDependencies
       ? 'devDependency (not installed for consumers)'
       : 'not a dependency';
@@ -94,20 +131,64 @@ function listDeclarations(dir) {
   return out;
 }
 
-/** Every package import in `distDir` whose types a consumer cannot resolve. */
-export function findUnresolvableDeclarationImports(distDir, manifest, nodeModulesDir) {
+/** The .d.ts file a relative specifier in `fromFile` points at, if any. */
+function resolveDeclaration(fromFile, specifier) {
+  const base = path.resolve(path.dirname(fromFile), specifier);
+  const stem = base.replace(/\.(m|c)?js$/, '');
+  const candidates = [`${stem}.d.ts`, base.endsWith('.d.ts') ? base : null, `${base}.d.ts`,
+    path.join(base, 'index.d.ts')].filter(Boolean);
+  return candidates.find((file) => fs.existsSync(file) && fs.statSync(file).isFile());
+}
+
+/** Declaration entry files named by `types` and every `exports[*].types`. */
+export function typedEntryFiles(packageRoot, manifest) {
+  const targets = [manifest.types, manifest.typings,
+    ...Object.values(manifest.exports ?? {}).map((t) => (t && typeof t === 'object' ? t.types : null))];
+  return [...new Set(targets.filter((t) => typeof t === 'string').map((t) => path.resolve(packageRoot, t)))]
+    .filter((file) => fs.existsSync(file));
+}
+
+/** Declaration files a consumer's `tsc` loads from the typed entry points. */
+export function reachableDeclarations(entryFiles) {
+  const seen = new Set();
+  const queue = [...entryFiles];
+  while (queue.length > 0) {
+    const file = queue.pop();
+    if (seen.has(file)) continue;
+    seen.add(file);
+    for (const specifier of declarationImports(fs.readFileSync(file, 'utf8'))) {
+      if (!specifier.startsWith('.')) continue;
+      const target = resolveDeclaration(file, specifier);
+      if (target && !seen.has(target)) queue.push(target);
+    }
+  }
+  return seen;
+}
+
+/**
+ * Every non-relative import in `distDir` whose types a consumer cannot
+ * resolve. Severity is `error`, except an optional (peer) dependency in a file
+ * no typed export reaches, which is a `warning`. `packageRoot` (default: the
+ * parent of `distDir`) is where `types`/`exports` paths resolve.
+ */
+export function findUnresolvableDeclarationImports(distDir, manifest, nodeModulesDir,
+  packageRoot = path.dirname(distDir)) {
   const ownTypes = new Map();
   const hasOwnTypes = (name) => {
     if (!ownTypes.has(name)) ownTypes.set(name, shipsOwnTypes(name, nodeModulesDir));
     return ownTypes.get(name);
   };
+  const reachable = reachableDeclarations(typedEntryFiles(packageRoot, manifest));
   const findings = [];
   for (const file of listDeclarations(distDir)) {
     for (const specifier of declarationImports(fs.readFileSync(file, 'utf8'))) {
       if (specifier.startsWith('.') || path.isAbsolute(specifier)) continue;
-      const name = packageNameOf(specifier);
-      const reason = unresolvableReason(name, manifest, hasOwnTypes);
-      if (reason) findings.push({ file: path.relative(distDir, file), specifier, reason });
+      const reason = unresolvableReason(specifier, manifest, hasOwnTypes);
+      if (!reason) continue;
+      const isReachable = reachable.has(file);
+      const severity = OPTIONAL_REASONS.has(reason) && !isReachable ? 'warning' : 'error';
+      findings.push({ file: path.relative(distDir, file), path: file, specifier, reason, severity,
+        reachable: isReachable });
     }
   }
   return findings;
@@ -162,9 +243,14 @@ function main(argv) {
   const distDir = path.resolve(argv[0] ?? path.join(ROOT, 'dist'));
   if (!fs.existsSync(distDir)) throw new Error(`${distDir} does not exist; run npm run build first`);
   const findings = findUnresolvableDeclarationImports(distDir, manifest, path.join(ROOT, 'node_modules'));
-  for (const f of findings) console.error(`::error file=dist/${f.file}::imports '${f.specifier}': ${f.reason}`);
-  if (findings.length > 0) {
-    console.error(`${findings.length} declaration import(s) a consumer cannot resolve types for. ` +
+  for (const f of findings) {
+    const where = path.relative(process.cwd(), f.path).split(path.sep).join('/');
+    const scope = f.reachable ? 'reachable from a typed export' : 'not reachable from a typed export';
+    console.error(`::${f.severity} file=${where}::imports '${f.specifier}': ${f.reason} (${scope})`);
+  }
+  const errors = findings.filter((f) => f.severity === 'error');
+  if (errors.length > 0) {
+    console.error(`${errors.length} declaration import(s) a consumer cannot resolve types for. ` +
       'Use an AQE-owned interface instead (see src/shared/sqlite-types.ts).');
     return 1;
   }

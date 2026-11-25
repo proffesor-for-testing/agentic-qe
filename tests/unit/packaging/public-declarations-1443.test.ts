@@ -14,6 +14,7 @@
  * packed tarball (optimized-ci.yml, "Public declarations").
  */
 import { afterEach, describe, expect, it } from 'vitest';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -21,6 +22,7 @@ import ts from 'typescript';
 import {
   declarationImports,
   findUnresolvableDeclarationImports,
+  matchesImportsField,
   packageNameOf,
   typedExportSpecifiers,
   typesPackageFor,
@@ -33,9 +35,14 @@ const manifest = {
   name: 'agentic-qe',
   dependencies: { 'better-sqlite3': '^12', typed: '^1', untyped: '^1', '@types/untyped': '^1' },
   devDependencies: { '@huggingface/transformers': '^4', '@types/better-sqlite3': '^7' },
-  peerDependencies: { vibium: '^26' },
+  optionalDependencies: { 'native-extra': '^1' },
+  peerDependencies: { vibium: '^26', 'opt-peer': '^1' },
+  peerDependenciesMeta: { 'opt-peer': { optional: true } },
+  imports: { '#internal/*': './dist/internal/*.js', '#config': './dist/config.js' },
 };
-const shipsTypes = (name: string) => name === 'typed' || name === 'vibium';
+const shipsTypes = (name: string) => ['typed', 'vibium', 'native-extra', 'opt-peer'].includes(name);
+
+type Finding = { file: string; specifier: string; severity: string; reachable: boolean };
 
 describe('declaration import checker (#1443)', () => {
   const tempDirs: string[] = [];
@@ -76,6 +83,44 @@ describe('declaration import checker (#1443)', () => {
     expect(declarationImports(text)).toEqual(['better-sqlite3', '@huggingface/transformers', './local.js']);
   });
 
+  it('should_flagOptionalDependencies_asNotGuaranteedInstalled', () => {
+    expect(unresolvableReason('native-extra', manifest, shipsTypes)).toBe(
+      'optional dependency (not guaranteed installed)',
+    );
+    expect(unresolvableReason('opt-peer/sub', manifest, shipsTypes)).toBe(
+      'optional peer dependency (not guaranteed installed)',
+    );
+  });
+
+  it('should_allowSubpathImports_onlyWhenPackageImportsFieldMatches', () => {
+    expect(unresolvableReason('#config', manifest, shipsTypes)).toBeNull();
+    expect(unresolvableReason('#internal/db.js', manifest, shipsTypes)).toBeNull();
+    expect(unresolvableReason('#missing', manifest, shipsTypes)).toBe('no matching package.json "imports" entry');
+    expect(unresolvableReason('#internal', { name: 'x' }, shipsTypes)).toBe('no matching package.json "imports" entry');
+    expect(matchesImportsField('#internal/', { '#internal/*': './x/*' })).toBe(true);
+    expect(matchesImportsField('#other/a', { '#internal/*': './x/*' })).toBe(false);
+  });
+
+  it('should_notTreatDeclareModuleNames_asImports', () => {
+    const text = [
+      "declare module 'augmented-pkg' {",
+      "  import type { Inner } from 'used-inside';",
+      '  interface Extra { inner: Inner }',
+      '}',
+      'export {};',
+    ].join('\n');
+    expect(declarationImports(text)).toEqual(['used-inside']);
+  });
+
+  it('should_readImportEqualsAndTypeReferenceDirectives', () => {
+    const text = [
+      '/// <reference types="some-types" />',
+      "import fs = require('fs-extra');",
+      'export {};',
+    ].join('\n');
+    expect(declarationImports(text).sort()).toEqual(['fs-extra', 'some-types']);
+  });
+
   it('should_mapSpecifiersToPackageAndTypesNames', () => {
     expect(packageNameOf('@scope/pkg/deep/path')).toBe('@scope/pkg');
     expect(packageNameOf('pkg/sub')).toBe('pkg');
@@ -100,10 +145,49 @@ describe('declaration import checker (#1443)', () => {
     const findings = findUnresolvableDeclarationImports(dist, manifest, nodeModules);
 
     // Assert
-    expect(findings.map((f: { file: string; specifier: string }) => `${f.file}:${f.specifier}`).sort()).toEqual([
-      'embed.d.ts:@huggingface/transformers',
-      `${path.join('kernel', 'memory.d.ts')}:better-sqlite3`,
+    expect(findings.map((f: Finding) => `${f.file}:${f.specifier}:${f.severity}`).sort()).toEqual([
+      'embed.d.ts:@huggingface/transformers:error',
+      `${path.join('kernel', 'memory.d.ts')}:better-sqlite3:error`,
     ]);
+  });
+
+  it('should_errorOnOptionalPeer_whenReachable_andOnlyWarnWhenNot', () => {
+    // Arrange: package root with a typed export reaching a.d.ts; b.d.ts is unreachable.
+    const pkgRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-dts-1443-pkg-'));
+    tempDirs.push(pkgRoot);
+    const dist = path.join(pkgRoot, 'dist');
+    fs.mkdirSync(path.join(dist, 'sub'), { recursive: true });
+    fs.writeFileSync(path.join(dist, 'index.d.ts'), "export * from './sub/index.js';\n");
+    fs.writeFileSync(path.join(dist, 'sub', 'index.d.ts'), "export type { A } from './a.js';\n");
+    fs.writeFileSync(path.join(dist, 'sub', 'a.d.ts'), "export type A = import('opt-peer').T;\n");
+    fs.writeFileSync(path.join(dist, 'b.d.ts'), "import type { T } from 'opt-peer';\nexport type B = T;\n");
+    const pkg = { ...manifest, exports: { '.': { types: './dist/index.d.ts', import: './dist/index.js' } } };
+
+    // Act
+    const findings: Finding[] = findUnresolvableDeclarationImports(dist, pkg, path.join(pkgRoot, 'node_modules'));
+
+    // Assert
+    expect(findings.map((f) => `${f.file}:${f.severity}:${f.reachable}`).sort()).toEqual([
+      'b.d.ts:warning:false',
+      `${path.join('sub', 'a.d.ts')}:error:true`,
+    ]);
+  });
+
+  it('should_annotateTheRealDistPath_when_runFromTheCli', () => {
+    // Arrange: a dist outside the repo that leaks a real devDependency.
+    const dist = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-dts-1443-cli-'));
+    tempDirs.push(dist);
+    const leak = path.join(dist, 'leak.d.ts');
+    fs.writeFileSync(leak, "import type { Tensor } from '@huggingface/transformers';\nexport type T = Tensor;\n");
+
+    // Act
+    const run = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'check-public-declarations.mjs'), dist],
+      { cwd: ROOT, encoding: 'utf8' });
+
+    // Assert
+    expect(run.status).toBe(1);
+    const expected = path.relative(ROOT, leak).split(path.sep).join('/');
+    expect(run.stderr).toContain(`::error file=${expected}::imports '@huggingface/transformers'`);
   });
 
   it('should_listEveryTypedExportOfTheRealPackage', () => {
@@ -192,5 +276,37 @@ const wrong: SqliteDatabase = { prepare: (sql: number) => sql };
 export { wrong };
 `);
     expect(diagnostics.length).toBeGreaterThan(0);
+  }, 60_000);
+
+  it('should_reportAnError_when_allMembersExistButOneSignatureDiffers', () => {
+    // Negative control with every member present: only exec's parameter type
+    // differs, so this fails on a signature mismatch, not a missing member.
+    const diagnostics = diagnosticsFor(`${header}
+type WrongExec = Omit<Database.Database, 'exec'> & { exec(source: number): Database.Database };
+declare const wrongExec: WrongExec;
+const db: SqliteDatabase = wrongExec;
+export { db };
+`);
+    expect(diagnostics.join('\n')).toMatch(/exec/);
+  }, 60_000);
+
+  it('should_recordThatAqeTypesAreAssignableToTheRealBetterSqlite3Types', () => {
+    // The reverse direction: consumers who install @types/better-sqlite3 pass
+    // AQE's handles to their own helpers typed with the real types. Holds for
+    // @types/better-sqlite3 7.6.13 because SqliteDatabase mirrors every member
+    // (aggregate and table included). If an @types upgrade adds a member this
+    // fails; then either mirror it or document the
+    // `db as unknown as Database.Database` cast in CHANGELOG and the PR.
+    const diagnostics = diagnosticsFor(`${header}
+declare const ours: SqliteDatabase;
+declare const stmt: SqliteStatement;
+declare const typedStmt: SqliteStatement<[string], { n: number }>;
+const asReal: Database.Database = ours;
+const asRealStatement: Database.Statement = stmt;
+const asRealTyped: Database.Statement<[string], { n: number }> = typedStmt;
+const fromPrepare: Database.Statement = ours.prepare('select 1');
+export { asReal, asRealStatement, asRealTyped, fromPrepare };
+`);
+    expect(diagnostics).toEqual([]);
   }, 60_000);
 });

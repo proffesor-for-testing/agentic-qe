@@ -7,10 +7,11 @@
  * `Statement` from 'better-sqlite3', consumers saw TS7016 with
  * `skipLibCheck: false` and an untyped `any` with `skipLibCheck: true`.
  *
- * These interfaces describe the subset of the better-sqlite3 API that AQE
- * uses, with the same signatures, so:
- *  - a real better-sqlite3 `Database` is assignable to `SqliteDatabase`
- *    (checked in tests/unit/packaging/public-declarations-1443.test.ts);
+ * These interfaces mirror the better-sqlite3 `Database` / `Statement` API
+ * (@types/better-sqlite3 7.6.13) member for member, so:
+ *  - a real better-sqlite3 `Database` is assignable to `SqliteDatabase`, and
+ *    the reverse holds for consumers who install @types/better-sqlite3
+ *    (both checked in tests/unit/packaging/public-declarations-1443.test.ts);
  *  - public declarations reference only AQE types, never 'better-sqlite3'.
  *
  * Rule: type positions use these interfaces; only code that constructs a
@@ -90,6 +91,24 @@ export interface SqliteBackupOptions {
   progress: (info: SqliteBackupMetadata) => number;
 }
 
+/** Options for `Database.aggregate()` (same shape as better-sqlite3). */
+export type SqliteAggregateOptions<T> = SqliteFunctionOptions & {
+  start?: T | (() => T);
+  // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
+  step: (total: T, next: T extends Array<infer E> ? E : T) => T | void;
+  inverse?: ((total: T, dropped: T) => T) | undefined;
+  result?: ((total: T) => unknown) | undefined;
+};
+
+/** Options for `Database.table()` (a virtual table). */
+export interface SqliteVirtualTableOptions {
+  rows: (...params: unknown[]) => Generator;
+  columns: string[];
+  parameters?: string[] | undefined;
+  safeIntegers?: boolean | undefined;
+  directOnly?: boolean | undefined;
+}
+
 export interface SqliteSerializeOptions {
   attached?: string;
 }
@@ -116,10 +135,12 @@ export interface SqliteDatabase {
   function(name: string, cb: (...params: any[]) => any): this;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function(name: string, options: SqliteFunctionOptions, cb: (...params: any[]) => any): this;
+  aggregate<T>(name: string, options: SqliteAggregateOptions<T>): this;
   loadExtension(path: string): this;
   close(): this;
   defaultSafeIntegers(toggleState?: boolean): this;
   backup(destinationFile: string, options?: SqliteBackupOptions): Promise<SqliteBackupMetadata>;
+  table(name: string, options: SqliteVirtualTableOptions): this;
   unsafeMode(unsafe?: boolean): this;
   serialize(options?: SqliteSerializeOptions): Buffer;
 }

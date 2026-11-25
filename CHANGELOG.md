@@ -15,10 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   project type-checking `agentic-qe` with `skipLibCheck: false` got 22
   errors, and with `skipLibCheck: true` those database and tensor types were
   silently `any`. They now use AQE's own `SqliteDatabase` /
-  `SqliteStatement` interfaces (`src/shared/sqlite-types.ts`), which a real
-  `better-sqlite3` connection satisfies. Nothing changes at runtime, but code
-  that relied on those values being `any` may now see type errors. CI checks
-  every typed `exports` entry from a packed tarball with `skipLibCheck: false`.
+  `SqliteStatement` interfaces, exported from `agentic-qe/shared`. A real
+  `better-sqlite3` connection satisfies them, and with `@types/better-sqlite3`
+  7.6.13 they also fit the real `Database` / `Statement` types. Nothing
+  changes at runtime, but code that relied on those values being `any` may now
+  see type errors. If you install `@types/better-sqlite3` yourself and a
+  different version makes the types diverge, cast where you need the full
+  type: `db as unknown as Database.Database`. CI checks every typed `exports`
+  entry from a packed tarball with `skipLibCheck: false`.
 
 [#1443]: https://github.com/proffesor-for-testing/agentic-qe/issues/1443
 
