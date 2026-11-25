@@ -178,7 +178,7 @@ describe('Proof-of-Quality Command', () => {
       expect(md).toContain('|-------|--------|');
       expect(md).toContain('|--------|-------|');
       expect(md).toContain(`\`${att.hash}\``);
-      expect(md).toContain('| Quality Score | 93/100 |');
+      expect(md).toContain('| Quality Score (heuristic, not the gate verdict) | 93/100 |');
     });
 
     it('should show unmeasured checks without evidence', () => {

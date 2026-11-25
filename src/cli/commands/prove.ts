@@ -92,6 +92,9 @@ export interface AttestationEvidence {
   qualityGate: AttestationGateEvidence;
 }
 
+export const QUALITY_SCORE_BASIS = 'heuristic: 40% passRate + 30% coveragePercent + 30% (100 - 10 x vulnerabilities); '
+  + 'not the quality gate verdict (see evidence.qualityGate)';
+
 /** Report files on disk, read for information only (#1453). */
 export interface AttestationUnboundFiles {
   /** `junit.xml` at the project root. */
@@ -126,8 +129,13 @@ export interface QualityAttestation {
     coveragePercent: number | null;
     /** securityVulnerabilities receipt (count of a recorded scan). */
     vulnerabilities: number | null;
-    /** Weighted heuristic of the three values above; null unless all three are measured. */
+    /**
+     * Weighted HEURISTIC of the three values above (see `qualityScoreBasis`);
+     * null unless all three are measured. It is NOT the quality gate verdict.
+     */
     qualityScore: number | null;
+    /** States how qualityScore is computed and that it is not the gate verdict. */
+    qualityScoreBasis: typeof QUALITY_SCORE_BASIS;
     patternsUsed: number;
   };
   /**
@@ -217,13 +225,20 @@ export async function collectAttestationEvidence(
     gate = evaluateMeasuredQualityEvidence(await loadQualityEvidenceSet(memory, readOptions));
   } catch (error) {
     // Describe the problems of THIS candidate (the inspection above), never re-resolve it.
-    const insufficient = error instanceof InsufficientQualityEvidenceError
-      ? error
+    // A store failure is never hidden: rethrown, or named in the reason when
+    // this candidate's evidence was already insufficient.
+    const storeError = error instanceof InsufficientQualityEvidenceError ? undefined : error;
+    const insufficient = storeError === undefined
+      ? error as InsufficientQualityEvidenceError
       : inspection.problems.length > 0
         ? new InsufficientQualityEvidenceError(inspection.problems, inspection.candidate)
         : undefined;
     if (!insufficient) throw error;
     gate = await describeUnavailableQualityEvidence(memory as MemoryBackend, insufficient);
+    if (storeError !== undefined) {
+      gate.error = `${gate.error ?? ''} Reading the evidence store also failed: `
+        + `${storeError instanceof Error ? storeError.message : String(storeError)}`;
+    }
   }
   const exitCode = getMeasuredQualityExitCode(gate);
   const qualityGate: AttestationGateEvidence = gate.evidenceStatus === 'insufficient-evidence'
@@ -275,7 +290,10 @@ export async function collectMetrics(
   try {
     if (fs.existsSync(path.join(projectRoot, '.agentic-qe', 'memory.db'))) patternsUsed = 1;
   } catch { /* non-critical */ }
-  return { testCount: null, ...measured, qualityScore: computeQualityScore(measured), patternsUsed };
+  return {
+    testCount: null, ...measured,
+    qualityScore: computeQualityScore(measured), qualityScoreBasis: QUALITY_SCORE_BASIS, patternsUsed,
+  };
 }
 
 /**
@@ -341,11 +359,16 @@ export function buildAttestation(
   return { ...data, hash };
 }
 
+/** A Markdown table cell: no `|` or line break may split the row. */
+function mdCell(text: string): string {
+  return text.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\r?\n|\r/g, ' ');
+}
+
 /** An evidence flag says whether a check was measured, not whether it passed: that is the gate's row. */
 function flagCell(entry: AttestationEvidenceEntry): string {
   return entry.status === 'measured'
-    ? `MEASURED (${entry.metric} = ${entry.value})`
-    : `UNMEASURED (${entry.code ?? 'missing'}: ${entry.reason ?? 'no measured evidence'})`;
+    ? mdCell(`MEASURED (${entry.metric} = ${entry.value})`)
+    : mdCell(`UNMEASURED (${entry.code ?? 'missing'}: ${entry.reason ?? 'no measured evidence'})`);
 }
 
 function valueCell(value: number | null, unit = ''): string {
@@ -354,7 +377,7 @@ function valueCell(value: number | null, unit = ''): string {
 
 function gateCell(gate: AttestationGateEvidence): string {
   if (gate.status === 'passed') return 'PASSED';
-  if (gate.status === 'failed') return `FAILED (${(gate.failedChecks ?? []).join(', ')})`;
+  if (gate.status === 'failed') return mdCell(`FAILED (${(gate.failedChecks ?? []).join(', ')})`);
   return 'NOT EVALUATED (insufficient evidence)';
 }
 
@@ -387,7 +410,7 @@ export function formatMarkdown(att: QualityAttestation): string {
     `| Pass Rate | ${valueCell(att.metrics.passRate, '%')} |`,
     `| Coverage | ${valueCell(att.metrics.coveragePercent, '%')} |`,
     `| Vulnerabilities | ${valueCell(att.metrics.vulnerabilities)} |`,
-    `| Quality Score | ${att.metrics.qualityScore === null ? 'unmeasured' : `${att.metrics.qualityScore}/100`} |`,
+    `| Quality Score (heuristic, not the gate verdict) | ${att.metrics.qualityScore === null ? 'unmeasured' : `${att.metrics.qualityScore}/100`} |`,
     '',
     '---',
     `*${att.generatedBy}*`,
@@ -406,7 +429,8 @@ export async function handleProve(options: {
   /** The candidate to attest; resolved from the project checkout when omitted. */
   candidate?: QualityEvidenceCandidate;
 }): Promise<QualityAttestation> {
-  const projectRoot = options.projectRoot ?? process.cwd();
+  // The root the kernel's store belongs to, so the root, a subdirectory and AQE_PROJECT_ROOT agree.
+  const projectRoot = options.projectRoot ?? findProjectRoot();
   const evidence = options.memory
     ? await collectAttestationEvidence(options.memory, {
       candidate: options.candidate ?? resolveQualityEvidenceCandidate(options.projectRoot),
@@ -433,6 +457,20 @@ export async function handleProve(options: {
 }
 
 /**
+ * An initialized project's store: a non-empty regular file (a symlink is
+ * followed; a dangling one, a directory or a 0-byte file is not a store, and
+ * opening it would build a new one).
+ */
+export function hasEvidenceStore(projectRoot: string): boolean {
+  try {
+    const stat = fs.statSync(path.join(projectRoot, '.agentic-qe', 'memory.db'));
+    return stat.isFile() && stat.size > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Create the Commander command following the project convention.
  */
 export function createProveCommand(
@@ -449,7 +487,7 @@ export function createProveCommand(
       // #1453: an attestation only reads evidence; it never creates a store.
       // The store file, not the directory: CLI startup creates an empty
       // `.agentic-qe` directory before any command runs.
-      if (!fs.existsSync(path.join(findProjectRoot(), '.agentic-qe', 'memory.db'))) {
+      if (!hasEvidenceStore(findProjectRoot())) {
         console.error('AQE is not initialized in this project, so there is no measured evidence to attest. '
           + 'Run `aqe init` first.');
         await cleanupAndExit(1);

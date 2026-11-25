@@ -15,6 +15,8 @@ import {
   collectMetrics,
   collectUnboundFiles,
   createProveCommand,
+  hasEvidenceStore,
+  QUALITY_SCORE_BASIS,
   formatMarkdown,
   handleProve,
 } from '../../../../src/cli/commands/prove.js';
@@ -24,6 +26,7 @@ import {
   getMeasuredQualityExitCode,
 } from '../../../../src/cli/commands/quality.js';
 import {
+  inspectQualityEvidence,
   loadQualityEvidenceSet,
   writeQualityEvidence,
   writeTestRunEvidence,
@@ -39,6 +42,24 @@ function mapMemory() {
   return {
     get: async <T>(key: string, opts?: { namespace?: string }) => store.get(k(key, opts?.namespace)) as T | undefined,
     set: async (key: string, value: unknown, opts?: { namespace?: string }) => { store.set(k(key, opts?.namespace), value); },
+  };
+}
+
+/**
+ * A store whose reads fail once the first evidence inspection is done, i.e.
+ * on the gate's second read of the same candidate.
+ */
+async function failingAfterInspection(memory: ReturnType<typeof mapMemory>, at: QualityEvidenceCandidate) {
+  let calls = 0;
+  const counting = { get: async <T>(key: string, opts?: { namespace?: string }) => { calls++; return memory.get<T>(key, opts); } };
+  await inspectQualityEvidence(counting as never, { candidate: at });
+  const limit = calls;
+  let seen = 0;
+  return {
+    get: async <T>(key: string, opts?: { namespace?: string }) => {
+      if (++seen > limit) throw new Error('disk I/O error (fixture)');
+      return memory.get<T>(key, opts);
+    },
   };
 }
 
@@ -240,7 +261,44 @@ describe('#1453 aqe prove attests measured evidence only', () => {
     expect(md).toContain('| Security Scanned | UNMEASURED (missing: No measured quality evidence found for securityVulnerabilities.) |');
     expect(md).toContain('| Quality Gate | NOT EVALUATED (insufficient evidence) |');
     expect(md).toContain('| Vulnerabilities | unmeasured |');
-    expect(md).toContain('| Quality Score | unmeasured |');
+    expect(md).toContain('| Quality Score (heuristic, not the gate verdict) | unmeasured |');
+  });
+
+  it('escapes | and line breaks from reasons so a Markdown row never splits', async () => {
+    const att = await attest(mapMemory());
+    att.evidence.testsExecuted.reason = 'changed: we|ird.txt\nand more';
+
+    const row = formatMarkdown(att).split('\n').find((line) => line.startsWith('| Tests Executed |'))!;
+
+    expect(row).toContain('we\\|ird.txt and more');
+    // Exactly the two columns: leading, separator and trailing unescaped pipes.
+    expect(row.replace(/\\\|/g, '').split('|')).toHaveLength(4);
+  });
+
+  it('labels the quality score as a heuristic that is not the gate verdict', async () => {
+    const att = await attest(mapMemory());
+
+    expect(att.metrics.qualityScoreBasis).toBe(QUALITY_SCORE_BASIS);
+    expect(QUALITY_SCORE_BASIS).toMatch(/heuristic.*not the quality gate verdict/);
+  });
+
+  it('names a store failure in the gate reason when the evidence was already insufficient', async () => {
+    const memory = mapMemory();
+    await record(memory, { testsPassing: 100 });
+    const failing = await failingAfterInspection(memory, candidate);
+
+    const evidence = await collectAttestationEvidence(failing as never, { candidate });
+
+    expect(evidence.qualityGate.status).toBe('unmeasured');
+    expect(evidence.qualityGate.reason).toContain('Reading the evidence store also failed: disk I/O error (fixture)');
+  });
+
+  it('rethrows a store failure when the evidence was otherwise complete', async () => {
+    const memory = mapMemory();
+    await record(memory, PASSING);
+    const failing = await failingAfterInspection(memory, candidate);
+
+    await expect(collectAttestationEvidence(failing as never, { candidate })).rejects.toThrow(/disk I\/O error/);
   });
 
   it('changes the hash when only the evidence changes', async () => {
@@ -270,7 +328,7 @@ describe('#1453 createProveCommand reads the evidence store the gate reads', () 
     const root = createGitCandidateFixture('aqe-prove-1453-');
     // An initialized project: prove reads its evidence store, never creates one.
     fs.mkdirSync(path.join(root, '.agentic-qe'));
-    fs.writeFileSync(path.join(root, '.agentic-qe', 'memory.db'), '');
+    fs.writeFileSync(path.join(root, '.agentic-qe', 'memory.db'), 'SQLite format 3\0');
     vi.stubEnv('AQE_PROJECT_ROOT', root);
   });
   afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks(); });
@@ -334,6 +392,67 @@ describe('#1453 createProveCommand reads the evidence store the gate reads', () 
       clearProjectRootCache();
       fs.rmSync(bare, { recursive: true, force: true });
     }
+  });
+
+  it('exits 1 with "Failed to generate proof-of-quality" when the store fails on the gate read', async () => {
+    const { resolveQualityEvidenceCandidate } = await import(
+      '../../../../src/domains/quality-assessment/evidence-candidate.js');
+    const memory = mapMemory();
+    const at = resolveQualityEvidenceCandidate();
+    await record(memory, PASSING, at);
+    const failing = await failingAfterInspection(memory, at);
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const exit = vi.fn(async () => undefined as never);
+
+    await createProveCommand({ kernel: { memory: failing } } as never, exit, async () => true)
+      .parseAsync(['node', 'prove']);
+
+    expect(exit).toHaveBeenCalledWith(1);
+    expect(log).not.toHaveBeenCalled();
+    expect(String(error.mock.calls[0]?.[0])).toBe('Failed to generate proof-of-quality:');
+  });
+
+  it('reads patternsUsed and report files from the project root, not the working directory', async () => {
+    const root = process.env.AQE_PROJECT_ROOT!;
+    fs.writeFileSync(path.join(root, 'junit.xml'), '<testsuites tests="2" failures="0"></testsuites>');
+    const sub = fs.mkdtempSync(path.join(os.tmpdir(), 'prove-1453-cwd-'));
+    vi.spyOn(process, 'cwd').mockReturnValue(sub);
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    const att = await handleProve({ memory: mapMemory() as never });
+
+    expect(att.projectRoot).toBe(root);
+    expect(att.metrics.patternsUsed).toBe(1);
+    expect(att.unboundFiles.junit).toEqual({ testCount: 2, passRate: 100 });
+    fs.rmSync(sub, { recursive: true, force: true });
+  });
+
+  it.each([
+    ['a 0-byte memory.db', (dir: string) => fs.writeFileSync(path.join(dir, 'memory.db'), '')],
+    ['a directory named memory.db', (dir: string) => fs.mkdirSync(path.join(dir, 'memory.db'))],
+    ['a dangling memory.db symlink', (dir: string) => fs.symlinkSync(path.join(dir, 'gone.db'), path.join(dir, 'memory.db'))],
+  ])('refuses %s instead of building a store in it', async (_label, make) => {
+    const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'prove-1453-db-'));
+    fs.mkdirSync(path.join(bare, '.agentic-qe'));
+    make(path.join(bare, '.agentic-qe'));
+    vi.stubEnv('AQE_PROJECT_ROOT', bare);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const init = vi.fn(async () => true);
+    const exit = vi.fn(async () => undefined as never);
+    try {
+      expect(hasEvidenceStore(bare)).toBe(false);
+      await createProveCommand({} as never, exit, init).parseAsync(['node', 'prove']);
+
+      expect(exit).toHaveBeenCalledWith(1);
+      expect(init).not.toHaveBeenCalled();
+    } finally {
+      fs.rmSync(bare, { recursive: true, force: true });
+    }
+  });
+
+  it('accepts a non-empty store file', () => {
+    expect(hasEvidenceStore(process.env.AQE_PROJECT_ROOT!)).toBe(true);
   });
 
   it('produces no attestation when the evidence store cannot be opened', async () => {
