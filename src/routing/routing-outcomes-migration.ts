@@ -14,7 +14,7 @@
  * A process-local flag prevents repeated migration attempts.
  */
 
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType } from '../shared/sqlite-types.js';
 import { isBusyError } from '../learning/dream/dream-lock-retry.js';
 
 let migrated = false;

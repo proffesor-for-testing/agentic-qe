@@ -32,7 +32,7 @@ let retentionWarningsLogged = false;
  */
 export const RETENTION_BUSY_TIMEOUT_MS = 1000;
 
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType } from '../../shared/sqlite-types.js';
 import { v4 as uuidv4 } from 'uuid';
 
 import { getUnifiedPersistence, type UnifiedPersistenceManager } from '../../kernel/unified-persistence.js';

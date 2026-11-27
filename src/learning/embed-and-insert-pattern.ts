@@ -19,7 +19,7 @@
  * persistence must not regress when embedding computation fails.
  */
 
-import type Database from 'better-sqlite3';
+import type { SqliteDatabase } from '../shared/sqlite-types.js';
 import { writeWhenUnlockedOn } from '../shared/sqlite-write-queue.js';
 import {
   computeRealEmbedding,
@@ -41,7 +41,7 @@ import {
  * @param config      - override embedding model/cache config (defaults to Xenova/all-MiniLM-L6-v2)
  */
 export async function ensurePatternEmbedding(
-  db: Database.Database,
+  db: SqliteDatabase,
   patternId: string,
   name: string,
   description: string | undefined | null,

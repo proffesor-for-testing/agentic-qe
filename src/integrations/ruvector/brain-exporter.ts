@@ -20,7 +20,7 @@
 
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
 import { join, resolve } from 'path';
-import Database from 'better-sqlite3';
+import type { SqliteDatabase } from '../../shared/sqlite-types.js';
 import { safeJsonParse } from '../../shared/safe-json.js';
 
 import {
@@ -125,7 +125,7 @@ const STREAMING_THRESHOLD = 10_000;
  * to avoid holding 68K+ rows (e.g., concept_edges) in memory.
  */
 function exportTableRows(
-  db: Database.Database, config: TableExportConfig, options: BrainExportOptions, outDir: string
+  db: SqliteDatabase, config: TableExportConfig, options: BrainExportOptions, outDir: string
 ): { count: number; rows?: unknown[] } {
   if (!shouldExportTable(config, options)) {
     writeJsonl(join(outDir, config.fileName), []);
@@ -202,7 +202,7 @@ export function computeChecksum(dir: string): string {
  * Uses a read-only connection to avoid acquiring write locks.
  */
 export function exportBrain(
-  db: Database.Database,
+  db: SqliteDatabase,
   options: BrainExportOptions,
   sourceDbLabel = 'memory.db'
 ): BrainExportManifest {
@@ -313,7 +313,7 @@ function tablesToImport(version: string): readonly TableExportConfig[] {
  * Supports both v1.0 (4-table) and v3.0 (all-table) exports.
  */
 export function importBrain(
-  db: Database.Database,
+  db: SqliteDatabase,
   containerPath: string,
   options: BrainImportOptions
 ): BrainImportResult {

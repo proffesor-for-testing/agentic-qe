@@ -22,7 +22,7 @@ import { RELATED_DOMAINS } from './agent-routing.js';
 import type { Result } from '../shared/types/index.js';
 import { getRuVectorFeatureFlags } from '../integrations/ruvector/feature-flags.js';
 import { PageRankSolver, type PatternGraph } from '../integrations/ruvector/solver-adapter.js';
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType } from '../shared/sqlite-types.js';
 
 const logger: Logger = LoggerFactory.create('PatternPromotion');
 

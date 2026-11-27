@@ -39,6 +39,7 @@ import {
 } from 'node:fs';
 import { join, dirname } from 'node:path';
 import Database from 'better-sqlite3';
+import type { SqliteDatabase } from './sqlite-types.js';
 
 /** The 16-byte magic every valid SQLite database file starts with. */
 const SQLITE_MAGIC = Buffer.concat([Buffer.from('SQLite format 3', 'latin1'), Buffer.from([0])]);
@@ -84,7 +85,7 @@ export function isDbHealthy(dbPath: string): boolean {
 
 /** Full integrity check for a backup we are about to promote to the live DB. */
 function backupIsRestorable(path: string): boolean {
-  let db: Database.Database | undefined;
+  let db: SqliteDatabase | undefined;
   try {
     db = new Database(path, { readonly: true, fileMustExist: true });
     return db.pragma('integrity_check', { simple: true }) === 'ok';

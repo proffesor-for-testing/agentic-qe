@@ -35,7 +35,7 @@
  * with the rest of its lifecycle work.
  */
 
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType } from '../../shared/sqlite-types.js';
 import {
   DREAM_INSIGHTS_ARCHIVE_TABLE,
   DREAM_INSIGHTS_ARCHIVE_TABLE_SQL as CREATE_ARCHIVE_SQL,

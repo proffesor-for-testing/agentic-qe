@@ -9,7 +9,8 @@
  * WAL or busy_timeout. When multiple hook processes ran concurrently, the DB corrupted.
  */
 
-import Database, { type Database as DatabaseType } from 'better-sqlite3';
+import Database from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType } from './sqlite-types.js';
 import { basename } from 'node:path';
 import { attemptAutoRestore } from './db-recovery.js';
 import { withNativeModuleRemedy } from './native-module-errors.js';

@@ -11,7 +11,7 @@
  * Additive-only: no existing table or row is touched.
  */
 
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType } from '../shared/sqlite-types.js';
 
 export const MIGRATION_VERSION = '20260611_add_pattern_nulls_table';
 

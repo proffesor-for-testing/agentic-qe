@@ -47,7 +47,7 @@ interface StoredIdentityRow {
   updatedAt: number;
 }
 
-let cachedDb: import('better-sqlite3').Database | null = null;
+let cachedDb: import('../shared/sqlite-types.js').SqliteDatabase | null = null;
 let openFailed = false;
 
 /**
@@ -55,13 +55,13 @@ let openFailed = false;
  * supports concurrent connections to the same file under WAL mode, which the
  * init wizard enables). Failure to open is cached so we don't retry every call.
  */
-function openDb(): import('better-sqlite3').Database | null {
+function openDb(): import('../shared/sqlite-types.js').SqliteDatabase | null {
   // #1356: in the MCP server UnifiedMemoryManager already holds memory.db
   // open with a write queue. Use that connection (never closed here) so the
   // identity write is queued instead of waiting synchronously for a locked
   // database on a second connection. Looked up on every call, so once the
   // manager has registered its connection it wins over an earlier cachedDb.
-  const shared = queuedConnectionFor<import('better-sqlite3').Database>(getMemoryDbPath());
+  const shared = queuedConnectionFor<import('../shared/sqlite-types.js').SqliteDatabase>(getMemoryDbPath());
   if (shared) return shared;
   if (cachedDb) return cachedDb;
   if (openFailed) return null;

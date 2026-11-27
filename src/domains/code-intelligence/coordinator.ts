@@ -312,7 +312,7 @@ export class CodeIntelligenceCoordinator
 
   // V3: Hypergraph Engine for intelligent code analysis (GOAP Action 7)
   private hypergraph?: HypergraphEngine;
-  private hypergraphDb?: import('better-sqlite3').Database;
+  private hypergraphDb?: import('../../shared/sqlite-types.js').SqliteDatabase;
   /** False when hypergraphDb is the shared memory.db connection, which dispose() must not close. */
   private ownsHypergraphDb = true;
 
@@ -421,7 +421,7 @@ export class CodeIntelligenceCoordinator
       // a database locked by another process no longer freezes the event
       // loop for the busy_timeout. A custom hypergraphDbPath keeps its own.
       const { isUnqueuedFallback, queuedConnectionFor } = await import('../../shared/sqlite-write-queue.js');
-      const shared = inMemory ? undefined : queuedConnectionFor<import('better-sqlite3').Database>(dbPath);
+      const shared = inMemory ? undefined : queuedConnectionFor<import('../../shared/sqlite-types.js').SqliteDatabase>(dbPath);
       this.hypergraphDb = shared ?? openDatabase(dbPath);
       this.ownsHypergraphDb = !shared;
       if (!shared && !inMemory && isUnqueuedFallback(dbPath)) {

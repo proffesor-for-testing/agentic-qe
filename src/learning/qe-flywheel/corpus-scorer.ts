@@ -27,14 +27,14 @@
  * flywheel actually optimizes.
  */
 
-import type BetterSqlite3 from 'better-sqlite3';
+import type { SqliteDatabase } from '../../shared/sqlite-types.js';
 import type { RetrievalPolicy } from './policy.js';
 import type { PolicyScorer, PolicyScores } from './generation.js';
 import { loadAnchorSet, anchorMean, type AnchorItem } from '../../validation/anchor-set.js';
 import { evaluateOracle } from '../../validation/oracle-eval.js';
 import { defaultAnchorPath } from '../../validation/anchor-path.js';
 
-type SqliteDb = BetterSqlite3.Database;
+type SqliteDb = SqliteDatabase;
 
 export interface CorpusScorerOptions {
   /** Read-only handle to the corpus DB (must expose a `qe_patterns` table). */

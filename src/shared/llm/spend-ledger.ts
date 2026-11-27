@@ -18,7 +18,7 @@
  * cross-process pattern.
  */
 
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType } from '../sqlite-types.js';
 import type { CostSource } from './interfaces';
 import { createSafeRecord } from '../utils/safe-record';
 import { writeWhenUnlockedOn } from '../sqlite-write-queue';

@@ -6,7 +6,7 @@
  * Tamper-evident: modifying any entry breaks the hash chain, detectable by verify().
  */
 
-import { type Database as DatabaseType } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType } from '../shared/sqlite-types.js';
 import { getUnifiedMemory } from '../kernel/unified-memory.js';
 import { writeWhenUnlockedOn } from '../shared/sqlite-write-queue.js';
 import { type WitnessKeyManager, getDefaultWitnessKeyManager } from './witness-key-manager.js';

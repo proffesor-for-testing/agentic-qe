@@ -12,7 +12,7 @@
  * @version 3.0.0
  */
 
-import type Database from 'better-sqlite3';
+import type { SqliteDatabase } from '../shared/sqlite-types.js';
 import { openDatabase } from '../shared/safe-db.js';
 import { randomUUID } from 'crypto';
 import { secureRandom } from '../shared/utils/crypto-random.js';
@@ -278,7 +278,7 @@ const CANCELLED_MARKER_STATUS = 'cancelled';
  * ```
  */
 export class PlanExecutor {
-  private db!: Database.Database;
+  private db!: SqliteDatabase;
   private planner: GOAPPlanner;
   private spawner: AgentSpawner;
   private config: ExecutionConfig;

@@ -1,5 +1,5 @@
 /** Record a brain import without grafting another store's witness history. */
-import type Database from 'better-sqlite3';
+import type { SqliteDatabase } from '../../shared/sqlite-types.js';
 import {
   GENESIS_PREV_HASH,
   hashWith,
@@ -24,7 +24,7 @@ interface BrainImportAuditDetails {
  * the process-default signing key is not necessarily the target's key.
  */
 export function appendBrainImportWitness(
-  db: Database.Database,
+  db: SqliteDatabase,
   details: BrainImportAuditDetails,
 ): void {
   const algo = 'shake256';

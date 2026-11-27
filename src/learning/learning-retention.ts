@@ -27,7 +27,7 @@
  * dry run, the counts it would change.
  */
 
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType } from '../shared/sqlite-types.js';
 import { acknowledgeCheckpointShrink, removedRows } from './checkpoint-shrink-ack.js';
 
 export interface TableCount {

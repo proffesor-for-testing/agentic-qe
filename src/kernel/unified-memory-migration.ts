@@ -8,7 +8,7 @@
  * Preserves v2 memory.db data - just adds new tables.
  */
 
-import { type Database as DatabaseType } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType } from '../shared/sqlite-types.js';
 import { openDatabase } from '../shared/safe-db.js';
 import * as fs from 'fs';
 import * as path from 'path';
