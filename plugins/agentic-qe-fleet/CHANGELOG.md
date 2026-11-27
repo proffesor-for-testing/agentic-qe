@@ -2,6 +2,10 @@
 
 Newest first. One `## <version> — <date>` heading per version, then `feat:`, `fix:`, `breaking:` and `chore:` bullets. Since 3.15.0 the plugin version tracks the `agentic-qe` npm package version (see [ADR-0001](docs/adrs/0001-agentic-qe-fleet-contract.md)). Built from git history.
 
+## 3.15.24 — 2026-11-27
+
+- chore: MCP server pin and mod version move to `agentic-qe@3.15.24` (`aqe prove` and routing metrics report only measured results, Claude Flow bridges call real ruflo commands, shipped skill links fixed, published types check with `skipLibCheck: false`; see the root CHANGELOG).
+
 ## 3.15.23 — 2026-11-24
 - fix: Codex no longer warns that the plugin hooks file is invalid. The mod manifest moved to `hooks/aqe-mod.json` (referenced from `.claude-plugin/plugin.json`), and a new `.codex-plugin/plugin.json` declares no hooks (#1475).
 - chore: MCP server pin and mod version move to `agentic-qe@3.15.23` (measured quality gate bound to the gated commit, a real `accessibility_test` audit that runs the requested standard, `aqe quality-gate` works in user projects, portable skill hooks; see the root CHANGELOG).
