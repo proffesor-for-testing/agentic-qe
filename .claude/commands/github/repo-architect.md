@@ -113,9 +113,9 @@ mcp__github__push_files {
 
 ## Quick Start
 \`\`\`bash
-npx claude-flow init --sparc
+npx ruflo@3.76.0 init --sparc
 npm install
-npx claude-flow start --ui
+npx ruflo@3.76.0 start --ui
 \`\`\`
 
 ## Features

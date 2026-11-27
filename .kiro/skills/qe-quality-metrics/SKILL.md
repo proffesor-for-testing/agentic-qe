@@ -203,10 +203,10 @@ const metricsFleet = await FleetManager.coordinate({
 ---
 
 ## Related Skills
-- [agentic-quality-engineering](../agentic-quality-engineering/) - Agent coordination
-- [cicd-pipeline-qe-orchestrator](../cicd-pipeline-qe-orchestrator/) - Quality gates
-- [risk-based-testing](../risk-based-testing/) - Risk-informed metrics
-- [shift-right-testing](../shift-right-testing/) - Production metrics
+- [agentic-quality-engineering](../qe-agentic-quality-engineering/) - Agent coordination
+- [cicd-pipeline-qe-orchestrator](../qe-cicd-pipeline-qe-orchestrator/) - Quality gates
+- [risk-based-testing](../qe-risk-based-testing/) - Risk-informed metrics
+- [shift-right-testing](../qe-shift-right-testing/) - Production metrics
 
 ---
 

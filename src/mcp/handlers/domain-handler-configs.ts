@@ -33,7 +33,10 @@ import type { SecurityScanEvidence } from '../../domains/security-compliance/sca
 import type { SecurityCoverage } from '../../domains/security-compliance/interfaces.js';
 import type { DependencyScanReport } from '../../domains/security-compliance/dependency-advisory-engine.js';
 import type { ExcludedQualityFile, PartialQualityMetric } from '../../domains/quality-assessment/interfaces.js';
+import type { AuditOutcome, AuditRuleProfile, AuditScanEvidence } from '../../domains/visual-accessibility/interfaces.js';
 import { CallerInputError } from '../../shared/error-utils.js';
+import { assertAuditableUrl } from '../../domains/visual-accessibility/services/audit-url-policy.js';
+import { resolveAccessibilityStandard } from '../../coordination/handlers/accessibility-handler.js';
 
 import {
   DEFAULT_FRAMEWORKS,
@@ -88,6 +91,11 @@ function normalizeLanguage(input: string | undefined): SupportedLanguage | null 
 // ============================================================================
 // Result Types (extending base types for handlers that need them)
 // ============================================================================
+
+/** A non-null, non-array object (used to pass verdict provenance through unchanged). */
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 export interface TestExecuteResult {
   taskId: string;
@@ -167,6 +175,12 @@ export interface QualityAssessResult {
   measuredFailures?: MeasuredFailure[];
   /** #996: false for static analysis (runGate omitted/false) — no quality gate ran. */
   gateEvaluated?: boolean;
+  /** #1474: the candidate the measured gate judged (project + HEAD + dirty-tree fingerprint). */
+  candidate?: Record<string, unknown>;
+  /** #1474: the evidence receipts the measured verdict used, by metric. */
+  receipts?: Record<string, unknown>;
+  /** #1474: the effective thresholds the measured verdict applied. */
+  thresholds?: Record<string, unknown>;
   /** #996: share of requested metrics that were measured, in [0, 1]. */
   confidence?: number;
   /** #996: plain statement of what was (and was not) evaluated. */
@@ -228,12 +242,30 @@ export interface ContractValidateResult {
 export interface AccessibilityTestResult {
   taskId: string;
   status: string;
+  /** #1465: what was audited and at which WCAG level, so a level change is visible. */
+  url?: string;
+  /** #1465: the URL actually audited after redirects (measured results only). */
+  finalUrl?: string;
+  standard?: string;
+  wcagLevel?: string;
   passed: boolean;
   score: number;
   violations: unknown[];
   warnings: unknown[];
   /** #1145: false when no page was audited; `passed` is then not a verdict and `score` is -1. */
   measured?: boolean;
+  /** #1465: why the page was not measured, from the audit service. */
+  notMeasuredReason?: string;
+  /** #1465: number of axe rules the page passed, when measured. */
+  passedRules?: number;
+  /** #1473: the rule profile the standard resolved to (requested). */
+  profile?: AuditRuleProfile;
+  /** #1473: what ran: effective profile, applied tags, backend, engine version, coverage. */
+  scan?: AuditScanEvidence;
+  /** #1473: structured verdict; `passed` is only its severityThresholdMet. */
+  outcome?: AuditOutcome;
+  /** #1473: undecided checks that need a manual review, apart from violations. */
+  needsReview?: unknown[];
   note?: string;
   duration: number;
   savedFiles?: string[];
@@ -337,6 +369,10 @@ export interface CodeIndexParams {
 export interface CodeIndexResult {
   taskId: string;
   status: string;
+  /** #1350: discovered files not indexed because they have more than one hardlink. */
+  refused?: Array<{ path: string; reason: 'hardlinked' }>;
+  /** #1350: 'partial' when a discovered file was refused or failed to index. */
+  scanStatus?: 'partial' | 'complete';
   filesIndexed: number;
   symbolsExtracted: number;
   relationsFound: number;
@@ -962,6 +998,10 @@ export const qualityAssessConfig: DomainHandlerConfig<QualityAssessParams, Quali
         ? { scoreBasis: data.scoreBasis as string[] } : {}),
       ...(measuredFailures ? { measuredFailures } : {}),
       ...(gateEvaluated !== undefined ? { gateEvaluated } : {}),
+      // #1474: the measured verdict's provenance travels with it.
+      ...(isPlainRecord(data.candidate) ? { candidate: data.candidate } : {}),
+      ...(isPlainRecord(data.receipts) ? { receipts: data.receipts } : {}),
+      ...(isPlainRecord(data.thresholds) ? { thresholds: data.thresholds } : {}),
       ...(confidence !== undefined ? { confidence } : {}),
       ...(typeof data.note === 'string' ? { note: data.note } : {}),
       duration,
@@ -1083,6 +1123,9 @@ export const contractValidateConfig: DomainHandlerConfig<ContractValidateParams,
 // Accessibility Test Configuration
 // ============================================================================
 
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
 export const accessibilityTestConfig: DomainHandlerConfig<AccessibilityTestParams, AccessibilityTestResult> = {
   domain: 'visual-accessibility',
   taskType: 'test-accessibility',
@@ -1092,25 +1135,42 @@ export const accessibilityTestConfig: DomainHandlerConfig<AccessibilityTestParam
   buildTaskDescription: (params) =>
     `Test accessibility for ${params.url} against ${params.standard || 'WCAG 2.1 AA'} standard`,
 
-  mapToPayload: (params, routingResult) => ({
-    url: params.url,
-    standard: params.standard || 'wcag21-aa',
-    includeScreenReader: params.includeScreenReader || false,
-    routingTier: routingResult?.decision.tier,
-    useAgentBooster: routingResult?.useAgentBooster,
-    compiledContext: routingResult?.compiledContext,
-  }),
+  mapToPayload: (params, routingResult) => {
+    // #1465: reject a non-http(s) url or an unknown standard before any task runs
+    assertAuditableUrl(params.url);
+    return {
+      url: params.url.trim(),
+      standard: resolveAccessibilityStandard(params.standard),
+      includeBestPractices: params.includeBestPractices === true,
+      includeScreenReader: params.includeScreenReader || false,
+      routingTier: routingResult?.decision.tier,
+      useAgentBooster: routingResult?.useAgentBooster,
+      compiledContext: routingResult?.compiledContext,
+    };
+  },
 
   mapToResult: (taskId, data, duration, savedFiles) => ({
     taskId,
     status: data.measured === true ? 'completed' : 'not-measured',
-    passed: (data.passed as boolean) || false,
+    ...(typeof data.url === 'string' ? { url: data.url } : {}),
+    ...(data.measured === true && typeof data.finalUrl === 'string' ? { finalUrl: data.finalUrl } : {}),
+    ...(typeof data.standard === 'string' ? { standard: data.standard } : {}),
+    ...(typeof data.wcagLevel === 'string' ? { wcagLevel: data.wcagLevel } : {}),
+    passed: data.measured === true && data.passed === true,
     // #1145: an unmeasured score is -1, never a 0/100 grade
     score: data.measured === true && typeof data.score === 'number' ? data.score : -1,
     violations: (data.violations as unknown[]) || [],
     warnings: (data.warnings as unknown[]) || [],
     // #1145: fail closed; only an explicit measurement counts as one
     measured: data.measured === true,
+    ...(data.measured === true && typeof data.passedRules === 'number' ? { passedRules: data.passedRules } : {}),
+    ...(data.measured !== true && typeof data.notMeasuredReason === 'string'
+      ? { notMeasuredReason: data.notMeasuredReason } : {}),
+    // #1473: requested and effective profile, engine, applied tags and the structured outcome
+    ...(isObject(data.profile) ? { profile: data.profile as unknown as AuditRuleProfile } : {}),
+    ...(isObject(data.scan) ? { scan: data.scan as unknown as AuditScanEvidence } : {}),
+    ...(isObject(data.outcome) ? { outcome: data.outcome as unknown as AuditOutcome } : {}),
+    needsReview: Array.isArray(data.needsReview) ? data.needsReview : [],
     ...(typeof data.note === 'string' ? { note: data.note } : {}),
     duration,
     savedFiles,
@@ -1273,6 +1333,8 @@ export const codeIndexConfig: DomainHandlerConfig<CodeIndexParams, CodeIndexResu
     ...(Array.isArray(data.skipped) && data.skipped.length > 0
       ? { skipped: data.skipped as CodeIndexResult['skipped'] }
       : {}),
+    ...(Array.isArray(data.refused) ? { refused: data.refused as CodeIndexResult['refused'] } : {}),
+    ...(data.scanStatus === 'partial' || data.scanStatus === 'complete' ? { scanStatus: data.scanStatus } : {}),
     duration,
     savedFiles,
   }),

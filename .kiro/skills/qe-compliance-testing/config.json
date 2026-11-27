@@ -1,0 +1,13 @@
+{
+  "$schema": "./config-schema.json",
+  "_description": "Compliance Testing configuration. Auto-created on first run. Edit to customize.",
+  "regulations": [],
+  "scope": null,
+  "options": {
+    "dataClassification": null,
+    "retentionPolicyDays": null,
+    "auditLogRequired": true,
+    "piiScanEnabled": true
+  },
+  "_setupPrompt": "If regulations is empty, ask: 'Which regulations apply to this project? (gdpr/ccpa/hipaa/soc2/pci-dss — comma-separated)'. If scope is null, ask: 'What is the compliance scope? (full-app/api-only/data-layer/specific-module)'."
+}

@@ -229,9 +229,9 @@ const investigationFleet = await FleetManager.coordinate({
 ---
 
 ## Related Skills
-- [brutal-honesty-review](../brutal-honesty-review/) - Direct technical criticism
-- [context-driven-testing](../context-driven-testing/) - Adapt to context
-- [bug-reporting-excellence](../bug-reporting-excellence/) - Document findings
+- [brutal-honesty-review](../qe-brutal-honesty-review/) - Direct technical criticism
+- [context-driven-testing](../qe-context-driven-testing/) - Adapt to context
+- [bug-reporting-excellence](../qe-bug-reporting-excellence/) - Document findings
 
 ---
 

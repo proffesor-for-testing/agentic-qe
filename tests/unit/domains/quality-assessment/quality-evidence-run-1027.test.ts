@@ -13,6 +13,11 @@ import {
   writeQualityEvidence,
   writeTestRunEvidence,
 } from '../../../../src/domains/quality-assessment/quality-evidence';
+import { fixtureCandidate } from '../../../fixtures/quality-evidence-candidates.js';
+
+// #1474: every write and read is bound to one fixed candidate.
+const candidate = fixtureCandidate('run-1027');
+const at = { candidate };
 
 function memory() {
   const store = new Map<string, unknown>();
@@ -30,41 +35,43 @@ const others = { criticalBugs: 0, codeSmells: 0, securityVulnerabilities: 0, tec
 describe('#1027 NB1 — run-scoped coverage + testsPassing evidence', () => {
   it('writeTestRunEvidence writes testsPassing (and coverage) stamped with the same runId and runStatus', async () => {
     const m = memory();
-    await writeTestRunEvidence(m as never, { runId: 'r1', passed: 3, failed: 1, skipped: 0 }, { source: 'test', coverage: 87.5 });
+    await writeTestRunEvidence(m as never, { runId: 'r1', passed: 3, failed: 1, skipped: 0 }, { source: 'test', coverage: 87.5, candidate });
 
-    const { values, problems } = await inspectQualityEvidence(m as never);
+    const { values, problems } = await inspectQualityEvidence(m as never, at);
     expect(values).toMatchObject({ coverage: 87.5, testsPassing: 75 });
     expect(problems.map(p => p.metric)).not.toContain('coverage');
-    expect([...m.store.values()].filter(v => (v as { runId?: string }).runId === 'r1')).toHaveLength(2);
+    // One immutable receipt per metric, both stamped with the run.
+    const receipts = [...m.store.entries()].filter(([key]) => key.includes('quality-evidence:receipt:')).map(([, v]) => v);
+    expect(receipts.filter(v => (v as { runId?: string }).runId === 'r1')).toHaveLength(2);
     expect([...m.store.values()].every(v => (v as { runStatus?: string }).runStatus === 'failed')).toBe(true);
   });
 
   it('coverage from a failing run WITHOUT that run\'s testsPassing is unusable (a stale 100 cannot pass the gate)', async () => {
     const m = memory();
     // 1. aqe test execute: all pass.
-    await writeTestRunEvidence(m as never, { runId: 'cli-run', passed: 3, failed: 0 }, { source: 'aqe test execute' });
-    await writeQualityEvidence(m as never, others, { measuredAt: now, source: 'seed' });
+    await writeTestRunEvidence(m as never, { runId: 'cli-run', passed: 3, failed: 0 }, { source: 'aqe test execute', candidate });
+    await writeQualityEvidence(m as never, others, { measuredAt: now, source: 'seed', candidate });
     // 2. a failing run's coverage only (its testsPassing never arrived).
-    await writeQualityEvidence(m as never, { coverage: 87.5 }, { measuredAt: now, source: 'test-execution coverage', runId: 'mcp-run', runStatus: 'failed' });
+    await writeQualityEvidence(m as never, { coverage: 87.5 }, { measuredAt: now, source: 'test-execution coverage', runId: 'mcp-run', runStatus: 'failed', candidate });
 
-    const { values, problems } = await inspectQualityEvidence(m as never);
+    const { values, problems } = await inspectQualityEvidence(m as never, at);
     expect(values.coverage).toBeUndefined();
     expect(problems).toContainEqual(expect.objectContaining({ metric: 'coverage', reason: expect.stringMatching(/failing tests.*same run/i) }));
   });
 
   it('failing-run coverage with no runId (counts unknown) never pairs with an unscoped testsPassing', async () => {
     const m = memory();
-    await writeQualityEvidence(m as never, { testsPassing: 100 }, { measuredAt: now, source: 'legacy' });
-    await writeQualityEvidence(m as never, { coverage: 87.5 }, { measuredAt: now, source: 'nyc', runStatus: 'failed' });
-    const { values } = await inspectQualityEvidence(m as never);
+    await writeQualityEvidence(m as never, { testsPassing: 100 }, { measuredAt: now, source: 'legacy', candidate });
+    await writeQualityEvidence(m as never, { coverage: 87.5 }, { measuredAt: now, source: 'nyc', runStatus: 'failed', candidate });
+    const { values } = await inspectQualityEvidence(m as never, at);
     expect(values.coverage).toBeUndefined();
   });
 
   it('coverage from a passing run (or from a report with no run) is usable on its own', async () => {
     const m = memory();
-    await writeQualityEvidence(m as never, { coverage: 90 }, { measuredAt: now, source: 'x', runId: 'r2', runStatus: 'passed' });
-    await writeQualityEvidence(m as never, { coverage: 91 }, { measuredAt: now, source: 'coverage-analysis' });
-    const { values } = await inspectQualityEvidence(m as never);
+    await writeQualityEvidence(m as never, { coverage: 90 }, { measuredAt: now, source: 'x', runId: 'r2', runStatus: 'passed', candidate });
+    await writeQualityEvidence(m as never, { coverage: 91 }, { measuredAt: now, source: 'coverage-analysis', candidate });
+    const { values } = await inspectQualityEvidence(m as never, at);
     expect(values.coverage).toBe(91);
   });
 

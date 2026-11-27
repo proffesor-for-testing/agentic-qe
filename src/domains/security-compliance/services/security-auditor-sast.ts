@@ -5,7 +5,7 @@
 
 import { LoggerFactory } from '../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
-import { readConfinedText } from '../../../shared/io/confined-read.js';
+import { ConfinedReadError, readConfinedText, type HardlinkPolicy } from '../../../shared/io/confined-read.js';
 import * as path from 'path';
 import type {
   Vulnerability,
@@ -180,12 +180,24 @@ export function getSASTVulnerabilityPatterns(): SASTVulnerabilityPattern[] {
 // ============================================================================
 
 /**
+ * How the audit's SAST walk reads files (#1350). An MCP audit passes
+ * `hardlinks: 'refuse-outside-node-modules'`; a refused file is reported
+ * through `onRefusedHardlink` and not scanned. Default 'allow' (CLI).
+ */
+export interface AuditSastReadOptions {
+  hardlinks?: HardlinkPolicy;
+  onExemptHardlink?: (filePath: string) => void;
+  onRefusedHardlink?: (filePath: string) => void;
+}
+
+/**
  * Perform SAST scan using AST-based analysis for JavaScript/TypeScript
  * Scans for common vulnerability patterns: XSS, SQL injection, command injection, path traversal
  */
 export async function performSASTScan(
   findSourceFiles: (dir: string) => Promise<string[]>,
   shouldExclude: (filePath: string) => boolean,
+  read: AuditSastReadOptions = {},
 ): Promise<SASTResult> {
   const scanId = uuidv4();
   const startTime = Date.now();
@@ -209,7 +221,10 @@ export async function performSASTScan(
       }
 
       try {
-        const content = await readConfinedText(filePath, { outsideRoot: 'allow' }); // #1161
+        // #1161; #1350: the read policy decides whether a hardlink is read.
+        const content = await readConfinedText(filePath, {
+          outsideRoot: 'allow', hardlinks: read.hardlinks ?? 'allow', onExemptHardlink: read.onExemptHardlink,
+        });
         const lines = content.split('\n');
         filesScanned++;
         linesScanned += lines.length;
@@ -272,8 +287,9 @@ export async function performSASTScan(
             });
           }
         }
-      } catch {
-        // Skip files that can't be read
+      } catch (error) {
+        // Skip files that can't be read; a refused hardlink is reported.
+        if (error instanceof ConfinedReadError && error.reason === 'hardlinked') read.onRefusedHardlink?.(filePath);
       }
     }
   } catch (error) {

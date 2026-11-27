@@ -82,6 +82,12 @@ export interface RefusedCoverageReport {
  */
 export interface ReportReadOptions {
   hardlinks?: HardlinkPolicy;
+  /**
+   * #1350: how the project's coverage config is read when the report is
+   * checked for completeness. The MCP handler passes
+   * 'refuse-outside-node-modules'; default 'allow'.
+   */
+  sourceHardlinks?: HardlinkPolicy;
 }
 
 /**

@@ -399,6 +399,90 @@ export interface AuditOptions {
   readonly includeWarnings?: boolean;
   readonly rules?: string[];
   readonly excludeSelectors?: string[];
+  /**
+   * #1473: the rule profile resolved from a public standard (resolveAuditProfile).
+   * When set, the backend runs exactly its tags, or reports that it could not;
+   * without it the legacy level-only tag set runs.
+   */
+  readonly profile?: AuditRuleProfile;
+}
+
+export type WCAGLevel = 'A' | 'AA' | 'AAA';
+
+/** A versioned automated rule profile (#1473): the exact axe-core tags a standard runs. */
+export interface AuditRuleProfile {
+  /** e.g. `wcag22-aa@1`, or `wcag21-aa+best-practice@1` */
+  readonly id: string;
+  readonly standard: 'wcag21-aa' | 'wcag21-aaa' | 'wcag22-aa' | 'section508';
+  readonly version: string;
+  readonly label: string;
+  readonly wcagLevel: WCAGLevel;
+  readonly axeTags: readonly string[];
+  /** Tags the engine must know (select at least one rule) for the profile to count as applied. */
+  readonly requiredTags: readonly string[];
+  readonly includesBestPractices: boolean;
+  readonly limitations: readonly string[];
+}
+
+/** How far the backend honoured the requested profile (#1473). */
+export type ProfileSupport =
+  /** the backend ran exactly the profile's tags */
+  | 'applied'
+  /** no profile was requested; the legacy level-only tag set ran */
+  | 'level-only'
+  /** the backend cannot select rules by tag, or the engine lacks a required tag */
+  | 'unsupported'
+  /** nothing ran */
+  | 'not-run';
+
+/** What the scan actually ran (#1473). */
+export interface AuditScanEvidence {
+  /** 'agent-browser', 'vibium', ..., or 'none' when nothing ran */
+  readonly backend: string;
+  /** The checker as observed in the page; version null when it did not report one. */
+  readonly engine: { readonly name: 'axe-core'; readonly version: string | null } | null;
+  readonly requestedProfile: string | null;
+  /** null when the backend could not honour the requested profile */
+  readonly effectiveProfile: string | null;
+  readonly profileSupport: ProfileSupport;
+  /** The tag filter passed to the engine; null when the backend chose its own rules. */
+  readonly appliedTags: readonly string[] | null;
+  /** Rule ids that produced a result (violation, pass, incomplete or inapplicable). */
+  readonly executedRules: readonly string[] | null;
+  readonly coverage: {
+    readonly violations: number;
+    readonly passes: number;
+    readonly incomplete: number;
+    readonly inapplicable: number;
+  } | null;
+  readonly limitations: readonly string[];
+}
+
+export type AuditOutcomeStatus =
+  | 'not-measured'
+  | 'profile-unavailable'
+  | 'violations-found'
+  | 'needs-review'
+  | 'no-automated-violations';
+
+/**
+ * A structured verdict for agent summaries (#1473); `passed` is only `severityThresholdMet`.
+ * The counts are always filled in: with `profile-unavailable` they count what the
+ * backend found with its own rule selection, which is not the requested profile.
+ */
+export interface AuditOutcome {
+  readonly status: AuditOutcomeStatus;
+  /** Same as the legacy `passed`: measured, and no critical or serious automated violation. */
+  readonly severityThresholdMet: boolean;
+  readonly violations: number;
+  readonly seriousOrCritical: number;
+  /** Checks the engine could not decide; they need a manual review. */
+  readonly needsReview: number;
+  /** False only for a measured scan with the requested profile, no violation and nothing to review. */
+  readonly reviewRequired: boolean;
+  /** Deterministic statement of what was scanned and what is open. */
+  readonly scope: string;
+  readonly limitations: readonly string[];
 }
 
 export interface AccessibilityReport {
@@ -419,6 +503,10 @@ export interface AccessibilityReport {
   readonly measured?: boolean;
   /** Why the page was not measured, when `measured` is false (#1145). */
   readonly notMeasuredReason?: string;
+  /** #1465: the URL actually audited, after redirects; `url` stays as requested. */
+  readonly finalUrl?: string;
+  /** #1473: which profile, backend and engine version produced this report. */
+  readonly scan?: AuditScanEvidence;
 }
 
 export interface PassedRule {

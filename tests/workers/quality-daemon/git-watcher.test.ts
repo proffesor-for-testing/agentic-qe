@@ -199,6 +199,27 @@ describe('GitWatcher', () => {
     const item = queue.dequeue()!;
     expect(item.ttlMs).toBe(5 * 60 * 1000);
   });
+
+  it('keeps one retry timer per ref after repeated git timeouts (#1330)', async () => {
+    vi.useFakeTimers();
+    setupGitMock([{ name: 'main', hash: 'aaa111' }]);
+    await watcher.start();
+
+    const internals = watcher as unknown as {
+      enqueueCommitAnalysis(branch: string, commitHash: string, lastHash?: string): Promise<boolean>;
+      processRefChange(filename: string): Promise<void>;
+      retryTimers: Map<string, NodeJS.Timeout>;
+    };
+    const enqueue = vi.spyOn(internals, 'enqueueCommitAnalysis').mockResolvedValue(false);
+
+    await internals.processRefChange('main');
+    await internals.processRefChange('main');
+
+    expect(enqueue).toHaveBeenCalledTimes(2);
+    expect([...internals.retryTimers.keys()]).toEqual(['main']);
+    expect(internals.retryTimers.size).toBe(1);
+  });
+
   // -------------------------------------------------------------------------
   // Unreadable commits (#1165)
   // -------------------------------------------------------------------------

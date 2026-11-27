@@ -144,7 +144,8 @@ describe('MCP directory walks refuse hardlinks outside node_modules (#1350)', ()
     it('discloses a store hardlink read under the node_modules exemption', async () => {
       const result = await run('predict-defects', { target: pkgDir, minConfidence: 0.5 });
       expect(result.value).toMatchObject({
-        scanStatus: 'complete', exemptHardlinks: [path.join(pkgDir, 'index.js')],
+        // A store link cannot be told apart from a planted one: not complete.
+        scanStatus: 'partial', exemptHardlinks: [path.join(pkgDir, 'index.js')],
         limitations: [expect.stringMatching(/read under the node_modules exemption/)],
       });
       expect(defectPredictConfig.mapToResult('t', result.value!, 1, [])).toMatchObject({

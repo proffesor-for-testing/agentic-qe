@@ -202,9 +202,9 @@ const complianceFleet = await FleetManager.coordinate({
 ---
 
 ## Related Skills
-- [security-testing](../security-testing/) - Security vulnerabilities
-- [test-data-management](../test-data-management/) - PII handling
-- [accessibility-testing](../accessibility-testing/) - Legal requirements
+- [security-testing](../qe-security-testing/) - Security vulnerabilities
+- [test-data-management](../qe-test-data-management/) - PII handling
+- [accessibility-testing](../qe-accessibility-testing/) - Legal requirements
 
 ---
 

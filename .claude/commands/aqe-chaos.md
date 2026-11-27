@@ -153,30 +153,30 @@ Task("Execute chaos testing scenario", `
 
 ```bash
 # Retrieve baseline metrics
-npx claude-flow@alpha memory retrieve --key "aqe/chaos/baseline"
+npx ruflo@3.76.0 memory retrieve --key "aqe/chaos/baseline"
 
 # Retrieve system configuration
-npx claude-flow@alpha memory retrieve --key "aqe/system/config"
+npx ruflo@3.76.0 memory retrieve --key "aqe/system/config"
 
 # Retrieve previous chaos results
-npx claude-flow@alpha memory retrieve --key "aqe/chaos/history"
+npx ruflo@3.76.0 memory retrieve --key "aqe/chaos/history"
 ```
 
 ### Output Memory Keys
 
 ```bash
 # Store chaos results
-npx claude-flow@alpha memory store \
+npx ruflo@3.76.0 memory store \
   --key "aqe/chaos/${chaos_id}" \
   --value '{"scenario": "latency", "duration": 60, "failures": 3}'
 
 # Store failure modes
-npx claude-flow@alpha memory store \
+npx ruflo@3.76.0 memory store \
   --key "aqe/chaos/failure-modes" \
   --value '[{"type": "timeout", "count": 12, "severity": "medium"}]'
 
 # Store recovery metrics
-npx claude-flow@alpha memory store \
+npx ruflo@3.76.0 memory store \
   --key "aqe/chaos/recovery" \
   --value '{"recoveryTime": 45, "dataLoss": false, "status": "healthy"}'
 ```
@@ -186,24 +186,29 @@ npx claude-flow@alpha memory store \
 ### Pre-Task Hook
 
 ```bash
-npx claude-flow@alpha hooks pre-task \
-  --description "Chaos test: ${scenario}" \
-  --agent "qe-test-executor"
+# One id per run; post-task below records the outcome against it
+CHAOS_ID="aqe-chaos-$(date +%s)"
+npx ruflo@3.76.0 hooks pre-task \
+  --task-id "${CHAOS_ID}" \
+  --description "Chaos test: ${scenario}"
 ```
 
 ### During Chaos (monitoring)
 
 ```bash
-npx claude-flow@alpha hooks notify \
+npx ruflo@3.76.0 hooks notify \
   --message "Chaos active: ${scenario} - ${ELAPSED}s / ${DURATION}s"
 ```
 
 ### Post-Task Hook
 
 ```bash
-npx claude-flow@alpha hooks post-task \
-  --task-id "${CHAOS_ID}" \
-  --results "${CHAOS_RESULTS}"
+# Set TASK_SUCCEEDED to true or false from the actual result; results go to `memory store` above
+npx ruflo@3.76.0 hooks post-task \
+  --task-id "${CHAOS_ID:?run the pre-task block first, in the same shell}" \
+  --success "${TASK_SUCCEEDED:?set to true or false}" \
+  --agent "qe-chaos-engineer" \
+  --task "Chaos test: ${scenario}"
 ```
 
 ## Expected Outputs

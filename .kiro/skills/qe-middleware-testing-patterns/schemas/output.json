@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentic-qe.dev/schemas/middleware-testing-patterns-output.json",
+  "title": "Middleware Testing Patterns Output Schema",
+  "description": "Schema for middleware testing output. Covers message routing, transformation, DLQ, protocol mediation, and EIP patterns.",
+  "type": "object",
+  "required": ["skillName", "version", "timestamp", "status", "trustTier", "output"],
+  "properties": {
+    "skillName": {
+      "type": "string",
+      "const": "middleware-testing-patterns"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9]+)?$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["success", "partial", "failed", "skipped"]
+    },
+    "trustTier": {
+      "type": "integer",
+      "const": 3
+    },
+    "output": {
+      "type": "object",
+      "required": ["summary", "testStrategy"],
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 100
+        },
+        "testStrategy": {
+          "type": "object",
+          "properties": {
+            "routingTests": { "type": "array", "items": { "type": "object" } },
+            "transformationTests": { "type": "array", "items": { "type": "object" } },
+            "dlqTests": { "type": "array", "items": { "type": "object" } },
+            "mediationTests": { "type": "array", "items": { "type": "object" } },
+            "eipTests": { "type": "array", "items": { "type": "object" } }
+          }
+        },
+        "findings": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "recommendations": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

@@ -367,7 +367,7 @@ export class RvfPatternStore implements IPatternStore {
       context: { tags: [], ...options.context },
       template: { example: '', ...options.template } as QEPatternTemplate,
       embedding: options.embedding,
-      tier: 'short-term',
+      tier: options.tier ?? 'short-term', // #1421: import keeps an existing row's tier
       createdAt: new Date(),
       lastUsedAt: new Date(),
       successfulUses: 0,

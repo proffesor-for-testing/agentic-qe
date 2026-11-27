@@ -25,7 +25,7 @@
 import * as fs from 'fs/promises';
 // #1161: manifests and lockfiles are read from a validated descriptor; one
 // linked out of the project, or to a device, is refused instead of read.
-import { readConfinedText } from '../../../../shared/io/confined-read.js';
+import { ConfinedReadError, readConfinedText, type HardlinkPolicy } from '../../../../shared/io/confined-read.js';
 import * as path from 'path';
 import semver from 'semver';
 import { parse as parseYaml } from 'yaml';
@@ -64,6 +64,21 @@ export interface DependencyResolution {
   readonly memberErrors: string[];
 }
 
+/**
+ * How the resolver reads package.json, the lockfile and pnpm-workspace.yaml
+ * (#1350). Their contents are sent to OSV as package names and versions, so
+ * an MCP scan passes `hardlinks: 'refuse-outside-node-modules'`: a manifest
+ * hardlinked to a file outside the project is refused, not read. Default
+ * 'allow', for the CLI's reads of the operator's own files.
+ */
+export interface DependencyReadOptions {
+  hardlinks?: HardlinkPolicy;
+  /** Called with each file read under the node_modules exemption. */
+  onExemptHardlink?: (filePath: string) => void;
+  /** Called with each file refused because it has more than one hardlink. */
+  onRefusedHardlink?: (filePath: string) => void;
+}
+
 /** The reason a workspace root's scan is not complete (#1057). */
 export const WORKSPACE_NOT_SCANNED =
   'workspace member dependencies are not scanned yet (#1057); scan each member directory separately';
@@ -84,8 +99,21 @@ export function declaredDependencies(manifest: Manifest): Record<string, string>
   return out;
 }
 
-async function readManifest(file: string): Promise<Manifest> {
-  return safeJsonParse<Manifest>(await readConfinedText(file, { outsideRoot: 'allow' }));
+/** A confined read under `read`'s hardlink policy; a refused hardlink is reported, then rethrown. */
+async function readText(file: string, read: DependencyReadOptions, maxBytes?: number): Promise<string> {
+  try {
+    return await readConfinedText(file, {
+      outsideRoot: 'allow', hardlinks: read.hardlinks ?? 'allow', onExemptHardlink: read.onExemptHardlink,
+      ...(maxBytes !== undefined ? { maxBytes } : {}),
+    });
+  } catch (error) {
+    if (error instanceof ConfinedReadError && error.reason === 'hardlinked') read.onRefusedHardlink?.(file);
+    throw error;
+  }
+}
+
+async function readManifest(file: string, read: DependencyReadOptions): Promise<Manifest> {
+  return safeJsonParse<Manifest>(await readText(file, read));
 }
 
 async function exists(file: string): Promise<boolean> {
@@ -140,11 +168,11 @@ const nonEmptyArray = (v: unknown): boolean => Array.isArray(v) && v.length > 0;
  * `workspaces` is a non-empty array or an object with a non-empty `packages`,
  * or a pnpm-workspace.yaml declares workspace packages.
  */
-async function isWorkspaceRoot(dir: string, manifest: Manifest): Promise<boolean> {
+async function isWorkspaceRoot(dir: string, manifest: Manifest, read: DependencyReadOptions): Promise<boolean> {
   const ws = manifest.workspaces;
   if (nonEmptyArray(ws)) return true;
   if (ws !== null && typeof ws === 'object' && nonEmptyArray((ws as { packages?: unknown }).packages)) return true;
-  return pnpmDeclaresPackages(path.join(dir, 'pnpm-workspace.yaml'));
+  return pnpmDeclaresPackages(path.join(dir, 'pnpm-workspace.yaml'), read);
 }
 
 /**
@@ -154,7 +182,7 @@ async function isWorkspaceRoot(dir: string, manifest: Manifest): Promise<boolean
  * non-regular, dangling or unparsable file, or a `packages` that is not a list,
  * counts as a root. No file, a map without `packages`, or `packages: []` does not.
  */
-async function pnpmDeclaresPackages(file: string): Promise<boolean> {
+async function pnpmDeclaresPackages(file: string, read: DependencyReadOptions): Promise<boolean> {
   try {
     await fs.lstat(file);
   } catch (e) {
@@ -164,7 +192,7 @@ async function pnpmDeclaresPackages(file: string): Promise<boolean> {
   try {
     const st = await fs.stat(file); // follows a link; a dangling one throws
     if (!st.isFile() || st.size > MAX_PNPM_WORKSPACE_BYTES) return true;
-    const text = await readConfinedText(file, { outsideRoot: 'allow', maxBytes: MAX_PNPM_WORKSPACE_BYTES });
+    const text = await readText(file, read, MAX_PNPM_WORKSPACE_BYTES);
     doc = parseYaml(text, { uniqueKeys: false, merge: true, maxAliasCount: 100 });
   } catch {
     return true;
@@ -235,11 +263,12 @@ export function resolveFromRecord(
 
 /**
  * Resolve the dependencies to check for the package.json at `manifestPath`.
- * @throws when package.json itself cannot be read or parsed.
+ * @throws when package.json itself cannot be read or parsed (a refused
+ * hardlink throws ConfinedReadError with reason 'hardlinked').
  */
-export async function resolveDependencies(manifestPath: string): Promise<DependencyResolution> {
+export async function resolveDependencies(manifestPath: string, read: DependencyReadOptions = {}): Promise<DependencyResolution> {
   const manifestDir = path.dirname(path.resolve(manifestPath));
-  const manifest = await readManifest(manifestPath);
+  const manifest = await readManifest(manifestPath, read);
 
   let index: LockIndex | null = null;
   let lockDir = await realOrResolved(manifestDir);
@@ -250,12 +279,12 @@ export async function resolveDependencies(manifestPath: string): Promise<Depende
   if (found) {
     const member = path.relative(found.dir, realManifestDir).split(path.sep).join('/');
     try {
-      const parsed = parseLockfile(found.file, await readConfinedText(path.join(found.dir, found.file), { outsideRoot: 'allow' }));
-      const rootManifest = member ? await readManifest(path.join(found.dir, 'package.json')).catch(() => ({} as Manifest)) : manifest;
+      const parsed = parseLockfile(found.file, await readText(path.join(found.dir, found.file), read));
+      const rootManifest = member ? await readManifest(path.join(found.dir, 'package.json'), read).catch(() => ({} as Manifest)) : manifest;
       // A member scanned directly: the root lockfile covers it if it lists the
       // importer (npm/pnpm) or, for yarn, if the root declares workspaces.
       const covers = member === '' || parsed.hasImporter(member) && (parsed.file !== 'yarn.lock'
-        || await isWorkspaceRoot(found.dir, rootManifest));
+        || await isWorkspaceRoot(found.dir, rootManifest, read));
       if (covers) {
         index = parsed;
         lockDir = found.dir;
@@ -270,7 +299,7 @@ export async function resolveDependencies(manifestPath: string): Promise<Depende
   const scannedMember = path.relative(lockDir, realManifestDir).split(path.sep).join('/');
 
   // #1057: workspace members are not scanned in 3.15.7 — a workspace root is never complete.
-  const memberErrors: string[] = await isWorkspaceRoot(realManifestDir, manifest) ? [WORKSPACE_NOT_SCANNED] : [];
+  const memberErrors: string[] = await isWorkspaceRoot(realManifestDir, manifest, read) ? [WORKSPACE_NOT_SCANNED] : [];
 
   const dependencies: ResolvedDependency[] = [];
   for (const [name, spec] of Object.entries(declaredDependencies(manifest))) {

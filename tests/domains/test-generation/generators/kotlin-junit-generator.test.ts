@@ -637,4 +637,45 @@ describe('KotlinJUnitGenerator', () => {
       expect(result).toContain('formatPrice should handle valid input correctly');
     });
   });
+
+  // #1388: a source without a package declaration gets an empty import path
+  // from templateImportPath; every template must then omit the package line
+  // (main once wrote `package nopkg.Calc`).
+  describe('without a declared package', () => {
+    const noPackage = /^\s*package\b/m;
+    const fn = {
+      name: 'add',
+      parameters: [
+        { name: 'a', type: 'Int', optional: false, defaultValue: undefined },
+        { name: 'b', type: 'Int', optional: false, defaultValue: undefined },
+      ],
+      returnType: 'Int',
+      isAsync: false,
+      isExported: true,
+      complexity: 1,
+      startLine: 1,
+      endLine: 1,
+    };
+
+    it('writes no package line for analysed functions', () => {
+      const result = generator.generateTests({
+        moduleName: 'Calc', importPath: '', testType: 'unit', patterns: [],
+        analysis: { functions: [fn], classes: [] },
+      });
+      expect(result).toContain('class CalcTest');
+      expect(result).not.toMatch(noPackage);
+    });
+
+    it('writes no package line for stub tests', () => {
+      const result = generator.generateStubTests({ moduleName: 'Calc', importPath: '', testType: 'unit', patterns: [] });
+      expect(result).toContain('class CalcTest');
+      expect(result).not.toMatch(noPackage);
+    });
+
+    it('writes no package line for coverage tests', () => {
+      const result = generator.generateCoverageTests('Calc', '', [3, 4]);
+      expect(result).toContain('CalcCoverageTest');
+      expect(result).not.toMatch(noPackage);
+    });
+  });
 });

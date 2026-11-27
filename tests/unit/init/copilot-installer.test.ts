@@ -65,7 +65,7 @@ describe('CopilotInstaller', () => {
         (c: unknown[]) => (c[0] as string).endsWith('mcp.json')
       );
       const parsed = JSON.parse(configCall![1] as string);
-      expect(parsed.servers['agentic-qe'].args).toEqual(['-y', 'agentic-qe@latest', 'mcp']);
+      expect(parsed.servers['agentic-qe'].args).toEqual(['-y', '--allow-scripts=better-sqlite3,hnswlib-node', 'agentic-qe@latest', 'mcp']); // #1466
       expect(parsed.servers['agentic-qe'].env.AQE_INIT_VERSION).toBe(pkg.version);
     });
 

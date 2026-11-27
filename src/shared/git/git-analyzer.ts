@@ -117,6 +117,9 @@ interface FileScope {
   filePath: string;
   deadline: number;
   incomplete: boolean;
+  timedOut: boolean;
+  /** Whether git tracks the file; undefined until asked (at most once per scope). */
+  tracked?: boolean;
 }
 
 /** Git had an answer that was not read: it timed out or overflowed the output limit. */
@@ -133,7 +136,9 @@ export class GitAnalyzer {
   private isGitRepo: boolean | null = null;
   /** After a rev-parse timeout, when to ask git again (until then: "timeout"). */
   private repoRetryAt = 0;
-  /** Files whose git data came back incomplete outside any withFileDeadline() call. */
+  /** Files whose git data was incomplete outside any withFileDeadline() call. */
+  private readonly incompleteFiles = new Set<string>();
+  /** Files whose git data timed out or overflowed outside any withFileDeadline() call. */
   private readonly timedOutFiles = new Set<string>();
   /** The withFileDeadline() call each async context runs in, so concurrent calls on one file stay apart (#1165). */
   private readonly fileScopes = new AsyncLocalStorage<FileScope>();
@@ -157,7 +162,25 @@ export class GitAnalyzer {
    */
   consumeTimeout(filePath: string): boolean {
     const scope = this.scopeFor(filePath);
-    if (!scope) return this.timedOutFiles.delete(filePath);
+    if (!scope) {
+      const timedOut = this.timedOutFiles.delete(filePath);
+      if (timedOut) this.incompleteFiles.delete(filePath);
+      return timedOut;
+    }
+    const timedOut = scope.timedOut;
+    scope.timedOut = false;
+    if (timedOut) scope.incomplete = false;
+    return timedOut;
+  }
+
+  /**
+   * Whether any Git-based metric for `filePath` returned a fallback because
+   * Git did not provide usable data since the last call. Use this to keep
+   * incomplete metrics out of the predictor cache and confidence estimate.
+   */
+  consumeIncomplete(filePath: string): boolean {
+    const scope = this.scopeFor(filePath);
+    if (!scope) return this.incompleteFiles.delete(filePath);
     const incomplete = scope.incomplete;
     scope.incomplete = false;
     return incomplete;
@@ -168,11 +191,17 @@ export class GitAnalyzer {
    * shared `fileTimeoutMs` deadline. One file's analyses then wait for git at
    * most that long together, rather than `gitTimeoutMs` each (#1115). Each
    * call has its own deadline and timeout flag, even when calls on the same
-   * file overlap (#1165); call consumeTimeout() inside `work` to read the flag.
+   * file overlap (#1165); call consumeIncomplete() or consumeTimeout() inside
+   * `work` to read the corresponding flags.
    */
   async withFileDeadline<T>(filePath: string, work: () => Promise<T>): Promise<T> {
     if (this.scopeFor(filePath)) return work();
-    const scope: FileScope = { filePath, deadline: Date.now() + this.config.fileTimeoutMs, incomplete: false };
+    const scope: FileScope = {
+      filePath,
+      deadline: Date.now() + this.config.fileTimeoutMs,
+      incomplete: false,
+      timedOut: false,
+    };
     return this.fileScopes.run(scope, work);
   }
 
@@ -429,8 +458,9 @@ export class GitAnalyzer {
    * Run one file's analysis with every git call sharing one `gitTimeoutMs`
    * deadline (#1115). When git is unavailable or fails, the analysis returns
    * its default, which callers treat as "no git data", never a measured 0
-   * (#1165). A timeout or an output overflow is recorded for consumeTimeout(),
-   * or, with `strict`, rejects.
+   * (#1165). A failed query of a tracked file is recorded for
+   * consumeIncomplete(); a timeout or output overflow also records
+   * consumeTimeout() and rejects when `strict`.
    */
   private async analyze<T>(
     filePath: string,
@@ -442,18 +472,47 @@ export class GitAnalyzer {
     const repo = await this.repoState();
     if (repo === 'timeout') {
       if (options.strict) throw new GitTimeoutError(['rev-parse', '--is-inside-work-tree'], this.config.gitTimeoutMs);
-      this.markIncomplete(filePath, scope);
+      this.markIncomplete(filePath, scope, true);
     }
     if (repo !== true) return fallback;
+    const relativePath = this.getRelativePath(filePath);
     try {
-      return await work(this.query(scope?.deadline), this.getRelativePath(filePath));
+      return await work(this.query(scope?.deadline), relativePath);
     } catch (error) {
-      // Any other failure is git's answer for this file, e.g. `blame` of an untracked file.
-      if (!isIncompleteRead(error)) return fallback;
-      if (options.strict) throw error;
-      this.markIncomplete(filePath, scope);
+      // A timeout or an output overflow is an answer git never gave: always incomplete.
+      if (isIncompleteRead(error)) {
+        if (options.strict) throw error;
+        this.markIncomplete(filePath, scope, true);
+      } else if ((await this.isTracked(relativePath, scope)) !== false) {
+        // Git tracks the file, so it had history to report; the failure is a
+        // real query failure. Also when git cannot say (#1330).
+        this.markIncomplete(filePath, scope);
+      }
+      // An untracked file has no history, so e.g. `blame` legitimately fails
+      // before its first commit: the fallback is git's answer (#1330).
       return fallback;
     }
+  }
+
+  /**
+   * Whether git tracks `relativePath`, asked at most once per
+   * withFileDeadline() call. `undefined` when git cannot say: it failed (exit
+   * 128, a hang, an overfull buffer) rather than answering "no such path in the
+   * index" (exit 1), so callers keep treating their failed query as a failure.
+   */
+  private async isTracked(relativePath: string, scope: FileScope | undefined): Promise<boolean | undefined> {
+    if (scope?.tracked !== undefined) return scope.tracked;
+    let tracked: boolean | undefined;
+    try {
+      await this.query(scope?.deadline).text(['--literal-pathspecs', 'ls-files', '--error-unmatch', '--', relativePath]);
+      tracked = true;
+    } catch (error) {
+      // Exit 1 is git's "no such path in the index": the answer this asks for.
+      // Only an exit status carries one; a timeout or overflow has none.
+      if ((error as { status?: number }).status === 1) tracked = false;
+    }
+    if (scope) scope.tracked = tracked;
+    return tracked;
   }
 
   /** The withFileDeadline() call on `filePath` that the current async context runs in. */
@@ -462,9 +521,14 @@ export class GitAnalyzer {
     return scope?.filePath === filePath ? scope : undefined;
   }
 
-  private markIncomplete(filePath: string, scope: FileScope | undefined): void {
-    if (scope) scope.incomplete = true;
-    else this.timedOutFiles.add(filePath);
+  private markIncomplete(filePath: string, scope: FileScope | undefined, timedOut = false): void {
+    if (scope) {
+      scope.incomplete = true;
+      scope.timedOut ||= timedOut;
+    } else {
+      this.incompleteFiles.add(filePath);
+      if (timedOut) this.timedOutFiles.add(filePath);
+    }
   }
 
   /**

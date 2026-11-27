@@ -19,6 +19,7 @@
 import * as path from 'path';
 import ts from 'typescript';
 import { findProjectRoot } from '../../../kernel/project-root.js';
+import { templateImportPath } from '../services/template-import-path.js';
 import { isJavaScriptFamily } from './test-substance.js';
 import { stripCode } from './code-text.js';
 
@@ -154,6 +155,9 @@ function javascriptVerdict(testCode: string, subject: SourceImportSubject): Sour
     // stripped from both sides before the paths are compared.
     const clean = normalizePathSeparators(spec.replace(/[?#].*$/, '')).replace(JS_EXT, '').replace(/\/index$/, '');
     if (spec.startsWith('.') || path.isAbsolute(spec)) {
+      // An inline source's import target describes the module in the project.
+      // The generated test path in this case belongs to the temporary carrier.
+      if (subject.importTarget) return normalizeModulePath(path.resolve(root, clean)) === sourceModulePath;
       if (testModuleDir) {
         return normalizeModulePath(path.resolve(testModuleDir, clean)) === sourceModulePath;
       }
@@ -171,8 +175,11 @@ function javascriptVerdict(testCode: string, subject: SourceImportSubject): Sour
   const sourceFile = ts.createSourceFile('generated-test.ts', testCode, ts.ScriptTarget.Latest, true);
   const importedNames = new Set<string>();
   const importNodes = new Set<ts.Node>();
+  let matchedImport = false;
+  let usesImportedModule = false;
   const visitImports = (node: ts.Node): void => {
     if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier) && matches(node.moduleSpecifier.text)) {
+      matchedImport = true;
       importNodes.add(node);
       const clause = node.importClause;
       if (clause?.name) importedNames.add(clause.name.text);
@@ -183,37 +190,62 @@ function javascriptVerdict(testCode: string, subject: SourceImportSubject): Sour
       }
     }
     if (ts.isCallExpression(node)
-      && ts.isIdentifier(node.expression)
-      && node.expression.text === 'require'
+      && (node.expression.kind === ts.SyntaxKind.ImportKeyword
+        || (ts.isIdentifier(node.expression) && node.expression.text === 'require'))
       && node.arguments.length === 1
       && ts.isStringLiteral(node.arguments[0])
-      && matches(node.arguments[0].text)
-      && ts.isVariableDeclaration(node.parent)
-      && node.parent.initializer === node) {
-      const declaration = node.parent;
-      importNodes.add(declaration);
-      if (ts.isIdentifier(declaration.name)) {
-        importedNames.add(declaration.name.text);
-      } else if (ts.isObjectBindingPattern(declaration.name)) {
-        for (const element of declaration.name.elements) {
-          if (ts.isIdentifier(element.name)) importedNames.add(element.name.text);
+      && matches(node.arguments[0].text)) {
+      matchedImport = true;
+      let expression: ts.Expression = node;
+      let accessesMember = false;
+      let awaitsModule = false;
+      for (;;) {
+        const parent = expression.parent;
+        if (ts.isParenthesizedExpression(parent) || ts.isAwaitExpression(parent)) {
+          awaitsModule ||= ts.isAwaitExpression(parent);
+          expression = parent;
+        } else if ((ts.isPropertyAccessExpression(parent) || ts.isElementAccessExpression(parent))
+          && parent.expression === expression) {
+          accessesMember = true;
+          expression = parent;
+        } else {
+          break;
         }
+      }
+      const declaration = expression.parent;
+      if (ts.isVariableDeclaration(declaration) && declaration.initializer === expression) {
+        importNodes.add(declaration);
+        if (ts.isIdentifier(declaration.name)) {
+          importedNames.add(declaration.name.text);
+        } else if (ts.isObjectBindingPattern(declaration.name)) {
+          for (const element of declaration.name.elements) {
+            if (ts.isIdentifier(element.name)) importedNames.add(element.name.text);
+          }
+        }
+      } else if (accessesMember || (awaitsModule && ts.isExpressionStatement(declaration))) {
+        usesImportedModule = true;
       }
     }
     ts.forEachChild(node, visitImports);
   };
   visitImports(sourceFile);
-  if (importedNames.size === 0) return 'missing';
   // #1392: requiring the test to *use* an imported symbol is #1390's tightening, and it
   // needs the source text to be a judgement about this module rather than about the name
   // alone. Without it (a direct gate caller that passes only the path), a specifier that
   // resolves to the source is all the evidence there is — the same "cannot tell, so report
   // nothing" rule the other languages use.
-  if (subject.sourceCode === undefined) return 'found';
+  if (subject.sourceCode === undefined) return matchedImport ? 'found' : 'missing';
+  if (usesImportedModule) return 'found';
+  if (importedNames.size === 0) return 'missing';
   let referenced = false;
   const visitReferences = (node: ts.Node): void => {
     if (importNodes.has(node)) return;
-    if (ts.isIdentifier(node) && importedNames.has(node.text)) referenced = true;
+    if (ts.isIdentifier(node) && importedNames.has(node.text)) {
+      const parent = node.parent;
+      const isPropertyName = (ts.isPropertyAssignment(parent) || ts.isPropertyAccessExpression(parent))
+        && parent.name === node;
+      if (!isPropertyName) referenced = true;
+    }
     if (!referenced) ts.forEachChild(node, visitReferences);
   };
   visitReferences(sourceFile);
@@ -255,7 +287,7 @@ function pythonImports(testCode: string): { modules: Array<{ path: string; local
 
 function pythonVerdict(testCode: string, subject: SourceImportSubject): SourceImportVerdict {
   const root = path.resolve(findProjectRoot());
-  const target = subject.importTarget || subject.sourceFilePath;
+  const target = normalizePathSeparators(subject.importTarget || subject.sourceFilePath);
   const dottedTarget = !path.isAbsolute(target) && !target.includes('/') && target.includes('.')
     ? target.replace(/\.py$/i, '').split('.').filter(Boolean)
     : path.relative(root, path.resolve(root, target)).replace(/\\/g, '/').replace(/\.py$/i, '').split('/').filter(Boolean);
@@ -266,10 +298,11 @@ function pythonVerdict(testCode: string, subject: SourceImportSubject): SourceIm
   if (!module) return 'unjudged';
   const expectedSegments = isPackageInit ? dottedTarget.slice(0, -1) : dottedTarget;
   const expected = expectedSegments.join('.');
+  const srcLayout = expectedSegments[0] === 'src' ? expectedSegments.slice(1).join('.') : undefined;
   const { modules, fromImports } = pythonImports(testCode);
   const normalizeRelative = (value: string): string => {
     if (!value.startsWith('.')) return value;
-    const testPath = path.resolve(root, subject.testFilePath || subject.sourceFilePath);
+    const testPath = path.resolve(root, normalizePathSeparators(subject.testFilePath || subject.sourceFilePath));
     const packageDir = path.relative(root, path.dirname(testPath))
       .replace(/\\/g, '/').split('/').filter(Boolean);
     const dots = value.match(/^\.+/)?.[0].length ?? 0;
@@ -280,7 +313,7 @@ function pythonVerdict(testCode: string, subject: SourceImportSubject): SourceIm
     .map(m => m[1].replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/$/, '').replace(/\//g, '.'));
   const matchesModule = (candidate: string): boolean => {
     const normalized = normalizeRelative(candidate);
-    if (normalized === expected) return true;
+    if (normalized === expected || normalized === srcLayout) return true;
     return sysPathPrefixes.some(prefix => expected.startsWith(`${prefix}.`) && normalized === expected.slice(prefix.length + 1));
   };
   const boundNames = new Set<string>();
@@ -473,8 +506,9 @@ function goVerdict(testCode: string, subject: SourceImportSubject): SourceImport
   if (testPackage === sourcePackage) return usesSource(code, declaredNames(subject.sourceCode ?? '', 'go')) ? 'found' : 'missing';
   // External test package: the source package must be imported by its module path.
   const root = path.resolve(findProjectRoot());
-  const sourceDir = path.relative(root, path.dirname(path.resolve(root, subject.sourceFilePath))).replace(/\\/g, '/');
-  const targetPath = subject.importTarget?.replace(/\\/g, '/').replace(/\/$/, '');
+  const sourcePath = path.resolve(root, normalizePathSeparators(subject.sourceFilePath));
+  const sourceDir = normalizePathSeparators(path.relative(root, path.dirname(sourcePath)));
+  const targetPath = subject.importTarget?.replace(/\\/g, '/').replace(/\/$/, '') || templateImportPath(sourcePath);
   const imported = targetPath
     ? imports.some(p => p === targetPath)
     : imports.some(p => p === sourceDir || p.endsWith(`/${sourceDir}`));

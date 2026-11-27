@@ -2,18 +2,26 @@
  * Edge Case Injector - Pre-task Pattern Injection
  * Inspired by loki-mode compound learning loop
  *
- * Queries historical edge-case patterns from the MemoryBackend that
- * caught real bugs in similar code, formats them as prompt context,
- * and injects them before test generation LLM calls.
+ * Looks up edge-case entries in the MemoryBackend for the code under test,
+ * formats the stored patterns they name as prompt context, and injects them
+ * before test generation LLM calls.
  *
  * This creates a continuously improving test generation system where
  * patterns discovered in past testing inform future test generation.
+ *
+ * #1423: a memory entry is only a pointer, since any agent can write one
+ * through `memory_store` or `aqe memory store`. It is injected when it names
+ * (by patternId, id, name or its key) a stored test-generation pattern that a
+ * person curated or that has a measured success, and that test generation may
+ * apply (#1388). The prompt text comes from that qe_patterns row, and the
+ * ranking from its measured runs, never from the memory entry.
  */
 
 import { LoggerFactory } from '../../../logging/index.js';
 import type { MemoryBackend } from '../../../kernel/interfaces.js';
 import { generateRemediationHints } from '../../../learning/opd-remediation.js';
 import type { RemediationHint } from '../../../learning/opd-remediation.js';
+import type { ApplicablePatternEvidence } from '../services/applicable-patterns.js';
 
 // ============================================================================
 // Types
@@ -41,7 +49,31 @@ export interface InjectionContext {
   patternsUsed: number;
   /** Total patterns considered before filtering */
   totalConsidered: number;
+  /** #1423: memory entries left out because they name no applicable stored pattern */
+  withoutEvidence?: number;
 }
+
+/**
+ * #1423: resolve references (pattern ids or names) to the stored patterns that
+ * may be injected; a reference without one is absent from the map. Fails closed.
+ */
+export type ApplicablePatternResolver = (refs: readonly string[]) => Promise<Map<string, ApplicablePatternEvidence>>;
+
+/**
+ * Reads qe_patterns through the already-open unified memory database
+ * (read-only). It never creates or opens one: without it, nothing is injected.
+ */
+export const resolveFromUnifiedMemory: ApplicablePatternResolver = async (refs) => {
+  try {
+    const { getOpenUnifiedMemoryDatabase } = await import('../../../kernel/unified-memory.js');
+    const db = getOpenUnifiedMemoryDatabase();
+    if (!db) return new Map();
+    const { findInjectablePatterns } = await import('../services/applicable-patterns.js');
+    return findInjectablePatterns(db, refs);
+  } catch {
+    return new Map();
+  }
+};
 
 /**
  * Internal representation of a retrieved pattern for ranking and formatting
@@ -130,7 +162,8 @@ export class EdgeCaseInjector {
 
   constructor(
     private readonly memory: MemoryBackend,
-    config?: Partial<EdgeCaseInjectionConfig>
+    config?: Partial<EdgeCaseInjectionConfig>,
+    private readonly resolvePattern: ApplicablePatternResolver = resolveFromUnifiedMemory,
   ) {
     this.config = { ...DEFAULT_INJECTION_CONFIG, ...config };
   }
@@ -149,11 +182,11 @@ export class EdgeCaseInjector {
 
     try {
       const keywords = extractKeywords(sourceCode);
-      const retrieved = await this.searchPatterns(keywords, domain);
+      const { patterns: retrieved, considered, withoutEvidence } = await this.searchPatterns(keywords, domain);
 
-      if (retrieved.length === 0) return emptyResult;
+      if (considered === 0) return emptyResult;
 
-      const totalConsidered = retrieved.length;
+      const totalConsidered = considered;
 
       // Filter by minimum confidence
       const filtered = retrieved.filter(p => p.confidence >= this.config.minConfidence);
@@ -169,7 +202,7 @@ export class EdgeCaseInjector {
       const selected = filtered.slice(0, this.config.topN);
 
       if (selected.length === 0) {
-        return { promptContext: '', patternsUsed: 0, totalConsidered };
+        return { promptContext: '', patternsUsed: 0, totalConsidered, withoutEvidence };
       }
 
       const promptContext = this.formatPromptContext(selected);
@@ -178,6 +211,7 @@ export class EdgeCaseInjector {
         promptContext,
         patternsUsed: selected.length,
         totalConsidered,
+        withoutEvidence,
       };
     } catch (error) {
       // Non-blocking: injection failure should never break test generation
@@ -189,8 +223,14 @@ export class EdgeCaseInjector {
   /**
    * Search memory backend for relevant patterns using keywords and domain.
    */
-  private async searchPatterns(keywords: string[], domain?: string): Promise<RetrievedPattern[]> {
+  private async searchPatterns(
+    keywords: string[],
+    domain?: string,
+  ): Promise<{ patterns: RetrievedPattern[]; considered: number; withoutEvidence: number }> {
     const patterns: RetrievedPattern[] = [];
+    const seenPatternIds = new Set<string>();
+    let considered = 0;
+    let withoutEvidence = 0;
 
     // Build search queries from keywords and domain
     const searchQueries: string[] = [];
@@ -206,6 +246,7 @@ export class EdgeCaseInjector {
     searchQueries.push(`${this.config.namespace}:*`);
 
     const seenKeys = new Set<string>();
+    const entries: Array<{ key: string; refs: string[] }> = [];
 
     for (const query of searchQueries) {
       try {
@@ -217,9 +258,8 @@ export class EdgeCaseInjector {
           try {
             const value = await this.memory.get<Record<string, unknown>>(key);
             if (!value || typeof value !== 'object') continue;
-
-            const pattern = this.parsePattern(key, value);
-            if (pattern) patterns.push(pattern);
+            if (!this.parsePattern(key, value)) continue;
+            entries.push({ key, refs: this.referencesOf(key, value) });
           } catch {
             // Skip individual pattern retrieval failures
           }
@@ -229,7 +269,54 @@ export class EdgeCaseInjector {
       }
     }
 
-    return patterns;
+    // #1423: one lookup for every reference; only patterns with evidence, with their own text.
+    let resolved = new Map<string, ApplicablePatternEvidence>();
+    if (entries.length > 0) {
+      try {
+        resolved = await this.resolvePattern(entries.flatMap((e) => e.refs));
+      } catch {
+        // Fail closed: an unreadable store is no evidence.
+      }
+    }
+    for (const entry of entries) {
+      considered++;
+      const evidence = entry.refs.map((ref) => resolved.get(ref)).find((e) => e !== undefined);
+      if (!evidence) {
+        withoutEvidence++;
+        continue;
+      }
+      if (seenPatternIds.has(evidence.id)) continue;
+      seenPatternIds.add(evidence.id);
+      patterns.push({
+        key: evidence.id,
+        name: evidence.name,
+        description: evidence.description,
+        confidence: evidence.confidence,
+        successRate: evidence.successRate,
+        usageCount: evidence.usageCount,
+        tags: [],
+      });
+    }
+
+    if (withoutEvidence > 0) {
+      logger.debug(`Left out ${withoutEvidence} edge-case memory entries that name no applicable stored pattern (#1423)`);
+    }
+    return { patterns, considered, withoutEvidence };
+  }
+
+  /**
+   * #1423: the references a memory entry may name its pattern by: patternId,
+   * id, name, then the last segment of its key.
+   */
+  private referencesOf(key: string, value: Record<string, unknown>): string[] {
+    const refs = new Set<string>();
+    for (const field of ['patternId', 'id', 'name'] as const) {
+      const ref = value[field];
+      if (typeof ref === 'string' && ref.trim()) refs.add(ref.trim());
+    }
+    const keySegment = key.split(':').pop();
+    if (keySegment) refs.add(keySegment);
+    return [...refs];
   }
 
   /**
@@ -257,11 +344,13 @@ export class EdgeCaseInjector {
    * Appends OPD remediation hints for patterns with low success rates.
    */
   private formatPromptContext(patterns: RetrievedPattern[]): string {
-    const lines: string[] = ['## Historical Edge Cases (from patterns that caught real bugs):'];
+    // #1423: say what the evidence is.
+    const lines: string[] = ['## Edge Cases from stored patterns (curated by a person, or with a measured success):'];
 
     for (let i = 0; i < patterns.length; i++) {
       const p = patterns[i];
-      const tag = p.tags.length > 0 ? p.tags[0] : this.inferTag(p);
+      // #1423: the tag is inferred from the stored name, never taken from a memory entry.
+      const tag = this.inferTag(p);
       const desc = p.description || p.name;
       lines.push(`${i + 1}. [${tag}] ${desc}`);
     }

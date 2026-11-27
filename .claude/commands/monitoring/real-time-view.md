@@ -4,7 +4,7 @@ Real-time view of swarm activity.
 
 ## Usage
 ```bash
-npx claude-flow monitoring real-time-view [options]
+npx ruflo@3.76.0 monitoring real-time-view [options]
 ```
 
 ## Options
@@ -15,11 +15,11 @@ npx claude-flow monitoring real-time-view [options]
 ## Examples
 ```bash
 # Start real-time view
-npx claude-flow monitoring real-time-view
+npx ruflo@3.76.0 monitoring real-time-view
 
 # Filter errors
-npx claude-flow monitoring real-time-view --filter errors
+npx ruflo@3.76.0 monitoring real-time-view --filter errors
 
 # Highlight pattern
-npx claude-flow monitoring real-time-view --highlight "API"
+npx ruflo@3.76.0 monitoring real-time-view --highlight "API"
 ```

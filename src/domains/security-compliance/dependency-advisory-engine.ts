@@ -13,6 +13,7 @@ import type { SecurityEngineEvidence } from './scan-evidence.js';
 import type { Vulnerability, UncheckedDependency, LocalDependency } from './interfaces.js';
 import type { DependencyScanResult } from './services/scanners/scanner-types.js';
 import type { Result } from '../../shared/types/index.js';
+import type { DependencyReadOptions } from './services/scanners/dependency-resolver.js';
 
 export const DEPENDENCY_ADVISORY_ENGINE_ID = 'osv-dependency-advisories';
 
@@ -46,7 +47,7 @@ export interface DependencyAdvisoryOutcome {
 }
 
 interface PackageJsonScanner {
-  scanPackageJson(packageJsonPath: string): Promise<Result<DependencyScanResult>>;
+  scanPackageJson(packageJsonPath: string, read?: DependencyReadOptions): Promise<Result<DependencyScanResult>>;
 }
 
 /** The package.json for a scan target: the target directory's, else the project root's. */
@@ -107,17 +108,23 @@ function notRun(reason: string, manifest?: string): DependencyAdvisoryOutcome {
   };
 }
 
-/** Run the OSV dependency scan for a target and describe it as an engine receipt. */
+/**
+ * Run the OSV dependency scan for a target and describe it as an engine receipt.
+ * `read` (#1350) says how package.json and the lockfile are read; the MCP
+ * scan refuses a hardlink outside node_modules, since what is read is sent
+ * to OSV. A refused package.json fails the scan before anything is sent.
+ */
 export async function runDependencyAdvisoryScan(
   scanner: PackageJsonScanner,
   targetPath: string,
+  read?: DependencyReadOptions,
 ): Promise<DependencyAdvisoryOutcome> {
   const manifest = await findPackageJson(targetPath);
   if (!manifest) return notRun('No package.json found for the dependency advisory scan.');
 
   let scan: Result<DependencyScanResult>;
   try {
-    scan = await scanner.scanPackageJson(manifest);
+    scan = read ? await scanner.scanPackageJson(manifest, read) : await scanner.scanPackageJson(manifest);
   } catch (error) {
     return notRun(`Dependency advisory scan failed: ${error instanceof Error ? error.message : String(error)}`, manifest);
   }

@@ -149,30 +149,30 @@ Task("Generate comprehensive test suite", `
 
 ```bash
 # Retrieve existing coverage baseline
-npx claude-flow@alpha memory retrieve --key "aqe/coverage-baseline"
+npx ruflo@3.76.0 memory retrieve --key "aqe/coverage-baseline"
 
 # Retrieve learned test patterns
-npx claude-flow@alpha memory retrieve --key "aqe/test-patterns"
+npx ruflo@3.76.0 memory retrieve --key "aqe/test-patterns"
 
 # Retrieve source code analysis
-npx claude-flow@alpha memory retrieve --key "aqe/source-code/${target}"
+npx ruflo@3.76.0 memory retrieve --key "aqe/source-code/${target}"
 ```
 
 ### Output Memory Keys
 
 ```bash
 # Store generation results
-npx claude-flow@alpha memory store \
+npx ruflo@3.76.0 memory store \
   --key "aqe/test-generation/results" \
   --value '{"tasksGenerated": 45, "projectedCoverage": 96}'
 
 # Store generated test suite metadata
-npx claude-flow@alpha memory store \
+npx ruflo@3.76.0 memory store \
   --key "aqe/test-suite/${target}" \
   --value '{"framework": "jest", "testCount": 45, "timestamp": "2025-09-30T10:00:00Z"}'
 
 # Store coverage projection
-npx claude-flow@alpha memory store \
+npx ruflo@3.76.0 memory store \
   --key "aqe/coverage-projection" \
   --value '{"before": 78, "after": 96, "improvement": 18}'
 ```
@@ -182,31 +182,36 @@ npx claude-flow@alpha memory store \
 ### Pre-Task Hook
 
 ```bash
-npx claude-flow@alpha hooks pre-task \
-  --description "Generate tests for ${target}" \
-  --agent "qe-test-generator"
+# One id per run; post-task below records the outcome against it
+TASK_ID="aqe-generate-$(date +%s)"
+npx ruflo@3.76.0 hooks pre-task \
+  --task-id "${TASK_ID}" \
+  --description "Generate tests for ${target}"
 ```
 
 ### Post-Edit Hook (for each generated test file)
 
 ```bash
-npx claude-flow@alpha hooks post-edit \
+npx ruflo@3.76.0 hooks post-edit \
   --file "${TEST_FILE}" \
-  --memory-key "aqe/test-files/${FILE_NAME}"
+  --success "${TEST_FILE_WRITTEN:?set to true or false}"
 ```
 
 ### Post-Task Hook
 
 ```bash
-npx claude-flow@alpha hooks post-task \
-  --task-id "${TASK_ID}" \
-  --results "${GENERATION_RESULTS}"
+# Set TASK_SUCCEEDED to true or false from the actual result; results go to `memory store` above
+npx ruflo@3.76.0 hooks post-task \
+  --task-id "${TASK_ID:?run the pre-task block first, in the same shell}" \
+  --success "${TASK_SUCCEEDED:?set to true or false}" \
+  --agent "qe-test-architect" \
+  --task "Generate tests for ${target}"
 ```
 
 ### Notify Fleet
 
 ```bash
-npx claude-flow@alpha hooks notify \
+npx ruflo@3.76.0 hooks notify \
   --message "Generated ${TEST_COUNT} tests with ${COVERAGE}% projected coverage"
 ```
 

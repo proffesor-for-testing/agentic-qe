@@ -221,9 +221,9 @@ const designFleet = await FleetManager.coordinate({
 ---
 
 ## Related Skills
-- [agentic-quality-engineering](../agentic-quality-engineering/) - Agent-driven testing
-- [risk-based-testing](../risk-based-testing/) - Prioritize by risk
-- [mutation-testing](../mutation-testing/) - Validate test effectiveness
+- [agentic-quality-engineering](../qe-agentic-quality-engineering/) - Agent-driven testing
+- [risk-based-testing](../qe-risk-based-testing/) - Prioritize by risk
+- [mutation-testing](../qe-mutation-testing/) - Validate test effectiveness
 
 ---
 

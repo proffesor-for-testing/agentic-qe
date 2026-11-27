@@ -4,7 +4,7 @@ Automated code review with swarm intelligence.
 
 ## Usage
 ```bash
-npx claude-flow github code-review [options]
+npx ruflo@3.76.0 github code-review [options]
 ```
 
 ## Options
@@ -15,11 +15,11 @@ npx claude-flow github code-review [options]
 ## Examples
 ```bash
 # Review PR
-npx claude-flow github code-review --pr-number 456
+npx ruflo@3.76.0 github code-review --pr-number 456
 
 # Security focus
-npx claude-flow github code-review --pr-number 456 --focus security
+npx ruflo@3.76.0 github code-review --pr-number 456 --focus security
 
 # With fix suggestions
-npx claude-flow github code-review --pr-number 456 --suggest-fixes
+npx ruflo@3.76.0 github code-review --pr-number 456 --suggest-fixes
 ```

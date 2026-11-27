@@ -7,7 +7,526 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Changes queued for 3.15.19.
+## [3.15.23] - 2026-11-24
+
+The measured quality gate now only passes on evidence measured on the
+exact code it is gating: every measurement is tied to the Git commit and
+the uncommitted content it was taken on, so results from another commit
+can no longer be combined into a pass. **Stored evidence from earlier
+versions no longer counts — re-run your measurements after upgrading.**
+`accessibility_test` now runs a real axe-core audit, and both accessibility
+tools run the rules of the standard you ask for and say what they checked.
+`aqe quality-gate` works outside the AQE repository, the Codex plugin no
+longer warns about its hooks file, and the shipped skill hooks block under
+Claude Code on macOS and Linux.
+
+### Changed
+
+- **The measured quality gate binds evidence to the candidate it gates**
+  ([#1474]). This applies to `aqe quality --gate`, the `aqe ci run`
+  quality-gate phase, MCP `quality_assess({ runGate: true })` and the
+  quality-gate worker.
+  - Each measurement is stored as a receipt tied to the checkout it was
+    taken on: the project, the Git HEAD and a fingerprint of uncommitted
+    and untracked content.
+  - The gate only applies thresholds when every metric has fresh evidence
+    for the checkout being gated. Otherwise it reports *insufficient
+    evidence* with a reason per metric: `missing`, `legacy-unbound`,
+    `mismatched`, `stale`, `future-dated`, `malformed`,
+    `candidate-unavailable`, `unpaired-failed-run`. A mismatch names the
+    commits or the uncommitted files that differ.
+  - Verdicts record the candidate, the receipt ids and the thresholds.
+  - Report files AQE writes with `-o` and the `aqe ci run` output directory
+    are left out of the fingerprint while they hold exactly what AQE wrote.
+  - `aqe coverage`, the CI coverage phase and MCP
+    `coverage_analyze_sublinear` no longer record a stale or partial
+    coverage report as evidence.
+  - **Upgrade impact:**
+    - Evidence stored by earlier versions reports `legacy-unbound` until
+      you measure again on the checkout you gate.
+    - Projects that are not Git work trees can't pass the measured gate.
+    - Any commit or uncommitted change to non-ignored files between
+      measuring and gating gives `mismatched`. Gitignore generated output,
+      and write reports with `-o` rather than a shell redirect into the
+      checkout.
+    - In container CI jobs, a "dubious ownership" error from Git is shown in
+      the reason; fix it with `git config --global --add safe.directory`.
+
+    See [docs/ci-measured-quality-gate.md](docs/ci-measured-quality-gate.md).
+- **Accessibility audits run the standard you ask for** ([#1473]).
+  `accessibility_test` and `qe/a11y/audit` resolve the standard to a
+  versioned rule profile:
+  - `wcag21-aa`: WCAG 2.0 and 2.1 A/AA;
+  - `wcag22-aa`: adds the WCAG 2.2 rules, such as `target-size`;
+  - `wcag21-aaa`: 2.1 AAA, without 2.2 rules;
+  - `section508`: WCAG 2.0 A/AA, reported as the automated subset of the
+    Section 508 baseline with its limitations listed.
+
+  Best-practice rules are now opt-in with `includeBestPractices`, so default
+  results can contain fewer findings than before. Results now include the
+  requested and effective profile, the engine version, the rules that ran,
+  a `needsReview` list and a structured `outcome`. `passed` is the automated
+  scan's severity threshold, not conformance. The audit always loads its own
+  axe-core 4.8.4, so a page's own `axe` can't supply the result.
+  `qe/a11y/audit` rejects an unknown standard instead of using AA.
+
+### Fixed
+
+- **`accessibility_test` runs a real audit** ([#1465]). It used to return
+  "not measured" without loading the page. It now runs the same axe-core
+  audit as `qe/a11y/audit` and returns the violations, score and passed
+  rules, or "not measured" with the real reason. Both tools:
+  - give each audit its own browser session, so parallel audits can't read
+    each other's pages;
+  - don't audit HTTP error pages;
+  - accept only `http:` and `https:` URLs;
+  - close their browser sessions when the MCP server stops.
+- **`aqe quality-gate` works in user projects** ([#1454]). The pinned
+  anchors now ship with the package and resolve from the package root, so
+  `aqe quality-gate --list` and `--checklist` no longer fail with ENOENT
+  outside the AQE repository. This also fixes the MCP `qe/quality/gate`
+  tool.
+- **The Codex plugin no longer warns about its hooks file** ([#1475]). The
+  Agentic QE Fleet plugin's mod manifest moved to `hooks/aqe-mod.json`, and
+  a Codex manifest (`.codex-plugin/plugin.json`) declares no hooks. The
+  Claude Code guard that protects the learning databases still loads.
+- **Shipped skill hooks block under Claude Code, including on macOS**
+  ([#1470]). `no-skip`, `freeze-tests` and `security-watch` read Claude
+  Code's JSON payload, block with exit 2, and use portable `grep -E`
+  patterns. `security-watch` blocks on secrets and asks on warnings. The
+  `brutal-honesty-review` coverage helper only rates a real coverage number.
+- **Git analysis** ([#1330]):
+  - duplicate git-watcher retries no longer analyse the same commit twice;
+  - defect predictions made after a failed git query are marked incomplete
+    instead of looking like measured history;
+  - an untracked file's blame failure is treated as no history.
+
+[#1330]: https://github.com/proffesor-for-testing/agentic-qe/issues/1330
+[#1454]: https://github.com/proffesor-for-testing/agentic-qe/issues/1454
+[#1465]: https://github.com/proffesor-for-testing/agentic-qe/issues/1465
+[#1470]: https://github.com/proffesor-for-testing/agentic-qe/issues/1470
+[#1473]: https://github.com/proffesor-for-testing/agentic-qe/issues/1473
+[#1474]: https://github.com/proffesor-for-testing/agentic-qe/issues/1474
+[#1475]: https://github.com/proffesor-for-testing/agentic-qe/issues/1475
+
+## [3.15.22] - 2026-11-20
+
+The Claude Code plugin now works with npm 12: it lets npm build AQE's
+native SQLite module, and when an existing npx cache is broken the error
+names that cache and the commands that repair it. A full `aqe sync` no
+longer duplicates captured experiences in the cloud, and the new
+`aqe sync dedupe-experiences` removes the duplicates already there.
+`aqe init` pins the ruflo MCP server, `--with-kiro` installs each skill's
+supporting files, and the plugin commands and skills no longer call ruflo
+commands that don't exist. The package no longer depends on
+`tinyglobby`/`picomatch`, which carry a high-severity advisory with no fix,
+and its tarball is about 1 MB smaller.
+
+### Added
+
+- **`aqe sync dedupe-experiences [--env <env>] [--apply]`** ([#1436]):
+  removes the duplicate experiences that earlier full syncs left in
+  `aqe.learning_experiences`. It is a dry run unless you pass `--apply`.
+  It only runs after migration 004 is applied and once every local
+  experience has been uploaded with its sync key. `--apply` copies the rows
+  it deletes to a backup table in the same transaction and prints the SQL
+  that restores them. Steps for each environment:
+  1. apply `src/sync/schema/migration-004.sql` (shipped in the package);
+  2. `aqe sync --full --env <env>`;
+  3. `aqe sync dedupe-experiences --env <env>`, and check the numbers;
+  4. the same with `--apply`;
+  5. `aqe sync verify --env <env>`.
+
+### Fixed
+
+- **The Claude Code plugin starts on npm 12** ([#1466]): npm 12 skips
+  dependency install scripts for `npx` unless they are allowed, so
+  `better-sqlite3` had no binary and `fleet_init` failed. The plugin, and
+  every MCP config `aqe init` writes for other platforms, now launch
+  `npx -y --allow-scripts=better-sqlite3,hnswlib-node agentic-qe@<version> mcp`.
+  npm 10 and 11 accept the flag too. If AQE does run from a broken npx
+  cache, the error names that directory, gives the commands that repair it
+  in place, and says to restart the MCP server.
+- **Full syncs no longer duplicate experiences** ([#1436]): every
+  `aqe sync --full` inserted each captured experience into the cloud again.
+  Uploads now carry the local experience id as a sync key, so a re-sync
+  updates the existing row. Pulling no longer inserts the same experiences
+  locally again, and experiences pulled from another environment are never
+  uploaded as this machine's.
+- **`aqe init --with-claude-flow` pins the ruflo MCP server** ([#1413]):
+  it wrote `npx ruflo@3.5.18 mcp`, which still started whatever
+  `@claude-flow/cli` was newest, and its install hints named no version.
+  The entry and the hints now use `ruflo@3.76.0`, which pins it exactly. On
+  re-init an entry that is exactly an old AQE default is upgraded; any
+  other entry is yours and is kept.
+- **`aqe init --with-kiro` installs each skill's supporting files**
+  ([#1414]): it copied only `SKILL.md`, so the `steps/`, `schemas/` and
+  other files that 64 of the 84 Kiro skills reference were missing. Links
+  between those files now point inside the Kiro skill directory.
+- **The plugin commands and skills call only real ruflo commands**
+  ([#1417]): the `/aqe-*` hooks, the verification-quality skill, the
+  qe-integration-architect agent and the Codex `aqe-ruflo` skill called
+  subcommands and flags that ruflo 3.76.0 doesn't have. A CI check now
+  compares every ruflo call in shipped content with ruflo's real `--help`.
+
+### Changed
+
+- **No more `tinyglobby` or `picomatch`** ([#1458]): `picomatch` has a
+  high-severity ReDoS advisory with no fixed version. AQE now uses its own
+  small glob matcher, which returns the same files at every call site. A
+  scan that reaches more than 200,000 entries through symlinks now stops
+  with an error instead of running until memory runs out.
+- **Smaller package** ([#1456]): the Claude Flow platform agents, commands
+  and skills that `aqe init` never installs are no longer shipped. The
+  tarball has 4,165 files instead of 4,932 (11.5 MB instead of 12.6 MB), and
+  `aqe init` installs the same files as before.
+- **Upgrade note** ([#1436]): until migration 004 is applied to your cloud
+  database, `aqe sync` reports experience upload as failed, with a message
+  naming the migration, instead of adding duplicates. The other sources
+  still sync.
+
+[#1466]: https://github.com/proffesor-for-testing/agentic-qe/issues/1466
+[#1436]: https://github.com/proffesor-for-testing/agentic-qe/issues/1436
+[#1413]: https://github.com/proffesor-for-testing/agentic-qe/issues/1413
+[#1414]: https://github.com/proffesor-for-testing/agentic-qe/issues/1414
+[#1417]: https://github.com/proffesor-for-testing/agentic-qe/issues/1417
+[#1458]: https://github.com/proffesor-for-testing/agentic-qe/issues/1458
+[#1456]: https://github.com/proffesor-for-testing/agentic-qe/issues/1456
+
+## [3.15.21] - 2026-11-17
+
+You can take back a pattern you curated with `aqe learning unmark`, and
+patterns whose measured test runs mostly fail are no longer applied.
+Unproven memory entries no longer reach the test-generation LLM prompt. The
+package's types work under `moduleResolution: node16` and `nodenext`.
+`aqe sync` uploads Q-learning rows as plain text, routing outcomes and
+daemon worker stats again, and `aqe sync pull` works. `aqe learning export`
+no longer writes to your database, and re-importing an export no longer
+duplicates patterns.
+
+### Added
+
+- **`aqe learning unmark`** ([#1426]): removes the curation marker that makes
+  test generation apply a pattern without a measured success (set by `aqe hooks
+  learn --curate`, `aqe learning import --curate` or a marked export). Name
+  patterns by id or name, or use `--all`, optionally with `--domain`; the
+  cross-domain copies of a named pattern are included. It is a dry run unless
+  `--apply`, which backs up `memory.db` first and removes only the marker.
+- **`aqe learning stats` shows curated patterns** ([#1426]) by origin
+  (imported, or stored with `aqe hooks learn`), and how many are no longer
+  applied because of measured failures.
+
+### Fixed
+
+- **Measured failures revoke curation** ([#1426]): a pattern whose measured
+  test runs fail more often than they pass, over at least 3 runs, is no longer
+  applied by test generation, whether it is curated, a built-in seed, or had
+  an earlier measured success, and an export no longer marks it as curated.
+  The runs of its cross-domain copies count too, since test runs record their
+  outcome on the test-execution copy. Nothing is rewritten: it is applied
+  again once passing runs catch up.
+- **Unproven memory entries no longer reach the test-generation LLM prompt**
+  ([#1423]): with an LLM configured, test generation added an "edge cases"
+  section built from any memory entry under `edge-case:` or `pattern:`, which
+  any agent can write with `memory_store` or `aqe memory store`, and labelled it
+  "from patterns that caught real bugs". An entry is now used only when it
+  names a stored test-generation pattern that you curated or that has a
+  measured success, and the prompt shows that pattern's own text. The section
+  is now titled "Edge Cases from stored patterns". A built-in seed's name is
+  not enough, because anyone storing a pattern can choose it.
+- **The package's types work under `moduleResolution: node16` and `nodenext`**
+  ([#1439]): the published `.d.ts` files imported other files without an
+  extension (`export * from './shared/types'`), so with those settings most
+  exports, such as `QEKernelImpl` and `ok`, were missing or typed as `any`, on
+  the main entrypoint and on subpaths such as `agentic-qe/kernel`. The build
+  now writes each declaration import with its full path, as it already did
+  for the JavaScript files, and also replaces the `@shared/...` path aliases
+  that 15 declaration files still contained.
+- **`aqe sync` stores Q-learning states and actions as plain text** ([#1407]):
+  every `state` and `action` in `aqe.qlearning_patterns` was stored
+  JSON-quoted (`"edit:ts"` with the quotes), and a state that was a 13-digit
+  number was rewritten to a date. Sync now writes each value according to
+  the cloud column's real type: TEXT unchanged, JSONB as valid JSON (an
+  ISO-looking string in a JSONB column was rejected before), and
+  timestamps converted only for timestamp columns.
+- **AQE's and ruvector's Q-learning rows no longer overwrite each other**
+  ([#1415]): both are stored in `aqe.qlearning_patterns`, keyed by
+  `(state, action)`, so when both stores had the same pair the cloud kept
+  only whichever synced last, and `aqe sync verify` reported a mismatch.
+  ruvector states are now uploaded as `ruvector:<state>`.
+- **Your existing cloud rows are converted once:** on the first sync after
+  the upgrade, and only for that machine's environment, AQE rewrites
+  existing rows in place. It unquotes `state` and `action`, and adds the
+  `ruvector:` prefix to rows that match one of your local ruvector
+  patterns. A pair both stores have stays an AQE row, and the ruvector
+  pattern is uploaded next to it. The sync report shows what was converted.
+  No row is deleted. A row whose converted form already exists is left as
+  it was and counted. A state that an earlier version rewrote to a date
+  cannot be restored and stays as an extra row.
+- **`aqe sync pull` works** ([#1409]): `--full`, `--env` and `--since`
+  after `pull` were taken by the parent `sync` command, so every pull ran
+  incremental (last 24 hours) from all environments. `aqe sync verify --env`
+  and `aqe sync status --env` had the same problem. All three now use the
+  options you give them.
+  - Claude-flow memories are no longer rejected (`NOT NULL constraint
+    failed: kv_store.namespace`). Each environment's memories go into
+    `kv_store` under namespace `claude-flow-cloud:<environment>`.
+  - Q-learning rows are no longer rejected (`rl_q_values.algorithm`). They
+    are stored with algorithm `cloud-sync` and the source environment as
+    `agent_id`, so AQE's own routing, which reads only its own algorithms,
+    is not changed by them. ruvector rows are not pulled into AQE's
+    Q-values.
+  - These two tables are pulled insert-only: a row you already have locally
+    is kept as it is, and the report says how many were kept. Rows your own
+    machine uploaded (`AQE_ENV`, default `devpod`) are not pulled back. If
+    you sync with `aqe sync --env X` instead of `AQE_ENV`, pass
+    `aqe sync pull --local-env X`.
+  - `aqe sync` does not upload pulled memories or Q-values again under your
+    environment, and AQE's own Q-learning updates and metrics leave them
+    out.
+- **Plain `aqe sync` (incremental) uploads what changed** ([#1409]): an
+  incremental sync read whole local tables instead of each source's query,
+  and compared times as text.
+  - Changed Q-values failed to upload (`column "algorithm" of relation
+    "qlearning_patterns" does not exist`).
+  - `kv_store` entries were never uploaded, because their epoch-millisecond
+    times never compared as newer.
+  - A `datetime('now')` time from earlier the same day could be missed.
+  - Incremental syncs now read through each source's query and compare
+    epoch numbers and date text as times. `aqe sync verify` counts the same
+    rows a sync uploads.
+- **Routing outcomes upload again** ([#1432]): every row was rejected
+  (`column "model_tier" of relation "routing_outcomes" does not exist`),
+  most likely since v3.7, because the local table has five columns the
+  cloud table lacked. A local column the cloud table does not have is now
+  left out and named in the sync report, and the rest of the row is
+  uploaded. The cloud schema adds the five columns (`model_tier`,
+  `advisor_consultation_json`, `exploration`, `criticality`, `q_weight`):
+  re-apply it with `aqe sync init --output cloud-schema.sql` and `psql`,
+  or run `src/sync/schema/migration-003.sql`. Both are safe to run again.
+  Then run `aqe sync --full`: rows uploaded before the schema change get
+  the new values. Append-only tables still never overwrite a cloud value;
+  they now fill one that is empty.
+- **`aqe sync init` works from the npm package** ([#1432]): the schema
+  files were not included in the package, so the command failed with
+  `Could not locate cloud-schema.sql`. `aqe sync init --dry-run` now prints
+  the schema; before, the parent `sync` command took `--dry-run`.
+- **Daemon worker stats upload** ([#1408]): `aqe sync --full` now sends
+  each worker's run, success and failure counts and timings from
+  `.claude-flow/daemon-state.json` to `aqe.claude_flow_workers`. They hold
+  no file or command content.
+- **intelligence.json memories can be uploaded, if you ask** ([#1408]):
+  they record what was read, run and edited, so they are off by default.
+  `aqe sync --full --sources intelligence-memories` uploads them to
+  `aqe.intelligence_memories`. Memories made in the same second share a
+  ruvector id, so each one gets a cloud id with a hash of its content, and
+  an exact repeat is uploaded once and counted in the report. Naming any
+  source in `--sources` turns it on. `aqe sync status` shows the source as
+  off (○), not as failed.
+- **`aqe learning export` no longer writes to your learning database**
+  ([#1422]): `export` and `export-full` started the learning system, which
+  on a database it had not seen yet loads the built-in patterns and runs
+  cross-domain seeding, so exporting a fresh project wrote 70 patterns.
+  Both now read `memory.db` read-only and export exactly what it holds.
+  The `--dry-run` of `import` and `import-merge` no longer writes either.
+- **Importing your own export no longer duplicates patterns** ([#1421]):
+  `import` and `import-merge` ignored the exported domain and re-derived it
+  from the pattern type, so a pattern came back in another domain as a new
+  row (70 patterns became 100). The exported domain is now kept, including
+  domains such as `general` that agent and hook paths store, and a round
+  trip updates the existing rows. An update keeps the row's own tier and
+  confidence; before, re-importing a long-term pattern made it short-term
+  at confidence 0.5. New patterns still start short-term, whatever the file
+  says. Files from older versions without a domain update the one existing
+  row with the same name and type. `import-merge` counts a pattern as
+  updated only when the same name, domain and type already exist, and
+  `--skip-duplicates` skips only those (before, any pattern with the same
+  name). A row whose confidence decayed below 0.3, the lowest the pattern
+  store accepts, is updated at 0.3 instead of being skipped.
+
+## [3.15.20] - 2026-11-12
+
+Test generation applies only patterns it can trust, so automatically
+learned scaffold patterns are no longer applied or counted as successes,
+and patterns no longer cross languages. `aqe sync` uploads each
+claude-flow memory and your Q-learning patterns, and `aqe sync verify`
+matches afterwards. More MCP tools refuse hardlinked files, and the skills,
+commands and agents AQE ships run third-party CLIs at a pinned version
+instead of a floating tag.
+
+### Security
+
+- **Shipped skills, commands and agents pin third-party CLIs** ([#1404]):
+  they told agents to run `npx ruflo@alpha`, `claude-flow@v3alpha`,
+  `@claude-flow/cli@latest`, `agentdb@latest` or unversioned
+  `npx claude-flow …`, so each call ran whatever had been published most
+  recently. Every such call now uses an exact version: `ruflo@3.76.0`
+  (which also replaces `claude-flow` and `@claude-flow/cli`),
+  `agentdb@3.3.0` and `flow-nexus@0.1.128`. This covers the skills and QE
+  agents `aqe init` installs, the `/aqe-*` plugin commands, the `CLAUDE.md`
+  examples and the `aqe status` daemon hint. A test fails if a floating
+  version comes back. Behaviour is unchanged: many of these Ruflo commands
+  are out of date in any version, which [#1417] tracks, and the Ruflo
+  version `aqe init` writes into MCP config is [#1413]. Thanks to
+  @Dimooyoyo for the report.
+- **In-range dependency security update**: `@claude-flow/security` 3.0.7.
+
+### Changed
+
+- **Test generation applies only patterns it can trust** ([#1388]): before
+  3.15.19, a run without an LLM saved its template scaffolding as a
+  learned pattern with a 100% success rate. Those patterns stayed in
+  `.agentic-qe/memory.db` and were still applied to new generations. They
+  showed up as an `// Applied patterns: generate-tests …` line and under
+  "Patterns Used", and each use counted as another success. Test generation
+  now applies a stored pattern only if it meets one of these conditions:
+  - it is one of AQE's built-in patterns;
+  - you stored it with `aqe hooks learn --curate`;
+  - you imported it from an export that marked it as curated;
+  - you imported it with `--curate`;
+  - its tests have been run with a measured, passing result.
+
+  In practice:
+  - **Automatically learned patterns stay unused for now.** Nothing in this
+    release measures the tests that generation produced. Patterns AQE
+    learned on its own are therefore kept but not applied. That covers
+    patterns from test generation, hooks, session consolidation and dream
+    insights. A measurement path is tracked in [#1412].
+  - **A backup/restore keeps them unused.** `aqe learning export` and
+    `export-full` mark a pattern as curated only if it is applicable when
+    exported. `aqe learning import` and `import-merge` keep that marker and
+    mark nothing else.
+  - **New `--curate` flag on import.** Use `aqe learning import -i <file>
+    --curate` (or `import-merge … --curate`) to vouch for every pattern in a
+    file. This is also how to restore patterns you imported with an earlier
+    version, because those exports carry no marker. Every import prints how
+    many patterns arrived already marked as curated, for example "3 of 20
+    patterns carry a curation marker from the file", so a file that declares
+    its own patterns curated is visible.
+  - **`aqe hooks learn` marks a pattern curated only with `--curate`.** Agent
+    prompts run `aqe hooks learn` as an automatic step, so a pattern stored
+    without the flag is kept but not applied until it is measured.
+  - **A curation marker is permanent.** A later measured failure does not
+    revoke it, and there is no command to remove it yet ([#1426]). An
+    automatic update that changes a curated pattern's template drops the
+    marker, so the changed content has to earn trust again.
+  - **`aqe brain import` copies patterns as they are.** A pattern without a
+    marker stays unused, and a marker in the file is trusted, since
+    importing the file is your choice.
+  - **With an LLM:** the template the LLM starts from no longer carries
+    learned patterns in its "Applied patterns" header, and `patternsUsed`
+    lists only the patterns actually applied. Edge-case hints from memory
+    are still added to the prompt; [#1423] tracks filtering them the same
+    way.
+  - **Nothing in your database is changed or deleted.** No cleanup step is
+    needed.
+- **More MCP tools refuse hardlinked files** ([#1350]): over MCP, a file
+  inside the project that is a hardlink to a file outside it is no longer
+  read by `code_index`, `quality_assess`, `coverage_analyze_sublinear`
+  (static estimate and coverage config), `qe/code/c4`, the dependency check
+  of `security_scan_comprehensive` (`dependencies: true`), and the
+  `security-audit` task (SAST walk and `package.json`).
+  - The dependency check refuses any hardlinked `package.json`, lockfile or
+    `pnpm-workspace.yaml`, including one under `node_modules`, before
+    anything is sent to OSV, so names and versions from an outside file are
+    never looked up. pnpm and bun never hardlink a project's own manifest.
+  - `code_index`, `quality_assess`, compliance checks, contract testing and
+    defect prediction refuse every hardlinked file, including package files
+    under `node_modules`. Their directory walks skip `node_modules`, so a
+    pnpm or bun project's own sources are read as before.
+  - Refused files are listed in `refused` (and in `skipped` with reason
+    `hardlinked` for `code_index`), and the result is reported as partial or
+    incomplete instead of clean. `code_index` gains `scanStatus` and leaves
+    out `projectMetrics` when it refused a file, since the line counters
+    would read it.
+  - The directory scans (`security_scan_comprehensive` SAST and
+    `defect_predict`) still read hardlinks under the project's
+    `node_modules` (pnpm, bun and yarn stores) and list them in
+    `exemptHardlinks`. A scan that read one is now `partial`, not
+    `complete`.
+  - The CLI is unchanged: `aqe code index`, `aqe coverage` and
+    `aqe security --dependencies` still read the operator's own hardlinked
+    files.
+- **Security posture counts secrets and incomplete audits** ([#1350]):
+  exposed secrets from the latest audit count as critical issues, the
+  audit's incomplete checks are returned, and an incomplete audit no longer
+  gets "Maintain current security practices".
+- **Compliance checks name the files they did not read** ([#1350]): the
+  evidence lists unread files with the reason instead of counting them as
+  analysed.
+
+### Fixed
+
+- **Patterns no longer cross languages** ([#1388]): matching patterns by
+  file extension used a substring search, so for a `.ts` file every learned
+  pattern matched through the word "generate-tests", and Kotlin and Python
+  patterns were applied to TypeScript. A pattern now matches only a file
+  with exactly that extension (in any case, including `.mts` and `.cts`),
+  or its declared language.
+- **`qe/tests/generate` reports `testsGenerated`** ([#1388]): the count of
+  real tests, with scaffolds excluded, so a scaffold-only result can never
+  be learned from.
+- **`aqe sync` uploads each claude-flow memory and your Q-learning
+  patterns** ([#1384], [#1402]): sync now reads the real
+  `.claude-flow/memory/store.json` and `.ruvector/intelligence.json`
+  layouts. Thanks to @dajiaohuang for the first part of this fix.
+
+  What changes in your cloud data:
+  - `aqe.claude_flow_memory` gets one row per memory, holding the stored
+    value. Before, every sync uploaded the same two rows: one named
+    `entries` with all your memories in a single blob, and one named
+    `version`.
+  - Your Q-learning patterns start uploading to `aqe.qlearning_patterns`.
+    Before, this source always synced 0 records.
+  - If a store doesn't have the data a source is configured to read, that
+    source now fails with the reason (for example
+    `Configured JSON path $.patterns not found`). The sync then reports
+    PARTIAL instead of COMPLETED with 0 records.
+  - The old `entries` and `version` rows already in your cloud database
+    are not removed. You can delete them yourself if you don't want them.
+  - Older ruvector pretrain entries that aren't Q-patterns are skipped
+    and shown as `Skipped: N` with a note; the source still succeeds.
+  - **Upgrade note:** if your `.ruvector/intelligence.json` has no
+    `patterns` (for example an old file that only has `qvalues`), sync
+    shows `intelligence-qlearning` as failed and exits with code 2.
+    `aqe sync verify` shows `aqe.qlearning_patterns` as unverified. The
+    other sources still sync. To skip this source, list the ones you want
+    with `aqe sync --sources`.
+- **`aqe sync verify` matches after this upgrade** ([#1384]): it ignores
+  the old `entries`/`version` rows when counting claude-flow memories.
+  `aqe.qlearning_patterns` is filled from two places, AQE's own Q-values
+  and ruvector's patterns, so verify now checks it once against both
+  together, shown as `root-rl-q-values + intelligence-qlearning`.
+
+[#1409]: https://github.com/proffesor-for-testing/agentic-qe/issues/1409
+[#1439]: https://github.com/proffesor-for-testing/agentic-qe/issues/1439
+[#1432]: https://github.com/proffesor-for-testing/agentic-qe/issues/1432
+[#1421]: https://github.com/proffesor-for-testing/agentic-qe/issues/1421
+[#1422]: https://github.com/proffesor-for-testing/agentic-qe/issues/1422
+[#1408]: https://github.com/proffesor-for-testing/agentic-qe/issues/1408
+[#1407]: https://github.com/proffesor-for-testing/agentic-qe/issues/1407
+[#1415]: https://github.com/proffesor-for-testing/agentic-qe/issues/1415
+
+[#1350]: https://github.com/proffesor-for-testing/agentic-qe/issues/1350
+[#1384]: https://github.com/proffesor-for-testing/agentic-qe/issues/1384
+[#1402]: https://github.com/proffesor-for-testing/agentic-qe/pull/1402
+[#1404]: https://github.com/proffesor-for-testing/agentic-qe/issues/1404
+[#1412]: https://github.com/proffesor-for-testing/agentic-qe/issues/1412
+[#1413]: https://github.com/proffesor-for-testing/agentic-qe/issues/1413
+[#1417]: https://github.com/proffesor-for-testing/agentic-qe/issues/1417
+[#1423]: https://github.com/proffesor-for-testing/agentic-qe/issues/1423
+[#1426]: https://github.com/proffesor-for-testing/agentic-qe/issues/1426
+
+## [3.15.19] - 2026-11-06
+
+Test generation no longer counts template scaffolding or invented tests as
+generated tests, and no longer learns from runs that produced none. The
+test quality gate understands Python, Go, Java, Kotlin and TypeScript
+tests. Cloud sync fails instead of reporting success when it cannot read a
+source, load the PostgreSQL driver or verify the cloud copy, and the
+quality gate reports "unmeasured" instead of passing with no data. MCP
+tools refuse hardlinked files, and a locked `memory.db` no longer freezes
+the MCP server at startup or on the first tool call.
 
 ### Changed
 
@@ -55,6 +574,58 @@ Changes queued for 3.15.19.
   not counted. A `reason` field says why nothing was generated. Without an
   LLM provider and without `behaviorExamples`, the tool now usually
   returns 0 tests. Pass `sourceFiles` to name several files.
+- **Template-only output is scaffolding, not generated tests** ([#1370],
+  [#1369], [#1387]): when no LLM provider is configured and no
+  `behaviorExamples` are given, every framework's template output (pytest,
+  Go, JUnit, Kotlin, xUnit, Rust, Swift, Dart, mocha, jest-rn, vitest) is
+  returned under `scaffolds` with a `rejectedBecause` reason. It is no longer
+  counted in `testsGenerated` or in the saved metadata's `testCount`.
+  - `aqe test generate` exits 1 for template-only output, with the
+    scaffolding reason first. Dart, mocha and jest-rn exited 0 before.
+  - `aiInsights.confidence` is no longer returned; it was a fixed 0.85.
+  - The metadata and report add `scaffoldCount` and `reason`.
+  - `qe/tests/generate` returns scaffolds separately from tests, with a
+    `warning`.
+  - Templates import the source in the language's own form: a Python dotted
+    module (relative to the project root), the Go package from `go.mod`, the
+    declared JVM package (no package line when there is none), and the C#
+    namespace.
+- **The test quality gate understands each language** ([#1371], [#1389]):
+  `aqe test generate` no longer rejects valid generated tests in Python, Go,
+  Java, Kotlin and TypeScript.
+  - The gate now recognises each language's assertions: pytest `assert`, Go
+    `t.Error`/`t.Fatal` and testify, JUnit/Kotlin `assert*`.
+  - It also recognises how each language imports the code under test:
+    - Python dotted, relative and package imports;
+    - same-package Go, Java and Kotlin tests;
+    - Java/Kotlin wildcard imports;
+    - TypeScript tsconfig `paths` aliases (including `extends`), directory
+      `index` imports, and `.js` or extension-less specifiers.
+  - C#, Rust and Swift tests are no longer judged on their import form;
+    their assertions are still checked.
+  - Tests that cannot fail are rejected in every language, with the same
+    reason MCP gives: all-tautological assertions such as `assert True` or
+    `assertTrue(true)`, or every test skipped.
+  - Assertions and source names that appear only in comments or strings no
+    longer count, and neither do the test's own locals, lambdas or helpers.
+  - The MCP `qualityGate` verdict changes the same way and stays
+    informational.
+- **`aqe sync verify` reports what it could check** ([#1361], [#1377]):
+  - Each table is VERIFIED, MISMATCH, PARTIAL or UNVERIFIED, and the run
+    exits 0 only when every table is verified. It exits 1 on a mismatch or
+    when nothing could be checked, and 2 when the result is partial. Before,
+    it said "verified" even when the cloud could not be reached.
+  - `aqe sync` and `aqe sync pull` exit 1 for unknown or disabled
+    `--sources`/`--tables`. They also exit 1 when no source could be read,
+    for example `aqe sync --full --sources claude-flow-memory` without a
+    store, which used to report COMPLETED. A run where every source failed
+    now exits 1, not 2.
+- **The quality gate says "unmeasured" instead of passing on no data**
+  ([#1374], [#1381]): gate-check results gain `unmeasured` and `reason`
+  fields, and `current` can be `null`. With no executed test results in the
+  last 7 days, the test-pass and bug gates fail as unmeasured. Before, they
+  reported 0 bugs or a 100% pass rate. Generated, never-run test records are
+  no longer counted as executed results.
 
 ### Fixed
 
@@ -85,6 +656,35 @@ Changes queued for 3.15.19.
   `test_generate_enhanced` no longer writes the tests it generates to
   `test_outcomes` as passed results. Tests that never ran are no longer
   counted as passed in the learning data. Thanks to @rudycelekli.
+- **A corrupt sync source fails instead of syncing as empty** ([#1378],
+  [#1382]): a claude-flow or ruvector JSON store that cannot be parsed or
+  read now makes `aqe sync` report PARTIAL (exit 2), or FAILED when nothing
+  else was read. Before, it was counted as 0 records and the run reported
+  COMPLETED. `aqe sync status` shows the store as unreadable. Error messages
+  give the parse position, never the file's contents.
+- **A missing `pg` driver fails sync instead of syncing to a mock**
+  ([#1376], [#1385]): when the PostgreSQL driver cannot be loaded,
+  `aqe sync` and `aqe sync pull` now fail with exit 1 and a "Reinstall
+  agentic-qe" hint. Before, they wrote every record to an in-memory mock and
+  reported COMPLETED. The writer also stops a cloud tunnel it started, both
+  when connecting fails and when it closes.
+- **No learning from runs that produced no test** ([#1369], [#1387]): a
+  test-generation run that produced only scaffolds no longer records a
+  successful experience, pattern usage or a new learned pattern. A failed
+  generation is still recorded as a failure. Patterns already learned this
+  way by earlier versions are not removed yet ([#1388]).
+- **No server freeze while creating tables at MCP startup** ([#1356],
+  [#1391]):
+  - The MCP server creates every module's tables once at startup, through
+    its write queue. On a new or upgraded project, a locked `memory.db` no
+    longer freezes the server for 3–8 s; the longest freeze measured was
+    under 1 s.
+  - An up-to-date database takes no write lock at startup.
+  - Fleet start-up retries once when the database is locked.
+  - Four empty tables (`llm_spend`, `metrics_outcomes`,
+    `learning_daily_snapshots`, `qe_pattern_reuse`) may now appear earlier
+    than before.
+  - The CLI and SDK are unchanged.
 
 ### Dependencies
 
@@ -113,6 +713,20 @@ Changes queued for 3.15.19.
 [#1368]: https://github.com/proffesor-for-testing/agentic-qe/pull/1368
 [#1369]: https://github.com/proffesor-for-testing/agentic-qe/issues/1369
 [#1372]: https://github.com/proffesor-for-testing/agentic-qe/pull/1372
+[#1361]: https://github.com/proffesor-for-testing/agentic-qe/issues/1361
+[#1370]: https://github.com/proffesor-for-testing/agentic-qe/issues/1370
+[#1371]: https://github.com/proffesor-for-testing/agentic-qe/issues/1371
+[#1374]: https://github.com/proffesor-for-testing/agentic-qe/issues/1374
+[#1376]: https://github.com/proffesor-for-testing/agentic-qe/issues/1376
+[#1377]: https://github.com/proffesor-for-testing/agentic-qe/pull/1377
+[#1378]: https://github.com/proffesor-for-testing/agentic-qe/issues/1378
+[#1381]: https://github.com/proffesor-for-testing/agentic-qe/pull/1381
+[#1382]: https://github.com/proffesor-for-testing/agentic-qe/pull/1382
+[#1385]: https://github.com/proffesor-for-testing/agentic-qe/pull/1385
+[#1387]: https://github.com/proffesor-for-testing/agentic-qe/pull/1387
+[#1388]: https://github.com/proffesor-for-testing/agentic-qe/issues/1388
+[#1389]: https://github.com/proffesor-for-testing/agentic-qe/pull/1389
+[#1391]: https://github.com/proffesor-for-testing/agentic-qe/pull/1391
 
 ## [3.15.18] - 2026-11-01
 

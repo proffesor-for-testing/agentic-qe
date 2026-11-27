@@ -187,9 +187,9 @@ const reportingFleet = await FleetManager.coordinate({
 ---
 
 ## Related Skills
-- [quality-metrics](../quality-metrics/) - Metric definitions
-- [shift-right-testing](../shift-right-testing/) - Production metrics
-- [consultancy-practices](../consultancy-practices/) - Client reporting
+- [quality-metrics](../qe-quality-metrics/) - Metric definitions
+- [shift-right-testing](../qe-shift-right-testing/) - Production metrics
+- [consultancy-practices](../qe-consultancy-practices/) - Client reporting
 
 ---
 

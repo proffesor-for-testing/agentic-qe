@@ -224,6 +224,13 @@ export interface QEPatternContext {
 
   /** Searchable tags */
   readonly tags: string[];
+
+  /**
+   * #1388: set only when a person curated the pattern (`aqe hooks learn`,
+   * or an `aqe learning import` of a marked export or with `--curate`).
+   * Test generation applies such a pattern without a measured success.
+   */
+  readonly curation?: 'user-import' | 'user-store';
 }
 
 /**
@@ -284,6 +291,11 @@ export interface CreateQEPatternOptions {
   confidence?: number;
   /** Explicit QE domain override. When provided, bypasses auto-detection from patternType. */
   qeDomain?: QEDomain;
+  /**
+   * #1421: tier to store. Defaults to short-term. Import passes the existing
+   * row's tier, because the upsert on (name, qe_domain, pattern_type) writes it.
+   */
+  tier?: 'short-term' | 'long-term';
 }
 
 /**

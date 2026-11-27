@@ -271,11 +271,11 @@ await apiFleet.execute({
 ---
 
 ## Related Skills
-- [agentic-quality-engineering](../agentic-quality-engineering/) - API testing with agents
-- [tdd-london-chicago](../tdd-london-chicago/) - London school for API testing
-- [performance-testing](../performance-testing/) - API load testing
-- [security-testing](../security-testing/) - API security validation
-- [contract-testing](../contract-testing/) - Consumer-driven contracts deep dive
+- [agentic-quality-engineering](../qe-agentic-quality-engineering/) - API testing with agents
+- [tdd-london-chicago](../qe-tdd-london-chicago/) - London school for API testing
+- [performance-testing](../qe-performance-testing/) - API load testing
+- [security-testing](../qe-security-testing/) - API security validation
+- [contract-testing](../../../.claude/skills/contract-testing/) - Consumer-driven contracts deep dive
 
 ---
 

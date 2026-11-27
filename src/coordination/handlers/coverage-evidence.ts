@@ -21,7 +21,7 @@ import * as path from 'path';
 import type { FileCoverage } from '../../domains/coverage-analysis/interfaces';
 import type { ExcludedCoverageEntry } from '../../domains/coverage-analysis/collected-metrics.js';
 import { walkSourceFiles } from './coverage-collection';
-import { inCoverageScope, readCoverageScope } from './coverage-scope';
+import { inCoverageScope, readCoverageScope, type ScopeReadOptions } from './coverage-scope';
 
 /** The report is older than these source files. */
 export interface StaleReport {
@@ -94,13 +94,14 @@ export function findUnmeasuredSourceFiles(
   reportFiles: FileCoverage[],
   projectRoot: string,
   target: string,
+  read: ScopeReadOptions = {},
 ): { targetFiles: string[]; unmeasured: string[]; coverageScope?: { source: string; readable: boolean } } {
   let isDir = false;
   try { isDir = fs.statSync(target).isDirectory(); } catch { /* missing: nothing to compare */ }
   if (!isDir) return { targetFiles: [], unmeasured: [] };
 
   const rootAbs = canonical(projectRoot);
-  const scope = readCoverageScope(rootAbs);
+  const scope = readCoverageScope(rootAbs, read);
   const families = new Set(reportFiles.map(f => familyOf(f.path)).filter(Boolean));
   const inReport = reportPaths(reportFiles, projectRoot);
   const targetFiles = walkSourceFiles(target)
@@ -139,11 +140,15 @@ export function assessCoverageEvidence(
   measuredFiles: FileCoverage[],
   projectRoot: string,
   target: string,
-  options: { reportPath?: string; checkCompleteness?: boolean; excluded?: ExcludedCoverageEntry[] } = {},
+  options: {
+    reportPath?: string; checkCompleteness?: boolean; excluded?: ExcludedCoverageEntry[];
+    /** #1350: how the project's coverage config is read (default 'allow'). */
+    scopeRead?: ScopeReadOptions;
+  } = {},
 ): CoverageEvidence {
   const { targetFiles, unmeasured, coverageScope } = options.checkCompleteness === false
     ? { targetFiles: [], unmeasured: [], coverageScope: undefined }
-    : findUnmeasuredSourceFiles(report.files, projectRoot, target);
+    : findUnmeasuredSourceFiles(report.files, projectRoot, target, options.scopeRead);
 
   const sources = new Set([...targetFiles, ...reportPaths(measuredFiles, projectRoot)]);
   const stale = options.reportPath

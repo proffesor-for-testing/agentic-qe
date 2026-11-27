@@ -216,9 +216,9 @@ const reviewFleet = await FleetManager.coordinate({
 ---
 
 ## Related Skills
-- [code-review-quality](../code-review-quality/) - Diplomatic version
-- [context-driven-testing](../context-driven-testing/) - Foundation for Bach mode
-- [sherlock-review](../sherlock-review/) - Evidence-based investigation
+- [code-review-quality](../qe-code-review-quality/) - Diplomatic version
+- [context-driven-testing](../qe-context-driven-testing/) - Foundation for Bach mode
+- [sherlock-review](../qe-sherlock-review/) - Evidence-based investigation
 
 ---
 

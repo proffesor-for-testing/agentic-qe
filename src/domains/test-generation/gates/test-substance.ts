@@ -222,7 +222,7 @@ const RULES: Array<[RegExp, LanguageRule]> = [
     // `expect`-style ones like `shouldThrow<T> {}` are argument-less), so they carry no call
     // shape — `x shouldBe 5` is matched by its shape instead: a receiver (name, number,
     // string or closing bracket), the matcher, then an operand.
-    assertion: /\bassert(?:\w*\s*\(|\s+)|\bverify\s*\(|\bfail\s*\(|\bexpect\w*\s*\(|\bshould(?:Be|Equal|Contain|Throw|NotBe|NotEqual|NotContain|Have|Match|StartWith|EndWith)\w*\s*\(|(?:[A-Za-z_]\w*|\d[\w.]*|\)|\]|\}|")\s+should(?:Be|Equal|Contain|Throw|NotBe|NotEqual|NotContain|Have|Match|StartWith|EndWith)\w*\s+(?=[\w"'({\[-])|\bshould(?:Throw|NotThrow)\b\s*(?:<[^<>\n]*>)?\s*\{/g,
+    assertion: /\bassert(?:\w*\s*(?:\(|<[^<>\n]*>\s*[({])|\s+)|\bverify\s*\(|\bfail\s*\(|\bexpect\w*\s*\(|\bshould(?:Be|Equal|Contain|Throw|NotBe|NotEqual|NotContain|Have|Match|StartWith|EndWith)\w*\s*(?:<[^<>\n]*>\s*)?\(|(?:[A-Za-z_]\w*|\d[\w.]*|\)|\]|\}|")(?:!!)?\s+should(?:Be|Equal|Contain|Throw|NotBe|NotEqual|NotContain|Have|Match|StartWith|EndWith)\w*\s+(?=[\w"'({\[-])|\bshould(?:Throw(?:Any|Exactly)?|NotThrow)\b\s*(?:<[^<>\n]*>)?\s*\{/g,
     tautology: /\bassertTrue\s*\(\s*true\s*\)|\bassertThat\s*\(\s*true\s*\)\s*\.\s*isTrue\s*\(\s*\)|\bassertEquals\s*\(\s*([\w.'"]+)\s*,\s*\1\s*\)|\bassert\s+true\b/g,
     allSkipped: annotatedTestsAllSkipped,
   }],

@@ -800,7 +800,7 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
           hooks: [
             {
               type: 'command',
-              command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" post-task --task-id "$TOOL_RESULT_agent_id" --agent "$TOOL_INPUT_subagent_type" --success true --description "$TOOL_INPUT_prompt" --json',
+              command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" post-task --task-id "$TOOL_RESULT_agent_id" --agent "$TOOL_INPUT_subagent_type" --description "$TOOL_INPUT_prompt" --json',
               timeout: 5,
               continueOnError: true,
             },
@@ -861,12 +861,13 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
         {
           hooks: [
             {
-              // #451: close the route sentinel that UserPromptSubmit wrote
-              // at the start of this turn. Stop fires 1:1 with UserPromptSubmit
-              // — without this, `routing_outcomes` accumulates quality_score=-1
-              // rows forever in direct-work sessions (no Task/Agent spawned).
+              // #451/#1481: Stop observes no task result, so post-route gets
+              // no --outcome and leaves this turn's route sentinel open. It
+              // runs to sweep stale sentinels (route after 5 min, pre-task
+              // after 30 min) so `routing_outcomes` does not accumulate
+              // quality_score=-1 rows forever.
               type: 'command',
-              command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" post-route --success true --json',
+              command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" post-route --json',
               timeout: 5,
               continueOnError: true,
             },

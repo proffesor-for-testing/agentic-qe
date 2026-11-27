@@ -6,6 +6,7 @@
  *   - .claude-plugin/plugin.json                      (repo-root plugin manifest)
  *   - .claude-plugin/plugin.json mcpServers pin       (agentic-qe@<version>)
  *   - plugins/agentic-qe-fleet/.claude-plugin/plugin.json
+ *   - plugins/agentic-qe-fleet/.codex-plugin/plugin.json (Codex manifest, #1475)
  *   - plugins/agentic-qe-fleet/.mcp.json pin          (agentic-qe@<version>)
  *   - plugins/agentic-qe-fleet/hooks/version.ts       (aqe-mod MOD_VERSION, the
  *     modVersion its status.json reports; generated whole)
@@ -30,6 +31,7 @@ const SEMVER_RE = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 const VERSION_FILES = [
   '.claude-plugin/plugin.json',
   'plugins/agentic-qe-fleet/.claude-plugin/plugin.json',
+  'plugins/agentic-qe-fleet/.codex-plugin/plugin.json',
 ];
 
 /** Files whose mcpServers["agentic-qe"].args must pin agentic-qe@<version>. */

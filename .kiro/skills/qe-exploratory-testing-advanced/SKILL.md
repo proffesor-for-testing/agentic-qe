@@ -178,9 +178,9 @@ const exploratoryFleet = await FleetManager.coordinate({
 ---
 
 ## Related Skills
-- [context-driven-testing](../context-driven-testing/) - RST foundations
-- [risk-based-testing](../risk-based-testing/) - Focus exploration on risk
-- [agentic-quality-engineering](../agentic-quality-engineering/) - Agent coordination
+- [context-driven-testing](../qe-context-driven-testing/) - RST foundations
+- [risk-based-testing](../qe-risk-based-testing/) - Focus exploration on risk
+- [agentic-quality-engineering](../qe-agentic-quality-engineering/) - Agent coordination
 
 ---
 

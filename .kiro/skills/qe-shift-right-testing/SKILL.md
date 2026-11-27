@@ -205,10 +205,10 @@ const shiftRightFleet = await FleetManager.coordinate({
 ---
 
 ## Related Skills
-- [shift-left-testing](../shift-left-testing/) - Pre-production testing
-- [chaos-engineering-resilience](../chaos-engineering-resilience/) - Failure injection deep dive
-- [performance-testing](../performance-testing/) - Load testing
-- [agentic-quality-engineering](../agentic-quality-engineering/) - Agent coordination
+- [shift-left-testing](../qe-shift-left-testing/) - Pre-production testing
+- [chaos-engineering-resilience](../qe-chaos-engineering-resilience/) - Failure injection deep dive
+- [performance-testing](../qe-performance-testing/) - Load testing
+- [agentic-quality-engineering](../qe-agentic-quality-engineering/) - Agent coordination
 
 ---
 

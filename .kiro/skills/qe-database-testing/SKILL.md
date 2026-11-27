@@ -221,9 +221,9 @@ const dbFleet = await FleetManager.coordinate({
 ---
 
 ## Related Skills
-- [test-data-management](../test-data-management/) - Generate test data
-- [performance-testing](../performance-testing/) - Query performance
-- [compliance-testing](../compliance-testing/) - Data protection
+- [test-data-management](../qe-test-data-management/) - Generate test data
+- [performance-testing](../qe-performance-testing/) - Query performance
+- [compliance-testing](../qe-compliance-testing/) - Data protection
 
 ---
 

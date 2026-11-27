@@ -203,10 +203,10 @@ const shiftLeftFleet = await FleetManager.coordinate({
 ---
 
 ## Related Skills
-- [tdd-london-chicago](../tdd-london-chicago/) - TDD practices
-- [holistic-testing-pact](../holistic-testing-pact/) - Proactive testing
-- [cicd-pipeline-qe-orchestrator](../cicd-pipeline-qe-orchestrator/) - Pipeline integration
-- [shift-right-testing](../shift-right-testing/) - Production feedback
+- [tdd-london-chicago](../qe-tdd-london-chicago/) - TDD practices
+- [holistic-testing-pact](../qe-holistic-testing-pact/) - Proactive testing
+- [cicd-pipeline-qe-orchestrator](../qe-cicd-pipeline-qe-orchestrator/) - Pipeline integration
+- [shift-right-testing](../qe-shift-right-testing/) - Production feedback
 
 ---
 

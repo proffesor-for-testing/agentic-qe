@@ -65,7 +65,15 @@ export class SQLiteWriter {
   async upsert(
     table: string,
     records: Record<string, unknown>[],
-    options: { onSkipped?: (count: number, reason: string) => void } = {},
+    options: {
+      onSkipped?: (count: number, reason: string) => void;
+      /**
+       * #1409: insert new rows only. A row that conflicts with an existing
+       * one (primary key or a UNIQUE constraint) is left as it is and not
+       * counted as written; NOT NULL and other errors still fail the row.
+       */
+      insertOnly?: boolean;
+    } = {},
   ): Promise<number> {
     if (!this.db) throw new Error('Not connected');
     if (records.length === 0) return 0;
@@ -95,7 +103,7 @@ export class SQLiteWriter {
     for (let i = 0; i < records.length; i += this.batchSize) {
       const batch = records.slice(i, i + this.batchSize);
       try {
-        const written = this.upsertBatch(safeTable, batch, localColumnSet);
+        const written = this.upsertBatch(safeTable, batch, localColumnSet, options.insertOnly);
         totalWritten += written;
       } catch (error) {
         // Retry individually on batch failure
@@ -108,7 +116,7 @@ export class SQLiteWriter {
         let firstReason = '';
         for (const record of batch) {
           try {
-            recovered += this.upsertBatch(safeTable, [record], localColumnSet);
+            recovered += this.upsertBatch(safeTable, [record], localColumnSet, options.insertOnly);
           } catch (retryError) {
             failed++;
             firstReason ||= toErrorMessage(retryError);
@@ -208,6 +216,7 @@ export class SQLiteWriter {
     safeTable: string,
     records: Record<string, unknown>[],
     localColumnSet: Set<string>,
+    insertOnly = false,
   ): number {
     if (!this.db || records.length === 0) return 0;
 
@@ -226,7 +235,12 @@ export class SQLiteWriter {
     const pkColumns = this.getPrimaryKeyColumns(rawTable);
 
     let sql: string;
-    if (pkColumns.length > 0) {
+    if (insertOnly) {
+      // An upsert clause with no target covers every uniqueness constraint
+      // and nothing else, unlike INSERT OR IGNORE, which also drops a row
+      // that violates NOT NULL.
+      sql = `INSERT INTO ${safeTable} (${safeColumns.join(', ')}) VALUES (${placeholders}) ON CONFLICT DO NOTHING`;
+    } else if (pkColumns.length > 0) {
       const safePkColumns = pkColumns.map(validateIdentifier);
       // ON CONFLICT: only update the columns we're providing, leave others intact
       const updateColumns = columns.filter(c => !pkColumns.includes(c));
@@ -248,8 +262,9 @@ export class SQLiteWriter {
       let count = 0;
       for (const record of recs) {
         const values = columns.map(col => this.serializeValue(record[col]));
-        stmt.run(...values);
-        count++;
+        const info = stmt.run(...values);
+        // #1409: an insert-only row that already existed is not written.
+        count += insertOnly ? info.changes : 1;
       }
       return count;
     });

@@ -68,11 +68,11 @@ Remember: All code is written by Claude Code using its native tools!
 ## CLI Usage
 ```bash
 # Start development workflow via CLI
-npx claude-flow workflow dev "REST API with auth"
+npx ruflo@3.76.0 workflow dev "REST API with auth"
 
 # Create custom workflow
-npx claude-flow workflow create --name "api-dev" --steps "design,implement,test,deploy"
+npx ruflo@3.76.0 workflow create --name "api-dev" --steps "design,implement,test,deploy"
 
 # Execute saved workflow
-npx claude-flow workflow execute api-dev
+npx ruflo@3.76.0 workflow execute api-dev
 ```

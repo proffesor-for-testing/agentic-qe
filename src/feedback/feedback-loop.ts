@@ -35,7 +35,12 @@ export interface RoutingOutcomeInput {
   taskDescription: string;
   recommendedAgent: string;
   usedAgent: string;
-  followedRecommendation: boolean;
+  /**
+   * @deprecated Ignored: the collector derives it from usedAgent vs
+   * recommendedAgent (#1481). Pass `recommendedAgent: 'unrouted'` when the
+   * task had no routing decision.
+   */
+  followedRecommendation?: boolean;
   success: boolean;
   qualityScore: number;
   durationMs: number;
@@ -74,9 +79,10 @@ export interface FeedbackLoopStats {
   };
   routing: {
     totalOutcomes: number;
-    recommendationFollowRate: number;
-    successRateWhenFollowed: number;
-    successRateWhenOverridden: number;
+    /** null when no outcome can say whether the recommendation was followed (#1481) */
+    recommendationFollowRate: number | null;
+    successRateWhenFollowed: number | null;
+    successRateWhenOverridden: number | null;
   };
   integrationStatus: {
     reasoningBankConnected: boolean;
@@ -88,9 +94,10 @@ export interface FeedbackLoopStats {
  */
 export interface RoutingAnalysis {
   totalOutcomes: number;
-  recommendationFollowRate: number;
-  successRateWhenFollowed: number;
-  successRateWhenOverridden: number;
+  /** null when no outcome can say whether the recommendation was followed (#1481) */
+  recommendationFollowRate: number | null;
+  successRateWhenFollowed: number | null;
+  successRateWhenOverridden: number | null;
   confidenceCorrelation: number;
   recommendations: string[];
 }
@@ -285,7 +292,7 @@ export class QualityFeedbackLoop {
 
     return {
       totalOutcomes: accuracy.totalOutcomes,
-      recommendationFollowRate: 1 - accuracy.overrideRate,
+      recommendationFollowRate: accuracy.overrideRate === null ? null : 1 - accuracy.overrideRate,
       successRateWhenFollowed: accuracy.recommendationSuccessRate,
       successRateWhenOverridden: accuracy.overrideSuccessRate,
       confidenceCorrelation: accuracy.confidenceCorrelation,
@@ -360,7 +367,7 @@ export class QualityFeedbackLoop {
       },
       routing: {
         totalOutcomes: routingAccuracy.totalOutcomes,
-        recommendationFollowRate: 1 - routingAccuracy.overrideRate,
+        recommendationFollowRate: routingAccuracy.overrideRate === null ? null : 1 - routingAccuracy.overrideRate,
         successRateWhenFollowed: routingAccuracy.recommendationSuccessRate,
         successRateWhenOverridden: routingAccuracy.overrideSuccessRate,
       },

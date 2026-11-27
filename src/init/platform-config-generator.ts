@@ -6,6 +6,7 @@
  */
 
 import { createRequire } from 'module';
+import { aqeNpxMcpArgs, aqeNpxMcpYamlArgs } from '../shared/npx-launch.js';
 
 // ============================================================================
 // Types
@@ -215,7 +216,8 @@ export function getCopilotInitVersionEnv(): Record<string, string> {
 function getMcpServerEntry(withAutoApprove: boolean, dbFree: boolean): Record<string, unknown> {
   const entry: Record<string, unknown> = {
     command: 'npx',
-    args: ['-y', 'agentic-qe@latest', 'mcp'],
+    // #1466: npx under npm 12 skips native install scripts unless allowed.
+    args: aqeNpxMcpArgs(),
     env: getMcpServerEnv(dbFree),
   };
 
@@ -264,7 +266,7 @@ function generateTomlConfig(dbFree: boolean): string {
 [mcp_servers.agentic-qe]
 type = "stdio"
 command = "npx"
-args = ["-y", "agentic-qe@latest", "mcp"]
+args = ${JSON.stringify(aqeNpxMcpArgs()).replace(/","/g, '", "')}
 
 [mcp_servers.agentic-qe.env]
 ${envLines}
@@ -280,9 +282,7 @@ mcpServers:
   - name: agentic-qe
     command: npx
     args:
-      - "-y"
-      - agentic-qe@latest
-      - mcp
+${aqeNpxMcpYamlArgs('      ')}
     env:
 ${envLines}
 `;

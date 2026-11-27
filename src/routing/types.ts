@@ -279,6 +279,14 @@ export interface RoutingOutcome {
   /** Whether recommendation was followed */
   readonly followedRecommendation: boolean;
 
+  /**
+   * False when it is not known whether the recommendation was followed:
+   * hook rows (the hooks never see which agent ran) and tasks submitted with
+   * no recommendation (`unrouted`). Such outcomes are left out of follow and
+   * override stats. Undefined means known (#1481).
+   */
+  readonly followedRecommendationKnown?: boolean;
+
   /** Task outcome */
   readonly outcome: {
     /** Task completed successfully */

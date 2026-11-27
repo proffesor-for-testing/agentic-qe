@@ -87,7 +87,7 @@ aqe/skill-validation/
 
 ## Eval Runner Integration
 
-The `scripts/run-skill-eval.ts` evaluation runner MUST:
+The agentic-qe [run-skill-eval.ts](https://github.com/proffesor-for-testing/agentic-qe/blob/main/scripts/run-skill-eval.ts) evaluation runner MUST:
 
 1. **Before running evals**: Query ReasoningBank for learned patterns
 2. **During evals**: Track each test case outcome
@@ -170,7 +170,8 @@ GitHub Actions workflow MUST use MCP tools:
 
 - name: Run Validation
   run: |
-    npx ts-node scripts/run-skill-eval.ts \
+    # AQE_REPO: an agentic-qe checkout
+    npx tsx "$AQE_REPO/scripts/run-skill-eval.ts" \
       --skill "${{ matrix.skill }}" \
       --model "${{ matrix.model }}" \
       --use-mcp-learning
@@ -195,7 +196,7 @@ GitHub Actions workflow MUST use MCP tools:
 
 ## References
 
-- [ADR-056: Deterministic Skill Validation System](../v3/implementation/adrs/ADR-056-skill-validation-system.md)
-- [ADR-021: QE ReasoningBank](../v3/implementation/adrs/v3-adrs.md#adr-021)
-- [ADR-023: Quality Feedback Loop](../v3/implementation/adrs/v3-adrs.md#adr-023)
-- [AQE MCP Tools Reference](../reference/aqe-fleet.md)
+- [ADR-056: Deterministic Skill Validation System](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/implementation/adrs/ADR-056-skill-validation-system.md)
+- [ADR-021: QE ReasoningBank](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/implementation/adrs/v3-adrs.md#adr-021)
+- [ADR-023: Quality Feedback Loop](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/implementation/adrs/v3-adrs.md#adr-023)
+- [AQE MCP Tools Reference](https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/reference/aqe-fleet.md)

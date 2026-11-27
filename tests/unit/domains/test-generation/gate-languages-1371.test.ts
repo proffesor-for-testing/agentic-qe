@@ -253,6 +253,12 @@ describe('#1392 infix matchers are assertions and .js resolves to the source', (
     ['kotest call form', 'add(2, 3).shouldBe(5)'],
     ['kotest shouldThrow with a type argument', 'shouldThrow<IllegalStateException> { boom() }'],
     ['kotest shouldNotThrow with a type argument', 'shouldNotThrow<IllegalStateException> { boom() }'],
+    ['generic assertFailsWith', 'assertFailsWith<IllegalStateException> { boom() }'],
+    ['generic assertThrows', 'assertThrows<IllegalStateException> { boom() }'],
+    ['generic matcher method', 'x.shouldBeInstanceOf<Int>()'],
+    ['shouldThrowAny', 'shouldThrowAny { boom() }'],
+    ['shouldThrowExactly', 'shouldThrowExactly<IllegalStateException> { boom() }'],
+    ['non-null infix receiver', 'x!! shouldBe 2'],
   ])('keeps a Kotlin test using %s', (_label, body) => {
     expect(unexecutableTestReason(`class CalcTest : StringSpec({ "t" { ${body} } })\n`, 'src/Calc.kt')).toBeUndefined();
   });
@@ -278,6 +284,47 @@ describe('#1392 infix matchers are assertions and .js resolves to the source', (
       "import { add } from '../../src/calc.js';\nit('adds', () => { expect(2).toBe(2); });\n",
       { sourceFilePath: 'src/calc.ts', testFilePath: 'tests/unit/calc.test.ts', sourceCode: JS_ADD_SRC },
     )).toBe('missing');
+  });
+});
+
+describe('#1392 generated import forms', () => {
+  const subject = { sourceFilePath: 'src/calc.ts', testFilePath: 'src/calc.test.ts', sourceCode: JS_ADD_SRC };
+
+  it.each([
+    "await import('./calc');",
+    "expect(require('./calc').add(2, 3)).toBe(5);",
+    "const add = require('./calc').add; expect(add(2, 3)).toBe(5);",
+    "const { add } = await import('./calc'); expect(add(2, 3)).toBe(5);",
+  ])('recognizes a used dynamic or CommonJS import: %s', (body) => {
+    expect(sourceImportVerdict(`it('adds', async () => { ${body} });`, subject)).toBe('found');
+  });
+
+  it.each([
+    "const add = require('./calc').add; expect(({ add: 5 }).add).toBe(5);",
+    "const { add } = await import('./other/calc'); expect(add(2, 3)).toBe(5);",
+  ])('rejects an unused binding or another module: %s', (body) => {
+    expect(sourceImportVerdict(`it('adds', async () => { ${body} });`, subject)).toBe('missing');
+  });
+
+  it.each([
+    ['src\\calc.py', 'src.calc'],
+    ['src/mypkg/calc.py', 'mypkg.calc'],
+  ])('recognizes the Python path %s as %s', (sourceFilePath, module) => {
+    const code = `from ${module} import add\n\ndef test_add():\n    assert add(2, 3) == 5\n`;
+    expect(sourceImportVerdict(code, { sourceFilePath, sourceCode: PY_SRC })).toBe('found');
+  });
+
+  it.each([
+    ['calc.go', 'go.mod', 'example.com/calc', 'example.com/calc'],
+    ['services/api/pkg/calc/calc.go', 'services/api/go.mod', 'example.com/api', 'example.com/api/pkg/calc'],
+  ])('resolves the nearest Go module for %s', (sourceFilePath, config, module, importPath) => {
+    writeFileSync(join(root, 'go.mod'), 'module example.com/workspace\n');
+    if (config !== 'go.mod') mkdirSync(join(root, 'services', 'api'), { recursive: true });
+    writeFileSync(join(root, config), `module ${module}\n`);
+    const test = (target: string) => `package calc_test\n\nimport "${target}"\n\nfunc TestAdd(t *testing.T) { if calc.Add(2, 3) != 5 { t.Fatal("bad") } }\n`;
+    expect(sourceImportVerdict(test(importPath), { sourceFilePath, sourceCode: GO_SRC })).toBe('found');
+    expect(sourceImportVerdict(test(`other.example/${importPath.split('/').slice(1).join('/')}`),
+      { sourceFilePath, sourceCode: GO_SRC })).toBe('missing');
   });
 });
 

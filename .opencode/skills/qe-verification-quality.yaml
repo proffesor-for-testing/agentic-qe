@@ -1,45 +1,35 @@
 name: qe-verification-quality
-description: "Comprehensive truth scoring, code quality verification, and automatic rollback system with 0.95 accuracy threshold for ensuring high-quality agent outputs and codebase reliability."
+description: "Verify agent-written changes before they are kept: run the tests, measure coverage, scan for vulnerabilities, apply AQE's fail-closed quality gate, and revert with git when the verdict is a failure."
 minModelTier: tier2-good
-tags: ["verification", "truth-scoring", "quality", "rollback", "metrics", "ci-cd", "qe", "quality-engineering", "quality-assurance"]
+tags: ["verification", "quality-gate", "quality", "rollback", "metrics", "ci-cd", "qe", "quality-engineering", "quality-assurance"]
 steps:
   - name: what-this-skill-does
-    description: "This skill provides a comprehensive verification and quality assurance system that ensures code quality and correctness through:"
-    tools: ["bash", "read", "edit"]
-    prompt: |
-      This skill provides a comprehensive verification and quality assurance system that ensures code quality and correctness through:
-  - name: complete-guide
-    description: "Complete Guide"
+    description: "Turn \"the agent says it works\" into a measured verdict"
     tools: ["bash", "read"]
     prompt: |
-      Complete Guide
-  - name: truth-scoring-system
-    description: "Truth Scoring System"
-    tools: ["bash", "read", "grep"]
+      Turn "the agent says it works" into a measured verdict: run the tests, measure coverage, scan the change, then ask `aqe quality --gate` for a verdict. A missing metric is insufficient evidence, never a pass.
+  - name: quick-start
+    description: "Produce evidence, scan, and ask for a verdict"
+    tools: ["bash", "read"]
     prompt: |
-      Truth Scoring System
+      Run `aqe test execute tests/`, measure coverage with the runner (`npx vitest run --coverage`) and analyze it with `aqe coverage src/ --threshold 80`, scan with `aqe security --sast --target src/`, then run `aqe quality --gate --format json`.
+  - name: quality-gate
+    description: "Read the gate's exit code: 0 pass, 1 failed, 2 narrow pass, 3 not evaluated"
+    tools: ["bash", "read", "mcp:agentic-qe:*"]
+    prompt: |
+      `aqe quality --gate` exits 0 (passed), 1 (a measured check failed), 2 (passed within five points of a threshold) or 3 (insufficient evidence: the gate was not evaluated). Never report exit code 3 as a pass; list the `unmeasured` metrics instead. criticalBugs, codeSmells, securityVulnerabilities, technicalDebt and duplications have no AQE producer yet, so decide on the measured tests, coverage and security findings and say which gate metrics were not measured.
   - name: verification-checks
-    description: "Verification Checks"
-    tools: ["bash", "read", "edit", "mcp:agentic-qe:*"]
+    description: "Tests, coverage and security checks"
+    tools: ["bash", "read", "mcp:agentic-qe:*"]
     prompt: |
-      Verification Checks
-  - name: automatic-rollback
-    description: "Automatic Rollback"
-    tools: ["bash", "read", "edit"]
-    prompt: |
-      Automatic Rollback
-  - name: verification-reports
-    description: "Verification Reports"
+      Tests: `aqe test execute <path>`. Coverage: `aqe coverage <path> --gaps --threshold 80` (exit 3 means no coverage was measured). Security: `aqe security --sast --target src/`, `aqe security --dependencies`. Audit trail: `aqe audit verify`.
+  - name: rollback
+    description: "Revert a failed change with git"
     tools: ["bash", "read"]
     prompt: |
-      Verification Reports
-  - name: interactive-dashboard
-    description: "Interactive Dashboard"
-    tools: ["bash", "read"]
-    prompt: |
-      Interactive Dashboard
-  - name: configuration
-    description: "Configuration"
+      AQE does not rewrite history. When the gate fails, inspect with `git status` and `git diff`, then `git restore <file>`, `git reset --soft HEAD~1` or `git revert <commit>`. Save rejected work on a branch first (`git switch -c wip/rejected-change && git add -A && git commit -m "rejected by gate"`).
+  - name: ci-integration
+    description: "Gate CI on measured evidence"
     tools: ["bash", "read", "edit"]
     prompt: |
-      Configuration
+      In CI, fail on a failing test run and on `aqe coverage` exit 1 or 3; run `aqe quality --gate` and fail on exit 1, warning on exit 3 with the unmeasured metrics. A pre-commit hook blocks on exit 1 and warns on exit 3.

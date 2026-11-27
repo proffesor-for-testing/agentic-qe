@@ -16,6 +16,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { Trajectory } from './types.js';
 import { detectClaudeFlow, resolveCliPackage } from './detect.js';
+import { runRufloTool, type RufloToolOptions } from './ruflo-tool.js';
 
 const cliPkg = resolveCliPackage();
 
@@ -43,45 +44,54 @@ export class TrajectoryBridge {
   }
 
   /**
-   * Start a new trajectory
+   * Start a new trajectory.
+   *
+   * With Claude Flow, ruflo's `hooks_intelligence_trajectory-start` MCP tool starts it
+   * and its id is used (#1455). The trajectory is also kept locally, so its steps and
+   * outcome reach memory.db whether or not ruflo recorded them.
    */
   async startTrajectory(task: string, agent?: string): Promise<string> {
-    const id = `trajectory-${randomUUID()}`;
+    let id = `trajectory-${randomUUID()}`;
+    let rufloTracked = false;
 
     if (this.claudeFlowAvailable) {
-      try {
-        const { execFileSync } = await import('child_process');
-        const args = ['--no-install', cliPkg, 'hooks', 'intelligence', 'trajectory-start', '--task', task];
-        if (agent) { args.push('--agent', agent); }
-        const result = execFileSync('npx', args,
-          { encoding: 'utf-8', timeout: 10000, cwd: this.options.projectRoot }
+      const started = await runRufloTool(
+        'hooks_intelligence_trajectory-start',
+        agent ? { task, agent } : { task },
+        this.rufloOptions()
+      );
+      const rufloId = started.ok ? started.data.trajectoryId : undefined;
+      if (typeof rufloId === 'string' && rufloId.length > 0) {
+        id = rufloId;
+        rufloTracked = true;
+      } else {
+        // Non-critical: tracked locally only, and marked as such
+        console.debug(
+          '[TrajectoryBridge] ruflo did not start a trajectory, tracking locally:',
+          started.ok ? 'no trajectoryId in the result' : started.reason
         );
-
-        // Parse trajectory ID from result
-        const match = result.match(/trajectoryId[:\s]+["']?([^"'\s,}]+)/i);
-        if (match?.[1]) {
-          return match[1];
-        }
-      } catch (error) {
-        // Non-critical: Claude Flow unavailable, using local storage
-        console.debug('[TrajectoryBridge] Claude Flow trajectory start failed:', error instanceof Error ? error.message : error);
       }
     }
 
-    // Store locally
     this.localTrajectories.set(id, {
       id,
       task,
       agent,
       steps: [],
       startedAt: Date.now(),
+      rufloTracked,
     });
 
     return id;
   }
 
   /**
-   * Record a trajectory step
+   * Record a trajectory step.
+   *
+   * The step is stored locally at once, in call order. It is sent to ruflo only for an
+   * open trajectory ruflo started; an unknown or ended id is never sent (#1455). ruflo
+   * calls of one project run one at a time in call order (runRufloTool), and the
+   * returned promise settles when this step's ruflo call has.
    */
   async recordStep(
     trajectoryId: string,
@@ -89,74 +99,83 @@ export class TrajectoryBridge {
     result?: string,
     quality?: number
   ): Promise<void> {
-    if (this.claudeFlowAvailable) {
-      try {
-        const { execFileSync } = await import('child_process');
-        const args = ['--no-install', cliPkg, 'hooks', 'intelligence', 'trajectory-step', '--trajectory-id', trajectoryId, '--action', action];
-        if (result) { args.push('--result', result); }
-        if (quality !== undefined) { args.push('--quality', String(quality)); }
-        execFileSync('npx', args,
-          { encoding: 'utf-8', timeout: 10000, cwd: this.options.projectRoot }
-        );
-        return;
-      } catch (error) {
-        // Non-critical: Claude Flow unavailable, using local storage
-        console.debug('[TrajectoryBridge] Claude Flow trajectory step failed:', error instanceof Error ? error.message : error);
-      }
-    }
-
-    // Store locally
     const trajectory = this.localTrajectories.get(trajectoryId);
-    if (trajectory) {
-      trajectory.steps.push({
-        id: `step-${trajectory.steps.length + 1}`,
+    if (!trajectory) return;
+
+    trajectory.steps.push({
+      id: `step-${trajectory.steps.length + 1}`,
+      action,
+      result,
+      quality,
+      timestamp: Date.now(),
+    });
+
+    if (!this.claudeFlowAvailable || trajectory.rufloTracked !== true) return;
+    const step = await runRufloTool(
+      'hooks_intelligence_trajectory-step',
+      {
+        trajectoryId,
         action,
-        result,
-        quality,
-        timestamp: Date.now(),
-      });
+        ...(result ? { result } : {}),
+        ...(quality !== undefined ? { quality } : {}),
+      },
+      this.rufloOptions()
+    );
+    if (!step.ok || step.data.recorded !== true) {
+      // Non-critical: the step is recorded locally
+      console.debug(
+        '[TrajectoryBridge] ruflo did not record the trajectory step:',
+        step.ok ? String(step.data.implementation ?? 'recorded: false') : step.reason
+      );
     }
   }
 
   /**
-   * End a trajectory
+   * End a trajectory: in ruflo (after its pending steps) when ruflo started it, then
+   * locally. The trajectory is removed from the bridge once ended; later steps or ends
+   * for its id are ignored.
    */
   async endTrajectory(
     trajectoryId: string,
     success: boolean,
     feedback?: string
   ): Promise<Trajectory | undefined> {
-    if (this.claudeFlowAvailable) {
-      try {
-        const { execFileSync } = await import('child_process');
-        const args = ['--no-install', cliPkg, 'hooks', 'intelligence', 'trajectory-end', '--trajectory-id', trajectoryId, '--success', String(success)];
-        if (feedback) { args.push('--feedback', feedback); }
-        execFileSync('npx', args,
-          { encoding: 'utf-8', timeout: 10000, cwd: this.options.projectRoot }
+    const trajectory = this.localTrajectories.get(trajectoryId);
+    if (!trajectory) return undefined;
+    this.localTrajectories.delete(trajectoryId);
+
+    if (this.claudeFlowAvailable && trajectory.rufloTracked === true) {
+      const ended = await runRufloTool(
+        'hooks_intelligence_trajectory-end',
+        { trajectoryId, success, ...(feedback ? { feedback } : {}) },
+        { ...this.rufloOptions(), timeoutMs: 30000 }
+      );
+      if (!ended.ok || ended.data.trajectory == null) {
+        // Non-critical: the local trajectory is still completed below
+        console.debug(
+          '[TrajectoryBridge] ruflo did not end the trajectory:',
+          ended.ok ? String(ended.data.note ?? 'trajectory not found') : ended.reason
         );
-      } catch {
-        // Continue to return local trajectory
       }
     }
 
-    // Complete local trajectory
-    const trajectory = this.localTrajectories.get(trajectoryId);
-    if (trajectory) {
-      trajectory.success = success;
-      trajectory.feedback = feedback;
-      trajectory.completedAt = Date.now();
+    trajectory.success = success;
+    trajectory.feedback = feedback;
+    trajectory.completedAt = Date.now();
 
-      // Persist to SQLite for local learning
-      await this.persistTrajectory(trajectory);
+    // Persist to SQLite for local learning
+    await this.persistTrajectory(trajectory);
 
-      return trajectory;
-    }
+    return trajectory;
+  }
 
-    return undefined;
+  /** Ids of trajectories started and not yet ended. */
+  openTrajectoryIds(): string[] {
+    return [...this.localTrajectories.keys()];
   }
 
   /**
-   * Get trajectory by ID
+   * Get an open trajectory by ID (an ended one has been removed)
    */
   getTrajectory(trajectoryId: string): Trajectory | undefined {
     return this.localTrajectories.get(trajectoryId);
@@ -167,6 +186,10 @@ export class TrajectoryBridge {
    */
   isClaudeFlowAvailable(): boolean {
     return this.claudeFlowAvailable;
+  }
+
+  private rufloOptions(): RufloToolOptions {
+    return { cwd: this.options.projectRoot, cliPkg };
   }
 
   /**

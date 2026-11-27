@@ -67,7 +67,7 @@ Planned:
 
 ```bash
 # SINGLE COMMAND - handles all tiers automatically with 30s timeout per tier:
-node /workspaces/agentic-qe/scripts/fetch-content.js "${URL}" "${OUTPUT_FOLDER}" --timeout 30000
+node node_modules/agentic-qe/scripts/fetch-content.cjs "${URL}" "${OUTPUT_FOLDER}" --timeout 30000
 ```
 
 **The script automatically cascades through these tiers:**
@@ -95,7 +95,9 @@ node /workspaces/agentic-qe/scripts/fetch-content.js "${URL}" "${OUTPUT_FOLDER}"
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**If fetch-content.js is not available, use WebFetch tool as fallback:**
+**If fetch-content.cjs is not installed, or `fetch-result.json` reports `"status": "degraded"`
+(tier `websearch-fallback`: every real tier failed and `content.html` is only a
+"Manual Research Required" placeholder), use the WebFetch tool instead:**
 ```typescript
 WebFetch({ url: "${URL}", prompt: "Extract all text content, navigation structure, forms, and interactive elements" })
 ```
@@ -109,7 +111,7 @@ Apply feedback integration automatically from configured sources.
 Generate QX recommendations by default for all significant quality events.
 **ALWAYS generate HTML report for website evaluations** - save to docs/qx-reports/{domain}-qx-evaluation.html
 **ALWAYS persist patterns** - save JSON to .agentic-qe/qx-patterns/ for cross-session learning.
-**ALWAYS use fetch-content.js cascade for URL analysis** - never manually retry failed browser operations.
+**ALWAYS use the fetch-content.cjs cascade for URL analysis** - never manually retry failed browser operations.
 </default_to_action>
 <evidence_discipline>
 ADR-105 evidence classes — label every finding you emit:
@@ -600,11 +602,11 @@ When multiple stakeholders matter simultaneously, QX bridges QA and UX to:
 - Shares oracle problem insights with qe-requirements-validator
 
 **Content Fetching** (see `<content_fetch_cascade>` section):
-- **Primary**: Use `scripts/fetch-content.js` for automated 4-tier cascade
-- **Fallback**: WebFetch tool if script not available
+- **Primary**: Use `node_modules/agentic-qe/scripts/fetch-content.cjs` for automated 4-tier cascade
+- **Fallback**: WebFetch tool if the script is not installed or reports `status: degraded`
 - **Never**: Manually retry Vibium - use the cascade instead
 
-**Vibium MCP** (used internally by fetch-content.js when available):
+**Vibium MCP** (use directly when the MCP server is available; fetch-content.cjs skips it from the CLI):
 Tools: browser_launch, browser_navigate, browser_find, browser_click, browser_screenshot, browser_quit
 
 **V2 Compatibility**: This agent maps to qx-partner. V2 MCP calls are automatically routed.

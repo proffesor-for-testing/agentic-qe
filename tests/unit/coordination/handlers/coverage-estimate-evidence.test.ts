@@ -28,6 +28,11 @@ import {
 import '../../../../src/domains/coverage-analysis';
 import { runJsCoverage, type JsCoverageRun } from '../../../../src/coordination/handlers/coverage-runner';
 
+// #1474: evidence is bound to the checkout's candidate; this suite's project root is
+// not a Git work tree, so resolve every checkout to one fixed candidate.
+vi.mock('../../../../src/domains/quality-assessment/evidence-candidate', async (importOriginal) =>
+  (await import('../../../../tests/fixtures/quality-evidence-candidates')).fixedCandidateModule(importOriginal));
+
 // #1126: the handlers read only targets inside the project root, and these
 // fixtures live in the OS temp dir.
 beforeEach(() => { vi.stubEnv('AQE_PROJECT_ROOT', fs.realpathSync(os.tmpdir())); });
@@ -94,7 +99,7 @@ async function seedAllButCoverage(kernel: Kernel): Promise<void> {
   }, { measuredAt: new Date().toISOString(), source: 'regression-fixture' });
 }
 
-const coverageEvidenceKey = `${QUALITY_EVIDENCE_NAMESPACE}::quality-evidence:coverage:latest`;
+const coverageEvidenceKey = `${QUALITY_EVIDENCE_NAMESPACE}::quality-evidence:v2:latest:coverage`;
 
 describe('#1008 — a static estimate is never persisted as coverage evidence', () => {
   let dir: string;
@@ -175,6 +180,28 @@ describe('#1008 — a static estimate is never persisted as coverage evidence', 
       metric: 'coverage', value: 75, source: 'coverage-analysis',
     });
     await expect(loadQualityEvidence(kernel.memory as never)).resolves.toMatchObject({ coverage: 75 });
+  }, 60000);
+
+  it('#1474: a STALE report (sources newer than it) is reported but never becomes quality evidence', async () => {
+    const lcov = path.join(dir, 'coverage', 'lcov.info');
+    fs.mkdirSync(path.dirname(lcov));
+    fs.writeFileSync(lcov, [
+      'TN:', `SF:${path.join(dir, 'src', 'math.ts')}`,
+      'DA:1,1', 'DA:2,1', 'DA:3,1', 'DA:4,1', 'LF:4', 'LH:4', 'end_of_record', '',
+    ].join('\n'));
+    // The report was written on an earlier checkout; the source changed since.
+    const past = new Date(Date.now() - 60 * 60 * 1000);
+    fs.utimesSync(lcov, past, past);
+    const kernel = createKernel();
+    await seedAllButCoverage(kernel);
+
+    const data = await analyze(kernel, dir);
+
+    expect(data.measured).toBe(true);
+    expect(data.staleReport).toBeDefined();
+    expect(kernel.store.has(coverageEvidenceKey)).toBe(false);
+    await expect(loadQualityEvidence(kernel.memory as never))
+      .rejects.toThrow('No measured quality evidence found for coverage.');
   }, 60000);
 });
 

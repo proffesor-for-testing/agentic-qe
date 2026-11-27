@@ -149,11 +149,19 @@ export interface ITestData {
 export interface ILearnPatternsRequest {
   testFiles: string[];
   depth: 'shallow' | 'deep';
+  /**
+   * #1350: 'refuse' (or 'refuse-outside-node-modules') refuses a test file
+   * with more than one hardlink, which no path check can confine; a refused
+   * file is listed in `refused`. Default 'allow', for the operator's own files.
+   */
+  sourceHardlinks?: import('../../shared/io/confined-read.js').HardlinkPolicy;
 }
 
 export interface ILearnedPatterns {
   patterns: IPattern[];
   confidence: number;
+  /** #1350: test files that were not read because they have more than one hardlink. */
+  refused?: Array<{ path: string; reason: 'hardlinked' }>;
 }
 
 export interface IPattern {

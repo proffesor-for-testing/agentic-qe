@@ -22,14 +22,14 @@ hooks:
     echo "🛡️  Security Architect analyzing: $TASK"
 
     # 1. Search for similar security patterns via HNSW (150x-12,500x faster)
-    THREAT_PATTERNS=$(npx claude-flow@v3alpha memory search-patterns "$TASK" --k=10 --min-reward=0.85 --namespace=security)
+    THREAT_PATTERNS=$(npx ruflo@3.76.0 memory search-patterns "$TASK" --k=10 --min-reward=0.85 --namespace=security)
     if [ -n "$THREAT_PATTERNS" ]; then
       echo "📊 Found ${#THREAT_PATTERNS[@]} similar threat patterns via HNSW"
-      npx claude-flow@v3alpha memory get-pattern-stats "$TASK" --k=10 --namespace=security
+      npx ruflo@3.76.0 memory get-pattern-stats "$TASK" --k=10 --namespace=security
     fi
 
     # 2. Learn from past security failures
-    SECURITY_FAILURES=$(npx claude-flow@v3alpha memory search-patterns "$TASK" --only-failures --k=5 --namespace=security)
+    SECURITY_FAILURES=$(npx ruflo@3.76.0 memory search-patterns "$TASK" --only-failures --k=5 --namespace=security)
     if [ -n "$SECURITY_FAILURES" ]; then
       echo "⚠️  Learning from past security vulnerabilities"
     fi
@@ -37,18 +37,18 @@ hooks:
     # 3. Check for known CVEs relevant to the task
     if [[ "$TASK" == *"auth"* ]] || [[ "$TASK" == *"session"* ]] || [[ "$TASK" == *"inject"* ]]; then
       echo "🔍 Checking CVE database for relevant vulnerabilities"
-      npx claude-flow@v3alpha security cve --check-relevant "$TASK"
+      npx ruflo@3.76.0 security cve --check-relevant "$TASK"
     fi
 
     # 4. Initialize security session with trajectory tracking
     SESSION_ID="security-architect-$(date +%s)"
-    npx claude-flow@v3alpha hooks intelligence trajectory-start \
+    npx ruflo@3.76.0 hooks intelligence trajectory-start \
       --session-id "$SESSION_ID" \
       --agent-type "security-architect" \
       --task "$TASK"
 
     # 5. Store task start for learning
-    npx claude-flow@v3alpha memory store-pattern \
+    npx ruflo@3.76.0 memory store-pattern \
       --session-id "$SESSION_ID" \
       --task "$TASK" \
       --status "started" \
@@ -58,7 +58,7 @@ hooks:
     echo "✅ Security architecture analysis complete"
 
     # 1. Run comprehensive security validation
-    npx claude-flow@v3alpha security scan --depth full --output-format json > /tmp/security-scan.json 2>/dev/null
+    npx ruflo@3.76.0 security scan --depth full --output-format json > /tmp/security-scan.json 2>/dev/null
     VULNERABILITIES=$(jq -r '.vulnerabilities | length' /tmp/security-scan.json 2>/dev/null || echo "0")
     CRITICAL_COUNT=$(jq -r '.vulnerabilities | map(select(.severity == "critical")) | length' /tmp/security-scan.json 2>/dev/null || echo "0")
 
@@ -75,7 +75,7 @@ hooks:
     fi
 
     # 3. Store learning pattern for future improvement
-    npx claude-flow@v3alpha memory store-pattern \
+    npx ruflo@3.76.0 memory store-pattern \
       --session-id "security-architect-$(date +%s)" \
       --task "$TASK" \
       --output "Security analysis completed: $VULNERABILITIES issues found, $CRITICAL_COUNT critical" \
@@ -87,14 +87,14 @@ hooks:
     # 4. Train neural patterns on successful security assessments
     if [ "$SUCCESS" = "true" ] && [ $(echo "$REWARD > 0.9" | bc) -eq 1 ]; then
       echo "🧠 Training neural pattern from successful security assessment"
-      npx claude-flow@v3alpha neural train \
+      npx ruflo@3.76.0 neural train \
         --pattern-type "coordination" \
         --training-data "security-assessment" \
         --epochs 50
     fi
 
     # 5. End trajectory tracking
-    npx claude-flow@v3alpha hooks intelligence trajectory-end \
+    npx ruflo@3.76.0 hooks intelligence trajectory-end \
       --session-id "$SESSION_ID" \
       --success "$SUCCESS" \
       --reward "$REWARD"
@@ -102,7 +102,7 @@ hooks:
     # 6. Alert on critical findings
     if [ "$CRITICAL_COUNT" -gt 0 ]; then
       echo "🚨 CRITICAL: $CRITICAL_COUNT critical vulnerabilities detected!"
-      npx claude-flow@v3alpha hooks notify --severity critical --message "Critical security vulnerabilities found"
+      npx ruflo@3.76.0 hooks notify --severity critical --message "Critical security vulnerabilities found"
     fi
 ---
 
@@ -834,25 +834,25 @@ mcp__claude-flow__memory_usage({
 
 ```bash
 # Full security scan
-npx claude-flow@v3alpha security scan --depth full
+npx ruflo@3.76.0 security scan --depth full
 
 # CVE-specific checks
-npx claude-flow@v3alpha security cve --check CVE-2024-001
-npx claude-flow@v3alpha security cve --check CVE-2024-002
-npx claude-flow@v3alpha security cve --check CVE-2024-003
+npx ruflo@3.76.0 security cve --check CVE-2024-001
+npx ruflo@3.76.0 security cve --check CVE-2024-002
+npx ruflo@3.76.0 security cve --check CVE-2024-003
 
 # Threat modeling
-npx claude-flow@v3alpha security threats --methodology STRIDE
-npx claude-flow@v3alpha security threats --methodology DREAD
+npx ruflo@3.76.0 security threats --methodology STRIDE
+npx ruflo@3.76.0 security threats --methodology DREAD
 
 # Audit report
-npx claude-flow@v3alpha security audit --output-format markdown
+npx ruflo@3.76.0 security audit --output-format markdown
 
 # Validate security configuration
-npx claude-flow@v3alpha security validate --config ./security.config.json
+npx ruflo@3.76.0 security validate --config ./security.config.json
 
 # Generate security report
-npx claude-flow@v3alpha security report --format pdf --include-remediations
+npx ruflo@3.76.0 security report --format pdf --include-remediations
 ```
 
 ## Collaboration Protocol

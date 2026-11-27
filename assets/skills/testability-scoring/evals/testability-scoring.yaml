@@ -11,7 +11,7 @@
 # - Multi-model consistency across Claude/GPT models
 #
 # Schema: .claude/skills/.validation/schemas/skill-eval.schema.json
-# Runner: scripts/run-skill-eval.ts
+# Runner: https://github.com/proffesor-for-testing/agentic-qe/blob/main/scripts/run-skill-eval.ts
 #
 # =============================================================================
 

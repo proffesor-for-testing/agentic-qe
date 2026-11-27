@@ -182,9 +182,9 @@ const compatFleet = await FleetManager.coordinate({
 ---
 
 ## Related Skills
-- [mobile-testing](../mobile-testing/) - Mobile-specific testing
-- [visual-testing-advanced](../visual-testing-advanced/) - Visual regression
-- [accessibility-testing](../accessibility-testing/) - Cross-platform a11y
+- [mobile-testing](../qe-mobile-testing/) - Mobile-specific testing
+- [visual-testing-advanced](../qe-visual-testing-advanced/) - Visual regression
+- [accessibility-testing](../qe-accessibility-testing/) - Cross-platform a11y
 
 ---
 

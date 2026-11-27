@@ -31,13 +31,14 @@ describe('quality-gate verdict (#1355)', () => {
     expect(describeGateRejection({})).toBe('missing passing quality evidence');
   });
 
-  it('checks the import against the logical import target of inline sourceCode', () => {
-    const testCode = "import { add } from './module-under-test';\nimport { it, expect } from 'vitest';\nit('adds', () => { expect(add(1, 2)).toBe(3); });\n";
+  it.each(['./module-under-test', './src/calc'])('checks inline sourceCode with the generator path for %s', (target) => {
+    const testCode = `import { add } from '${target}';\nimport { it, expect } from 'vitest';\nit('adds', () => { expect(add(1, 2)).toBe(3); });\n`;
     const gate = new TestQualityGate();
     const temp = '/tmp/aqe-temp-1355.ts';
 
     expect(gate.validate(testCode, temp).issues.map(i => i.type)).toContain('no-source-import');
-    expect(gate.validate(testCode, temp, undefined, './module-under-test').passed).toBe(true);
+    const sourceCode = 'export function add(a: number, b: number) { return a + b; }';
+    expect(gate.validate(testCode, temp, sourceCode, target, '/tmp/aqe-temp-1355.test.ts').passed).toBe(true);
   });
 
   describe('isUnexecutableScaffold (what test_generate_enhanced counts by)', () => {

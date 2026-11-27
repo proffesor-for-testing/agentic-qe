@@ -283,9 +283,9 @@ API keys in code → **Environment variables, secret management**
 ---
 
 ## Related Skills
-- [agentic-quality-engineering](../agentic-quality-engineering/) - Security with agents
-- [api-testing-patterns](../api-testing-patterns/) - API security testing
-- [compliance-testing](../compliance-testing/) - GDPR, HIPAA, SOC2
+- [agentic-quality-engineering](../qe-agentic-quality-engineering/) - Security with agents
+- [api-testing-patterns](../qe-api-testing-patterns/) - API security testing
+- [compliance-testing](../qe-compliance-testing/) - GDPR, HIPAA, SOC2
 
 ---
 

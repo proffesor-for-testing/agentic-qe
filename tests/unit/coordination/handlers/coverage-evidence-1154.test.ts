@@ -292,6 +292,36 @@ describe('#1154 — aqe coverage verdict', () => {
   });
 });
 
+describe('#1474 — aqe coverage never offers a stale or partial report as gate evidence', () => {
+  it('tells the analyzer the evidence is incomplete for a STALE report, before anything is stored', async () => {
+    write('coverage/lcov.info', LCOV_BOTH, NEWER);
+    write('src/math.js', MATH_JS, NEWEST); // changed after the report was written
+    write('src/unsafe.js', UNSAFE_JS, OLD);
+    const api = fakeAnalyzer();
+
+    const outcome = await evaluateCliCoverage(api, at('src'), 80, () => undefined);
+
+    expect(outcome.kind).toBe('measured');
+    expect(api.analyze).toHaveBeenCalledWith(expect.objectContaining({ measured: true, evidenceComplete: false }));
+  });
+
+  it('tells the analyzer the evidence is incomplete for a report missing target files', async () => {
+    partialFixture();
+    const api = fakeAnalyzer();
+    await evaluateCliCoverage(api, at('src'), 80, () => undefined);
+    expect(api.analyze).toHaveBeenCalledWith(expect.objectContaining({ evidenceComplete: false }));
+  });
+
+  it('offers a complete, current report as evidence', async () => {
+    write('src/math.js', MATH_JS);
+    write('src/unsafe.js', UNSAFE_JS);
+    write('coverage/lcov.info', LCOV_BOTH, NEWER);
+    const api = fakeAnalyzer();
+    await evaluateCliCoverage(api, at('src'), 80, () => undefined);
+    expect(api.analyze).toHaveBeenCalledWith(expect.objectContaining({ evidenceComplete: true }));
+  });
+});
+
 describe('#1154 — aqe fleet run analyze verdict', () => {
   const passingResult = {
     success: true,

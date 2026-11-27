@@ -1755,7 +1755,7 @@
       "file": "verification-quality/SKILL.md",
       "tags": [
         "verification",
-        "truth-scoring",
+        "quality-gate",
         "quality",
         "rollback",
         "metrics",

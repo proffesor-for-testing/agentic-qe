@@ -425,7 +425,6 @@ When ALL phases complete -> <promise>DEPLOYMENT_READY</promise>
 
 ## Related Skills
 
-- [iterative-loop](../iterative-loop/) - General iteration technique
 - [qe-test-generation](../qe-test-generation/) - AI-powered test creation
 - [qe-coverage-analysis](../qe-coverage-analysis/) - Coverage gap detection
 - [qe-quality-assessment](../qe-quality-assessment/) - Quality gate management
@@ -433,7 +432,7 @@ When ALL phases complete -> <promise>DEPLOYMENT_READY</promise>
 
 ## Resources
 
-- [AQE v3 Documentation](../../v3/README.md) - Full v3 reference
+- [AQE Documentation](https://github.com/proffesor-for-testing/agentic-qe/tree/main/docs) - Full reference
 - [Ralph Wiggum Technique](https://ghuntley.com/ralph/) - Original methodology
 - [Agentic QE MCP Tools](https://github.com/proffesor-for-testing/agentic-qe) - MCP tool reference
 

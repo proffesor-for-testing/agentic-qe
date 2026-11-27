@@ -9,7 +9,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
-import { collectMetrics } from '../../../../src/cli/commands/prove.js';
+import { collectUnboundFiles } from '../../../../src/cli/commands/prove.js';
 import { ProjectAnalyzer } from '../../../../src/init/project-analyzer.js';
 import { readCoverageSummary } from '../../../../src/mcp/tools/planning/world-state.js';
 import { TestBasedVerifier } from '../../../../src/agents/claim-verifier/verifiers/test-verifier.js';
@@ -42,10 +42,7 @@ const SUMMARY = JSON.stringify({
 
 /** Each reader, reduced to the line coverage it reports (null = not read). */
 const readers: Array<[string, (root: string) => Promise<number | null>]> = [
-  ['prove collectMetrics', async (root) => {
-    const m = await collectMetrics(root);
-    return m.coveragePercent === 0 ? null : m.coveragePercent;
-  }],
+  ['prove collectUnboundFiles', async (root) => (await collectUnboundFiles(root)).coverageSummary?.linesPct ?? null],
   ['ProjectAnalyzer.measureCoverage', async (root) => {
     // A refused report is no report: hasReport is false, not true with zeros.
     const c = await new ProjectAnalyzer(root).measureCoverage();

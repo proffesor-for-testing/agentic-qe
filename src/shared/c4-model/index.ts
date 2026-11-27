@@ -69,6 +69,8 @@ export interface C4AnalysisMetadata {
   analysisTimeMs: number;
   /** ADR-112: deterministic confidence gate for the generated diagrams */
   confidence?: C4ConfidenceAssessment;
+  /** #1350: files that exist but were not read because they have more than one hardlink. */
+  refusedFiles?: string[];
 }
 
 // ============================================================================

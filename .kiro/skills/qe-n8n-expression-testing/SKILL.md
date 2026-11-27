@@ -409,8 +409,8 @@ await Task("Validate expressions", {
 ---
 
 ## Related Skills
-- [n8n-workflow-testing-fundamentals](../n8n-workflow-testing-fundamentals/) - Workflow testing
-- [n8n-security-testing](../n8n-security-testing/) - Security validation
+- [n8n-workflow-testing-fundamentals](../qe-n8n-workflow-testing-fundamentals/) - Workflow testing
+- [n8n-security-testing](../qe-n8n-security-testing/) - Security validation
 
 ---
 

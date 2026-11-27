@@ -1,0 +1,21 @@
+{
+  "issue": "https://github.com/proffesor-for-testing/agentic-qe/issues/1417",
+  "note": "Invalid ruflo@3.76.0 calls per file in tracked content that is not shipped in the npm package and not installed by aqe init (the repo's .kiro copies and docs; #1456 stopped shipping the Claude Flow platform agents, commands and skills). Counts may only go down (tests/unit/packaging/ruflo-command-surface-1417.test.ts).",
+  "total": 131,
+  "files": {
+    ".kiro/agents/code-analyzer.json": 1,
+    ".kiro/skills/qe-github-multi-repo/SKILL.md": 21,
+    ".kiro/skills/qe-github-release-management/SKILL.md": 30,
+    ".kiro/skills/qe-github-workflow-automation/SKILL.md": 9,
+    ".kiro/skills/qe-sparc-methodology/SKILL.md": 27,
+    "docs/architecture/CROSS-PHASE-MEMORY-IMPLEMENTATION.md": 3,
+    "docs/implementation/adrs/ADR-073-portable-intelligence-containers.md": 4,
+    "docs/implementation/specs/SPEC-050-C-implementation-plan.md": 1,
+    "docs/plans/ADR-051-PARALLEL-SWARM-EXECUTION-PLAN.md": 19,
+    "docs/plans/ADR-052-implementation-plan.md": 2,
+    "docs/plans/GOAP-V3-RUVECTOR-NEURAL-BACKBONE.md": 1,
+    "docs/plans/guidance-integration-consolidated.md": 1,
+    "docs/reference/claude-flow.md": 4,
+    "docs/strongdm-implementation-plan.md": 8
+  }
+}

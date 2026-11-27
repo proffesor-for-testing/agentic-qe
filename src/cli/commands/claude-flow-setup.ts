@@ -22,6 +22,7 @@ import { writeFileIfChanged } from '../../init/idempotent-write.js';
 import { join } from 'node:path';
 import { safeJsonParse } from '../../shared/safe-json.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
+import { RUFLO_PINNED_SPEC } from '../../shared/pinned-tools.js';
 import {
   detectClaudeFlow as smartDetectClaudeFlow,
 } from '../../adapters/claude-flow/detect.js';
@@ -174,6 +175,39 @@ function generateClaudeFlowConfig(projectRoot: string, features: ClaudeFlowSetup
   };
 }
 
+/** The `mcpServers.ruflo` entry AQE writes into `.claude/settings.json`. */
+export function rufloMcpServerEntry(): { command: string; args: string[]; env: Record<string, string> } {
+  return { command: 'npx', args: [RUFLO_PINNED_SPEC, 'mcp'], env: {} };
+}
+
+/**
+ * `args` (space-joined) that earlier AQE releases wrote as their default ruflo /
+ * claude-flow MCP entry (#1413). These are only matched, never written. An entry still
+ * equal to one of these, with `command: 'npx'` and no env or extra keys, was written by
+ * AQE rather than customised, so init refreshes it.
+ * - ruflo 3.5.18: written from 2026-03-17 until #1413. That release depends on
+ *   `@claude-flow/cli >=3.0.0-alpha.1`, so it never pinned the server that actually ran.
+ * - `@anthropic/claude-flow`: written under the `claude-flow` key before 2026-03-17.
+ */
+const LEGACY_AQE_RUFLO_ARGS: ReadonlySet<string> = new Set([
+  'ruflo@3.5.18 mcp',
+  '@anthropic/claude-flow mcp',
+]);
+
+/** True when `entry` is exactly an old AQE default from {@link LEGACY_AQE_RUFLO_ARGS}. */
+export function isLegacyAqeRufloEntry(entry: unknown): boolean {
+  if (!isPlainObject(entry)) return false;
+  const { command, args, env, ...rest } = entry;
+  if (Object.keys(rest).length > 0 || command !== 'npx') return false;
+  if (!Array.isArray(args) || args.length !== 2 || !args.every((arg) => typeof arg === 'string')) return false;
+  const envIsEmpty = env === undefined || (isPlainObject(env) && Object.keys(env).length === 0);
+  return envIsEmpty && LEGACY_AQE_RUFLO_ARGS.has(args.join(' '));
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 /**
  * Update MCP server configuration for Claude
  */
@@ -194,14 +228,16 @@ function updateMCPConfig(projectRoot: string): void {
     settings.mcpServers = {};
   }
 
-  // Add claude-flow server if not present
+  // Add the ruflo server if not present; refresh entries AQE itself wrote with an old
+  // default (#1413). Any other existing value is the user's and is kept as-is.
   const servers = settings.mcpServers as Record<string, unknown>;
   if (!servers['ruflo'] && !servers['claude-flow']) {
-    servers['ruflo'] = {
-      command: 'npx',
-      args: ['ruflo@3.5.18', 'mcp'],
-      env: {},
-    };
+    servers['ruflo'] = rufloMcpServerEntry();
+  }
+  for (const key of ['ruflo', 'claude-flow']) {
+    if (isLegacyAqeRufloEntry(servers[key])) {
+      servers[key] = rufloMcpServerEntry();
+    }
   }
 
   // Write updated settings — only when something changed (#778).

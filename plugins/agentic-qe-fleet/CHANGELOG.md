@@ -2,6 +2,22 @@
 
 Newest first. One `## <version> — <date>` heading per version, then `feat:`, `fix:`, `breaking:` and `chore:` bullets. Since 3.15.0 the plugin version tracks the `agentic-qe` npm package version (see [ADR-0001](docs/adrs/0001-agentic-qe-fleet-contract.md)). Built from git history.
 
+## 3.15.23 — 2026-11-24
+- fix: Codex no longer warns that the plugin hooks file is invalid. The mod manifest moved to `hooks/aqe-mod.json` (referenced from `.claude-plugin/plugin.json`), and a new `.codex-plugin/plugin.json` declares no hooks (#1475).
+- chore: MCP server pin and mod version move to `agentic-qe@3.15.23` (measured quality gate bound to the gated commit, a real `accessibility_test` audit that runs the requested standard, `aqe quality-gate` works in user projects, portable skill hooks; see the root CHANGELOG).
+
+## 3.15.22 — 2026-11-20
+- fix: the MCP server launches with `npx -y --allow-scripts=better-sqlite3,hnswlib-node`, so npm 12 builds the native SQLite module and `fleet_init` works (#1466).
+- fix: the `/aqe-*` commands call only ruflo commands and flags that ruflo 3.76.0 has (#1417).
+- chore: MCP server pin and mod version move to `agentic-qe@3.15.22` (no duplicate cloud experiences from `aqe sync`, pinned ruflo MCP entry, Kiro skill files, no tinyglobby/picomatch, smaller package; see the root CHANGELOG).
+
+## 3.15.21 — 2026-11-17
+- chore: MCP server pin and mod version move to `agentic-qe@3.15.21` (`aqe learning unmark` and revocation of patterns whose measured runs mostly fail, no unproven memory entries in the test-generation LLM prompt, package types under node16/nodenext, `aqe sync` and learning export/import fixes; see the root CHANGELOG). No other plugin changes.
+
+## 3.15.20 — 2026-11-12
+- fix: the `/aqe-*` commands run `npx ruflo@3.76.0` instead of a floating Claude Flow dist-tag (#1404).
+- chore: MCP server pin and mod version move to `agentic-qe@3.15.20` (test generation applies only trusted patterns, `aqe sync` uploads each claude-flow memory and Q-learning pattern, more MCP tools refuse hardlinked files; see the root CHANGELOG).
+
 ## 3.15.17 — 2026-10-28
 - chore: MCP server pin and mod version move to `agentic-qe@3.15.17` (pytest suites run and count as measured outcomes, Copilot reloads AQE tools after an upgrade, the same embedding model keeps its space after a restart and a different model is refused, Ollama MiniLM search and better text-match ranking; see the root CHANGELOG). No other plugin changes.
 

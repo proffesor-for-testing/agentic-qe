@@ -921,11 +921,11 @@ await wmsFleet.execute({
 ---
 
 ## Related Skills
-- [api-testing-patterns](../api-testing-patterns/) - REST/GraphQL API testing fundamentals
-- [contract-testing](../contract-testing/) - Consumer-driven contract testing with Pact
-- [enterprise-integration-testing](../enterprise-integration-testing/) - Orchestrating all enterprise agents
-- [middleware-testing-patterns](../middleware-testing-patterns/) - ESB and message broker testing
-- [observability-testing-patterns](../observability-testing-patterns/) - Monitoring and alerting validation
+- [api-testing-patterns](../qe-api-testing-patterns/) - REST/GraphQL API testing fundamentals
+- [contract-testing](../../../.claude/skills/contract-testing/) - Consumer-driven contract testing with Pact
+- [enterprise-integration-testing](../qe-enterprise-integration-testing/) - Orchestrating all enterprise agents
+- [middleware-testing-patterns](../qe-middleware-testing-patterns/) - ESB and message broker testing
+- [observability-testing-patterns](../qe-observability-testing-patterns/) - Monitoring and alerting validation
 
 ---
 

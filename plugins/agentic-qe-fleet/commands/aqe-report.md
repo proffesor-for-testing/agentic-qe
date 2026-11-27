@@ -142,28 +142,28 @@ Task("Generate comprehensive QE report", `
 
 ```bash
 # Retrieve coverage data
-npx claude-flow@alpha memory retrieve --key "aqe/coverage/current"
+npx ruflo@3.76.0 memory retrieve --key "aqe/coverage/current"
 
 # Retrieve execution history
-npx claude-flow@alpha memory retrieve --key "aqe/execution/history"
+npx ruflo@3.76.0 memory retrieve --key "aqe/execution/history"
 
 # Retrieve performance metrics
-npx claude-flow@alpha memory retrieve --key "aqe/performance/metrics"
+npx ruflo@3.76.0 memory retrieve --key "aqe/performance/metrics"
 
 # Retrieve optimization results
-npx claude-flow@alpha memory retrieve --key "aqe/optimization/results"
+npx ruflo@3.76.0 memory retrieve --key "aqe/optimization/results"
 ```
 
 ### Output Memory Keys
 
 ```bash
 # Store report metadata
-npx claude-flow@alpha memory store \
+npx ruflo@3.76.0 memory store \
   --key "aqe/reports/${report_id}" \
   --value '{"type": "detailed", "format": "html", "timestamp": "2025-09-30T10:20:00Z"}'
 
 # Store report history
-npx claude-flow@alpha memory store \
+npx ruflo@3.76.0 memory store \
   --key "aqe/reports/history" \
   --value '[{"id": "report-123", "date": "2025-09-30"}]'
 ```
@@ -173,23 +173,28 @@ npx claude-flow@alpha memory store \
 ### Pre-Task Hook
 
 ```bash
-npx claude-flow@alpha hooks pre-task \
-  --description "Generate ${report_type} report" \
-  --agent "qe-quality-gate"
+# One id per run; post-task below records the outcome against it
+REPORT_ID="aqe-report-$(date +%s)"
+npx ruflo@3.76.0 hooks pre-task \
+  --task-id "${REPORT_ID}" \
+  --description "Generate ${report_type} report"
 ```
 
 ### Post-Task Hook
 
 ```bash
-npx claude-flow@alpha hooks post-task \
-  --task-id "${REPORT_ID}" \
-  --results "${REPORT_META}"
+# Set TASK_SUCCEEDED to true or false from the actual result; results go to `memory store` above
+npx ruflo@3.76.0 hooks post-task \
+  --task-id "${REPORT_ID:?run the pre-task block first, in the same shell}" \
+  --success "${TASK_SUCCEEDED:?set to true or false}" \
+  --agent "qe-quality-gate" \
+  --task "Generate ${report_type} report"
 ```
 
 ### Notify Fleet
 
 ```bash
-npx claude-flow@alpha hooks notify \
+npx ruflo@3.76.0 hooks notify \
   --message "Report generated: ${REPORT_TYPE} (${REPORT_ID})"
 ```
 

@@ -32,6 +32,8 @@ interface DataReader<T = unknown> {
   close(): Promise<void>;
   /** #1361: false when the source file is absent (JSON sources). */
   exists?(): boolean;
+  /** #1384: entries the last read skipped (JSON sources). */
+  skippedOnRead?(): { count: number; reason: string } | null;
 }
 import { DEFAULT_SYNC_CONFIG } from './interfaces.js';
 import { LoggerFactory } from '../logging/index.js';
@@ -43,6 +45,15 @@ import { createJSONReader } from './readers/json-reader.js';
 import { createConnectionManager } from './cloud/tunnel-manager.js';
 import { createPostgresWriter } from './cloud/postgres-writer.js';
 import { toErrorMessage, toError } from '../shared/error-utils.js';
+import { planVerifyGroups, cloudCountQuery, localCount as countLocal, type VerifyGroup } from './verify-plan.js';
+import { convertBeforeQUpload, MISSING_STORE } from './q-patterns-cloud-migration.js';
+import { existsSync } from 'fs';
+import { resolve as resolvePath } from 'path';
+import { Q_PATTERNS_TABLE } from './readers/q-patterns.js';
+import {
+  applyExperienceDedupe, planExperienceDedupe,
+  type ExperienceDedupePlan, type ExperienceDedupeResult,
+} from './cloud/dedupe-experiences.js';
 
 /**
  * Sync agent configuration
@@ -67,6 +78,10 @@ export class CloudSyncAgent {
   /** #1361: why a source has no reader, so a sync can report it instead of dropping it. */
   private readonly readerErrors: Map<string, string> = new Map();
   private writer: CloudWriter | null = null;
+  /** #1407/#1415: existing Q rows are converted once per sync; a failure fails every Q source. */
+  private qRowsConversion: Promise<string | null> | null = null;
+  /** Q-store readers opened only for the conversion. */
+  private qOnlyReaders: DataReader[] = [];
   private report: SyncReport | null = null;
 
   constructor(config: Partial<SyncAgentConfig> = {}) {
@@ -208,6 +223,7 @@ export class CloudSyncAgent {
 
       // Read all records
       const records = await reader.readAll();
+      noteReadSkips(result, reader);
       this.log(`Read ${records.length} records from ${source.name}`);
 
       if (records.length === 0) {
@@ -220,10 +236,12 @@ export class CloudSyncAgent {
 
       // Write to cloud (no wrapping transaction — postgres-writer handles per-batch recovery)
       if (this.writer && !this.config.sync.dryRun) {
+        await this.convertQRowsOnce(source, result);
         const skipped = { count: 0, reason: '' };
         const written = await this.writer.upsert(source.targetTable, records, {
           skipIfExists: source.mode === 'append',
           onSkipped: (count, reason) => { skipped.count += count; skipped.reason ||= reason; },
+          onMissingColumns: columns => noteMissingColumns(result, source.targetTable, columns),
         });
         result.recordsSynced = written;
         // #1361: records the cloud rejected fail the source, never a silent 0.
@@ -270,6 +288,7 @@ export class CloudSyncAgent {
 
       // Read changed records
       const records = await reader.readChanged(since);
+      noteReadSkips(result, reader);
       this.log(`Read ${records.length} changed records from ${source.name} (since ${since.toISOString()})`);
 
       if (records.length === 0) {
@@ -281,9 +300,11 @@ export class CloudSyncAgent {
 
       // Write to cloud (no wrapping transaction — postgres-writer handles per-batch recovery)
       if (this.writer && !this.config.sync.dryRun) {
+        await this.convertQRowsOnce(source, result);
         const skipped = { count: 0, reason: '' };
         const written = await this.writer.upsert(source.targetTable, records, {
           onSkipped: (count, reason) => { skipped.count += count; skipped.reason ||= reason; },
+          onMissingColumns: columns => noteMissingColumns(result, source.targetTable, columns),
         });
         result.recordsSynced = written;
         if (rejectSkipped(result, skipped, records.length, source.targetTable)) {
@@ -301,6 +322,45 @@ export class CloudSyncAgent {
 
     result.durationMs = Date.now() - startTime;
     return result;
+  }
+
+  /** #1407/#1415: convert this environment's existing Q rows before the first Q upload. */
+  private async convertQRowsOnce(source: SyncSource, result: SyncResult): Promise<void> {
+    if (source.targetTable !== Q_PATTERNS_TABLE || !this.writer) return;
+    const first = this.qRowsConversion === null;
+    // The same promise for every Q source: if the conversion failed, the
+    // next Q source fails too instead of uploading next to unconverted rows.
+    this.qRowsConversion ??= convertBeforeQUpload(
+      this.writer, this.config.environment, this.qPatternWriters(), s => this.qStoreReader(s),
+    );
+    const note = await this.qRowsConversion;
+    if (first && note) (result.warnings ??= []).push(note);
+  }
+
+  /** Every source that writes the Q table: the configured ones and the defaults. */
+  private qPatternWriters(): SyncSource[] {
+    const byName = new Map<string, SyncSource>();
+    for (const s of [...DEFAULT_SYNC_CONFIG.sync.sources, ...this.config.sync.sources]) {
+      if (s.targetTable === Q_PATTERNS_TABLE) byName.set(s.name, s);
+    }
+    return [...byName.values()];
+  }
+
+  /** A reader for a Q store, opened on demand when the sync did not select it. */
+  private async qStoreReader(source: SyncSource): Promise<DataReader | typeof MISSING_STORE | null> {
+    const existing = this.readers.get(source.name);
+    if (existing) return existing;
+    if (!existsSync(resolvePath(process.cwd(), source.path))) return MISSING_STORE;
+    const reader = this.createReader(source);
+    if (!reader) return null;
+    try {
+      await reader.initialize();
+      // Closed in close(), with the others.
+      this.qOnlyReaders.push(reader);
+      return reader;
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -330,13 +390,24 @@ export class CloudSyncAgent {
           priority: source.priority,
           ...(error ? { error } : {}),
         });
+      } else if (source.enabled === false) {
+        // #1408: a source that is off (e.g. opt-in intelligence-memories) has
+        // no reader by design; it is not a failure.
+        sources.push({
+          name: source.name,
+          type: source.type,
+          targetTable: source.targetTable,
+          recordCount: 0,
+          enabled: false,
+          priority: source.priority,
+        });
       } else {
         sources.push({
           name: source.name,
           type: source.type,
           targetTable: source.targetTable,
           recordCount: 0,
-          enabled: source.enabled !== false,
+          enabled: true,
           priority: source.priority,
           // #1378: say why the reader could not be opened (e.g. EACCES).
           error: this.readerErrors.get(source.name) ?? 'Reader not initialized',
@@ -373,8 +444,9 @@ export class CloudSyncAgent {
 
     const results: VerifyTableResult[] = [];
     try {
-      for (const source of sources) {
-        results.push(await this.verifySource(source, connectError));
+      // #1384: one result per cloud table, however many sources write it.
+      for (const group of planVerifyGroups(sources)) {
+        results.push(await this.verifyGroup(group, connectError));
       }
     } finally {
       await this.disconnect();
@@ -389,21 +461,49 @@ export class CloudSyncAgent {
     };
   }
 
-  /** #1361: count one source on both sides; any count that cannot be read is unverified. */
-  private async verifySource(source: SyncSource, connectError?: string): Promise<VerifyTableResult> {
-    const base = { source: source.name, table: source.targetTable };
+  /**
+   * #1436: plan (default) or apply the one-off cleanup of duplicated
+   * learning_experiences rows for this environment. See dedupe-experiences.ts.
+   */
+  async dedupeExperiences(options: { apply: boolean }): Promise<ExperienceDedupePlan | ExperienceDedupeResult> {
+    if (this.config.sync.dryRun) throw new Error('dedupe-experiences needs a cloud connection; it cannot run as a dry run');
+    // The local experiences the upload sends: the cleanup waits until each has a keyed row.
+    const reader = this.readers.get('root-captured-experiences');
+    const localExperiences = reader && reader.exists?.() !== false ? await reader.count() : undefined;
+    await this.connectToCloud();
+    if (!this.writer) throw new Error('No cloud connection was opened');
+    try {
+      return options.apply
+        ? await applyExperienceDedupe(this.writer, this.config.environment, { localExperiences })
+        : await planExperienceDedupe(this.writer, this.config.environment, { localExperiences });
+    } finally {
+      await this.disconnect();
+    }
+  }
+
+  /**
+   * #1361: count one cloud table on both sides; any count that cannot be read
+   * is unverified. #1384: the local side is the sum of the table's sources.
+   */
+  private async verifyGroup(group: VerifyGroup, connectError?: string): Promise<VerifyTableResult> {
+    const base = { source: group.sources.map(s => s.name).join(' + '), table: group.table };
     const unverified = (localCount: number, error: string): VerifyTableResult =>
       ({ ...base, localCount, cloudCount: -1, match: false, diff: 0, status: 'unverified', error });
 
-    const reader = this.readers.get(source.name);
-    if (!reader) {
-      return unverified(-1, `Local source could not be read: ${this.readerErrors.get(source.name) ?? 'reader not initialized'}`);
+    let localCount = 0;
+    for (const source of group.sources) {
+      const reader = this.readers.get(source.name);
+      if (!reader) {
+        return unverified(-1, `Local source could not be read: ${this.readerErrors.get(source.name) ?? 'reader not initialized'}`);
+      }
+      try {
+        localCount += await countLocal(source, reader, group.excludeKeys);
+      } catch (error) {
+        return unverified(-1, `Local count failed: ${toErrorMessage(error)}`);
+      }
     }
-    let localCount: number;
-    try {
-      localCount = await reader.count();
-    } catch (error) {
-      return unverified(-1, `Local count failed: ${toErrorMessage(error)}`);
+    if (group.unselectedWriters.length > 0) {
+      return unverified(localCount, `${group.table} is also written by ${group.unselectedWriters.join(', ')}; verify them together`);
     }
     if (connectError || !this.writer) return unverified(localCount, connectError ?? 'No cloud connection');
 
@@ -413,10 +513,8 @@ export class CloudSyncAgent {
       // indexes return 0 rows for COUNT(*) when chosen by the planner)
       await this.writer.beginTransaction();
       await this.writer.execute('SET LOCAL enable_indexonlyscan = off');
-      const rows = await this.writer.query<{ count: number | string }>(
-        `SELECT COUNT(*) as count FROM ${source.targetTable} WHERE source_env = $1`,
-        [this.config.environment]
-      );
+      const { sql, params } = cloudCountQuery(group, this.config.environment);
+      const rows = await this.writer.query<{ count: number | string }>(sql, params);
       await this.writer.commit();
       // node-postgres returns COUNT(*) (bigint) as a string. No row, a null
       // or an empty count is an error, never a count of 0 (#1361).
@@ -428,7 +526,7 @@ export class CloudSyncAgent {
       if (!Number.isInteger(cloudCount) || cloudCount < 0) throw new Error(`Unexpected count: ${String(raw)}`);
     } catch (e) {
       try { await this.writer.rollback(); } catch { /* ignore */ }
-      logger.debug('Cloud count query failed', { source: source.name, error: e instanceof Error ? e.message : String(e) });
+      logger.debug('Cloud count query failed', { table: group.table, error: e instanceof Error ? e.message : String(e) });
       return unverified(localCount, `Cloud count failed: ${toErrorMessage(e)}`);
     }
 
@@ -452,6 +550,9 @@ export class CloudSyncAgent {
     }
 
     this.readers.clear();
+    for (const reader of this.qOnlyReaders.splice(0)) {
+      try { await reader.close(); } catch { /* best effort */ }
+    }
     this.log('Sync agent closed');
   }
 
@@ -598,6 +699,30 @@ function nothingRead(results: SyncResult[]): boolean {
 }
 
 /**
+ * #1384: entries the reader skipped (not records of this source, e.g. legacy
+ * ruvector pretrain entries) are counted and explained, never a failure.
+ */
+function noteReadSkips(result: SyncResult, reader: DataReader): void {
+  const skipped = reader.skippedOnRead?.();
+  if (!skipped || skipped.count === 0) return;
+  result.recordsSkipped += skipped.count;
+  (result.warnings ??= []).push(skipped.reason);
+}
+
+/**
+ * #1432: local columns the cloud table lacks were not uploaded. A warning,
+ * not a failure: the rows were written, and after the cloud schema is
+ * re-applied a full sync fills the new columns (append sources fill NULLs).
+ */
+function noteMissingColumns(result: SyncResult, table: string, columns: string[]): void {
+  (result.warnings ??= []).push(
+    `${table} has no column ${columns.join(', ')}; those values were not uploaded. ` +
+    'Re-apply the cloud schema (aqe sync init --output cloud-schema.sql, then run it with psql) ' +
+    'and run aqe sync --full to add them to the rows already uploaded.',
+  );
+}
+
+/**
  * #1361: records a writer reported as not written fail the source. Returns
  * true when it did, with `result.error` saying how many and why.
  */
@@ -605,7 +730,7 @@ function rejectSkipped(
   result: SyncResult, skipped: { count: number; reason: string }, total: number, table: string,
 ): boolean {
   if (skipped.count === 0) return false;
-  result.recordsSkipped = skipped.count;
+  result.recordsSkipped += skipped.count;
   result.success = false;
   result.error = `${skipped.count} of ${total} records were not written to ${table}` +
     (skipped.reason ? `: ${skipped.reason.slice(0, 300)}` : '');

@@ -3,6 +3,10 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   DefectPredictorService,
   PredictionFeedback,
@@ -135,6 +139,8 @@ describe('DefectPredictorService', () => {
   let mockGit: Partial<GitAnalyzer>;
   let mockReader: Partial<FileReader>;
   let mockParser: Partial<TypeScriptParser>;
+  /** Temporary repositories created by a test, removed after it. */
+  const roots: string[] = [];
 
   beforeEach(() => {
     mockMemory = createMockMemoryBackend();
@@ -152,6 +158,7 @@ describe('DefectPredictorService', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
   });
 
   describe('predictDefects', () => {
@@ -202,6 +209,59 @@ describe('DefectPredictorService', () => {
       expect(healthy.success && timedOut.success).toBe(true);
       if (!healthy.success || !timedOut.success) return;
       expect(timedOut.value.modelConfidence).toBeLessThan(healthy.value.modelConfidence);
+    });
+
+    it('should mark non-timeout Git failures incomplete and avoid caching fallback metrics (#1330)', async () => {
+      mockGit.withFileDeadline = vi.fn((_file: string, work: () => Promise<unknown>) => work()) as GitAnalyzer['withFileDeadline'];
+      mockGit.consumeTimeout = vi.fn(() => false);
+      mockGit.consumeIncomplete = vi.fn((file: string) => file === 'src/git-failed.ts');
+
+      const healthy = await service.predictDefects({ files: ['src/healthy.ts'] });
+      const failed = await service.predictDefects({ files: ['src/git-failed.ts'] });
+
+      expect(healthy.success && failed.success).toBe(true);
+      if (!healthy.success || !failed.success) return;
+      const [prediction] = failed.value.predictions;
+      expect(prediction.warnings).toEqual([expect.stringContaining('A Git query failed')]);
+      expect(prediction.recommendations[0]).toContain('A Git query failed');
+      expect(failed.value.modelConfidence).toBeLessThan(healthy.value.modelConfidence);
+      const cachedKeys = vi.mocked(mockMemory.set).mock.calls.map(([key]) => key);
+      expect(cachedKeys.some(key => key.endsWith(':file-metrics:src/git-failed.ts'))).toBe(false);
+      expect(cachedKeys.some(key => key.endsWith(':file-metrics:src/healthy.ts'))).toBe(true);
+    });
+
+    // #1330: a file still being written has no history; `blame` failing on it
+    // is git's answer, so its prediction stays complete and is cached.
+    it('should not warn about or skip caching an untracked file in a real repository (#1330)', async () => {
+      const root = mkdtempSync(join(tmpdir(), 'aqe-predict-untracked-'));
+      roots.push(root);
+      const git = (...args: string[]) => execFileSync('git', args, { cwd: root, stdio: 'pipe' });
+      git('init', '-q');
+      git('config', 'user.name', 'AQE untracked test');
+      git('config', 'user.email', 'aqe-untracked@example.invalid');
+      git('config', 'commit.gpgsign', 'false');
+      writeFileSync(join(root, 'tracked.ts'), 'export const tracked = true;\n');
+      git('add', 'tracked.ts');
+      git('commit', '-qm', 'fix: add the tracked file');
+      writeFileSync(join(root, 'new.ts'), 'export const draft = 1;\n');
+
+      const realService = new DefectPredictorService(
+        mockMemory,
+        { enableLLMPrediction: false },
+        new GitAnalyzer({ repoRoot: root, enableCache: false }),
+        mockReader as FileReader,
+        mockParser as TypeScriptParser
+      );
+
+      const result = await realService.predictDefects({ files: ['new.ts'] });
+
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      const [prediction] = result.value.predictions;
+      expect(prediction.warnings).toBeUndefined();
+      expect(prediction.recommendations.join('\n')).not.toContain('A Git query failed');
+      const cachedKeys = vi.mocked(mockMemory.set).mock.calls.map(([key]) => key);
+      expect(cachedKeys.some(key => key.endsWith(':file-metrics:new.ts'))).toBe(true);
     });
 
     it('should return error for empty files array', async () => {

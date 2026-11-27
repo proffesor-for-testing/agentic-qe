@@ -594,13 +594,13 @@ dependencies: [A3.4]
 
 ```bash
 # Phase 1: Foundation (4 agents max)
-npx @claude-flow/cli@latest swarm init \
+npx ruflo@3.76.0 swarm init \
   --topology hierarchical \
   --max-agents 4 \
   --strategy specialized
 
 # Phase 2-3: Full Integration (8 agents)
-npx @claude-flow/cli@latest swarm init \
+npx ruflo@3.76.0 swarm init \
   --topology hierarchical-mesh \
   --max-agents 8 \
   --strategy specialized
@@ -768,13 +768,13 @@ class VibiumClient {
 **Start Phase 1:**
 ```bash
 # Initialize swarm for Phase 1
-npx @claude-flow/cli@latest swarm init --topology hierarchical --max-agents 4
+npx ruflo@3.76.0 swarm init --topology hierarchical --max-agents 4
 
 # Check patterns for similar integrations
-npx @claude-flow/cli@latest memory search --query "integration pattern ruvector" --namespace patterns
+npx ruflo@3.76.0 memory search --query "integration pattern ruvector" --namespace patterns
 
 # Route tasks
-npx @claude-flow/cli@latest hooks route --task "Create Vibium TypeScript client wrapper"
+npx ruflo@3.76.0 hooks route --task "Create Vibium TypeScript client wrapper"
 ```
 
 **Phase 1 Task Orchestration:**

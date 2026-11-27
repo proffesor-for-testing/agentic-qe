@@ -26,6 +26,8 @@ export interface Trajectory {
   feedback?: string;
   startedAt: number;
   completedAt?: number;
+  /** True when ruflo started this trajectory and `id` is ruflo's trajectory id (#1455). */
+  rufloTracked?: boolean;
 }
 
 /**

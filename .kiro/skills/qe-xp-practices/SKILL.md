@@ -204,9 +204,9 @@ const xpFleet = await FleetManager.coordinate({
 ---
 
 ## Related Skills
-- [tdd-london-chicago](../tdd-london-chicago/) - TDD deep dive
-- [refactoring-patterns](../refactoring-patterns/) - Safe refactoring
-- [pair-programming](../pair-programming/) - AI-assisted pairing
+- [tdd-london-chicago](../qe-tdd-london-chicago/) - TDD deep dive
+- [refactoring-patterns](../qe-refactoring-patterns/) - Safe refactoring
+- [pair-programming](../qe-pair-programming/) - AI-assisted pairing
 
 ---
 

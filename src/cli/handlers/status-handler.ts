@@ -19,6 +19,7 @@ import { type OutputFormat, writeOutput, toJSON } from '../utils/ci-output.js';
 import { findProjectRoot } from '../../kernel/unified-memory.js';
 import { loadRouterConfig } from '../../shared/llm/router/config-store.js';
 import { billingModeForType } from '../../shared/llm/billing-modes.js';
+import { RUFLO_PINNED_SPEC } from '../../shared/pinned-tools.js';
 import { registeredBillingDeclaration } from '../../shared/llm/provider-registry.js';
 import type { LLMProviderType } from '../../shared/llm/interfaces.js';
 
@@ -27,7 +28,7 @@ import type { LLMProviderType } from '../../shared/llm/interfaces.js';
 // ============================================================================
 
 export interface DaemonLivenessStatus {
-  /** A daemon.pid file exists (`aqe`/`npx ruflo daemon start` was run at least once) */
+  /** A daemon.pid file exists (`aqe`/`ruflo daemon start` was run at least once) */
   configured: boolean;
   /** The PID in daemon.pid corresponds to a live process right now */
   running: boolean;
@@ -385,7 +386,7 @@ export class HealthHandler implements ICommandHandler {
         const daemon = checkDaemonLiveness();
         console.log(chalk.blue('\n  Background Daemon:'));
         if (!daemon.configured) {
-          console.log(`  ${chalk.gray('\u25CB')} Not configured (never started \u2014 run "npx ruflo daemon start")`);
+          console.log(`  ${chalk.gray('\u25CB')} Not configured (never started \u2014 run "npx ${RUFLO_PINNED_SPEC} daemon start")`);
         } else if (daemon.running) {
           console.log(`  ${chalk.green('\u25CF')} Running (PID: ${daemon.pid})`);
         } else {

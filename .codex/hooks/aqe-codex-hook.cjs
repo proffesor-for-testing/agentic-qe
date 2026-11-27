@@ -45,10 +45,12 @@ function runAqe(command, extraArgs = []) {
   });
 }
 
-// Stop closes the current route-learning sentinel before session cleanup.
-// Both AQE commands emit internal telemetry, so return no Codex JSON.
+// Stop runs the route-learning close before session cleanup. Stop observes no
+// task result, so post-route gets no --success/--outcome and records the turn
+// as unobserved (#1481). Both AQE commands emit internal telemetry, so return
+// no Codex JSON.
 if (subcommand === 'stop') {
-  runAqe('post-route', ['--success', 'true']);
+  runAqe('post-route');
   runAqe('session-end', ['--save-state']);
   process.exit(0);
 }

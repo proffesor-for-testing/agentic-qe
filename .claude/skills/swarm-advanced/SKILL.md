@@ -13,10 +13,10 @@ Master advanced swarm patterns for distributed research, development, and testin
 ### Prerequisites
 ```bash
 # Ensure Claude Flow is installed
-npm install -g claude-flow@alpha
+npm install -g ruflo@3.76.0
 
 # Add MCP server (if using MCP tools)
-claude mcp add claude-flow npx claude-flow@alpha mcp start
+claude mcp add claude-flow npx ruflo@3.76.0 mcp start
 ```
 
 ### Basic Pattern
@@ -237,7 +237,7 @@ mcp__claude-flow__workflow_execute({
 ### CLI Fallback
 ```bash
 # Quick research swarm
-npx claude-flow swarm "research AI trends in 2025" \
+npx ruflo@3.76.0 swarm "research AI trends in 2025" \
   --strategy research \
   --mode distributed \
   --max-agents 6 \
@@ -381,7 +381,7 @@ mcp__claude-flow__pipeline_create({
 ### CLI Fallback
 ```bash
 # Quick development swarm
-npx claude-flow swarm "build REST API with authentication" \
+npx ruflo@3.76.0 swarm "build REST API with authentication" \
   --strategy development \
   --mode hierarchical \
   --monitor \
@@ -581,7 +581,7 @@ mcp__claude-flow__trend_analysis({
 ### CLI Fallback
 ```bash
 # Quick testing swarm
-npx claude-flow swarm "test application comprehensively" \
+npx ruflo@3.76.0 swarm "test application comprehensively" \
   --strategy testing \
   --mode star \
   --parallel \
