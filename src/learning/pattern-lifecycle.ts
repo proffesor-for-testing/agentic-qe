@@ -27,6 +27,7 @@ import type { WitnessChain } from '../audit/witness-chain.js';
 import type { TemporalCompressionService, CompressedVector } from '../integrations/ruvector/temporal-compression.js';
 import { isTemporalCompressionEnabled } from '../integrations/ruvector/feature-flags.js';
 import { writeWhenUnlockedOn } from '../shared/sqlite-write-queue.js';
+import { OBSERVED_EXPERIENCE_SQL } from './hook-outcome-provenance.js';
 
 const logger = LoggerFactory.create('pattern-lifecycle');
 
@@ -293,6 +294,7 @@ export class PatternLifecycleManager {
       WHERE started_at >= ?
         AND quality >= ?
         AND agent != 'cli-hook'
+        AND ${OBSERVED_EXPERIENCE_SQL}
       GROUP BY domain
       HAVING COUNT(*) >= ?
       ORDER BY avg_reward DESC

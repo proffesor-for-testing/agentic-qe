@@ -18,6 +18,7 @@ import {
   createHybridBackendWithTimeout,
   incrementDreamExperience,
   persistTaskOutcome,
+  discardTaskBridge,
   updateHookRouterQValue,
   updateRoutingOutcomeQuality,
   printJson,
@@ -33,6 +34,7 @@ import {
 import { deriveTaskType } from '../../../learning/agent-routing.js';
 import { detectQEDomains } from '../../../learning/qe-patterns.js';
 import { parseNestingProvenance } from './nesting-provenance.js';
+import { HOOK_OBSERVED_OUTCOME_BASIS } from '../../../learning/hook-outcome-provenance.js';
 
 // ============================================================================
 // Constants — task-bridge / routing-quality / q-learning
@@ -364,8 +366,8 @@ export function registerTaskHooks(hooks: Command): void {
     .command('post-task')
     .description('Record task outcome for pattern learning')
     .option('--task-id <id>', 'Task identifier')
-    .option('--outcome <result>', 'Observed task result: success | failure. Only this records a routing outcome (#1481)')
-    .option('--success [bool]', 'Whether task succeeded, for pattern learning. Deprecated and ignored for routing outcomes: use --outcome (#1481)')
+    .option('--outcome <result>', 'Observed task result: success | failure. Only this records a task outcome for learning (#1481, #1493)')
+    .option('--success [bool]', 'Deprecated and ignored: installed hooks passed a constant value. Use --outcome (#1481, #1493)')
     .option('--agent <name>', 'Agent that executed the task')
     .option('--duration <ms>', 'Task duration in milliseconds')
     .option('-d, --description <desc>', 'Task description — fallback Q-state source when pre-task bridge is absent (issue #499)')
@@ -378,11 +380,12 @@ export function registerTaskHooks(hooks: Command): void {
         // `--success true`. Routing outcomes (the routing_outcomes sentinel
         // and the hook-router Q-value) record only an --outcome result.
         const observed = resolveObservedHookOutcome(options);
-        // The other learning streams keep their previous reading of --success
-        // (absent or "true" = success); tracked separately in #1493.
-        const success = observed !== null
-          ? observed === 'success'
-          : options.success !== 'false' && options.success !== false;
+        // #1493: the same holds for every other learning stream post-task
+        // feeds (QEAgentCompletion handlers, ReasoningBank pattern outcomes,
+        // captured_experiences and the experience pipeline). `--success` is
+        // ignored, whatever its value, and an unobserved task records no
+        // outcome anywhere. `success` is null then, never a default true.
+        const success: boolean | null = observed === null ? null : observed === 'success';
 
         // Issue #460 fix: `$TOOL_INPUT_subagent_type` env-var substitution is
         // not reliable on every hook surface (same class of problem as
@@ -418,129 +421,138 @@ export function registerTaskHooks(hooks: Command): void {
         let patternsLearned = 0;
 
         try {
-          // Initialize system (creates ReasoningBank and HookRegistry)
-          const { hookRegistry, reasoningBank } = await getHooksSystem();
+          if (success === null) {
+            // #1493: no result was observed, so there is no outcome to learn
+            // from. Only retire this task's pre-task bridge entry, so a later
+            // observed post-task cannot pick up its pattern selection.
+            await discardTaskBridge();
+          } else {
+            // Initialize system (creates ReasoningBank and HookRegistry)
+            const { hookRegistry, reasoningBank } = await getHooksSystem();
 
-          // Emit learning event for task completion
-          const results = await hookRegistry.emit(QE_HOOK_EVENTS.QEAgentCompletion, {
-            taskId: options.taskId,
-            success,
-            agent: options.agent,
-            duration: options.duration ? parseInt(options.duration, 10) : undefined,
-            timestamp: Date.now(),
-          });
-          patternsLearned = results.reduce((sum, r) => sum + (r.patternsLearned || 0), 0);
-
-          // Record as learning experience for every post-task invocation.
-          //
-          // Issue #449 / patch 030 (reintroduced in v3.9.23): the PostToolUse
-          // hook context for Task/Agent does NOT populate $TOOL_RESULT_agent_id,
-          // so the shipped `--task-id "$TOOL_RESULT_agent_id"` arrives empty
-          // and `options.taskId` is falsy. The original `if (options.taskId)`
-          // gate therefore killed the entire Stream B/D/F learning chain on
-          // every real hook invocation (rl_q_values stayed empty forever).
-          // Use a synthetic `hook-${ts}` fallback so the pipeline always runs.
-          // DO NOT REINTRODUCE the if(options.taskId) gate — see #449.
-          {
-            const effectiveTaskId = (options.taskId as string | undefined) || `hook-${Date.now()}`;
-            const agent = options.agent || 'unknown';
-            const durationMs = options.duration ? parseInt(options.duration, 10) : 0;
-
-            // ADR-101: provenance rides in the feedback string so the
-            // learning loop can segment patterns per hierarchy level
-            const provenanceSuffix =
-              (provenance.parentAgentId ? `, Parent: ${provenance.parentAgentId}` : '') +
-              (provenance.depth !== undefined ? `, Depth: ${provenance.depth}` : '');
-            await reasoningBank.recordOutcome({
-              patternId: `task:${agent}:${effectiveTaskId}`,
+            // Emit learning event for task completion
+            const results = await hookRegistry.emit(QE_HOOK_EVENTS.QEAgentCompletion, {
+              taskId: options.taskId,
               success,
-              metrics: { executionTimeMs: durationMs },
-              feedback: `Agent: ${agent}, Task: ${effectiveTaskId}${provenanceSuffix}`,
+              agent: options.agent,
+              duration: options.duration ? parseInt(options.duration, 10) : undefined,
+              timestamp: Date.now(),
             });
+            patternsLearned = results.reduce((sum, r) => sum + (r.patternsLearned || 0), 0);
 
-            // Stream B: full experience pipeline (captured_experiences,
-            // experience_applications + per-pattern fan-out, qe_trajectories
-            // single-step + multi-step stitch, dream_insights.applied bump).
-            // Patches 060/110/120/160/180/300.
-            const outcome = await persistTaskOutcome({
-              taskId: effectiveTaskId,
-              agent,
-              durationMs,
-              success,
-              parentAgentId: provenance.parentAgentId,
-              depth: provenance.depth,
-            });
+            // Record as learning experience for every observed post-task.
+            //
+            // Issue #449 / patch 030 (reintroduced in v3.9.23): the PostToolUse
+            // hook context for Task/Agent does NOT populate $TOOL_RESULT_agent_id,
+            // so the shipped `--task-id "$TOOL_RESULT_agent_id"` arrives empty
+            // and `options.taskId` is falsy. The original `if (options.taskId)`
+            // gate therefore killed the entire Stream B/D/F learning chain on
+            // every real hook invocation (rl_q_values stayed empty forever).
+            // Use a synthetic `hook-${ts}` fallback so the pipeline always runs.
+            // DO NOT REINTRODUCE the if(options.taskId) gate — see #449.
+            {
+              const effectiveTaskId = (options.taskId as string | undefined) || `hook-${Date.now()}`;
+              const agent = options.agent || 'unknown';
+              const durationMs = options.duration ? parseInt(options.duration, 10) : 0;
 
-            // Issue #460: when --agent arrives empty (Claude Code does not
-            // expose $TOOL_RESULT_agent_id in PostToolUse context), `agent`
-            // resolves to 'unknown' and every Q-value lands in the same
-            // bucket — the router can never learn per-agent differentiation.
-            // The pre-task bridge already carries `agent: routing.recommendedAgent`
-            // which is the correct action key, so prefer that over 'unknown'.
-            const effectiveAgent =
-              agent === 'unknown' && outcome.bridge?.agent
-                ? outcome.bridge.agent
-                : agent;
+              // ADR-101: provenance rides in the feedback string so the
+              // learning loop can segment patterns per hierarchy level
+              const provenanceSuffix =
+                (provenance.parentAgentId ? `, Parent: ${provenance.parentAgentId}` : '') +
+                (provenance.depth !== undefined ? `, Depth: ${provenance.depth}` : '');
+              await reasoningBank.recordOutcome({
+                patternId: `task:${agent}:${effectiveTaskId}`,
+                success,
+                // #1493: an --outcome result was observed by the caller, so it
+                // is a measured outcome in the #1129 sense.
+                metrics: { executionTimeMs: durationMs, outcome: 'measured', outcomeBasis: HOOK_OBSERVED_OUTCOME_BASIS },
+                feedback: `Agent: ${agent}, Task: ${effectiveTaskId}${provenanceSuffix}`,
+              });
 
-            // Stream D (patch 150): apply 6-dim outcome quality to the
-            // routing_outcomes sentinel that pre-task wrote with quality=-1.
-            // #1481: only an observed result closes it; an unobserved one
-            // leaves the sentinel open, which metrics already exclude.
-            if (observed) {
+              // Stream B: full experience pipeline (captured_experiences,
+              // experience_applications + per-pattern fan-out, qe_trajectories
+              // single-step + multi-step stitch, dream_insights.applied bump).
+              // Patches 060/110/120/160/180/300.
+              const outcome = await persistTaskOutcome({
+                taskId: effectiveTaskId,
+                agent,
+                durationMs,
+                success,
+                parentAgentId: provenance.parentAgentId,
+                depth: provenance.depth,
+              });
+
+              // Issue #460: when --agent arrives empty (Claude Code does not
+              // expose $TOOL_RESULT_agent_id in PostToolUse context), `agent`
+              // resolves to 'unknown' and every Q-value lands in the same
+              // bucket — the router can never learn per-agent differentiation.
+              // The pre-task bridge already carries `agent: routing.recommendedAgent`
+              // which is the correct action key, so prefer that over 'unknown'.
+              const effectiveAgent =
+                agent === 'unknown' && outcome.bridge?.agent
+                  ? outcome.bridge.agent
+                  : agent;
+
+              // Stream D (patch 150): apply 6-dim outcome quality to the
+              // routing_outcomes sentinel that pre-task wrote with quality=-1.
+              // #1481: only an observed result closes it; an unobserved one
+              // leaves the sentinel open, which metrics already exclude. This
+              // whole branch runs only for an observed result (#1493).
               await updateRoutingOutcomeQuality({
                 agent: effectiveAgent,
                 success,
                 durationMs,
                 qualityScore: outcome.qualityScore,
               });
+
+              // Stream F (patch 280): Bellman Q-update for the hook-router state.
+              //
+              // Issue #499: the original `if (outcome.bridge)` gate silently
+              // dropped the Q-update whenever the pre-task bridge wasn't matched
+              // (direct Bash/Edit work without a Task tool spawn, or pre-task
+              // hook didn't fire). On real projects, `rl_q_values` stayed at ~2
+              // rows while `routing_outcomes` reached 139, so the consumer side
+              // ADR-095 wired up (qe-reasoning-bank.ts:530) had nothing to read.
+              //
+              // When bridge is absent, derive the state_key components from the
+              // task description directly — same derivation the route hook uses
+              // (qe-reasoning-bank.ts:530-535) so writer and reader address the
+              // same row in `rl_q_values`. Skip only when we have no description
+              // to work from (would land every update at a single "unknown"
+              // sentinel state, polluting the table).
+              //
+              // ADR-096: state_key is 3-dim (taskType|priority|domain); the
+              // bridge still carries `complexityBucket` for kv_store schema
+              // compatibility but we don't read it here.
+              const taskDescription = String(options.description ?? '');
+              if (outcome.bridge || taskDescription) {
+                const taskType =
+                  outcome.bridge?.taskType ?? deriveTaskType(taskDescription);
+                const priority = outcome.bridge?.priority ?? 'normal';
+                const domain =
+                  outcome.bridge?.domain ??
+                  detectQEDomains(taskDescription)[0] ??
+                  'any';
+                await updateHookRouterQValue({
+                  taskType,
+                  priority,
+                  domain,
+                  agent: effectiveAgent,
+                  success,
+                });
+              }
             }
 
-            // Stream F (patch 280): Bellman Q-update for the hook-router state.
-            //
-            // Issue #499: the original `if (outcome.bridge)` gate silently
-            // dropped the Q-update whenever the pre-task bridge wasn't matched
-            // (direct Bash/Edit work without a Task tool spawn, or pre-task
-            // hook didn't fire). On real projects, `rl_q_values` stayed at ~2
-            // rows while `routing_outcomes` reached 139, so the consumer side
-            // ADR-095 wired up (qe-reasoning-bank.ts:530) had nothing to read.
-            //
-            // When bridge is absent, derive the state_key components from the
-            // task description directly — same derivation the route hook uses
-            // (qe-reasoning-bank.ts:530-535) so writer and reader address the
-            // same row in `rl_q_values`. Skip only when we have no description
-            // to work from (would land every update at a single "unknown"
-            // sentinel state, polluting the table).
-            //
-            // ADR-096: state_key is 3-dim (taskType|priority|domain); the
-            // bridge still carries `complexityBucket` for kv_store schema
-            // compatibility but we don't read it here.
-            const taskDescription = String(options.description ?? '');
-            if (observed && (outcome.bridge || taskDescription)) {
-              const taskType =
-                outcome.bridge?.taskType ?? deriveTaskType(taskDescription);
-              const priority = outcome.bridge?.priority ?? 'normal';
-              const domain =
-                outcome.bridge?.domain ??
-                detectQEDomains(taskDescription)[0] ??
-                'any';
-              await updateHookRouterQValue({
-                taskType,
-                priority,
-                domain,
-                agent: effectiveAgent,
-                success,
-              });
-            }
+            // ADR-094: post-task bumps the experience counter but DOES NOT
+            // trigger dream cycles inline. Dream cycles run in the long-lived
+            // kernel's DreamScheduler so the 10-second SQLite write transaction
+            // doesn't block other writers from this short-lived hook subprocess.
+            // #1493: counted only when an experience was recorded.
+            const projectRoot = findProjectRoot();
+            const dataDir = path.join(projectRoot, '.agentic-qe');
+            const memoryBackend = await createHybridBackendWithTimeout(dataDir);
+            await incrementDreamExperience(memoryBackend);
           }
-
-          // ADR-094: post-task bumps the experience counter but DOES NOT
-          // trigger dream cycles inline. Dream cycles run in the long-lived
-          // kernel's DreamScheduler so the 10-second SQLite write transaction
-          // doesn't block other writers from this short-lived hook subprocess.
-          const projectRoot = findProjectRoot();
-          const dataDir = path.join(projectRoot, '.agentic-qe');
-          const memoryBackend = await createHybridBackendWithTimeout(dataDir);
-          await incrementDreamExperience(memoryBackend);
         } catch (initError) {
           // Log but don't fail - learning is best-effort
           console.error(chalk.dim(`[hooks] Learning init: ${initError instanceof Error ? initError.message : 'unknown'}`));
@@ -553,15 +565,17 @@ export function registerTaskHooks(hooks: Command): void {
           printJson({
             success: true,
             taskId: options.taskId,
+            // null when no result was observed (#1493)
             taskSuccess: success,
             routingOutcomeObserved: observed !== null,
+            outcomeObserved: observed !== null,
             patternsLearned,
             dreamTriggered: false,
             dreamReason: 'deferred-to-kernel',
           });
         } else {
           printSuccess(`Task completed: ${options.taskId || 'unknown'}`);
-          console.log(chalk.dim(`  Success: ${success}`));
+          console.log(chalk.dim(`  Success: ${success === null ? 'not observed (pass --outcome success|failure to record one)' : success}`));
           if (patternsLearned > 0) {
             console.log(chalk.green(`  Patterns learned: ${patternsLearned}`));
           }

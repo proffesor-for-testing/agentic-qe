@@ -23,6 +23,7 @@ import { QE_DOMAIN_LIST } from './qe-patterns.js';
 import { safeJsonParse } from '../shared/safe-json.js';
 import { LoggerFactory } from '../logging/index.js';
 import type { DomainHealthSummary } from './regret-tracker.js';
+import { OBSERVED_EXPERIENCE_SQL } from './hook-outcome-provenance.js';
 
 const logger = LoggerFactory.create('metrics-tracker');
 
@@ -344,6 +345,7 @@ export class LearningMetricsTracker {
           AVG(CASE WHEN success = 1 THEN 1.0 ELSE 0.0 END) as success_rate
         FROM captured_experiences
         WHERE agent != 'cli-hook'
+          AND ${OBSERVED_EXPERIENCE_SQL}
       `).get(today) as {
         total: number;
         recorded_today: number;
@@ -458,6 +460,7 @@ export class LearningMetricsTracker {
         FROM captured_experiences
         WHERE started_at <= datetime(?)
           AND agent != 'cli-hook'
+          AND ${OBSERVED_EXPERIENCE_SQL}
       `).get(date + ' 23:59:59') as { avg_reward: number | null };
 
       return result?.avg_reward || 0;

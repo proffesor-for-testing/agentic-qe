@@ -442,7 +442,9 @@ export function createQEHookHandlers(
       // in, and recordOutcome looks up by id.
       let effectivePatternId = patternId as string | undefined;
 
-      if (effectivePatternId) {
+      // #1493: only an observed boolean result is an outcome. A missing or
+      // non-boolean `success` records nothing (never a default success).
+      if (effectivePatternId && typeof success === 'boolean') {
         // Auto-create pattern if it doesn't exist yet (e.g. task:agent:taskId from CLI hooks)
         try {
           const existing = await reasoningBank.getPattern(effectivePatternId);
@@ -479,7 +481,7 @@ export function createQEHookHandlers(
 
         await reasoningBank.recordOutcome({
           patternId: effectivePatternId,
-          success: success as boolean,
+          success,
           metrics: {
             executionTimeMs: duration as number,
           },
