@@ -15,6 +15,9 @@ function fixture() {
   const root = mkdtempSync(join(tmpdir(), 'aqe-cli-store-exit-'));
   mkdirSync(join(root, 'home'));
   mkdirSync(join(root, '.agentic-qe'));
+  // An initialized project: `status`/`health` refuse without the config.yaml
+  // `aqe init` writes (#1490).
+  writeFileSync(join(root, '.agentic-qe', 'config.yaml'), 'version: "3"\n');
   writeFileSync(join(root, 'package.json'), '{"name":"cli-exit-fixture","private":true}');
   return root;
 }
