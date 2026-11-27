@@ -42,7 +42,7 @@ import { inspectEmbeddingSpaceRows } from '../../learning/embedding-space.js';
 import { committedPendingIndexPatternId } from '../../learning/pattern-mutation-error.js';
 import { formatLearningOutcomes, formatPatternSuccessRate } from '../../learning/usage-outcome.js';
 import { OBSERVED_ROUTING_OUTCOME_SQL } from '../../routing/routing-outcomes-migration.js';
-import { OBSERVED_EXPERIENCE_SQL } from '../../learning/hook-outcome-provenance.js';
+import { OBSERVED_EXPERIENCE_SQL, observedTrajectorySql } from '../../learning/hook-outcome-provenance.js';
 
 // Extracted helpers
 import {
@@ -1026,7 +1026,8 @@ function registerExportFullCommand(learning: Command): void {
         if (options.includeTrajectories) {
           try {
             const db = openDatabase(dbPath, { readonly: true });
-            const trajectories = db.prepare(`SELECT id, task, agent, domain, success, steps_json FROM qe_trajectories ORDER BY started_at DESC LIMIT 1000`).all() as Array<{ id: string; task: string; agent: string; domain: string; success: number; steps_json: string }>;
+            // #1493: legacy post-task trajectories record a constant success
+            const trajectories = db.prepare(`SELECT id, task, agent, domain, success, steps_json FROM qe_trajectories WHERE ${observedTrajectorySql(db)} ORDER BY started_at DESC LIMIT 1000`).all() as Array<{ id: string; task: string; agent: string; domain: string; success: number; steps_json: string }>;
             exportData.trajectories = trajectories.map(t => ({ id: t.id, task: t.task, agent: t.agent, domain: t.domain, success: t.success, stepsJson: t.steps_json }));
             db.close();
           } catch { /* table may not exist */ }

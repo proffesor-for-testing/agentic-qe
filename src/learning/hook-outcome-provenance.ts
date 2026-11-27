@@ -15,7 +15,8 @@
  *  - qe_pattern_usage.metrics_json.outcome = 'measured' (the #1129 tag),
  *    outcomeBasis = 'hook-observed'
  *
- * Rows written before that carry the legacy source 'cli-hook-post-task'. Every
+ * Rows written before that carry the legacy source 'cli-hook-post-task' (and,
+ * in qe_trajectories, a `traj-` id with no observed marker). Every
  * one of them came from post-task, and (for all practical purposes) from the
  * installed hook's constant success. Readers of success-based metrics and
  * pattern promotion exclude them with the predicates below. Stored rows are
@@ -27,6 +28,13 @@ export const LEGACY_HOOK_TASK_SOURCE = 'cli-hook-post-task';
 
 /** captured_experiences.source of post-task rows with an observed outcome. */
 export const OBSERVED_HOOK_TASK_SOURCE = 'cli-hook-post-task-observed';
+
+/**
+ * Suffix of a consolidated pattern built from observed hook experiences when
+ * a legacy-derived pattern already holds the plain `<agent>-<domain>-<month>`
+ * name; (name, qe_domain, pattern_type) is unique.
+ */
+export const OBSERVED_PATTERN_NAME_SUFFIX = '-observed';
 
 /** outcomeBasis written into metrics_json for observed hook pattern usage. */
 export const HOOK_OBSERVED_OUTCOME_BASIS = 'hook-observed';
@@ -51,6 +59,12 @@ export const OBSERVED_EXPERIENCE_SQL = observedExperienceSql();
  * stores the experiences' sources as `context_json.tags`, so the legacy
  * source in the tags marks a pattern whose usage and success counts came
  * from constant hook successes.
+ *
+ * A pattern whose tags mix the legacy source with others (a domain+agent
+ * group that also held, say, middleware rows) matches too, and is therefore
+ * permanently excluded from promotion: its counters cannot be split by
+ * source. Consolidation sends later observed experiences to a separate
+ * `-observed` pattern rather than into such a pattern.
  */
 export const LEGACY_HOOK_PATTERN_SQL =
   `(json_valid(context_json) AND EXISTS (` +
@@ -70,6 +84,42 @@ export function isLegacyHookDerivedPattern(pattern: {
  * rows are tagged `outcome = 'measured'` and do not match.
  */
 export const LEGACY_HOOK_USAGE_SQL =
-  `(json_valid(metrics_json)` +
-  ` AND json_extract(metrics_json, '$.source') = '${LEGACY_HOOK_TASK_SOURCE}'` +
-  ` AND COALESCE(json_extract(metrics_json, '$.outcome'), '') <> 'measured')`;
+  `(COALESCE(CASE WHEN json_valid(metrics_json) THEN json_extract(metrics_json, '$.source') END, '')` +
+  ` = '${LEGACY_HOOK_TASK_SOURCE}'` +
+  ` AND COALESCE(CASE WHEN json_valid(metrics_json) THEN json_extract(metrics_json, '$.outcome') END, '')` +
+  ` <> 'measured')`;
+
+/** Id prefix of every trajectory post-task writes (`traj-` and `traj-multi-`). */
+export const HOOK_TRAJECTORY_ID_PREFIX = 'traj-';
+
+/**
+ * SQL predicate over qe_trajectories: true for a row post-task wrote before
+ * #1493. Only post-task uses the `traj-` id prefix (the trajectory tracker
+ * writes UUIDs, the claude-flow bridge `trajectory-<uuid>`), and from #1493
+ * on it marks its rows `metadata_json.outcome = 'observed'`. NULL-safe and
+ * json_valid-guarded. Needs the metadata_json column; see
+ * {@link observedTrajectorySql} for tables that may lack it.
+ */
+export function legacyHookTrajectorySql(alias?: string): string {
+  const col = (name: string) => (alias ? `${alias}.${name}` : name);
+  return `(${col('id')} LIKE '${HOOK_TRAJECTORY_ID_PREFIX}%'` +
+    ` AND COALESCE(CASE WHEN json_valid(${col('metadata_json')})` +
+    ` THEN json_extract(${col('metadata_json')}, '$.outcome') END, '') <> 'observed')`;
+}
+
+/** Negation of {@link legacyHookTrajectorySql}: keep every other trajectory. */
+export const OBSERVED_TRAJECTORY_SQL = `NOT ${legacyHookTrajectorySql()}`;
+
+/**
+ * {@link OBSERVED_TRAJECTORY_SQL}, or, for a qe_trajectories without the
+ * metadata_json column (where no row can carry the observed marker), a
+ * predicate that drops every `traj-` row.
+ */
+export function observedTrajectorySql(db: {
+  prepare(sql: string): { all(...params: unknown[]): unknown[] };
+}): string {
+  const cols = db.prepare(`PRAGMA table_info(qe_trajectories)`).all() as Array<{ name: string }>;
+  return cols.some((c) => c.name === 'metadata_json')
+    ? OBSERVED_TRAJECTORY_SQL
+    : `id NOT LIKE '${HOOK_TRAJECTORY_ID_PREFIX}%'`;
+}

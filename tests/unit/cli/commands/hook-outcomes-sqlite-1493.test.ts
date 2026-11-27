@@ -20,6 +20,7 @@ vi.mock('../../../../src/learning/embed-and-insert-pattern.js', () => ({
 }));
 
 import Database from 'better-sqlite3';
+import { TrajectoryTracker } from '../../../../src/integrations/agentic-flow/reasoning-bank/trajectory-tracker.js';
 import {
   consolidateExperiencesToPatterns,
   discardTaskBridge,
@@ -29,9 +30,26 @@ import {
   LEGACY_HOOK_TASK_SOURCE,
   OBSERVED_EXPERIENCE_SQL,
   OBSERVED_HOOK_TASK_SOURCE,
+  OBSERVED_TRAJECTORY_SQL,
+  observedTrajectorySql,
 } from '../../../../src/learning/hook-outcome-provenance.js';
+import {
+  DREAM_SCHEMA,
+  KV_STORE_SCHEMA,
+  QE_PATTERNS_SCHEMA_WITHOUT_FTS,
+} from '../../../../src/kernel/unified-memory-schemas.js';
 
+// Real unified schema for qe_patterns / qe_pattern_usage / qe_trajectories /
+// kv_store / dream_insights, plus the unique pattern-name index that
+// SQLitePatternStore adds at runtime (sqlite-persistence.ts). The
+// captured_experiences / experience_applications DDL is the one
+// persistTaskOutcome itself creates.
 const SCHEMA = `
+  ${KV_STORE_SCHEMA}
+  ${QE_PATTERNS_SCHEMA_WITHOUT_FTS}
+  ${DREAM_SCHEMA}
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_patterns_unique_name_domain_type
+    ON qe_patterns(name, qe_domain, pattern_type);
   CREATE TABLE captured_experiences (
     id TEXT PRIMARY KEY, task TEXT NOT NULL, agent TEXT NOT NULL, domain TEXT NOT NULL DEFAULT '',
     success INTEGER NOT NULL DEFAULT 0, quality REAL NOT NULL DEFAULT 0.5, duration_ms INTEGER NOT NULL DEFAULT 0,
@@ -46,24 +64,6 @@ const SCHEMA = `
     id TEXT PRIMARY KEY, experience_id TEXT NOT NULL, task TEXT NOT NULL, success INTEGER NOT NULL,
     tokens_saved INTEGER DEFAULT 0, feedback TEXT, applied_at TEXT DEFAULT (datetime('now'))
   );
-  CREATE TABLE qe_trajectories (
-    id TEXT PRIMARY KEY, task TEXT, agent TEXT, domain TEXT, started_at TEXT, ended_at TEXT,
-    success INTEGER, steps_json TEXT, metadata_json TEXT
-  );
-  CREATE TABLE qe_patterns (
-    id TEXT PRIMARY KEY, pattern_type TEXT, qe_domain TEXT, domain TEXT, name TEXT, description TEXT,
-    confidence REAL DEFAULT 0.5, usage_count INTEGER DEFAULT 0, successful_uses INTEGER DEFAULT 0,
-    success_rate REAL DEFAULT 0.0, quality_score REAL DEFAULT 0.0, tier TEXT DEFAULT 'short-term',
-    template_json TEXT, context_json TEXT, created_at TEXT, updated_at TEXT, last_used_at TEXT
-  );
-  CREATE TABLE qe_pattern_usage (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, pattern_id TEXT NOT NULL, success INTEGER NOT NULL,
-    metrics_json TEXT, feedback TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP
-  );
-  CREATE TABLE kv_store (
-    key TEXT, namespace TEXT, value TEXT, expires_at INTEGER, created_at INTEGER, PRIMARY KEY (namespace, key)
-  );
-  CREATE TABLE dream_insights (id TEXT PRIMARY KEY, applied INTEGER DEFAULT 0, actionable INTEGER DEFAULT 0, created_at TEXT);
 `;
 
 describe('hook task outcomes on SQLite (#1493)', () => {
@@ -76,6 +76,7 @@ describe('hook task outcomes on SQLite (#1493)', () => {
     db.exec(SCHEMA);
     fakeUnifiedMemoryFactory.mockReturnValue({
       isInitialized: () => true, initialize: async () => undefined, getDatabase: () => db,
+      writeWhenUnlocked: async <T>(fn: () => T) => fn(),
     });
   });
 
@@ -173,16 +174,87 @@ describe('hook task outcomes on SQLite (#1493)', () => {
       .get(LEGACY_HOOK_TASK_SOURCE)).toEqual({ n: 4 });
   });
 
-  it('does not merge observed experiences into a legacy-derived pattern of the same name', async () => {
+  it('consolidates observed experiences beside a legacy-derived pattern of the same name', async () => {
     const month = new Date().toISOString().slice(0, 7);
+    // Same (name, qe_domain, pattern_type) consolidation would pick: the
+    // unique index made the old "same name, fresh row" insert fail.
     seedPattern('pat-old', 9, 9, [LEGACY_HOOK_TASK_SOURCE], `reviewer-general-${month}`);
     for (let i = 0; i < 3; i++) await persistTaskOutcome({ taskId: `m${i}`, agent: 'reviewer', success: true });
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
-    await consolidateExperiencesToPatterns();
+    const created = await consolidateExperiencesToPatterns();
 
+    expect(errors.mock.calls.filter((c) => String(c[0]).includes('consolidate'))).toEqual([]);
+    errors.mockRestore();
+    expect(created).toBe(1);
     expect(pattern('pat-old')).toEqual({ tier: 'short-term', usage_count: 9, successful_uses: 9 });
-    const fresh = db.prepare(`SELECT usage_count, successful_uses FROM qe_patterns WHERE id <> 'pat-old'`).all();
-    expect(fresh).toEqual([{ usage_count: 3, successful_uses: 3 }]);
+    expect(db.prepare(`SELECT name, usage_count, successful_uses FROM qe_patterns WHERE id <> 'pat-old'`).all())
+      .toEqual([{ name: `reviewer-general-${month}-observed`, usage_count: 3, successful_uses: 3 }]);
+    // The observed rows are processed, so they do not retry every session-end.
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM captured_experiences WHERE source = ? AND application_count = 0`)
+      .get(OBSERVED_HOOK_TASK_SOURCE)).toEqual({ n: 0 });
+
+    // A later session-end reinforces that -observed pattern, not the legacy one.
+    for (let i = 3; i < 6; i++) await persistTaskOutcome({ taskId: `m${i}`, agent: 'reviewer', success: true });
+    expect(await consolidateExperiencesToPatterns()).toBe(0);
+    expect(db.prepare(`SELECT usage_count FROM qe_patterns WHERE name = ?`).get(`reviewer-general-${month}-observed`))
+      .toEqual({ usage_count: 6 });
+    expect(pattern('pat-old')).toMatchObject({ usage_count: 9 });
+  });
+
+  it('marks stitched multi-step trajectories observed and never stitches legacy rows', async () => {
+    db.prepare(`INSERT INTO captured_experiences (id, task, agent, domain, success, quality, source)
+      VALUES ('exp-legacy-s', 'coder:shared-task', 'coder', 'general', 1, 0.675, ?)`).run(LEGACY_HOOK_TASK_SOURCE);
+    await persistTaskOutcome({ taskId: 'shared-task', agent: 'coder', success: true });
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM qe_trajectories WHERE id LIKE 'traj-multi-%'`).get()).toEqual({ n: 0 });
+
+    await persistTaskOutcome({ taskId: 'shared-task', agent: 'tester', success: false });
+
+    const multi = db.prepare(`SELECT success, steps_json, metadata_json FROM qe_trajectories WHERE id LIKE 'traj-multi-%'`)
+      .all() as Array<{ success: number; steps_json: string; metadata_json: string }>;
+    expect(multi).toHaveLength(1);
+    expect(JSON.parse(multi[0].metadata_json)).toMatchObject({ outcome: 'observed' });
+    expect(JSON.parse(multi[0].steps_json)).toHaveLength(2);
+    expect(multi[0].success).toBe(0);
+  });
+
+  it('TrajectoryTracker returns no legacy post-task trajectory as a success', async () => {
+    const insert = db.prepare(`INSERT INTO qe_trajectories (id, task, agent, domain, started_at, ended_at, success,
+      steps_json, metadata_json) VALUES (?, ?, 'coder', 'test-generation', datetime('now'), datetime('now'), 1, ?, ?)`);
+    insert.run('traj-100-legacy', 'coder:hook-100', '[{"step":1,"task":"hook-100","success":true}]', null);
+    insert.run('traj-101-observed', 'coder:t101', '[{"step":1,"task":"t101","success":true}]', '{"outcome":"observed"}');
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const tracker = new TrajectoryTracker();
+    await tracker.initialize();
+    log.mockRestore();
+
+    const ids = (await tracker.getSuccessfulTrajectories('test-generation' as never)).map((t) => t.id);
+
+    expect(ids).toEqual(['traj-101-observed']);
+  });
+
+  it('trajectory predicates drop legacy post-task rows and keep everything else', () => {
+    const insert = db.prepare(`INSERT INTO qe_trajectories (id, task, agent, domain, success, steps_json, metadata_json)
+      VALUES (?, 't', 'a', 'general', 1, '[]', ?)`);
+    insert.run('traj-1-legacy', null);
+    insert.run('traj-multi-1-legacy', null);
+    insert.run('traj-2-provenance-only', '{"depth":1}');
+    insert.run('traj-3-bad-json', 'not json');
+    insert.run('traj-4-observed', '{"outcome":"observed"}');
+    insert.run('3f2a9c1e-uuid-tracker-row', null);
+    insert.run('trajectory-bridge-row', null);
+
+    const kept = (sql: string) => (db.prepare(`SELECT id FROM qe_trajectories WHERE ${sql} ORDER BY id`).all() as
+      Array<{ id: string }>).map((r) => r.id);
+
+    expect(kept(OBSERVED_TRAJECTORY_SQL)).toEqual(['3f2a9c1e-uuid-tracker-row', 'traj-4-observed', 'trajectory-bridge-row']);
+    expect(kept(observedTrajectorySql(db))).toEqual(kept(OBSERVED_TRAJECTORY_SQL));
+
+    const bare = new Database(':memory:');
+    bare.exec(`CREATE TABLE qe_trajectories (id TEXT PRIMARY KEY, success INTEGER)`);
+    bare.exec(`INSERT INTO qe_trajectories VALUES ('traj-1', 1), ('uuid-1', 1)`);
+    expect(bare.prepare(`SELECT id FROM qe_trajectories WHERE ${observedTrajectorySql(bare)}`).all()).toEqual([{ id: 'uuid-1' }]);
+    bare.close();
   });
 
   it('OBSERVED_EXPERIENCE_SQL keeps every source except the legacy hook rows', () => {

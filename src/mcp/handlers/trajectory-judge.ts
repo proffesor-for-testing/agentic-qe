@@ -11,6 +11,7 @@
  */
 
 import { getUnifiedMemory } from '../../kernel/unified-memory.js';
+import { observedTrajectorySql } from '../../learning/hook-outcome-provenance.js';
 
 const MODEL_ID = 'claude-haiku-4-5-20251001';
 const MAX_TOKENS = 200;
@@ -48,6 +49,8 @@ export async function scoreUnjudgedTrajectories(): Promise<void> {
     SELECT id, task, agent, domain, success
     FROM qe_trajectories
     WHERE feedback IS NULL AND ended_at IS NOT NULL
+      -- #1493: legacy hook rows hold a constant success, nothing to judge
+      AND ${observedTrajectorySql(db)}
     ORDER BY ended_at DESC
     LIMIT ?
   `).all(BATCH_SIZE) as UnscoredRow[];

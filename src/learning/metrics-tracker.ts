@@ -24,6 +24,7 @@ import { safeJsonParse } from '../shared/safe-json.js';
 import { LoggerFactory } from '../logging/index.js';
 import type { DomainHealthSummary } from './regret-tracker.js';
 import { OBSERVED_EXPERIENCE_SQL } from './hook-outcome-provenance.js';
+import { MEASURED_USAGE_SQL } from './usage-outcome.js';
 
 const logger = LoggerFactory.create('metrics-tracker');
 
@@ -371,7 +372,9 @@ export class LearningMetricsTracker {
         SELECT
           COUNT(*) as total,
           SUM(CASE WHEN date(created_at) = ? THEN 1 ELSE 0 END) as recorded_today,
-          AVG(success) as success_rate
+          -- #1129 / #1493: only a measured outcome counts toward the rate.
+          -- Hook and session-consolidation usage rows are unmeasured.
+          AVG(CASE WHEN ${MEASURED_USAGE_SQL} = 1 THEN success END) as success_rate
         FROM qe_pattern_usage
       `).get(today) as {
         total: number;

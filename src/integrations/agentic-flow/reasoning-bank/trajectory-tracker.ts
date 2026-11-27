@@ -15,6 +15,7 @@ import type { QEDomain } from '../../../learning/qe-patterns.js';
 import { CircularBuffer } from '../../../shared/utils/circular-buffer.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { scrubReasoningBlocks, scrubReasoningDeep } from '../../../shared/reasoning-scrub.js';
+import { observedTrajectorySql } from '../../../learning/hook-outcome-provenance.js';
 
 // ============================================================================
 // Types
@@ -358,20 +359,23 @@ export class TrajectoryTracker {
       SELECT * FROM trajectory_steps WHERE trajectory_id = ? ORDER BY step_order ASC
     `));
 
+    // #1493: post-task trajectories written before #1493 record the hooks'
+    // constant success; they are not completed trajectories to learn from.
+    const observed = observedTrajectorySql(this.db);
     this.prepared.set('getRecentTrajectories', this.db.prepare(`
       SELECT * FROM qe_trajectories
-      WHERE success IS NOT NULL
+      WHERE success IS NOT NULL AND ${observed}
       ORDER BY ended_at DESC
       LIMIT ?
     `));
 
     this.prepared.set('getTrajectoryCount', this.db.prepare(`
-      SELECT COUNT(*) as count FROM qe_trajectories WHERE success IS NOT NULL
+      SELECT COUNT(*) as count FROM qe_trajectories WHERE success IS NOT NULL AND ${observed}
     `));
 
     this.prepared.set('getTrajectoryByDomain', this.db.prepare(`
       SELECT * FROM qe_trajectories
-      WHERE domain = ? AND success = 1
+      WHERE domain = ? AND success = 1 AND ${observed}
       ORDER BY ended_at DESC
       LIMIT ?
     `));

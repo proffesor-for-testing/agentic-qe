@@ -19,6 +19,7 @@ import {
   LEGACY_HOOK_USAGE_SQL,
   OBSERVED_EXPERIENCE_SQL,
   OBSERVED_HOOK_TASK_SOURCE,
+  OBSERVED_PATTERN_NAME_SUFFIX,
 } from '../../../learning/hook-outcome-provenance.js';
 
 // ============================================================================
@@ -666,6 +667,7 @@ export async function persistTaskOutcome(opts: {
         WHERE consolidated_into IS NULL
           AND task LIKE ?
           AND started_at > datetime('now', '-1 hour')
+          AND ${OBSERVED_EXPERIENCE_SQL}
         ORDER BY started_at ASC
       `).all(`%:${opts.taskId}`) as Array<{
         id: string; task: string; agent: string; success: number;
@@ -686,8 +688,8 @@ export async function persistTaskOutcome(opts: {
         );
         const allSuccess = siblings.every((s) => !!s.success);
         db.prepare(`
-          INSERT INTO qe_trajectories (id, task, agent, domain, started_at, ended_at, success, steps_json)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO qe_trajectories (id, task, agent, domain, started_at, ended_at, success, steps_json, metadata_json)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
           multiTrajId,
           `multi:${opts.taskId}`,
@@ -697,6 +699,8 @@ export async function persistTaskOutcome(opts: {
           siblings[siblings.length - 1].completed_at,
           allSuccess ? 1 : 0,
           stepsJson,
+          // #1493: only observed siblings are stitched
+          JSON.stringify({ outcome: OBSERVED_HOOK_OUTCOME_TAG, multiStep: true }),
         );
         const placeholders = siblings.map(() => '?').join(',');
         db.prepare(
@@ -1015,17 +1019,25 @@ export async function consolidateExperiencesToPatterns(): Promise<number> {
       // Use date-bucketed names so new patterns emerge as usage evolves,
       // instead of silently reinforcing one static pattern forever.
       const dateBucket = new Date().toISOString().slice(0, 7); // YYYY-MM
-      const patternName = `${agg.agent}-${agg.domain}-${dateBucket}`;
+      const baseName = `${agg.agent}-${agg.domain}-${dateBucket}`;
+      const findByName = db.prepare(`
+        SELECT id, ${LEGACY_HOOK_PATTERN_SQL} AS legacy FROM qe_patterns
+        WHERE qe_domain = ? AND name = ?
+        LIMIT 1
+      `);
 
       // Check for existing pattern with same name this month.
       // #1493: a pattern consolidated from legacy post-task hook rows is not
-      // reused: its counts are constant successes. Observed experiences get
-      // a pattern of their own (same name, clean provenance).
-      const existing = db.prepare(`
-        SELECT id FROM qe_patterns
-        WHERE qe_domain = ? AND name = ? AND NOT ${LEGACY_HOOK_PATTERN_SQL}
-        LIMIT 1
-      `).get(agg.domain, patternName) as { id: string } | undefined;
+      // reused: its counts are constant successes. (name, qe_domain,
+      // pattern_type) is unique, so observed experiences go to a pattern
+      // named `<base>-observed` instead.
+      let patternName = baseName;
+      let found = findByName.get(agg.domain, patternName) as { id: string; legacy: number } | undefined;
+      if (found?.legacy) {
+        patternName = `${baseName}${OBSERVED_PATTERN_NAME_SUFFIX}`;
+        found = findByName.get(agg.domain, patternName) as { id: string; legacy: number } | undefined;
+      }
+      const existing = found && !found.legacy ? { id: found.id } : undefined;
 
       if (existing) {
         // Issue #618: the aggregate writer must use the same audited write
@@ -1100,8 +1112,11 @@ export async function consolidateExperiencesToPatterns(): Promise<number> {
         WHERE domain = ? AND agent = ? AND application_count = 0
           AND ${OBSERVED_EXPERIENCE_SQL}
       `).run(agg.domain, agg.agent);
-    } catch {
-      // Skip on error (e.g. constraint violations)
+    } catch (error) {
+      // Skip this aggregate; its rows stay unprocessed and retry next time.
+      console.error(chalk.dim(
+        `[hooks] consolidate ${agg.agent}/${agg.domain}: ${error instanceof Error ? error.message : 'unknown'}`,
+      ));
     }
   }
 
