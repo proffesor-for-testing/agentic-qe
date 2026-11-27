@@ -31,6 +31,7 @@ const PY_SRC = 'def add(a, b):\n    return a + b\n';
 const GO_SRC = 'package calc\n\nfunc Add(a int, b int) int { return a + b }\n';
 const JAVA_SRC = 'package com.example;\n\npublic class Calc { public static int add(int a, int b) { return a + b; } }\n';
 const KT_SRC = 'package com.ex\n\nfun add(a: Int, b: Int): Int = a + b\n';
+const JS_ADD_SRC = 'export function add(a: number, b: number) { return a + b; }';
 
 describe('#1371 the gate accepts valid tests in each language', () => {
   it.each([
@@ -137,9 +138,193 @@ describe('#1371 inline sourceCode (MCP) is judged by its logical import path', (
 
   it('uses the Go module import target', () => {
     // The import's last segment (mathx) matches neither the package (calc) nor the temp dir.
-    const verdict = sourceImportVerdict('package calc_test\n\nimport "example.com/fx/pkg/mathx"\n',
+    const verdict = sourceImportVerdict('package calc_test\n\nimport "example.com/fx/pkg/mathx"\n\nfunc TestAdd(t *testing.T) { if mathx.Add(2, 3) != 5 { t.Fatal("bad") } }\n',
       { sourceFilePath: '/tmp/aqe-temp-2.go', importTarget: 'example.com/fx/pkg/mathx', sourceCode: GO_SRC });
     expect(verdict).toBe('found');
+  });
+});
+
+describe('#1390 source imports must identify and exercise the actual module', () => {
+  it('rejects a Python module with the same basename from an unrelated package', () => {
+    expect(issueTypes(
+      'from django import calc\n\ndef test_add():\n    assert calc.add(2, 3) == 5\n',
+      'src/calc.py', PY_SRC,
+    )).toContain('no-source-import');
+  });
+
+  it('rejects a Python import that is correct but never uses an imported symbol', () => {
+    expect(issueTypes(
+      'from src.calc import add\n\ndef test_add():\n    x = 2\n    assert x == 2\n',
+      'src/calc.py', PY_SRC,
+    )).toContain('no-source-import');
+  });
+
+  it('rejects an external Go import with the wrong full module path', () => {
+    writeFileSync(join(root, 'go.mod'), 'module example.com/project\n');
+    expect(issueTypes(
+      'package calc_test\n\nimport "github.com/other/calc"\n\nfunc TestAdd(t *testing.T) { if calc.Add(2, 3) != 5 { t.Fatal("bad") } }\n',
+      'pkg/calc.go', GO_SRC,
+    )).toContain('no-source-import');
+  });
+
+  it('rejects a correct JavaScript import when no imported symbol is referenced', () => {
+    const source = 'export function add(a: number, b: number) { return a + b; }';
+    expect(issueTypes(
+      "import { add } from '../src/calc';\nit('adds', () => { expect(2).toBe(2); });\n",
+      'src/calc.ts', source,
+    )).toContain('no-source-import');
+  });
+
+  it('resolves JavaScript specifiers from the generated test file and matches full paths', () => {
+    const sourcePath = join(root, 'src', 'calc.ts');
+    const testPath = join(root, 'tests', 'unit', 'calc.test.ts');
+    expect(sourceImportVerdict(
+      "import { add } from '../../src/calc';\nit('adds', () => { expect(add(2, 3)).toBe(5); });\n",
+      { sourceFilePath: sourcePath, testFilePath: testPath, sourceCode: 'export function add(a: number, b: number) { return a + b; }' },
+    )).toBe('found');
+    expect(sourceImportVerdict(
+      "import { add } from '../../other/calc';\nit('adds', () => { expect(add(2, 3)).toBe(5); });\n",
+      { sourceFilePath: sourcePath, testFilePath: testPath, sourceCode: 'export function add(a: number, b: number) { return a + b; }' },
+    )).toBe('missing');
+  });
+
+  it('uses the nearest package tsconfig when resolving path aliases', () => {
+    const packageRoot = join(root, 'packages', 'api');
+    mkdirSync(join(packageRoot, 'src'), { recursive: true });
+    mkdirSync(join(packageRoot, 'tests'), { recursive: true });
+    writeFileSync(join(packageRoot, 'tsconfig.json'), JSON.stringify({ compilerOptions: { baseUrl: '.', paths: { '@calc': ['src/calc.ts'] } } }));
+    expect(sourceImportVerdict(
+      "import { add } from '@calc';\nit('adds', () => { expect(add(2, 3)).toBe(5); });\n",
+      { sourceFilePath: join(packageRoot, 'src', 'calc.ts'), testFilePath: join(packageRoot, 'tests', 'calc.test.ts'), sourceCode: 'export function add(a: number, b: number) { return a + b; }' },
+    )).toBe('found');
+  });
+  it('matches NodeNext .js imports to their TypeScript source file', () => {
+    const sourcePath = join(root, 'src', 'calc.ts');
+    const testPath = join(root, 'tests', 'calc.test.ts');
+    expect(sourceImportVerdict(
+      "import { add } from '../src/calc.js';\nit('adds', () => { expect(add(2, 3)).toBe(5); });\n",
+      { sourceFilePath: sourcePath, testFilePath: testPath, sourceCode: 'export function add(a: number, b: number) { return a + b; }' },
+    )).toBe('found');
+  });
+
+  it('normalizes Windows separators in a relative source path', () => {
+    const testPath = join(root, 'tests', 'calc.test.ts');
+    expect(sourceImportVerdict(
+      "import { add } from '../src/calc';\nit('adds', () => { expect(add(2, 3)).toBe(5); });\n",
+      { sourceFilePath: 'src\\calc.ts', testFilePath: testPath, sourceCode: 'export function add(a: number, b: number) { return a + b; }' },
+    )).toBe('found');
+  });
+});
+
+describe('#1390 assertion-like identifiers are not assertions', () => {
+  it('does not count a Python variable starting with assert', () => {
+    expect(unexecutableTestReason(
+      'def test_add():\n    assertion_count = 3\n    print(assertion_count)\n',
+      'src/calc.py',
+    )).toBeDefined();
+  });
+
+  it('does not count a Kotlin variable starting with assert', () => {
+    expect(unexecutableTestReason(
+      'class CalcTest { @Test fun add() { val assertion = 3; println(assertion) } }\n',
+      'src/Calc.kt',
+    )).toBeDefined();
+  });
+
+  it('does not count a Java/Kotlin method named shouldAdd as an assertion', () => {
+    expect(unexecutableTestReason(
+      'class CalcTest { @Test fun shouldAdd() { println(3) } }\n',
+      'src/Calc.kt',
+    )).toBeDefined();
+  });
+});
+
+describe('#1392 infix matchers are assertions and .js resolves to the source', () => {
+  it.each([
+    ['kotest shouldBe (identifier receiver)', 'add(2, 3) shouldBe 5'],
+    ['kotest shouldBe (numeric receiver)', '5 shouldBe add(2, 3)'],
+    ['kotest shouldBe (string literal receiver)', '"a" shouldBe add(1, 2)'],
+    ['kotest shouldBe (call receiver, list operand)', 'add(2, 3) shouldBe listOf(5)'],
+    ['kotest shouldNotBe', 'add(2, 3) shouldNotBe 6'],
+    ['kotest shouldContain', 'listOf(1) shouldContain 1'],
+    ['kotest shouldNotContain', 'listOf(1) shouldNotContain 2'],
+    ['kotest shouldHaveSize', 'listOf(1) shouldHaveSize 1'],
+    ['kotest shouldBeGreaterThan', 'add(2, 3) shouldBeGreaterThan 4'],
+    ['kotest call form', 'add(2, 3).shouldBe(5)'],
+    ['kotest shouldThrow with a type argument', 'shouldThrow<IllegalStateException> { boom() }'],
+    ['kotest shouldNotThrow with a type argument', 'shouldNotThrow<IllegalStateException> { boom() }'],
+    ['generic assertFailsWith', 'assertFailsWith<IllegalStateException> { boom() }'],
+    ['generic assertThrows', 'assertThrows<IllegalStateException> { boom() }'],
+    ['generic matcher method', 'x.shouldBeInstanceOf<Int>()'],
+    ['shouldThrowAny', 'shouldThrowAny { boom() }'],
+    ['shouldThrowExactly', 'shouldThrowExactly<IllegalStateException> { boom() }'],
+    ['non-null infix receiver', 'x!! shouldBe 2'],
+  ])('keeps a Kotlin test using %s', (_label, body) => {
+    expect(unexecutableTestReason(`class CalcTest : StringSpec({ "t" { ${body} } })\n`, 'src/Calc.kt')).toBeUndefined();
+  });
+
+  it('keeps the .js → .ts resolution for a generated test path relative to the project root', () => {
+    // `getTestFilePath` returns a project-relative path; resolving the specifier from it
+    // must not depend on the process working directory.
+    expect(sourceImportVerdict(
+      "import { add } from '../../src/calc.js';\nit('adds', () => { expect(add(2, 3)).toBe(5); });\n",
+      { sourceFilePath: 'src/calc.ts', testFilePath: 'tests/unit/calc.test.ts', sourceCode: JS_ADD_SRC },
+    )).toBe('found');
+  });
+
+  it('still rejects a .js import of a different module', () => {
+    expect(sourceImportVerdict(
+      "import { add } from '../../other/calc.js';\nit('adds', () => { expect(add(2, 3)).toBe(5); });\n",
+      { sourceFilePath: 'src/calc.ts', testFilePath: 'tests/unit/calc.test.ts', sourceCode: JS_ADD_SRC },
+    )).toBe('missing');
+  });
+
+  it('still rejects the source import when no imported symbol is used', () => {
+    expect(sourceImportVerdict(
+      "import { add } from '../../src/calc.js';\nit('adds', () => { expect(2).toBe(2); });\n",
+      { sourceFilePath: 'src/calc.ts', testFilePath: 'tests/unit/calc.test.ts', sourceCode: JS_ADD_SRC },
+    )).toBe('missing');
+  });
+});
+
+describe('#1392 generated import forms', () => {
+  const subject = { sourceFilePath: 'src/calc.ts', testFilePath: 'src/calc.test.ts', sourceCode: JS_ADD_SRC };
+
+  it.each([
+    "await import('./calc');",
+    "expect(require('./calc').add(2, 3)).toBe(5);",
+    "const add = require('./calc').add; expect(add(2, 3)).toBe(5);",
+    "const { add } = await import('./calc'); expect(add(2, 3)).toBe(5);",
+  ])('recognizes a used dynamic or CommonJS import: %s', (body) => {
+    expect(sourceImportVerdict(`it('adds', async () => { ${body} });`, subject)).toBe('found');
+  });
+
+  it.each([
+    "const add = require('./calc').add; expect(({ add: 5 }).add).toBe(5);",
+    "const { add } = await import('./other/calc'); expect(add(2, 3)).toBe(5);",
+  ])('rejects an unused binding or another module: %s', (body) => {
+    expect(sourceImportVerdict(`it('adds', async () => { ${body} });`, subject)).toBe('missing');
+  });
+
+  it.each([
+    ['src\\calc.py', 'src.calc'],
+    ['src/mypkg/calc.py', 'mypkg.calc'],
+  ])('recognizes the Python path %s as %s', (sourceFilePath, module) => {
+    const code = `from ${module} import add\n\ndef test_add():\n    assert add(2, 3) == 5\n`;
+    expect(sourceImportVerdict(code, { sourceFilePath, sourceCode: PY_SRC })).toBe('found');
+  });
+
+  it.each([
+    ['calc.go', 'go.mod', 'example.com/calc', 'example.com/calc'],
+    ['services/api/pkg/calc/calc.go', 'services/api/go.mod', 'example.com/api', 'example.com/api/pkg/calc'],
+  ])('resolves the nearest Go module for %s', (sourceFilePath, config, module, importPath) => {
+    writeFileSync(join(root, 'go.mod'), 'module example.com/workspace\n');
+    if (config !== 'go.mod') mkdirSync(join(root, 'services', 'api'), { recursive: true });
+    writeFileSync(join(root, config), `module ${module}\n`);
+    const test = (target: string) => `package calc_test\n\nimport "${target}"\n\nfunc TestAdd(t *testing.T) { if calc.Add(2, 3) != 5 { t.Fatal("bad") } }\n`;
+    expect(sourceImportVerdict(test(importPath), { sourceFilePath, sourceCode: GO_SRC })).toBe('found');
+    expect(sourceImportVerdict(test(`other.example/${importPath.split('/').slice(1).join('/')}`),
+      { sourceFilePath, sourceCode: GO_SRC })).toBe('missing');
   });
 });
 

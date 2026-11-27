@@ -180,7 +180,8 @@ export class TestQualityGate {
     testCode: string,
     sourceFilePath: string,
     sourceCode?: string,
-    importTarget?: string
+    importTarget?: string,
+    testFilePath?: string
   ): TestQualityGateResult {
     const issues: TestQualityIssue[] = getGeneratedTestSyntaxIssues(testCode, sourceFilePath);
 
@@ -210,7 +211,7 @@ export class TestQualityGate {
     }
 
     if (this.config.checkSourceImports) {
-      issues.push(...this.detectMissingSourceImports(testCode, sourceFilePath, importTarget, sourceCode));
+      issues.push(...this.detectMissingSourceImports(testCode, sourceFilePath, importTarget, sourceCode, testFilePath));
     }
 
     if (this.config.checkTautologicalAssertions) {
@@ -249,8 +250,9 @@ export class TestQualityGate {
     sourceFilePath: string,
     importTarget?: string,
     sourceCode?: string,
+    testFilePath?: string,
   ): TestQualityIssue[] {
-    const verdict = sourceImportVerdict(testCode, { sourceFilePath, importTarget, sourceCode });
+    const verdict = sourceImportVerdict(testCode, { sourceFilePath, importTarget, sourceCode, testFilePath });
     if (verdict !== 'missing') return [];
     const target = (importTarget || sourceFilePath).replace(/\\/g, '/').split('/').pop() ?? sourceFilePath;
     const baseName = target.replace(/\.(ts|js|tsx|jsx|mts|mjs|cts|cjs|py)$/, '');

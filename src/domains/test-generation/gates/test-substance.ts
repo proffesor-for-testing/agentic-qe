@@ -193,7 +193,7 @@ const RULES: Array<[RegExp, LanguageRule]> = [
     name: 'Python', example: 'assert*, self.assert*, pytest.raises',
     // #1371: strings too, so `print("assert x")` is not an assertion.
     comments: code => stripCode(code, 'python'),
-    assertion: /\bassert\w*|\bself\.fail\s*\(|\bpytest\.(?:raises|warns|fail)\b/g,
+    assertion: /\bassert(?:\w*\s*\(|\s+)|\bself\.fail\s*\(|\bpytest\.(?:raises|warns|fail)\b/g,
     tautology: /\bassert\s+(?:True|1)\s*(?=$|[#,;)])|\bassertTrue\s*\(\s*True\s*\)|\bassertEqual\s*\(\s*([\w.'"]+)\s*,\s*\1\s*\)/gm,
     allSkipped: code => {
       if (/^[ \t]*pytestmark[ \t]*=.*\bpytest\.mark\.skip\b/m.test(code)) return true;
@@ -217,7 +217,12 @@ const RULES: Array<[RegExp, LanguageRule]> = [
     name: 'Java/Kotlin', example: 'assert*, assertThat, verify(, should*',
     // #1371: an `import ...assertTrue` line names an assertion, it does not make one.
     comments: (code, file) => dropImportLines(stripCode(code, codeLanguageOf(file) === 'kotlin' ? 'kotlin' : 'java')),
-    assertion: /\bassert\w*|\bverify\s*\(|\bfail\s*\(|\bshould\w*|\bexpect\w*\s*\(/g,
+    // #1390: `assert*`/`should*` count as calls, not bare identifiers, so `val assertion = 3`
+    // and `fun shouldAdd()` are not assertions. #1392: kotest matchers are `infix` (and
+    // `expect`-style ones like `shouldThrow<T> {}` are argument-less), so they carry no call
+    // shape — `x shouldBe 5` is matched by its shape instead: a receiver (name, number,
+    // string or closing bracket), the matcher, then an operand.
+    assertion: /\bassert(?:\w*\s*(?:\(|<[^<>\n]*>\s*[({])|\s+)|\bverify\s*\(|\bfail\s*\(|\bexpect\w*\s*\(|\bshould(?:Be|Equal|Contain|Throw|NotBe|NotEqual|NotContain|Have|Match|StartWith|EndWith)\w*\s*(?:<[^<>\n]*>\s*)?\(|(?:[A-Za-z_]\w*|\d[\w.]*|\)|\]|\}|")(?:!!)?\s+should(?:Be|Equal|Contain|Throw|NotBe|NotEqual|NotContain|Have|Match|StartWith|EndWith)\w*\s+(?=[\w"'({\[-])|\bshould(?:Throw(?:Any|Exactly)?|NotThrow)\b\s*(?:<[^<>\n]*>)?\s*\{/g,
     tautology: /\bassertTrue\s*\(\s*true\s*\)|\bassertThat\s*\(\s*true\s*\)\s*\.\s*isTrue\s*\(\s*\)|\bassertEquals\s*\(\s*([\w.'"]+)\s*,\s*\1\s*\)|\bassert\s+true\b/g,
     allSkipped: annotatedTestsAllSkipped,
   }],
