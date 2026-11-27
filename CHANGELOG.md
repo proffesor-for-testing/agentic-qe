@@ -7,8 +7,83 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.15.24] - 2026-11-27
+
+`aqe prove` and the routing metrics now report only what was actually
+measured or observed. `aqe prove` no longer claims a security scan or a
+passing gate it never saw, and it gives the same verdict as
+`aqe quality --gate`. Routing success rates stop counting every decision
+and every hook turn as a success. **Both will often show lower or `null`
+numbers after upgrading; that is the honest value, not a regression.**
+The Claude Flow bridges now call ruflo commands that exist. Shipped skills
+and agents no longer point at missing files, and the published type
+declarations check cleanly with `skipLibCheck: false`.
+
+### Changed
+
+- **`aqe prove` attests only measured evidence for this checkout**
+  ([#1453]). `testsExecuted`, `coverageChecked`, `securityScanned` and
+  `qualityGatePassed` are `true` only when a receipt for that measurement
+  is bound to the current checkout. They read the same evidence as the
+  measured quality gate from 3.15.23, and `qualityGatePassed` comes from
+  the same evaluation as `aqe quality --gate`.
+  - The attestation `version` is now `2.0.0`, with a new `evidence`
+    section that explains each flag: the receipt when measured, or the
+    reason (`missing`, `mismatched`, `stale`, …) when not. It also gives
+    the gate's status and the exit code `aqe quality --gate` would return.
+  - `metrics` values are `null` when unmeasured instead of being read from
+    files on disk. Files such as `junit.xml` and
+    `coverage/coverage-summary.json` that are not bound to the checkout are
+    listed under `unboundFiles`.
+  - In a project where `aqe init` never ran, `aqe prove` exits 1 with a
+    message and creates no `memory.db`.
+  - `securityScanned` and `qualityGatePassed` will usually be `false` for
+    now: no shipped command records a security-scan receipt yet
+    ([#1009], [#1485]).
+- **Routing metrics count observed outcomes only** ([#1481]).
+  - A routing decision is no longer counted as a success. Success rates
+    come from tasks that actually ran and are `null` until a result
+    arrives. `routing_metrics` adds an `outcomeStats` block.
+  - Installed hooks no longer report a success they did not see.
+    `aqe hooks post-route` and `post-task` record a routing outcome only
+    with the new `--outcome success|failure`; `--success` no longer affects
+    routing. New `aqe init` runs install hooks without `--success true`.
+    Existing installs keep working, and their turns count as "not
+    observed".
+  - Existing hook rows stop counting as results when routing accuracy and
+    learning stats are read. Stored rows are not changed or deleted.
+  - Unclosed pre-task sentinels are retired after 30 minutes, like route
+    sentinels after 5.
+  - `routing_economics` (MCP) and `aqe routing economics --complexity` now
+    use the complexity you pass, and reject malformed values.
+  - `aqe routing accuracy` adds a `caveat` when every observed outcome
+    predates the #1020 evidence gate.
+  - Type changes: routing success-rate fields are `number | null`.
+    `enableAutoEscalation()` and `getEscalationState()` are deprecated
+    no-ops; they never changed a routing decision.
+
 ### Fixed
 
+- **Claude Flow bridges call ruflo commands that exist** ([#1455]).
+  Trajectory and pattern calls used `ruflo hooks intelligence <sub>`,
+  which ruflo does not have, so nothing was recorded while AQE reported
+  success with placeholder ids. They now run ruflo's real tools through
+  `ruflo mcp exec`, and failures are reported. `hooks transfer` uses
+  `from-project --source`, `hooks build-agents` is no longer called, and
+  model-route confidence is read as a 0–1 fraction. Timed-out ruflo
+  processes are killed with their whole process tree, and ruflo calls for
+  one project run one at a time so they don't overwrite each other's
+  writes. CI now checks ruflo command lines built in `src/` against the
+  pinned ruflo version. Only `AQELearningEngine` with Claude Flow enabled
+  and direct use of the bridges are affected; the MCP server and
+  `aqe init` don't make these calls.
+- **Shipped skills and agents no longer point at missing files** ([#1457]).
+  QCSD Ideation's URL mode, QCSD Development, the QX partner, product
+  factors assessor, test idea rewriter, validation pipeline and several
+  other skills referenced files that do not exist in an installed project.
+  Every copy (Claude Code, Kiro, OpenCode, Codex) is fixed, and a CI test
+  fails on new broken links. Existing projects get the fixes with
+  `aqe init --auto --upgrade`.
 - **The package's types check cleanly with `skipLibCheck: false`** ([#1443]):
   the published `.d.ts` files imported types from `better-sqlite3` and
   `@huggingface/transformers`, whose types consumers do not get installed. A
@@ -25,6 +100,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   entry from a packed tarball with `skipLibCheck: false`.
 
 [#1443]: https://github.com/proffesor-for-testing/agentic-qe/issues/1443
+[#1453]: https://github.com/proffesor-for-testing/agentic-qe/issues/1453
+[#1455]: https://github.com/proffesor-for-testing/agentic-qe/issues/1455
+[#1457]: https://github.com/proffesor-for-testing/agentic-qe/issues/1457
+[#1481]: https://github.com/proffesor-for-testing/agentic-qe/issues/1481
+[#1485]: https://github.com/proffesor-for-testing/agentic-qe/issues/1485
 
 ## [3.15.23] - 2026-11-24
 

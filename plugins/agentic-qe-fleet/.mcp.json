@@ -5,7 +5,7 @@
       "args": [
         "-y",
         "--allow-scripts=better-sqlite3,hnswlib-node",
-        "agentic-qe@3.15.23",
+        "agentic-qe@3.15.24",
         "mcp"
       ],
       "env": {

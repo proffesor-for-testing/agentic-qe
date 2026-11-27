@@ -1,6 +1,6 @@
 {
   "name": "agentic-qe-fleet",
-  "version": "3.15.23",
+  "version": "3.15.24",
   "description": "PACTS-based agentic quality engineering fleet for Codex — QE skills and the bundled agentic-qe MCP server pinned to the plugin version. The aqe-mod learning-data guard is a Claude Code hooks module and is not loaded by Codex.",
   "author": {
     "name": "Agentic QE",
