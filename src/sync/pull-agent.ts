@@ -98,6 +98,7 @@ export class PullSyncAgent {
     this.reader = createPostgresReader({
       writer: this.cloudWriter,
       environment: this.config.environment,
+      localEnvironment: this.config.localEnvironment,
     });
 
     // Connect to local SQLite
@@ -190,6 +191,7 @@ export class PullSyncAgent {
 
     try {
       this.ensureInitialized();
+      this.noteOwnEnvironment(source, result);
 
       // Read from cloud
       const records = await this.reader!.readAll(source);
@@ -206,9 +208,11 @@ export class PullSyncAgent {
         const skipped = { count: 0, reason: '' };
         const written = await this.writer!.upsert(source.localTable, records, {
           onSkipped: (count, reason) => { skipped.count += count; skipped.reason ||= reason; },
+          insertOnly: source.insertOnly,
         });
         result.recordsSynced = written;
-        result.recordsSkipped = records.length - written;
+        result.recordsSkipped = records.length - written - (source.insertOnly ? keptCount(records.length, written, skipped.count) : 0);
+        noteKept(result, source, records.length, written, skipped.count);
         if (failSkipped(result, skipped, records.length, source.localTable)) {
           result.durationMs = Date.now() - startTime;
           return result;
@@ -245,6 +249,7 @@ export class PullSyncAgent {
 
     try {
       this.ensureInitialized();
+      this.noteOwnEnvironment(source, result);
 
       const records = await this.reader!.readChanged(source, since);
       this.log(`Read ${records.length} changed records from cloud ${source.cloudTable} (since ${since.toISOString()})`);
@@ -259,8 +264,10 @@ export class PullSyncAgent {
         const skipped = { count: 0, reason: '' };
         const written = await this.writer!.upsert(source.localTable, records, {
           onSkipped: (count, reason) => { skipped.count += count; skipped.reason ||= reason; },
+          insertOnly: source.insertOnly,
         });
         result.recordsSynced = written;
+        noteKept(result, source, records.length, written, skipped.count);
         if (failSkipped(result, skipped, records.length, source.localTable)) {
           result.durationMs = Date.now() - startTime;
           return result;
@@ -276,6 +283,18 @@ export class PullSyncAgent {
 
     result.durationMs = Date.now() - startTime;
     return result;
+  }
+
+  /**
+   * #1409: say when a source skips this machine's own rows, so a pull of
+   * only that environment does not look like an empty cloud.
+   */
+  private noteOwnEnvironment(source: PullSource, result: SyncResult): void {
+    const own = this.config.localEnvironment;
+    if (!source.excludeOwnEnvironment || !own) return;
+    (result.warnings ??= []).push(
+      `rows uploaded from this machine's environment (${own}) are not pulled into ${source.localTable}`,
+    );
   }
 
   /**
@@ -503,5 +522,19 @@ export async function pullIncrementalFromCloud(
     return await agent.pullIncremental(since);
   } finally {
     await agent.close();
+  }
+}
+
+/** #1409: rows an insert-only pull found already present locally. */
+function keptCount(total: number, written: number, failed: number): number {
+  return Math.max(0, total - written - failed);
+}
+
+/** #1409: report rows an insert-only pull kept as they were. */
+function noteKept(result: SyncResult, source: PullSource, total: number, written: number, failed: number): void {
+  if (!source.insertOnly) return;
+  const kept = keptCount(total, written, failed);
+  if (kept > 0) {
+    (result.warnings ??= []).push(`${kept} row(s) already in local ${source.localTable} were kept as they are`);
   }
 }

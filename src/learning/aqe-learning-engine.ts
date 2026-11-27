@@ -171,6 +171,9 @@ export interface AQELearningEngineStats extends QEReasoningBankStats {
 // AQE Learning Engine
 // ============================================================================
 
+/** How long dispose() waits for open trajectories to end (#1455). */
+const DISPOSE_TRAJECTORY_END_MS = 30_000;
+
 /**
  * Unified AQE Learning Engine
  *
@@ -191,6 +194,11 @@ export class AQELearningEngine {
 
   // Task tracking
   private activeTasks: Map<string, TaskExecution> = new Map();
+  /**
+   * Task id -> TrajectoryBridge trajectory id (#1455). The task id is the experience
+   * id when experience capture is on, so it cannot be passed to the bridge itself.
+   */
+  private bridgeTrajectoryIds: Map<string, string> = new Map();
   private completedTasks = 0;
   private claudeFlowErrors = 0;
 
@@ -733,9 +741,11 @@ export class AQELearningEngine {
 
     // Try to start SONA trajectory
     let trajectoryId = id;
+    let bridgeTrajectoryId: string | undefined;
     if (this.claudeFlowBridge?.trajectory.isClaudeFlowAvailable()) {
       try {
         trajectoryId = await this.claudeFlowBridge.trajectory.startTrajectory(task, agent);
+        bridgeTrajectoryId = trajectoryId;
       } catch (error) {
         this.claudeFlowErrors++;
         console.warn(
@@ -781,6 +791,7 @@ export class AQELearningEngine {
     };
 
     this.activeTasks.set(execution.id, execution);
+    if (bridgeTrajectoryId) this.bridgeTrajectoryIds.set(execution.id, bridgeTrajectoryId);
 
     return execution.id;
   }
@@ -794,10 +805,11 @@ export class AQELearningEngine {
     result?: string,
     quality?: number
   ): Promise<void> {
-    // Try SONA trajectory step
-    if (this.claudeFlowBridge?.trajectory.isClaudeFlowAvailable()) {
+    // Try SONA trajectory step (only for a task whose trajectory the bridge started)
+    const bridgeTrajectoryId = this.bridgeTrajectoryIds.get(taskId);
+    if (bridgeTrajectoryId && this.claudeFlowBridge?.trajectory.isClaudeFlowAvailable()) {
       try {
-        await this.claudeFlowBridge.trajectory.recordStep(taskId, action, result, quality);
+        await this.claudeFlowBridge.trajectory.recordStep(bridgeTrajectoryId, action, result, quality);
       } catch (error) {
         this.claudeFlowErrors++;
         console.warn(
@@ -838,9 +850,11 @@ export class AQELearningEngine {
     feedback?: string
   ): Promise<TaskExecution | undefined> {
     // Try to end SONA trajectory
-    if (this.claudeFlowBridge?.trajectory.isClaudeFlowAvailable()) {
+    const bridgeTrajectoryId = this.bridgeTrajectoryIds.get(taskId);
+    this.bridgeTrajectoryIds.delete(taskId);
+    if (bridgeTrajectoryId && this.claudeFlowBridge?.trajectory.isClaudeFlowAvailable()) {
       try {
-        await this.claudeFlowBridge.trajectory.endTrajectory(taskId, success, feedback);
+        await this.claudeFlowBridge.trajectory.endTrajectory(bridgeTrajectoryId, success, feedback);
       } catch (error) {
         this.claudeFlowErrors++;
         console.warn(
@@ -1009,7 +1023,7 @@ export class AQELearningEngine {
     depth: 'shallow' | 'medium' | 'deep'
   ): Promise<PretrainResult> {
     try {
-      const { glob } = await import('tinyglobby');
+      const { safeGlob: glob } = await import('../shared/safe-glob.js');
       const { existsSync, readFileSync } = await import('fs');
       const { join } = await import('path');
 
@@ -1025,8 +1039,6 @@ export class AQELearningEngine {
       const files = await glob(patterns, {
         cwd: targetPath,
         ignore,
-        expandDirectories: false,
-        onlyFiles: true,
       });
 
       // Detect languages and frameworks
@@ -1119,9 +1131,34 @@ export class AQELearningEngine {
   // ==========================================================================
 
   /**
+   * End, as failed, the bridge trajectories of tasks that are still running, so ruflo
+   * does not keep them open (#1455). Waits at most DISPOSE_TRAJECTORY_END_MS.
+   */
+  private async endOpenTrajectories(): Promise<void> {
+    const bridge = this.claudeFlowBridge?.trajectory;
+    this.bridgeTrajectoryIds.clear();
+    if (!bridge) return;
+    const ids = bridge.openTrajectoryIds();
+    if (ids.length === 0) return;
+    const ending = Promise.allSettled(
+      ids.map((id) => bridge.endTrajectory(id, false, 'AQELearningEngine disposed before the task ended'))
+    );
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<'timeout'>((resolve) => {
+      timer = setTimeout(() => resolve('timeout'), DISPOSE_TRAJECTORY_END_MS);
+    });
+    const outcome = await Promise.race([ending, timeout]);
+    clearTimeout(timer);
+    if (outcome === 'timeout') {
+      console.warn(`[AQELearningEngine] ${ids.length} trajectory end(s) still pending after ${DISPOSE_TRAJECTORY_END_MS} ms at dispose`);
+    }
+  }
+
+  /**
    * Dispose the engine
    */
   async dispose(): Promise<void> {
+    await this.endOpenTrajectories();
     if (this._domainTransferInterval) {
       clearInterval(this._domainTransferInterval);
       this._domainTransferInterval = null;
@@ -1137,6 +1174,7 @@ export class AQELearningEngine {
       await this.reasoningBank.dispose();
     }
     this.activeTasks.clear();
+    this.bridgeTrajectoryIds.clear();
     this.initialized = false;
   }
 }

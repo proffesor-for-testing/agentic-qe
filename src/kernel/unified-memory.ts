@@ -22,7 +22,7 @@
  * - unified-memory.ts: UnifiedMemoryManager class (this file, facade)
  */
 
-import { type Database as DatabaseType, type Statement } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType, SqliteStatement as Statement } from '../shared/sqlite-types.js';
 import { openDatabase as openSafeDatabase } from '../shared/safe-db.js';
 import { safeJsonParse } from '../shared/safe-json.js';
 import { capBusyTimeout, getLockWaitCap } from '../shared/sqlite-lock-wait.js';

@@ -1,0 +1,4614 @@
+{
+  "tool": "ruflo",
+  "version": "3.76.0",
+  "globalFlags": [
+    "--config",
+    "--format",
+    "--help",
+    "--interactive",
+    "--no-color",
+    "--quiet",
+    "--verbose",
+    "--version",
+    "-Q",
+    "-V",
+    "-c",
+    "-h",
+    "-i",
+    "-v"
+  ],
+  "commands": {
+    "advisor": {
+      "flags": [],
+      "subcommands": {
+        "enable": {
+          "flags": [
+            "--yes"
+          ]
+        },
+        "disable": {
+          "flags": []
+        },
+        "status": {
+          "flags": []
+        }
+      }
+    },
+    "agent": {
+      "flags": [],
+      "subcommands": {
+        "spawn": {
+          "flags": [
+            "--auto-tools",
+            "--model",
+            "--name",
+            "--provider",
+            "--task",
+            "--timeout",
+            "--type",
+            "-m",
+            "-n",
+            "-p",
+            "-t"
+          ]
+        },
+        "list": {
+          "flags": [
+            "--all",
+            "--status",
+            "--type",
+            "-a",
+            "-s",
+            "-t"
+          ]
+        },
+        "status": {
+          "flags": [
+            "--id"
+          ]
+        },
+        "stop": {
+          "flags": [
+            "--force",
+            "--timeout",
+            "-f"
+          ]
+        },
+        "metrics": {
+          "flags": [
+            "--period",
+            "-p"
+          ]
+        },
+        "pool": {
+          "flags": [
+            "--auto-scale",
+            "--max",
+            "--min",
+            "--size",
+            "-a",
+            "-s"
+          ]
+        },
+        "health": {
+          "flags": [
+            "--detailed",
+            "--id",
+            "--watch",
+            "-d",
+            "-i",
+            "-w"
+          ]
+        },
+        "logs": {
+          "flags": [
+            "--follow",
+            "--id",
+            "--level",
+            "--since",
+            "--tail",
+            "-f",
+            "-i",
+            "-l",
+            "-n"
+          ]
+        },
+        "wasm-status": {
+          "flags": []
+        },
+        "wasm-create": {
+          "flags": [
+            "--instructions",
+            "--max-turns",
+            "--model",
+            "--template",
+            "-i",
+            "-m",
+            "-t"
+          ]
+        },
+        "wasm-prompt": {
+          "flags": [
+            "--agent-id",
+            "--input",
+            "-a",
+            "-i"
+          ]
+        },
+        "wasm-gallery": {
+          "flags": [
+            "--category",
+            "--search",
+            "-c",
+            "-s"
+          ]
+        },
+        "publish": {
+          "flags": [
+            "--manifest",
+            "-m"
+          ]
+        }
+      },
+      "aliases": {
+        "ls": "list",
+        "kill": "stop"
+      }
+    },
+    "analyze": {
+      "flags": [
+        "--format",
+        "-f"
+      ],
+      "subcommands": {
+        "diff": {
+          "flags": [
+            "--classify",
+            "--format",
+            "--reviewers",
+            "--risk",
+            "--verbose",
+            "-c",
+            "-f",
+            "-r",
+            "-v"
+          ]
+        },
+        "code": {
+          "flags": [
+            "--format",
+            "--path",
+            "--type",
+            "-f",
+            "-p",
+            "-t"
+          ]
+        },
+        "deps": {
+          "flags": [
+            "--format",
+            "--outdated",
+            "--security",
+            "-f",
+            "-o",
+            "-s"
+          ]
+        },
+        "ast": {
+          "flags": [
+            "--complexity",
+            "--format",
+            "--output",
+            "--symbols",
+            "--verbose",
+            "-c",
+            "-f",
+            "-o",
+            "-s",
+            "-v"
+          ]
+        },
+        "complexity": {
+          "flags": [
+            "--format",
+            "--output",
+            "--threshold",
+            "-f",
+            "-o",
+            "-t"
+          ]
+        },
+        "symbols": {
+          "flags": [
+            "--format",
+            "--output",
+            "--type",
+            "-f",
+            "-o",
+            "-t"
+          ]
+        },
+        "imports": {
+          "flags": [
+            "--external",
+            "--format",
+            "--output",
+            "-e",
+            "-f",
+            "-o"
+          ]
+        },
+        "boundaries": {
+          "flags": [
+            "--format",
+            "--output",
+            "--partitions",
+            "-f",
+            "-o",
+            "-p"
+          ]
+        },
+        "modules": {
+          "flags": [
+            "--format",
+            "--min-size",
+            "--output",
+            "-f",
+            "-m",
+            "-o"
+          ]
+        },
+        "dependencies": {
+          "flags": [
+            "--depth",
+            "--exclude",
+            "--format",
+            "--include",
+            "--output",
+            "-d",
+            "-e",
+            "-f",
+            "-i",
+            "-o"
+          ]
+        },
+        "circular": {
+          "flags": [
+            "--format",
+            "--output",
+            "--severity",
+            "-f",
+            "-o",
+            "-s"
+          ]
+        }
+      },
+      "aliases": {
+        "cx": "complexity",
+        "sym": "symbols",
+        "imp": "imports",
+        "boundary": "boundaries",
+        "mincut": "boundaries",
+        "communities": "modules",
+        "louvain": "modules",
+        "graph": "dependencies",
+        "cycles": "circular"
+      }
+    },
+    "announcements": {
+      "flags": [],
+      "subcommands": {
+        "enable": {
+          "flags": [
+            "--yes"
+          ]
+        },
+        "disable": {
+          "flags": []
+        },
+        "list": {
+          "flags": [
+            "--json"
+          ]
+        },
+        "reset": {
+          "flags": [
+            "--yes"
+          ]
+        }
+      }
+    },
+    "appliance": {
+      "flags": [],
+      "subcommands": {
+        "build": {
+          "flags": [
+            "--api-keys",
+            "--arch",
+            "--models",
+            "--output",
+            "--profile",
+            "--verbose",
+            "-m",
+            "-o",
+            "-p",
+            "-v"
+          ]
+        },
+        "inspect": {
+          "flags": [
+            "--file",
+            "--json",
+            "-f"
+          ]
+        },
+        "verify": {
+          "flags": [
+            "--file",
+            "--quick",
+            "-f",
+            "-q"
+          ]
+        },
+        "extract": {
+          "flags": [
+            "--file",
+            "--output",
+            "--section",
+            "-f",
+            "-o",
+            "-s"
+          ]
+        },
+        "run": {
+          "flags": [
+            "--file",
+            "--isolation",
+            "--mode",
+            "-f"
+          ]
+        },
+        "sign": {
+          "flags": [
+            "--file",
+            "--generate-keys",
+            "--key",
+            "--key-dir",
+            "--signer",
+            "-f",
+            "-k"
+          ]
+        },
+        "publish": {
+          "flags": [
+            "--description",
+            "--file",
+            "--name",
+            "-f",
+            "-n"
+          ]
+        },
+        "update": {
+          "flags": [],
+          "helpUnavailable": true
+        }
+      }
+    },
+    "appliance-advanced": {
+      "flags": [],
+      "helpUnavailable": true
+    },
+    "auth": {
+      "flags": [],
+      "subcommands": {
+        "login": {
+          "flags": [
+            "--no-browser",
+            "--profile",
+            "--token-stdin"
+          ]
+        },
+        "logout": {
+          "flags": [
+            "--all",
+            "--profile"
+          ]
+        },
+        "status": {
+          "flags": [
+            "--check",
+            "--json",
+            "--profile"
+          ]
+        }
+      }
+    },
+    "autopilot": {
+      "flags": [],
+      "subcommands": {
+        "status": {
+          "flags": [
+            "--json"
+          ]
+        },
+        "enable": {
+          "flags": []
+        },
+        "disable": {
+          "flags": []
+        },
+        "config": {
+          "flags": [
+            "--max-iterations",
+            "--task-sources",
+            "--timeout"
+          ]
+        },
+        "reset": {
+          "flags": []
+        },
+        "log": {
+          "flags": [
+            "--clear",
+            "--json",
+            "--last"
+          ]
+        },
+        "learn": {
+          "flags": [
+            "--json"
+          ]
+        },
+        "history": {
+          "flags": [
+            "--json",
+            "--limit",
+            "--query"
+          ]
+        },
+        "predict": {
+          "flags": [
+            "--json"
+          ]
+        },
+        "check": {
+          "flags": [
+            "--json"
+          ]
+        }
+      }
+    },
+    "benchmark": {
+      "flags": [],
+      "subcommands": {
+        "pretrain": {
+          "flags": [
+            "--iterations",
+            "--output",
+            "--save",
+            "--verbose",
+            "--warmup",
+            "-i",
+            "-o",
+            "-s",
+            "-v",
+            "-w"
+          ]
+        },
+        "neural": {
+          "flags": [
+            "--dimension",
+            "--iterations",
+            "--output",
+            "--vectors",
+            "-d",
+            "-i",
+            "-n",
+            "-o"
+          ]
+        },
+        "memory": {
+          "flags": [
+            "--iterations",
+            "--output",
+            "-i",
+            "-o"
+          ]
+        },
+        "all": {
+          "flags": [
+            "--iterations",
+            "--output",
+            "--save",
+            "-i",
+            "-o",
+            "-s"
+          ]
+        }
+      }
+    },
+    "catalog": {
+      "flags": [
+        "--check",
+        "--engine",
+        "--file",
+        "--json",
+        "--repo-root"
+      ]
+    },
+    "claims": {
+      "flags": [],
+      "subcommands": {
+        "list": {
+          "flags": [
+            "--resource",
+            "--role",
+            "--user",
+            "-r",
+            "-u"
+          ]
+        },
+        "check": {
+          "flags": [
+            "--claim",
+            "--resource",
+            "--user",
+            "-c",
+            "-r",
+            "-u"
+          ]
+        },
+        "grant": {
+          "flags": [
+            "--claim",
+            "--expires",
+            "--role",
+            "--scope",
+            "--user",
+            "-c",
+            "-e",
+            "-r",
+            "-s",
+            "-u"
+          ]
+        },
+        "revoke": {
+          "flags": [
+            "--claim",
+            "--role",
+            "--user",
+            "-c",
+            "-r",
+            "-u"
+          ]
+        },
+        "roles": {
+          "flags": [
+            "--action",
+            "--name",
+            "-a",
+            "-n"
+          ]
+        },
+        "policies": {
+          "flags": [
+            "--action",
+            "--name",
+            "-a",
+            "-n"
+          ]
+        }
+      }
+    },
+    "cleanup": {
+      "flags": [
+        "--dry-run",
+        "--force",
+        "--keep-config",
+        "-f",
+        "-k",
+        "-n"
+      ]
+    },
+    "completions": {
+      "flags": [],
+      "subcommands": {
+        "bash": {
+          "flags": []
+        },
+        "zsh": {
+          "flags": []
+        },
+        "fish": {
+          "flags": []
+        },
+        "powershell": {
+          "flags": []
+        }
+      },
+      "aliases": {
+        "pwsh": "powershell"
+      }
+    },
+    "config": {
+      "flags": [],
+      "subcommands": {
+        "init": {
+          "flags": [
+            "--force",
+            "--sparc",
+            "--v3",
+            "-f"
+          ]
+        },
+        "get": {
+          "flags": [
+            "--key",
+            "-k"
+          ]
+        },
+        "set": {
+          "flags": [
+            "--key",
+            "--value",
+            "-k",
+            "-v"
+          ]
+        },
+        "providers": {
+          "flags": [
+            "--add",
+            "--disable",
+            "--enable",
+            "--remove",
+            "-a",
+            "-r"
+          ]
+        },
+        "reset": {
+          "flags": [
+            "--force",
+            "--section",
+            "-f"
+          ]
+        },
+        "export": {
+          "flags": [
+            "--format",
+            "--output",
+            "-f",
+            "-o"
+          ]
+        },
+        "import": {
+          "flags": [
+            "--file",
+            "--merge",
+            "-f"
+          ]
+        }
+      }
+    },
+    "cost": {
+      "flags": [],
+      "subcommands": {
+        "budget": {
+          "flags": [],
+          "subcommands": {
+            "set": {
+              "flags": [
+                "--daily",
+                "--fallback-model",
+                "--hard-stop",
+                "--monthly",
+                "--weekly"
+              ]
+            },
+            "get": {
+              "flags": [
+                "--json"
+              ]
+            },
+            "export": {
+              "flags": [
+                "--apply",
+                "--gateway",
+                "--key-env",
+                "--model",
+                "--print-key",
+                "--url"
+              ]
+            }
+          }
+        },
+        "report": {
+          "flags": [
+            "--days",
+            "--json"
+          ]
+        }
+      }
+    },
+    "daemon": {
+      "flags": [],
+      "subcommands": {
+        "start": {
+          "flags": [
+            "--background",
+            "--foreground",
+            "--headless",
+            "--max-cpu-load",
+            "--min-free-memory",
+            "--no-distill",
+            "--quiet",
+            "--sandbox",
+            "--ttl",
+            "--workers",
+            "--workspace",
+            "-Q",
+            "-b",
+            "-f",
+            "-w"
+          ]
+        },
+        "stop": {
+          "flags": [
+            "--all",
+            "--quiet",
+            "-Q",
+            "-a"
+          ]
+        },
+        "status": {
+          "flags": [
+            "--all",
+            "--show-modes",
+            "--verbose",
+            "-a",
+            "-v"
+          ]
+        },
+        "trigger": {
+          "flags": [
+            "--headless",
+            "--worker",
+            "-w"
+          ]
+        },
+        "enable": {
+          "flags": [
+            "--disable",
+            "--worker",
+            "-d",
+            "-w"
+          ]
+        },
+        "budget": {
+          "flags": [],
+          "subcommands": {
+            "show": {
+              "flags": []
+            },
+            "pause": {
+              "flags": [
+                "--reason",
+                "-r"
+              ]
+            },
+            "resume": {
+              "flags": []
+            }
+          }
+        },
+        "install-supervisor": {
+          "flags": [
+            "--dry-run",
+            "--force",
+            "--load",
+            "-f"
+          ]
+        },
+        "uninstall-supervisor": {
+          "flags": []
+        }
+      }
+    },
+    "deployment": {
+      "flags": [],
+      "subcommands": {
+        "deploy": {
+          "flags": [
+            "--description",
+            "--dry-run",
+            "--env",
+            "--version",
+            "-d",
+            "-e",
+            "-v"
+          ]
+        },
+        "status": {
+          "flags": [
+            "--env",
+            "-e"
+          ]
+        },
+        "rollback": {
+          "flags": [
+            "--env",
+            "--steps",
+            "--version",
+            "-e",
+            "-s",
+            "-v"
+          ]
+        },
+        "history": {
+          "flags": [
+            "--env",
+            "--limit",
+            "-e",
+            "-l"
+          ]
+        },
+        "environments": {
+          "flags": [
+            "--action",
+            "--name",
+            "--type",
+            "--url",
+            "-a",
+            "-n",
+            "-t",
+            "-u"
+          ]
+        },
+        "logs": {
+          "flags": [
+            "--deployment",
+            "--env",
+            "--lines",
+            "-d",
+            "-e",
+            "-n"
+          ]
+        },
+        "release": {
+          "flags": [
+            "--description",
+            "--env",
+            "--version",
+            "-d",
+            "-e",
+            "-v"
+          ]
+        }
+      },
+      "aliases": {
+        "envs": "environments"
+      }
+    },
+    "doctor": {
+      "flags": [
+        "--component",
+        "--fix",
+        "--fix-handles",
+        "--install",
+        "--json",
+        "--verbose",
+        "-c",
+        "-f",
+        "-i",
+        "-v"
+      ]
+    },
+    "eject": {
+      "flags": [
+        "--confirm",
+        "--format",
+        "--name",
+        "--target"
+      ]
+    },
+    "embeddings": {
+      "flags": [],
+      "subcommands": {
+        "init": {
+          "flags": [
+            "--cache-size",
+            "--curvature",
+            "--download",
+            "--force",
+            "--hyperbolic",
+            "--model",
+            "-c",
+            "-d",
+            "-f",
+            "-m"
+          ]
+        },
+        "generate": {
+          "flags": [
+            "--model",
+            "--output",
+            "--provider",
+            "--text",
+            "-m",
+            "-o",
+            "-p",
+            "-t"
+          ]
+        },
+        "search": {
+          "flags": [
+            "--collection",
+            "--db-path",
+            "--limit",
+            "--query",
+            "--threshold",
+            "-c",
+            "-l",
+            "-q",
+            "-t"
+          ]
+        },
+        "compare": {
+          "flags": [
+            "--metric",
+            "--text1",
+            "--text2",
+            "-m"
+          ]
+        },
+        "collections": {
+          "flags": [
+            "--action",
+            "--db-path",
+            "--name",
+            "-a",
+            "-n"
+          ]
+        },
+        "index": {
+          "flags": [
+            "--action",
+            "--collection",
+            "--ef-construction",
+            "--m",
+            "-a",
+            "-c"
+          ]
+        },
+        "providers": {
+          "flags": []
+        },
+        "chunk": {
+          "flags": [
+            "--file",
+            "--max-size",
+            "--overlap",
+            "--strategy",
+            "--text",
+            "-f",
+            "-o",
+            "-s",
+            "-t"
+          ]
+        },
+        "normalize": {
+          "flags": [
+            "--check",
+            "--input",
+            "--type",
+            "-c",
+            "-i",
+            "-t"
+          ]
+        },
+        "hyperbolic": {
+          "flags": [
+            "--action",
+            "--curvature",
+            "--input",
+            "-a",
+            "-c",
+            "-i"
+          ]
+        },
+        "neural": {
+          "flags": [
+            "--consolidation-interval",
+            "--decay-rate",
+            "--drift-threshold",
+            "--feature",
+            "--init",
+            "-f"
+          ]
+        },
+        "models": {
+          "flags": [
+            "--download",
+            "--list",
+            "-d",
+            "-l"
+          ]
+        },
+        "cache": {
+          "flags": [
+            "--action",
+            "--db-path",
+            "-a"
+          ]
+        },
+        "warmup": {
+          "flags": [
+            "--background",
+            "--test",
+            "-b",
+            "-t"
+          ]
+        },
+        "benchmark": {
+          "flags": [
+            "--batch-size",
+            "--full",
+            "--iterations",
+            "-b",
+            "-f",
+            "-n"
+          ]
+        }
+      }
+    },
+    "funnel": {
+      "flags": [],
+      "subcommands": {
+        "status": {
+          "flags": [
+            "--json"
+          ]
+        },
+        "disable": {
+          "flags": []
+        },
+        "enable": {
+          "flags": []
+        },
+        "accept": {
+          "flags": []
+        },
+        "open": {
+          "flags": []
+        },
+        "enroll": {
+          "flags": []
+        },
+        "earnings": {
+          "flags": [
+            "--json"
+          ]
+        },
+        "unenroll": {
+          "flags": []
+        },
+        "id": {
+          "flags": []
+        },
+        "telemetry": {
+          "flags": []
+        }
+      }
+    },
+    "gaia-bench": {
+      "flags": [],
+      "subcommands": {
+        "run": {
+          "flags": [
+            "--concurrency",
+            "--decompose",
+            "--enable-convergence",
+            "--enable-critic",
+            "--hardness-routing",
+            "--hardness-verbose",
+            "--judge-model",
+            "--level",
+            "--limit",
+            "--max-turns",
+            "--models",
+            "--output",
+            "--planning-interval",
+            "--smoke-only",
+            "--voting-attempts",
+            "-c",
+            "-l",
+            "-m",
+            "-n",
+            "-o"
+          ]
+        }
+      }
+    },
+    "guidance": {
+      "flags": [],
+      "subcommands": {
+        "compile": {
+          "flags": [
+            "--json",
+            "--local",
+            "--mod-projection",
+            "--output",
+            "--revision",
+            "--root",
+            "-l",
+            "-o",
+            "-r"
+          ]
+        },
+        "mod-candidates": {
+          "flags": [
+            "--bundle-id",
+            "--directory",
+            "--json"
+          ]
+        },
+        "retrieve": {
+          "flags": [
+            "--intent",
+            "--json",
+            "--local",
+            "--max-shards",
+            "--root",
+            "--task",
+            "-i",
+            "-l",
+            "-n",
+            "-r",
+            "-t"
+          ]
+        },
+        "gates": {
+          "flags": [
+            "--command",
+            "--content",
+            "--json",
+            "--tool",
+            "-c",
+            "-t"
+          ]
+        },
+        "status": {
+          "flags": [
+            "--json"
+          ]
+        },
+        "optimize": {
+          "flags": [
+            "--apply",
+            "--context-size",
+            "--json",
+            "--local",
+            "--max-iterations",
+            "--root",
+            "--target-score",
+            "-a",
+            "-l",
+            "-r",
+            "-s"
+          ]
+        },
+        "ab-test": {
+          "flags": [
+            "--config-a",
+            "--config-b",
+            "--json",
+            "--tasks",
+            "--work-dir",
+            "-a",
+            "-b",
+            "-t",
+            "-w"
+          ]
+        }
+      }
+    },
+    "harness": {
+      "flags": [
+        "--hook",
+        "--json",
+        "--print-codex-hook"
+      ]
+    },
+    "hive-mind": {
+      "flags": [],
+      "subcommands": {
+        "init": {
+          "flags": [
+            "--consensus",
+            "--max-agents",
+            "--memory-backend",
+            "--persist",
+            "--topology",
+            "-c",
+            "-m",
+            "-p",
+            "-t"
+          ]
+        },
+        "spawn": {
+          "flags": [
+            "--claude",
+            "--count",
+            "--dangerously-skip-permissions",
+            "--dry-run",
+            "--mcp-config",
+            "--model",
+            "--no-auto-permissions",
+            "--non-interactive",
+            "--objective",
+            "--prefix",
+            "--role",
+            "--type",
+            "-m",
+            "-n",
+            "-o",
+            "-p",
+            "-r",
+            "-t"
+          ]
+        },
+        "status": {
+          "flags": [
+            "--detailed",
+            "--watch",
+            "-d",
+            "-w"
+          ]
+        },
+        "task": {
+          "flags": [
+            "--description",
+            "--priority",
+            "--require-consensus",
+            "--timeout",
+            "-c",
+            "-d",
+            "-p"
+          ]
+        },
+        "work": {
+          "flags": [
+            "--mcp-config",
+            "--task",
+            "--worker"
+          ]
+        },
+        "join": {
+          "flags": [
+            "--agent-id",
+            "--role",
+            "-a",
+            "-r"
+          ]
+        },
+        "leave": {
+          "flags": [
+            "--agent-id",
+            "-a"
+          ]
+        },
+        "consensus": {
+          "flags": [
+            "--action",
+            "--proposal-id",
+            "--type",
+            "--value",
+            "--vote",
+            "--voter-id",
+            "-a",
+            "-p",
+            "-t",
+            "-v"
+          ]
+        },
+        "broadcast": {
+          "flags": [
+            "--from",
+            "--message",
+            "--priority",
+            "-f",
+            "-m",
+            "-p"
+          ]
+        },
+        "memory": {
+          "flags": [
+            "--action",
+            "--key",
+            "--value",
+            "-a",
+            "-k",
+            "-v"
+          ]
+        },
+        "optimize-memory": {
+          "flags": [
+            "--aggressive",
+            "--threshold",
+            "-a"
+          ]
+        },
+        "shutdown": {
+          "flags": [
+            "--force",
+            "--save-state",
+            "-f",
+            "-s"
+          ]
+        }
+      }
+    },
+    "hooks": {
+      "flags": [],
+      "subcommands": {
+        "pre-edit": {
+          "flags": [
+            "--context",
+            "--file",
+            "--operation",
+            "-c",
+            "-f",
+            "-o"
+          ]
+        },
+        "post-edit": {
+          "flags": [
+            "--file",
+            "--metrics",
+            "--outcome",
+            "--success",
+            "-f",
+            "-m",
+            "-o",
+            "-s"
+          ]
+        },
+        "pre-command": {
+          "flags": [
+            "--command",
+            "--dry-run",
+            "-c",
+            "-d"
+          ]
+        },
+        "post-command": {
+          "flags": [
+            "--command",
+            "--duration",
+            "--exit-code",
+            "--success",
+            "--ttl",
+            "-c",
+            "-d",
+            "-e",
+            "-s"
+          ]
+        },
+        "pre-task": {
+          "flags": [
+            "--auto-spawn",
+            "--description",
+            "--task-id",
+            "-a",
+            "-d",
+            "-i"
+          ]
+        },
+        "post-task": {
+          "flags": [
+            "--agent",
+            "--agent-role",
+            "--consensus-alignment",
+            "--depth",
+            "--duration",
+            "--latency-budget-ms",
+            "--parent-agent-id",
+            "--patterns",
+            "--quality",
+            "--store-results",
+            "--success",
+            "--task",
+            "--task-id",
+            "-a",
+            "-i",
+            "-q",
+            "-s",
+            "-t"
+          ]
+        },
+        "session-end": {
+          "flags": [
+            "--save-state",
+            "-s"
+          ]
+        },
+        "session-restore": {
+          "flags": [
+            "--restore-agents",
+            "--restore-tasks",
+            "--session-id",
+            "-a",
+            "-i",
+            "-t"
+          ]
+        },
+        "route": {
+          "flags": [
+            "--consensus",
+            "--context",
+            "--moa-parallel",
+            "--mode",
+            "--parallel",
+            "--task",
+            "--top-k",
+            "-K",
+            "-c",
+            "-p",
+            "-t"
+          ]
+        },
+        "explain": {
+          "flags": [
+            "--agent",
+            "--task",
+            "--verbose",
+            "-a",
+            "-t",
+            "-v"
+          ]
+        },
+        "pretrain": {
+          "flags": [
+            "--depth",
+            "--embedding-model",
+            "--file-types",
+            "--path",
+            "--skip-cache",
+            "--with-embeddings",
+            "-d",
+            "-p"
+          ]
+        },
+        "build-agents": {
+          "flags": [
+            "--config-format",
+            "--focus",
+            "--output",
+            "-f",
+            "-o"
+          ]
+        },
+        "metrics": {
+          "flags": [
+            "--category",
+            "--period",
+            "--v3-dashboard",
+            "-c",
+            "-p"
+          ]
+        },
+        "transfer": {
+          "flags": [],
+          "subcommands": {
+            "store": {
+              "flags": [],
+              "subcommands": {
+                "list": {
+                  "flags": [
+                    "--category",
+                    "--featured",
+                    "--limit",
+                    "--newest",
+                    "--registry",
+                    "--trending",
+                    "-c",
+                    "-f",
+                    "-l",
+                    "-n",
+                    "-r",
+                    "-t"
+                  ]
+                },
+                "search": {
+                  "flags": [
+                    "--category",
+                    "--framework",
+                    "--language",
+                    "--limit",
+                    "--min-rating",
+                    "--query",
+                    "--tags",
+                    "--verified",
+                    "-c",
+                    "-f",
+                    "-l",
+                    "-q",
+                    "-t",
+                    "-v"
+                  ]
+                },
+                "download": {
+                  "flags": [
+                    "--import",
+                    "--name",
+                    "--output",
+                    "--verify",
+                    "-i",
+                    "-n",
+                    "-o",
+                    "-v"
+                  ]
+                },
+                "publish": {
+                  "flags": [
+                    "--anonymize",
+                    "--categories",
+                    "--description",
+                    "--framework",
+                    "--input",
+                    "--language",
+                    "--license",
+                    "--name",
+                    "--tags",
+                    "-a",
+                    "-c",
+                    "-d",
+                    "-i",
+                    "-l",
+                    "-n",
+                    "-t"
+                  ]
+                },
+                "info": {
+                  "flags": [
+                    "--name",
+                    "-n"
+                  ]
+                }
+              },
+              "aliases": {
+                "ls": "list",
+                "get": "download",
+                "install": "download",
+                "contribute": "publish"
+              }
+            },
+            "from-project": {
+              "flags": [
+                "--filter",
+                "--min-confidence",
+                "--source",
+                "-f",
+                "-m",
+                "-s"
+              ]
+            }
+          },
+          "aliases": {
+            "project": "from-project"
+          }
+        },
+        "list": {
+          "flags": [
+            "--enabled",
+            "--type",
+            "-e",
+            "-t"
+          ]
+        },
+        "intelligence": {
+          "flags": [
+            "--embedding-provider",
+            "--enable-hnsw",
+            "--enable-moe",
+            "--enable-sona",
+            "--mode",
+            "--reset",
+            "--status",
+            "--train",
+            "-m",
+            "-r",
+            "-s",
+            "-t"
+          ]
+        },
+        "notify": {
+          "flags": [
+            "--channel",
+            "--level",
+            "--message",
+            "-c",
+            "-l",
+            "-m"
+          ]
+        },
+        "worker": {
+          "flags": [],
+          "subcommands": {
+            "list": {
+              "flags": [
+                "--active",
+                "--status",
+                "-a",
+                "-s"
+              ]
+            },
+            "dispatch": {
+              "flags": [
+                "--context",
+                "--priority",
+                "--sync",
+                "--trigger",
+                "-c",
+                "-p",
+                "-s",
+                "-t"
+              ]
+            },
+            "status": {
+              "flags": [
+                "--all",
+                "--id",
+                "-a"
+              ]
+            },
+            "detect": {
+              "flags": [
+                "--auto-dispatch",
+                "--min-confidence",
+                "--prompt",
+                "-a",
+                "-m",
+                "-p"
+              ]
+            },
+            "cancel": {
+              "flags": [
+                "--id"
+              ]
+            }
+          }
+        },
+        "progress": {
+          "flags": [
+            "--detailed",
+            "--summary",
+            "--sync",
+            "-d",
+            "-s"
+          ]
+        },
+        "statusline": {
+          "flags": [
+            "--compact",
+            "--full",
+            "--json",
+            "--no-color"
+          ]
+        },
+        "coverage-route": {
+          "flags": [
+            "--no-ruvector",
+            "--task",
+            "--threshold",
+            "-t"
+          ]
+        },
+        "coverage-suggest": {
+          "flags": [
+            "--limit",
+            "--path",
+            "--threshold",
+            "-l",
+            "-p"
+          ]
+        },
+        "coverage-gaps": {
+          "flags": [
+            "--critical-only",
+            "--group-by-agent",
+            "--threshold"
+          ]
+        },
+        "token-optimize": {
+          "flags": [
+            "--agents",
+            "--query",
+            "--report",
+            "--stats",
+            "-A",
+            "-q",
+            "-r",
+            "-s"
+          ]
+        },
+        "context-plan": {
+          "flags": [
+            "--bytes",
+            "--depth",
+            "--files",
+            "--intent",
+            "--limit",
+            "--mode",
+            "--offset",
+            "--worker-available"
+          ]
+        },
+        "model-route": {
+          "flags": [
+            "--context",
+            "--prefer-cost",
+            "--prefer-speed",
+            "--task",
+            "-c",
+            "-t"
+          ]
+        },
+        "model-outcome": {
+          "flags": [
+            "--model",
+            "--outcome",
+            "--quality",
+            "--task",
+            "-m",
+            "-o",
+            "-q",
+            "-t"
+          ]
+        },
+        "model-stats": {
+          "flags": [
+            "--detailed",
+            "-d"
+          ]
+        },
+        "route-task": {
+          "flags": [
+            "--consensus",
+            "--context",
+            "--moa-parallel",
+            "--mode",
+            "--parallel",
+            "--task",
+            "--top-k",
+            "-K",
+            "-c",
+            "-p",
+            "-t"
+          ]
+        },
+        "session-start": {
+          "flags": [
+            "--auto-configure",
+            "--restore-agents",
+            "--restore-context",
+            "--restore-tasks",
+            "--session-id",
+            "-a",
+            "-i",
+            "-t"
+          ]
+        },
+        "pre-bash": {
+          "flags": [
+            "--command",
+            "--dry-run",
+            "-c",
+            "-d"
+          ]
+        },
+        "post-bash": {
+          "flags": [
+            "--command",
+            "--duration",
+            "--exit-code",
+            "--success",
+            "--ttl",
+            "-c",
+            "-d",
+            "-e",
+            "-s"
+          ]
+        },
+        "teammate-idle": {
+          "flags": [
+            "--auto-assign",
+            "--check-task-list",
+            "--team-name",
+            "--teammate-id",
+            "-a",
+            "-c",
+            "-t"
+          ]
+        },
+        "task-completed": {
+          "flags": [
+            "--notify-lead",
+            "--quality",
+            "--success",
+            "--task-id",
+            "--teammate-id",
+            "--train-patterns",
+            "-i",
+            "-n",
+            "-p",
+            "-q",
+            "-s",
+            "-t"
+          ]
+        },
+        "refresh-funnel": {
+          "flags": [
+            "--quiet"
+          ]
+        },
+        "refresh-advisor": {
+          "flags": [
+            "--quiet"
+          ]
+        },
+        "verified-ingest": {
+          "flags": [
+            "--dry-run",
+            "--force",
+            "--quiet"
+          ]
+        }
+      },
+      "aliases": {
+        "ls": "list"
+      }
+    },
+    "init": {
+      "flags": [
+        "--all-agents",
+        "--cloud-mcp",
+        "--codex",
+        "--codex-trust",
+        "--drop-risky-settings",
+        "--dry-run",
+        "--dual",
+        "--embedding-model",
+        "--force",
+        "--full",
+        "--grok",
+        "--grok-statusline",
+        "--keep-risky-settings",
+        "--minimal",
+        "--mods",
+        "--no-codex-detect",
+        "--no-global",
+        "--no-signup",
+        "--no-skills-sh",
+        "--no-telemetry-prompt",
+        "--only-claude",
+        "--plugin-install",
+        "--skip-claude",
+        "--start-all",
+        "--start-daemon",
+        "--with-embeddings",
+        "-f",
+        "-m"
+      ],
+      "subcommands": {
+        "wizard": {
+          "flags": []
+        },
+        "check": {
+          "flags": []
+        },
+        "skills": {
+          "flags": [
+            "--agentdb",
+            "--all",
+            "--core",
+            "--ecosystem",
+            "--github",
+            "--legacy",
+            "--v3"
+          ]
+        },
+        "hooks": {
+          "flags": [
+            "--all",
+            "--drop-risky-settings",
+            "--keep-risky-settings",
+            "--minimal"
+          ]
+        },
+        "upgrade": {
+          "flags": [
+            "--add-missing",
+            "--drop-risky-settings",
+            "--keep-risky-settings",
+            "--mods",
+            "--plugin-install",
+            "--settings",
+            "--verbose",
+            "-a",
+            "-s",
+            "-v"
+          ]
+        }
+      }
+    },
+    "issues": {
+      "flags": [],
+      "subcommands": {
+        "list": {
+          "flags": [
+            "--mine",
+            "--status",
+            "-m",
+            "-s"
+          ]
+        },
+        "claim": {
+          "flags": [
+            "--agent",
+            "--issue",
+            "--user",
+            "-a",
+            "-i",
+            "-u"
+          ]
+        },
+        "release": {
+          "flags": [
+            "--agent",
+            "--issue",
+            "--user",
+            "-a",
+            "-i",
+            "-u"
+          ]
+        },
+        "handoff": {
+          "flags": [
+            "--from",
+            "--issue",
+            "--reason",
+            "--to",
+            "-i",
+            "-r"
+          ]
+        },
+        "status": {
+          "flags": [
+            "--issue",
+            "--note",
+            "--progress",
+            "--set",
+            "-i",
+            "-n",
+            "-p",
+            "-s"
+          ]
+        },
+        "stealable": {
+          "flags": [
+            "--type",
+            "-t"
+          ]
+        },
+        "steal": {
+          "flags": [
+            "--agent",
+            "--issue",
+            "-a",
+            "-i"
+          ]
+        },
+        "load": {
+          "flags": [
+            "--agent",
+            "-a"
+          ]
+        },
+        "rebalance": {
+          "flags": [
+            "--apply",
+            "--dry-run"
+          ]
+        },
+        "board": {
+          "flags": []
+        }
+      },
+      "aliases": {
+        "ls": "list"
+      }
+    },
+    "mcp": {
+      "flags": [],
+      "subcommands": {
+        "start": {
+          "flags": [],
+          "helpUnavailable": true
+        },
+        "stop": {
+          "flags": [
+            "--force",
+            "-f"
+          ]
+        },
+        "status": {
+          "flags": []
+        },
+        "health": {
+          "flags": []
+        },
+        "restart": {
+          "flags": [
+            "--force",
+            "-f"
+          ]
+        },
+        "tools": {
+          "flags": [
+            "--category",
+            "--enabled",
+            "-c"
+          ]
+        },
+        "toggle": {
+          "flags": [
+            "--disable",
+            "--enable",
+            "-d",
+            "-e"
+          ]
+        },
+        "exec": {
+          "flags": [
+            "--params",
+            "--tool",
+            "-p",
+            "-t"
+          ]
+        },
+        "logs": {
+          "flags": [
+            "--follow",
+            "--level",
+            "--lines",
+            "-f",
+            "-n"
+          ]
+        }
+      }
+    },
+    "memory": {
+      "flags": [],
+      "subcommands": {
+        "init": {
+          "flags": [
+            "--backend",
+            "--force",
+            "--load-embeddings",
+            "--path",
+            "--verbose",
+            "--verify",
+            "-b",
+            "-f",
+            "-p"
+          ]
+        },
+        "store": {
+          "flags": [
+            "--agent",
+            "--append-conditions",
+            "--append-only",
+            "--embedding",
+            "--key",
+            "--namespace",
+            "--path",
+            "--provenance",
+            "--require-native",
+            "--scan-content",
+            "--scope",
+            "--tags",
+            "--ttl",
+            "--upsert",
+            "--value",
+            "--vector",
+            "-k",
+            "-n",
+            "-u"
+          ]
+        },
+        "retrieve": {
+          "flags": [
+            "--agent",
+            "--key",
+            "--namespace",
+            "--path",
+            "--scope",
+            "--value-only",
+            "-k",
+            "-n"
+          ]
+        },
+        "search": {
+          "flags": [
+            "--agent",
+            "--build-hnsw",
+            "--intent",
+            "--limit",
+            "--namespace",
+            "--path",
+            "--provenance-filter",
+            "--query",
+            "--scope",
+            "--smart",
+            "--threshold",
+            "--type",
+            "-l",
+            "-n",
+            "-q",
+            "-s",
+            "-t"
+          ]
+        },
+        "list": {
+          "flags": [
+            "--embeddings",
+            "--limit",
+            "--namespace",
+            "--path",
+            "--tags",
+            "-l",
+            "-n",
+            "-t"
+          ]
+        },
+        "delete": {
+          "flags": [
+            "--force",
+            "--key",
+            "--namespace",
+            "--path",
+            "-f",
+            "-k",
+            "-n"
+          ]
+        },
+        "purge": {
+          "flags": [
+            "--dry-run",
+            "--force",
+            "--namespace",
+            "--path",
+            "-d",
+            "-f",
+            "-n"
+          ]
+        },
+        "stats": {
+          "flags": [
+            "--path"
+          ]
+        },
+        "peek": {
+          "flags": [
+            "--path"
+          ]
+        },
+        "configure": {
+          "flags": [
+            "--backend",
+            "--cache-size",
+            "--hnsw-ef",
+            "--hnsw-m",
+            "--path",
+            "-b"
+          ]
+        },
+        "cleanup": {
+          "flags": [
+            "--dry-run",
+            "--expired-only",
+            "--force",
+            "--low-quality",
+            "--namespace",
+            "--older-than",
+            "-d",
+            "-e",
+            "-f",
+            "-l",
+            "-n",
+            "-o"
+          ]
+        },
+        "compress": {
+          "flags": [
+            "--bits",
+            "--level",
+            "--quantize",
+            "--rebuild-index",
+            "--target",
+            "-l",
+            "-r",
+            "-t",
+            "-z"
+          ]
+        },
+        "export": {
+          "flags": [
+            "--format",
+            "--include-vectors",
+            "--namespace",
+            "--output",
+            "--path",
+            "-f",
+            "-n",
+            "-o"
+          ]
+        },
+        "import": {
+          "flags": [
+            "--input",
+            "--merge",
+            "--namespace",
+            "--path",
+            "-i",
+            "-m",
+            "-n"
+          ]
+        },
+        "distill": {
+          "flags": [],
+          "subcommands": {
+            "run": {
+              "flags": [
+                "--aggressive",
+                "--batch-size",
+                "--budget-usd",
+                "--config",
+                "--conservative",
+                "--db",
+                "--dedup-distance",
+                "--dry-run",
+                "--judge",
+                "--max-entries",
+                "--namespace",
+                "--since",
+                "--verbose",
+                "-v"
+              ]
+            },
+            "status": {
+              "flags": [
+                "--db"
+              ]
+            },
+            "config": {
+              "flags": [
+                "--aggressive",
+                "--batch-size",
+                "--budget-usd",
+                "--config",
+                "--conservative",
+                "--db",
+                "--dedup-distance",
+                "--judge",
+                "--max-entries",
+                "--namespace",
+                "--since"
+              ]
+            }
+          }
+        },
+        "backup": {
+          "flags": [
+            "--db",
+            "--dir",
+            "--gcs",
+            "--keep",
+            "--verbose",
+            "-v"
+          ]
+        },
+        "classify": {
+          "flags": [
+            "--intent",
+            "--query",
+            "-q"
+          ]
+        },
+        "select-operator": {
+          "flags": [
+            "--budget",
+            "--entries",
+            "--hint",
+            "-b",
+            "-e"
+          ]
+        }
+      },
+      "aliases": {
+        "get": "retrieve",
+        "ls": "list",
+        "rm": "delete",
+        "config": "configure"
+      }
+    },
+    "metaharness": {
+      "flags": [
+        "--subcommand"
+      ]
+    },
+    "migrate": {
+      "flags": [],
+      "subcommands": {
+        "status": {
+          "flags": []
+        },
+        "run": {
+          "flags": [
+            "--backup",
+            "--dry-run",
+            "--force",
+            "--target",
+            "-f",
+            "-t"
+          ]
+        },
+        "verify": {
+          "flags": [
+            "--fix"
+          ]
+        },
+        "rollback": {
+          "flags": [
+            "--backup-id",
+            "--force",
+            "-f"
+          ]
+        },
+        "breaking": {
+          "flags": []
+        },
+        "fix": {
+          "flags": [
+            "--agents",
+            "--dry-run",
+            "-d"
+          ]
+        }
+      }
+    },
+    "mission": {
+      "flags": [
+        "--action",
+        "--after",
+        "--expected-revision",
+        "--limit",
+        "--mission",
+        "--objective",
+        "--plan-file",
+        "--project-root",
+        "--reason",
+        "--request-id"
+      ]
+    },
+    "mods": {
+      "flags": [],
+      "subcommands": {
+        "install": {
+          "flags": [
+            "--accept-risk",
+            "--dry-run",
+            "--marketplace-path",
+            "--plugin-install",
+            "--project-root",
+            "--scope",
+            "--source",
+            "--strict"
+          ]
+        },
+        "uninstall": {
+          "flags": [
+            "--dry-run",
+            "--project-root"
+          ]
+        },
+        "status": {
+          "flags": [
+            "--json",
+            "--project-root"
+          ]
+        },
+        "doctor": {
+          "flags": [
+            "--json",
+            "--project-root",
+            "--strict"
+          ]
+        },
+        "sync-policy": {
+          "flags": [
+            "--project-root"
+          ]
+        }
+      }
+    },
+    "neural": {
+      "flags": [],
+      "subcommands": {
+        "train": {
+          "flags": [
+            "--backend",
+            "--batch-size",
+            "--contrastive",
+            "--curriculum",
+            "--data",
+            "--dim",
+            "--epochs",
+            "--flash",
+            "--hyperbolic",
+            "--learning-rate",
+            "--model",
+            "--moe",
+            "--pattern",
+            "--resume",
+            "--val-split",
+            "--wasm",
+            "-b",
+            "-d",
+            "-e",
+            "-l",
+            "-m",
+            "-p",
+            "-w"
+          ]
+        },
+        "status": {
+          "flags": [
+            "--model",
+            "--verbose",
+            "-m",
+            "-v"
+          ]
+        },
+        "patterns": {
+          "flags": [
+            "--action",
+            "--limit",
+            "--query",
+            "-a",
+            "-l",
+            "-q"
+          ]
+        },
+        "predict": {
+          "flags": [
+            "--format",
+            "--input",
+            "--k",
+            "-f",
+            "-i",
+            "-k"
+          ]
+        },
+        "optimize": {
+          "flags": [
+            "--method",
+            "--verbose",
+            "-v"
+          ]
+        },
+        "benchmark": {
+          "flags": [
+            "--dim",
+            "--iterations",
+            "--keys",
+            "-d",
+            "-i",
+            "-k"
+          ]
+        },
+        "list": {
+          "flags": [
+            "--category",
+            "--cid",
+            "--format",
+            "-f"
+          ]
+        },
+        "export": {
+          "flags": [
+            "--ipfs",
+            "--model",
+            "--name",
+            "--output",
+            "--sign",
+            "--strip-pii",
+            "-i",
+            "-m",
+            "-n",
+            "-o",
+            "-s"
+          ]
+        },
+        "import": {
+          "flags": [
+            "--category",
+            "--cid",
+            "--file",
+            "--merge",
+            "--verify",
+            "-c",
+            "-f",
+            "-v"
+          ]
+        },
+        "router": {
+          "flags": [],
+          "subcommands": {
+            "status": {
+              "flags": [
+                "--format",
+                "-f"
+              ]
+            },
+            "models": {
+              "flags": [
+                "--format",
+                "-f"
+              ]
+            },
+            "prices": {
+              "flags": [
+                "--format",
+                "--sort",
+                "-f"
+              ]
+            },
+            "config": {
+              "flags": [
+                "--format",
+                "--only-overrides",
+                "-f"
+              ]
+            },
+            "train": {
+              "flags": [
+                "--corpus",
+                "--out",
+                "--quality-bar",
+                "-c",
+                "-o",
+                "-q"
+              ]
+            },
+            "train-from-trajectories": {
+              "flags": [
+                "--filter-source",
+                "--format",
+                "--in",
+                "--min-quality",
+                "--union",
+                "--write",
+                "-f",
+                "-i",
+                "-u",
+                "-w"
+              ]
+            },
+            "decide": {
+              "flags": [
+                "--format",
+                "--task",
+                "-f",
+                "-t"
+              ]
+            },
+            "compare-modes": {
+              "flags": [
+                "--ceiling",
+                "--format",
+                "--task",
+                "-f",
+                "-t"
+              ]
+            },
+            "decisions": {
+              "flags": [
+                "--bucket",
+                "--format",
+                "--in",
+                "--limit",
+                "--model",
+                "--routed-by",
+                "--since",
+                "--task-hash",
+                "-f",
+                "-i",
+                "-l",
+                "-m",
+                "-s"
+              ]
+            },
+            "cost-savings": {
+              "flags": [
+                "--alert-on-drop-pct",
+                "--baseline",
+                "--format",
+                "--in",
+                "--since",
+                "--task-hash",
+                "--top-n",
+                "--window",
+                "-b",
+                "-f",
+                "-i",
+                "-s",
+                "-w"
+              ]
+            },
+            "cost-projection": {
+              "flags": [
+                "--format",
+                "--horizons",
+                "--in",
+                "--window",
+                "-f",
+                "-i",
+                "-w"
+              ]
+            },
+            "trajectory-health": {
+              "flags": [
+                "--format",
+                "--in",
+                "-f",
+                "-i"
+              ]
+            },
+            "ab-stats": {
+              "flags": [
+                "--format",
+                "--in",
+                "--since",
+                "-f",
+                "-i",
+                "-s"
+              ]
+            },
+            "bandit-state": {
+              "flags": [
+                "--cold-threshold",
+                "--format",
+                "--path",
+                "-f"
+              ]
+            },
+            "stats-summary": {
+              "flags": [
+                "--format",
+                "-f"
+              ]
+            },
+            "reload": {
+              "flags": []
+            }
+          }
+        },
+        "distill": {
+          "flags": [],
+          "subcommands": {
+            "export": {
+              "flags": [
+                "--archive",
+                "--eval-holdout",
+                "--format",
+                "--keep-reward-hacked",
+                "--max-tokens",
+                "--out-dir",
+                "--truncate",
+                "-a",
+                "-f",
+                "-o"
+              ]
+            },
+            "plan": {
+              "flags": [
+                "--adapter-prefix",
+                "--base",
+                "--dpo",
+                "--format",
+                "--params-b",
+                "--sft",
+                "-b",
+                "-f"
+              ]
+            },
+            "eval": {
+              "flags": [
+                "--adapter-outcomes",
+                "--base-outcomes",
+                "--format",
+                "-f"
+              ]
+            },
+            "train": {
+              "flags": [
+                "--adapter-dir",
+                "--base",
+                "--dpo",
+                "--execute",
+                "--format",
+                "--preflight",
+                "--remote",
+                "--remote-workdir",
+                "--sft",
+                "--ssh-port",
+                "--ssh-user",
+                "--yes",
+                "-b",
+                "-f",
+                "-r"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "pair": {
+      "flags": [
+        "--end",
+        "--history",
+        "--interval",
+        "--json",
+        "--mode",
+        "--role",
+        "--start",
+        "--status",
+        "-i",
+        "-m"
+      ],
+      "subcommands": {
+        "start": {
+          "flags": [
+            "--interval",
+            "--json",
+            "--mode",
+            "--role",
+            "-i",
+            "-m"
+          ]
+        },
+        "status": {
+          "flags": [
+            "--json"
+          ]
+        },
+        "switch": {
+          "flags": [
+            "--json"
+          ]
+        },
+        "mode": {
+          "flags": [
+            "--json"
+          ]
+        },
+        "end": {
+          "flags": [
+            "--json"
+          ]
+        },
+        "history": {
+          "flags": [
+            "--json"
+          ]
+        }
+      }
+    },
+    "performance": {
+      "flags": [],
+      "subcommands": {
+        "benchmark": {
+          "flags": [
+            "--iterations",
+            "--output",
+            "--suite",
+            "--warmup",
+            "-i",
+            "-o",
+            "-s",
+            "-w"
+          ]
+        },
+        "profile": {
+          "flags": [
+            "--duration",
+            "--output",
+            "--type",
+            "-d",
+            "-o",
+            "-t"
+          ]
+        },
+        "metrics": {
+          "flags": [
+            "--component",
+            "--format",
+            "--timeframe",
+            "-c",
+            "-f",
+            "-t"
+          ]
+        },
+        "optimize": {
+          "flags": [
+            "--apply",
+            "--dry-run",
+            "--target",
+            "-a",
+            "-d",
+            "-t"
+          ]
+        },
+        "bottleneck": {
+          "flags": [
+            "--component",
+            "--depth",
+            "-c",
+            "-d"
+          ]
+        }
+      }
+    },
+    "plugins": {
+      "flags": [],
+      "subcommands": {
+        "list": {
+          "flags": [
+            "--available",
+            "--category",
+            "--featured",
+            "--installed",
+            "--official",
+            "--registry",
+            "--type",
+            "-a",
+            "-c",
+            "-f",
+            "-i",
+            "-o",
+            "-r",
+            "-t"
+          ]
+        },
+        "search": {
+          "flags": [
+            "--category",
+            "--limit",
+            "--query",
+            "--registry",
+            "--type",
+            "--verified",
+            "-c",
+            "-l",
+            "-q",
+            "-r",
+            "-t",
+            "-v"
+          ]
+        },
+        "install": {
+          "flags": [
+            "--accept-risk",
+            "--allow-unverified",
+            "--dev",
+            "--global",
+            "--name",
+            "--registry",
+            "--trust",
+            "--verify",
+            "--version",
+            "-d",
+            "-g",
+            "-n",
+            "-r",
+            "-v"
+          ]
+        },
+        "uninstall": {
+          "flags": [
+            "--force",
+            "--name",
+            "-f",
+            "-n"
+          ]
+        },
+        "upgrade": {
+          "flags": [
+            "--name",
+            "--trust",
+            "--verify",
+            "--version",
+            "-n",
+            "-v"
+          ]
+        },
+        "toggle": {
+          "flags": [
+            "--disable",
+            "--enable",
+            "--name",
+            "-d",
+            "-e",
+            "-n"
+          ]
+        },
+        "info": {
+          "flags": [
+            "--name",
+            "--registry",
+            "-n",
+            "-r"
+          ]
+        },
+        "create": {
+          "flags": [
+            "--name",
+            "--path",
+            "--template",
+            "-n",
+            "-p",
+            "-t"
+          ]
+        },
+        "rate": {
+          "flags": [
+            "--name",
+            "--rating",
+            "-n",
+            "-r"
+          ]
+        },
+        "verify": {
+          "flags": [
+            "--clone",
+            "--json",
+            "--no-cache",
+            "--strict"
+          ]
+        },
+        "paths": {
+          "flags": [
+            "--json",
+            "--names",
+            "-n"
+          ]
+        },
+        "host": {
+          "flags": [],
+          "subcommands": {
+            "install": {
+              "flags": [
+                "--dry-run",
+                "--host",
+                "--json",
+                "--marketplace",
+                "--marketplace-name",
+                "--scope"
+              ]
+            },
+            "update": {
+              "flags": [
+                "--dry-run",
+                "--host",
+                "--json",
+                "--marketplace",
+                "--marketplace-name",
+                "--scope"
+              ]
+            },
+            "uninstall": {
+              "flags": [
+                "--dry-run",
+                "--host",
+                "--json",
+                "--marketplace",
+                "--marketplace-name",
+                "--scope"
+              ]
+            },
+            "enable": {
+              "flags": [
+                "--dry-run",
+                "--host",
+                "--json",
+                "--marketplace",
+                "--marketplace-name",
+                "--scope"
+              ]
+            },
+            "disable": {
+              "flags": [
+                "--dry-run",
+                "--host",
+                "--json",
+                "--marketplace",
+                "--marketplace-name",
+                "--scope"
+              ]
+            },
+            "sync": {
+              "flags": [
+                "--dry-run",
+                "--host",
+                "--json",
+                "--marketplace",
+                "--marketplace-name",
+                "--scope"
+              ]
+            },
+            "status": {
+              "flags": [
+                "--dry-run",
+                "--host",
+                "--json",
+                "--marketplace",
+                "--marketplace-name",
+                "--scope"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "policy": {
+      "flags": [
+        "--establish-anchor",
+        "--full",
+        "--mode",
+        "--project-root"
+      ]
+    },
+    "process": {
+      "flags": [
+        "--help",
+        "-h"
+      ],
+      "subcommands": {
+        "daemon": {
+          "flags": [
+            "--action",
+            "--detach",
+            "--log-file",
+            "--pid-file",
+            "--port"
+          ]
+        },
+        "monitor": {
+          "flags": [
+            "--alerts",
+            "--components",
+            "--format",
+            "--interval",
+            "--watch"
+          ]
+        },
+        "workers": {
+          "flags": [
+            "--action",
+            "--count",
+            "--id",
+            "--type"
+          ]
+        },
+        "signals": {
+          "flags": [
+            "--signal",
+            "--target",
+            "--timeout"
+          ]
+        },
+        "logs": {
+          "flags": [
+            "--follow",
+            "--grep",
+            "--level",
+            "--since",
+            "--source",
+            "--tail"
+          ]
+        }
+      }
+    },
+    "progress": {
+      "flags": [
+        "--detailed",
+        "--sync",
+        "--watch",
+        "-d",
+        "-s",
+        "-w"
+      ],
+      "subcommands": {
+        "check": {
+          "flags": [
+            "--detailed",
+            "-d"
+          ]
+        },
+        "sync": {
+          "flags": []
+        },
+        "summary": {
+          "flags": []
+        },
+        "watch": {
+          "flags": [
+            "--interval",
+            "-i"
+          ]
+        }
+      }
+    },
+    "providers": {
+      "flags": [],
+      "subcommands": {
+        "list": {
+          "flags": [
+            "--active",
+            "--type",
+            "-a",
+            "-t"
+          ]
+        },
+        "configure": {
+          "flags": [
+            "--endpoint",
+            "--key",
+            "--model",
+            "--provider",
+            "-e",
+            "-k",
+            "-m",
+            "-p"
+          ]
+        },
+        "test": {
+          "flags": [
+            "--all",
+            "--provider",
+            "-a",
+            "-p"
+          ]
+        },
+        "models": {
+          "flags": [
+            "--capability",
+            "--provider",
+            "-c",
+            "-p"
+          ]
+        },
+        "usage": {
+          "flags": [
+            "--provider",
+            "--timeframe",
+            "-p",
+            "-t"
+          ]
+        }
+      }
+    },
+    "proxy": {
+      "flags": [],
+      "subcommands": {
+        "install": {
+          "flags": [
+            "--release",
+            "--yes"
+          ]
+        },
+        "update": {
+          "flags": [
+            "--release"
+          ]
+        },
+        "start": {
+          "flags": [
+            "--service"
+          ]
+        },
+        "supervise": {
+          "flags": []
+        },
+        "stop": {
+          "flags": []
+        },
+        "status": {
+          "flags": [
+            "--json"
+          ]
+        },
+        "logs": {
+          "flags": [
+            "--follow",
+            "-f"
+          ]
+        },
+        "uninstall": {
+          "flags": []
+        },
+        "config": {
+          "flags": [
+            "--cloud",
+            "--local-only",
+            "--passthrough",
+            "--routing-mode",
+            "--yes"
+          ]
+        },
+        "sponsor-enable": {
+          "flags": [
+            "--yes"
+          ]
+        },
+        "sponsor-disable": {
+          "flags": []
+        },
+        "sponsor-status": {
+          "flags": []
+        },
+        "sponsor-clear": {
+          "flags": []
+        },
+        "power-saver-enable": {
+          "flags": [
+            "--yes"
+          ]
+        },
+        "power-saver-disable": {
+          "flags": []
+        },
+        "power-saver-status": {
+          "flags": []
+        },
+        "power-saver-clear": {
+          "flags": []
+        },
+        "training-share-enable": {
+          "flags": [
+            "--yes"
+          ]
+        },
+        "training-share-disable": {
+          "flags": []
+        },
+        "training-share-status": {
+          "flags": []
+        }
+      }
+    },
+    "route": {
+      "flags": [
+        "--agent",
+        "--q-learning",
+        "-a",
+        "-q"
+      ],
+      "subcommands": {
+        "task": {
+          "flags": [
+            "--agent",
+            "--explore",
+            "--json",
+            "--q-learning",
+            "-a",
+            "-e",
+            "-j",
+            "-q"
+          ]
+        },
+        "list-agents": {
+          "flags": [
+            "--json",
+            "-j"
+          ]
+        },
+        "stats": {
+          "flags": [
+            "--json",
+            "-j"
+          ]
+        },
+        "feedback": {
+          "flags": [
+            "--agent",
+            "--next-task",
+            "--reward",
+            "--task",
+            "-a",
+            "-n",
+            "-r",
+            "-t"
+          ]
+        },
+        "reset": {
+          "flags": [
+            "--force",
+            "-f"
+          ]
+        },
+        "export": {
+          "flags": [
+            "--file",
+            "-f"
+          ]
+        },
+        "import": {
+          "flags": [
+            "--file",
+            "-f"
+          ]
+        },
+        "coverage": {
+          "flags": [
+            "--gaps",
+            "--json",
+            "--path",
+            "--suggest",
+            "--threshold",
+            "-g",
+            "-j",
+            "-p",
+            "-s",
+            "-t"
+          ]
+        }
+      },
+      "aliases": {
+        "agents": "list-agents",
+        "ls": "list-agents",
+        "cov": "coverage"
+      }
+    },
+    "ruvector": {
+      "flags": [
+        "--database",
+        "--host",
+        "--port",
+        "--schema",
+        "--user",
+        "-d",
+        "-h",
+        "-p",
+        "-s",
+        "-u"
+      ],
+      "subcommands": {
+        "init": {
+          "flags": [
+            "--database",
+            "--dimensions",
+            "--force",
+            "--host",
+            "--index-type",
+            "--password",
+            "--port",
+            "--schema",
+            "--ssl",
+            "--user",
+            "-d",
+            "-f",
+            "-h",
+            "-p",
+            "-s",
+            "-u"
+          ]
+        },
+        "setup": {
+          "flags": [
+            "--force",
+            "--output",
+            "--print",
+            "-f",
+            "-o",
+            "-p"
+          ]
+        },
+        "import": {
+          "flags": [
+            "--batch-size",
+            "--container",
+            "--database",
+            "--from-memory",
+            "--host",
+            "--input",
+            "--output",
+            "--password",
+            "--port",
+            "--user",
+            "--verbose",
+            "-b",
+            "-c",
+            "-d",
+            "-h",
+            "-i",
+            "-o",
+            "-p",
+            "-u",
+            "-v"
+          ]
+        },
+        "migrate": {
+          "flags": [
+            "--database",
+            "--down",
+            "--dry-run",
+            "--force",
+            "--host",
+            "--password",
+            "--port",
+            "--schema",
+            "--ssl",
+            "--to",
+            "--up",
+            "--user",
+            "-d",
+            "-h",
+            "-p",
+            "-s",
+            "-u"
+          ]
+        },
+        "status": {
+          "flags": [
+            "--database",
+            "--host",
+            "--json",
+            "--password",
+            "--port",
+            "--schema",
+            "--ssl",
+            "--user",
+            "--verbose",
+            "-d",
+            "-h",
+            "-p",
+            "-s",
+            "-u",
+            "-v"
+          ]
+        },
+        "benchmark": {
+          "flags": [
+            "--batch-size",
+            "--cleanup",
+            "--database",
+            "--dimensions",
+            "--host",
+            "--index",
+            "--k",
+            "--metric",
+            "--password",
+            "--port",
+            "--queries",
+            "--schema",
+            "--ssl",
+            "--user",
+            "--vectors",
+            "-d",
+            "-h",
+            "-i",
+            "-m",
+            "-n",
+            "-p",
+            "-q",
+            "-s",
+            "-u"
+          ]
+        },
+        "optimize": {
+          "flags": [
+            "--analyze",
+            "--apply",
+            "--database",
+            "--host",
+            "--index",
+            "--password",
+            "--port",
+            "--reindex",
+            "--schema",
+            "--ssl",
+            "--user",
+            "--vacuum",
+            "-a",
+            "-d",
+            "-h",
+            "-i",
+            "-p",
+            "-s",
+            "-u"
+          ]
+        },
+        "backup": {
+          "flags": [
+            "--database",
+            "--host",
+            "--password",
+            "--port",
+            "--schema",
+            "--ssl",
+            "--user",
+            "-d",
+            "-h",
+            "-p",
+            "-s",
+            "-u"
+          ],
+          "subcommands": {
+            "create": {
+              "flags": [
+                "--compress",
+                "--database",
+                "--format",
+                "--host",
+                "--include-indexes",
+                "--output",
+                "--password",
+                "--port",
+                "--schema",
+                "--ssl",
+                "--tables",
+                "--user",
+                "-c",
+                "-d",
+                "-f",
+                "-h",
+                "-o",
+                "-p",
+                "-s",
+                "-t",
+                "-u"
+              ]
+            },
+            "restore": {
+              "flags": [
+                "--clean",
+                "--database",
+                "--dry-run",
+                "--host",
+                "--input",
+                "--password",
+                "--port",
+                "--schema",
+                "--ssl",
+                "--user",
+                "-d",
+                "-h",
+                "-i",
+                "-p",
+                "-s",
+                "-u"
+              ]
+            }
+          }
+        }
+      },
+      "aliases": {
+        "scaffold": "setup",
+        "docker": "setup",
+        "load": "import",
+        "migrate-data": "import"
+      }
+    },
+    "security": {
+      "flags": [],
+      "subcommands": {
+        "scan": {
+          "flags": [
+            "--depth",
+            "--fix",
+            "--output",
+            "--target",
+            "--type",
+            "-d",
+            "-f",
+            "-o",
+            "-t"
+          ]
+        },
+        "cve": {
+          "flags": [
+            "--check",
+            "--list",
+            "--severity",
+            "-c",
+            "-l",
+            "-s"
+          ]
+        },
+        "threats": {
+          "flags": [
+            "--export",
+            "--model",
+            "--scope",
+            "-e",
+            "-m",
+            "-s"
+          ]
+        },
+        "audit": {
+          "flags": [
+            "--action",
+            "--filter",
+            "--limit",
+            "-a",
+            "-f",
+            "-l"
+          ]
+        },
+        "secrets": {
+          "flags": [
+            "--action",
+            "--ignore",
+            "--path",
+            "-a",
+            "-i",
+            "-p"
+          ]
+        },
+        "defend": {
+          "flags": [
+            "--file",
+            "--input",
+            "--learn",
+            "--output",
+            "--quick",
+            "--stats",
+            "-Q",
+            "-f",
+            "-i",
+            "-l",
+            "-o",
+            "-s"
+          ]
+        },
+        "composition-scan": {
+          "flags": [
+            "--min-fragment",
+            "--tools-json",
+            "--top"
+          ]
+        },
+        "channel-scan": {
+          "flags": [
+            "--message",
+            "--message-file",
+            "--min-encoded-len",
+            "-m"
+          ]
+        },
+        "scan-plan": {
+          "flags": [
+            "--plan",
+            "--plan-file",
+            "--strict",
+            "-p"
+          ]
+        }
+      }
+    },
+    "session": {
+      "flags": [],
+      "subcommands": {
+        "list": {
+          "flags": [
+            "--active",
+            "--all",
+            "--limit",
+            "-a",
+            "-l"
+          ]
+        },
+        "save": {
+          "flags": [
+            "--description",
+            "--include-agents",
+            "--include-memory",
+            "--include-tasks",
+            "--name",
+            "-d",
+            "-n"
+          ]
+        },
+        "restore": {
+          "flags": [
+            "--agents-only",
+            "--force",
+            "--memory-only",
+            "--tasks-only",
+            "-f"
+          ]
+        },
+        "delete": {
+          "flags": [
+            "--force",
+            "-f"
+          ]
+        },
+        "export": {
+          "flags": [
+            "--compress",
+            "--format",
+            "--include-memory",
+            "--latest",
+            "--output",
+            "-f",
+            "-o"
+          ]
+        },
+        "import": {
+          "flags": [
+            "--activate",
+            "--name",
+            "-n"
+          ]
+        },
+        "current": {
+          "flags": []
+        }
+      },
+      "aliases": {
+        "ls": "list",
+        "create": "save",
+        "checkpoint": "save",
+        "load": "restore",
+        "rm": "delete",
+        "remove": "delete"
+      }
+    },
+    "settings": {
+      "flags": [],
+      "subcommands": {
+        "notices": {
+          "flags": [],
+          "subcommands": {
+            "status": {
+              "flags": []
+            },
+            "off": {
+              "flags": []
+            },
+            "on": {
+              "flags": []
+            },
+            "id": {
+              "flags": []
+            },
+            "rate-limited": {
+              "flags": [
+                "--clear"
+              ]
+            },
+            "quota-low": {
+              "flags": [
+                "--clear"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "spinner": {
+      "flags": [],
+      "subcommands": {
+        "enable": {
+          "flags": [
+            "--yes"
+          ]
+        },
+        "disable": {
+          "flags": []
+        },
+        "list": {
+          "flags": [
+            "--json"
+          ]
+        },
+        "reset": {
+          "flags": [
+            "--yes"
+          ]
+        }
+      }
+    },
+    "start": {
+      "flags": [
+        "--daemon",
+        "--port",
+        "--skip-mcp",
+        "--topology",
+        "-d",
+        "-p",
+        "-t"
+      ],
+      "subcommands": {
+        "stop": {
+          "flags": [
+            "--force",
+            "--timeout",
+            "-f"
+          ]
+        },
+        "restart": {
+          "flags": [
+            "--force",
+            "-f"
+          ]
+        },
+        "quick": {
+          "flags": []
+        },
+        "all": {
+          "flags": []
+        }
+      },
+      "aliases": {
+        "q": "quick"
+      }
+    },
+    "status": {
+      "flags": [
+        "--health-check",
+        "--interval",
+        "--watch",
+        "-i",
+        "-w"
+      ],
+      "subcommands": {
+        "agents": {
+          "flags": []
+        },
+        "tasks": {
+          "flags": []
+        },
+        "memory": {
+          "flags": []
+        }
+      }
+    },
+    "swarm": {
+      "flags": [],
+      "subcommands": {
+        "init": {
+          "flags": [
+            "--apsc-alpha",
+            "--apsc-beta",
+            "--apsc-gamma",
+            "--apsc-live",
+            "--apsc-min-active-agents",
+            "--apsc-min-samples",
+            "--apsc-pruning-factor",
+            "--apsc-reactivation-threshold",
+            "--auto-scale",
+            "--max-agents",
+            "--strategy",
+            "--topology",
+            "--v3-mode",
+            "--with-permissions",
+            "-m",
+            "-s",
+            "-t"
+          ]
+        },
+        "start": {
+          "flags": [
+            "--monitor",
+            "--objective",
+            "--parallel",
+            "--strategy",
+            "-o",
+            "-p",
+            "-s"
+          ]
+        },
+        "status": {
+          "flags": []
+        },
+        "stop": {
+          "flags": [
+            "--force",
+            "--save-state",
+            "-f"
+          ]
+        },
+        "scale": {
+          "flags": [
+            "--agents",
+            "--type",
+            "-a",
+            "-t"
+          ]
+        },
+        "coordinate": {
+          "flags": [
+            "--agents",
+            "--domains"
+          ]
+        },
+        "compress-message": {
+          "flags": [
+            "--budget-tokens",
+            "--message",
+            "--message-file",
+            "--mode",
+            "-b",
+            "-m"
+          ]
+        },
+        "pheromone": {
+          "flags": [
+            "--agent-id",
+            "--consensus-alignment",
+            "--normalized-latency",
+            "--role",
+            "--task-success"
+          ]
+        },
+        "join": {
+          "flags": []
+        }
+      }
+    },
+    "task": {
+      "flags": [],
+      "subcommands": {
+        "create": {
+          "flags": [
+            "--assign",
+            "--dependencies",
+            "--description",
+            "--parent",
+            "--priority",
+            "--tags",
+            "--timeout",
+            "--type",
+            "-a",
+            "-d",
+            "-p",
+            "-t"
+          ]
+        },
+        "list": {
+          "flags": [
+            "--agent",
+            "--all",
+            "--limit",
+            "--priority",
+            "--status",
+            "--type",
+            "-a",
+            "-l",
+            "-p",
+            "-s",
+            "-t"
+          ]
+        },
+        "status": {
+          "flags": [
+            "--id",
+            "--logs"
+          ]
+        },
+        "cancel": {
+          "flags": [
+            "--force",
+            "--reason",
+            "-f",
+            "-r"
+          ]
+        },
+        "assign": {
+          "flags": [
+            "--agent",
+            "--unassign",
+            "-a"
+          ]
+        },
+        "retry": {
+          "flags": [
+            "--reset-state"
+          ]
+        }
+      },
+      "aliases": {
+        "new": "create",
+        "add": "create",
+        "ls": "list",
+        "info": "status",
+        "get": "status",
+        "abort": "cancel",
+        "stop": "cancel",
+        "rerun": "retry"
+      }
+    },
+    "transfer-store": {
+      "flags": [],
+      "helpUnavailable": true
+    },
+    "transport": {
+      "flags": [],
+      "subcommands": {
+        "use": {
+          "flags": []
+        }
+      }
+    },
+    "tui": {
+      "flags": [
+        "--ai",
+        "--anim",
+        "--boot",
+        "--convo-targets",
+        "--fps",
+        "--look",
+        "--max-spend-usd",
+        "--model",
+        "--mouse",
+        "--pictures",
+        "--plain",
+        "--view"
+      ]
+    },
+    "update": {
+      "flags": [],
+      "subcommands": {
+        "check": {
+          "flags": [
+            "--force",
+            "--json"
+          ]
+        },
+        "all": {
+          "flags": [
+            "--dry-run",
+            "--include-major"
+          ]
+        },
+        "history": {
+          "flags": [
+            "--clear",
+            "--json",
+            "--limit",
+            "-n"
+          ]
+        },
+        "rollback": {
+          "flags": [
+            "--package",
+            "-p"
+          ]
+        },
+        "clear-cache": {
+          "flags": []
+        }
+      }
+    },
+    "verify": {
+      "flags": [
+        "--branch",
+        "--json",
+        "--manifest",
+        "-b",
+        "-m"
+      ]
+    },
+    "version": {
+      "flags": [
+        "--explain",
+        "--require-catalog-gte"
+      ]
+    },
+    "workflow": {
+      "flags": [],
+      "subcommands": {
+        "run": {
+          "flags": [
+            "--dry-run",
+            "--file",
+            "--max-agents",
+            "--parallel",
+            "--task",
+            "--template",
+            "--timeout",
+            "-d",
+            "-f",
+            "-m",
+            "-p",
+            "-t"
+          ]
+        },
+        "validate": {
+          "flags": [
+            "--file",
+            "--strict",
+            "-f",
+            "-s"
+          ]
+        },
+        "list": {
+          "flags": [
+            "--limit",
+            "--status",
+            "-l",
+            "-s"
+          ]
+        },
+        "status": {
+          "flags": [
+            "--watch",
+            "-w"
+          ]
+        },
+        "stop": {
+          "flags": [
+            "--force",
+            "-f"
+          ]
+        },
+        "template": {
+          "flags": [],
+          "subcommands": {
+            "list": {
+              "flags": []
+            },
+            "show": {
+              "flags": []
+            },
+            "create": {
+              "flags": [
+                "--file",
+                "--name",
+                "--workflow",
+                "-f",
+                "-n",
+                "-w"
+              ]
+            }
+          }
+        }
+      },
+      "aliases": {
+        "ls": "list"
+      }
+    }
+  },
+  "mcpTools": [
+    "agent_execute",
+    "agent_health",
+    "agent_list",
+    "agent_logs",
+    "agent_pool",
+    "agent_spawn",
+    "agent_status",
+    "agent_terminate",
+    "agent_update",
+    "agentdb_batch",
+    "agentdb_causal-edge",
+    "agentdb_causal-edge-delete",
+    "agentdb_causal-node-delete",
+    "agentdb_consolidate",
+    "agentdb_context-synthesize",
+    "agentdb_controllers",
+    "agentdb_episode-delete",
+    "agentdb_episode-get",
+    "agentdb_episode-list",
+    "agentdb_episode-recall",
+    "agentdb_episode-update",
+    "agentdb_feedback",
+    "agentdb_graph-pathfinder",
+    "agentdb_graph-query",
+    "agentdb_health",
+    "agentdb_hierarchical-delete",
+    "agentdb_hierarchical-get",
+    "agentdb_hierarchical-list",
+    "agentdb_hierarchical-recall",
+    "agentdb_hierarchical-stats",
+    "agentdb_hierarchical-store",
+    "agentdb_pattern-list",
+    "agentdb_pattern-search",
+    "agentdb_pattern-store",
+    "agentdb_route",
+    "agentdb_semantic-route",
+    "agentdb_session-end",
+    "agentdb_session-start",
+    "agentdb_skill-get",
+    "agentdb_skill-list",
+    "agenticow_branch",
+    "agenticow_checkpoint",
+    "agenticow_diff",
+    "agenticow_ingest",
+    "agenticow_lineage",
+    "agenticow_promote",
+    "agenticow_query",
+    "agenticow_rollback",
+    "agenticow_speculate",
+    "agenticow_status",
+    "aidefence_analyze",
+    "aidefence_has_pii",
+    "aidefence_is_safe",
+    "aidefence_learn",
+    "aidefence_scan",
+    "aidefence_stats",
+    "analyze_diff",
+    "analyze_diff-classify",
+    "analyze_diff-reviewers",
+    "analyze_diff-risk",
+    "analyze_diff-stats",
+    "analyze_file-risk",
+    "autopilot_config",
+    "autopilot_disable",
+    "autopilot_enable",
+    "autopilot_history",
+    "autopilot_learn",
+    "autopilot_log",
+    "autopilot_predict",
+    "autopilot_progress",
+    "autopilot_reset",
+    "autopilot_status",
+    "browser_act",
+    "browser_back",
+    "browser_check",
+    "browser_click",
+    "browser_close",
+    "browser_cookie_use",
+    "browser_eval",
+    "browser_fill",
+    "browser_forward",
+    "browser_get-text",
+    "browser_get-title",
+    "browser_get-url",
+    "browser_get-value",
+    "browser_hover",
+    "browser_open",
+    "browser_press",
+    "browser_reload",
+    "browser_screenshot",
+    "browser_scroll",
+    "browser_select",
+    "browser_session-list",
+    "browser_session_end",
+    "browser_session_record",
+    "browser_session_replay",
+    "browser_snapshot",
+    "browser_template_apply",
+    "browser_type",
+    "browser_uncheck",
+    "browser_wait",
+    "business_pod_route_backend",
+    "business_pod_validate",
+    "claims_accept-handoff",
+    "claims_board",
+    "claims_claim",
+    "claims_handoff",
+    "claims_list",
+    "claims_load",
+    "claims_mark-stealable",
+    "claims_rebalance",
+    "claims_release",
+    "claims_status",
+    "claims_steal",
+    "claims_stealable",
+    "config_export",
+    "config_get",
+    "config_import",
+    "config_list",
+    "config_reset",
+    "config_set",
+    "coordination_consensus",
+    "coordination_load_balance",
+    "coordination_metrics",
+    "coordination_node",
+    "coordination_orchestrate",
+    "coordination_sync",
+    "coordination_topology",
+    "daa_agent_adapt",
+    "daa_agent_create",
+    "daa_cognitive_pattern",
+    "daa_knowledge_share",
+    "daa_learning_status",
+    "daa_performance_metrics",
+    "daa_workflow_create",
+    "daa_workflow_execute",
+    "embeddings_compare",
+    "embeddings_generate",
+    "embeddings_hyperbolic",
+    "embeddings_init",
+    "embeddings_neural",
+    "embeddings_rabitq_build",
+    "embeddings_rabitq_search",
+    "embeddings_rabitq_status",
+    "embeddings_search",
+    "embeddings_status",
+    "federation_bbs_human_join",
+    "federation_bbs_identity",
+    "federation_bbs_peer_add",
+    "federation_bbs_peers",
+    "federation_bbs_publish",
+    "federation_bbs_register",
+    "federation_bbs_serve",
+    "federation_bbs_sync",
+    "federation_bbs_watch",
+    "github_issue_track",
+    "github_metrics",
+    "github_pr_manage",
+    "github_repo_analyze",
+    "github_workflow",
+    "guidance_brain",
+    "guidance_capabilities",
+    "guidance_discover",
+    "guidance_quickref",
+    "guidance_recommend",
+    "guidance_workflow",
+    "hive-mind_broadcast",
+    "hive-mind_consensus",
+    "hive-mind_init",
+    "hive-mind_join",
+    "hive-mind_leave",
+    "hive-mind_memory",
+    "hive-mind_optimize-memory",
+    "hive-mind_shutdown",
+    "hive-mind_spawn",
+    "hive-mind_status",
+    "hooks_build-agents",
+    "hooks_codemod",
+    "hooks_coverage-gaps",
+    "hooks_coverage-route",
+    "hooks_coverage-suggest",
+    "hooks_explain",
+    "hooks_fast-apply",
+    "hooks_init",
+    "hooks_intelligence",
+    "hooks_intelligence-reset",
+    "hooks_intelligence_attention",
+    "hooks_intelligence_learn",
+    "hooks_intelligence_pattern-search",
+    "hooks_intelligence_pattern-store",
+    "hooks_intelligence_stats",
+    "hooks_intelligence_trajectory-end",
+    "hooks_intelligence_trajectory-start",
+    "hooks_intelligence_trajectory-step",
+    "hooks_intelligence_unified-stats",
+    "hooks_intelligence_verified-ingest",
+    "hooks_list",
+    "hooks_metrics",
+    "hooks_model-outcome",
+    "hooks_model-route",
+    "hooks_model-stats",
+    "hooks_model-verify",
+    "hooks_notify",
+    "hooks_post-command",
+    "hooks_post-edit",
+    "hooks_post-task",
+    "hooks_pre-command",
+    "hooks_pre-edit",
+    "hooks_pre-task",
+    "hooks_pretrain",
+    "hooks_route",
+    "hooks_session-end",
+    "hooks_session-restore",
+    "hooks_session-start",
+    "hooks_task-completed",
+    "hooks_teammate-idle",
+    "hooks_transfer",
+    "hooks_worker-cancel",
+    "hooks_worker-detect",
+    "hooks_worker-dispatch",
+    "hooks_worker-list",
+    "hooks_worker-status",
+    "http_fetch",
+    "managed_agent_capabilities",
+    "managed_agent_control",
+    "managed_agent_create",
+    "managed_agent_events",
+    "managed_agent_interrupt",
+    "managed_agent_learning",
+    "managed_agent_list",
+    "managed_agent_prompt",
+    "managed_agent_status",
+    "managed_agent_terminate",
+    "mcp_start",
+    "mcp_status",
+    "mcp_stop",
+    "memory_bridge_status",
+    "memory_cleanup",
+    "memory_compress",
+    "memory_delete",
+    "memory_detailed-stats",
+    "memory_export",
+    "memory_import",
+    "memory_import_claude",
+    "memory_list",
+    "memory_list_scopes",
+    "memory_migrate",
+    "memory_retrieve",
+    "memory_search",
+    "memory_search_unified",
+    "memory_stats",
+    "memory_store",
+    "metaharness_audit_list",
+    "metaharness_audit_trend",
+    "metaharness_bench",
+    "metaharness_drift_from_history",
+    "metaharness_evolve",
+    "metaharness_flywheel",
+    "metaharness_genome",
+    "metaharness_gepa",
+    "metaharness_learn",
+    "metaharness_mcp_scan",
+    "metaharness_oia_audit",
+    "metaharness_redblue",
+    "metaharness_score",
+    "metaharness_security_bench",
+    "metaharness_similarity",
+    "metaharness_threat_model",
+    "mission_create",
+    "mission_events",
+    "mission_get",
+    "mission_plan",
+    "mission_request_action",
+    "neural_compress",
+    "neural_optimize",
+    "neural_patterns",
+    "neural_predict",
+    "neural_status",
+    "neural_train",
+    "performance_benchmark",
+    "performance_bottleneck",
+    "performance_metrics",
+    "performance_optimize",
+    "performance_profile",
+    "performance_report",
+    "policy_evaluate",
+    "policy_status",
+    "progress_check",
+    "progress_summary",
+    "progress_sync",
+    "progress_watch",
+    "rure_analyze_binary",
+    "rure_analyze_cuda",
+    "rure_analyze_dotnet",
+    "rure_analyze_evm",
+    "rure_analyze_js_app",
+    "rure_cuda_launch_plan",
+    "rure_extract_asar",
+    "rure_find_feature",
+    "ruvllm_chat_format",
+    "ruvllm_generate_config",
+    "ruvllm_hnsw_add",
+    "ruvllm_hnsw_create",
+    "ruvllm_hnsw_route",
+    "ruvllm_microlora_adapt",
+    "ruvllm_microlora_create",
+    "ruvllm_sona_adapt",
+    "ruvllm_sona_create",
+    "ruvllm_status",
+    "seraphina_guidance",
+    "session_current",
+    "session_delete",
+    "session_export",
+    "session_import",
+    "session_info",
+    "session_list",
+    "session_restore",
+    "session_save",
+    "swarm_health",
+    "swarm_init",
+    "swarm_pheromone_status",
+    "swarm_pheromone_update",
+    "swarm_shutdown",
+    "swarm_status",
+    "system_health",
+    "system_info",
+    "system_metrics",
+    "system_reset",
+    "system_status",
+    "task_assign",
+    "task_cancel",
+    "task_complete",
+    "task_create",
+    "task_list",
+    "task_retry",
+    "task_status",
+    "task_summary",
+    "task_update",
+    "team_broadcast",
+    "team_create",
+    "team_inbox",
+    "team_on_stop",
+    "team_plan",
+    "team_send",
+    "team_shutdown",
+    "team_spawn",
+    "team_status",
+    "terminal_close",
+    "terminal_create",
+    "terminal_execute",
+    "terminal_history",
+    "terminal_list",
+    "transfer_detect-pii",
+    "transfer_ipfs-resolve",
+    "transfer_plugin-featured",
+    "transfer_plugin-info",
+    "transfer_plugin-official",
+    "transfer_plugin-search",
+    "transfer_store-download",
+    "transfer_store-featured",
+    "transfer_store-info",
+    "transfer_store-search",
+    "transfer_store-trending",
+    "wasm_agent_compose",
+    "wasm_agent_create",
+    "wasm_agent_export",
+    "wasm_agent_files",
+    "wasm_agent_is_stopped",
+    "wasm_agent_list",
+    "wasm_agent_prompt",
+    "wasm_agent_reset",
+    "wasm_agent_state",
+    "wasm_agent_terminate",
+    "wasm_agent_todos",
+    "wasm_agent_tool",
+    "wasm_agent_tools",
+    "wasm_agent_turn_count",
+    "wasm_gallery_active",
+    "wasm_gallery_add_custom",
+    "wasm_gallery_categories",
+    "wasm_gallery_config",
+    "wasm_gallery_configure",
+    "wasm_gallery_create",
+    "wasm_gallery_export",
+    "wasm_gallery_import",
+    "wasm_gallery_list",
+    "wasm_gallery_list_by_category",
+    "wasm_gallery_load_rvf",
+    "wasm_gallery_remove_custom",
+    "wasm_gallery_search",
+    "workflow_cancel",
+    "workflow_create",
+    "workflow_delete",
+    "workflow_execute",
+    "workflow_list",
+    "workflow_pause",
+    "workflow_resume",
+    "workflow_run",
+    "workflow_status",
+    "workflow_stop",
+    "workflow_template",
+    "workflow_validate",
+    "x_federation_admit",
+    "x_federation_channel_accept",
+    "x_federation_channel_create",
+    "x_federation_channel_grant",
+    "x_federation_channel_list",
+    "x_federation_channel_publish",
+    "x_federation_channel_read",
+    "x_federation_claims",
+    "x_federation_invite_mint",
+    "x_federation_join",
+    "x_federation_publish",
+    "x_federation_registry",
+    "x_federation_roster",
+    "x_federation_sync"
+  ]
+}

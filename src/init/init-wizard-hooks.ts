@@ -25,6 +25,7 @@ import {
 } from './settings-merge.js';
 
 import type { AQEInitConfig } from './types.js';
+import { RUFLO_PINNED_SPEC } from '../shared/pinned-tools.js';
 
 // ============================================================================
 // Hook Configuration
@@ -137,7 +138,7 @@ export async function configureHooks(projectRoot: string, config: AQEInitConfig)
         hooks: [
           {
             type: 'command',
-            command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" post-task --task-id "$TOOL_RESULT_agent_id" --agent "$TOOL_INPUT_subagent_type" --success true --description "$TOOL_INPUT_prompt" --json',
+            command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" post-task --task-id "$TOOL_RESULT_agent_id" --agent "$TOOL_INPUT_subagent_type" --description "$TOOL_INPUT_prompt" --json',
             timeout: 5,
             continueOnError: true,
           },
@@ -185,11 +186,12 @@ export async function configureHooks(projectRoot: string, config: AQEInitConfig)
       {
         hooks: [
           {
-            // #451: close the route sentinel from this turn. Stop fires
-            // 1:1 with UserPromptSubmit/route — without this, route
-            // sentinels accumulate at quality_score=-1 indefinitely.
+            // #451/#1481: Stop observes no task result, so post-route gets
+            // no --outcome and leaves this turn's route sentinel open. It
+            // runs to sweep stale sentinels (route after 5 min, pre-task
+            // after 30 min) so they do not stay at quality_score=-1.
             type: 'command',
-            command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" post-route --success true --json',
+            command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" post-route --json',
             timeout: 5,
             continueOnError: true,
           },
@@ -577,7 +579,7 @@ Task({ prompt: "Run security audit", subagent_type: "qe-security-scanner", run_i
 
 \`\`\`javascript
 // STEP 1: Initialize Claude Flow swarm for coordination
-Bash("npx ruflo swarm init --topology hierarchical --max-agents 15")
+Bash("npx ${RUFLO_PINNED_SPEC} swarm init --topology hierarchical --max-agents 15")
 
 // STEP 2: Initialize AQE Fleet for QE-specific work
 mcp__agentic-qe__fleet_init({
@@ -590,7 +592,7 @@ Task({ prompt: "Analyze coverage gaps", subagent_type: "qe-coverage-specialist",
 
 // STEP 4: Store learnings in both systems
 mcp__agentic-qe__memory_store({ key: "pattern-1", value: "...", namespace: "qe-patterns", persist: true })
-Bash("npx ruflo memory store --key 'qe-pattern-1' --value '...' --namespace patterns")
+Bash("npx ${RUFLO_PINNED_SPEC} memory store --key 'qe-pattern-1' --value '...' --namespace patterns")
 \`\`\`
 
 ### Data Storage

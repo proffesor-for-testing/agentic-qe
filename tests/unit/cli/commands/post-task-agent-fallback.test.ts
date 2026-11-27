@@ -90,7 +90,7 @@ describe('post-task uses bridge.agent when --agent is absent (#460)', () => {
     const hooks = new Command('hooks');
     registerTaskHooks(hooks);
 
-    await hooks.parseAsync(['post-task', '--success', 'true', '--json'], { from: 'user' });
+    await hooks.parseAsync(['post-task', '--outcome', 'success', '--json'], { from: 'user' });
 
     expect(updateHookRouterQValueMock).toHaveBeenCalledTimes(1);
     expect(updateHookRouterQValueMock.mock.calls[0][0].agent).toBe('qe-test-architect');
@@ -103,7 +103,7 @@ describe('post-task uses bridge.agent when --agent is absent (#460)', () => {
     registerTaskHooks(hooks);
 
     await hooks.parseAsync(
-      ['post-task', '--agent', '', '--success', 'true', '--json'],
+      ['post-task', '--agent', '', '--outcome', 'success', '--json'],
       { from: 'user' },
     );
 
@@ -116,7 +116,7 @@ describe('post-task uses bridge.agent when --agent is absent (#460)', () => {
     registerTaskHooks(hooks);
 
     await hooks.parseAsync(
-      ['post-task', '--agent', 'qe-coverage-specialist', '--success', 'true', '--json'],
+      ['post-task', '--agent', 'qe-coverage-specialist', '--outcome', 'success', '--json'],
       { from: 'user' },
     );
 
@@ -136,7 +136,7 @@ describe('post-task uses bridge.agent when --agent is absent (#460)', () => {
     const hooks = new Command('hooks');
     registerTaskHooks(hooks);
 
-    await hooks.parseAsync(['post-task', '--success', 'true', '--json'], { from: 'user' });
+    await hooks.parseAsync(['post-task', '--outcome', 'success', '--json'], { from: 'user' });
 
     expect(updateHookRouterQValueMock.mock.calls[0][0].agent).toBe('unknown');
     expect(updateRoutingOutcomeQualityMock.mock.calls[0][0].agent).toBe('unknown');

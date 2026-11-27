@@ -92,7 +92,7 @@ describe('post-task without --task-id (issue #449)', () => {
     registerTaskHooks(hooks);
 
     await hooks.parseAsync(
-      ['post-task', '--success', 'true', '--agent', 'qe-test-architect', '--json'],
+      ['post-task', '--outcome', 'success', '--agent', 'qe-test-architect', '--json'],
       { from: 'user' },
     );
 
@@ -120,7 +120,7 @@ describe('post-task without --task-id (issue #449)', () => {
     registerTaskHooks(hooks);
 
     await hooks.parseAsync(
-      ['post-task', '--task-id', 'real-task-42', '--success', 'true', '--agent', 'coder', '--json'],
+      ['post-task', '--task-id', 'real-task-42', '--outcome', 'success', '--agent', 'coder', '--json'],
       { from: 'user' },
     );
 

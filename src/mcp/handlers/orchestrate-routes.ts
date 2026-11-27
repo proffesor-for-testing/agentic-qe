@@ -177,8 +177,8 @@ export async function routeInferredTask(type: TaskType, request: OrchestrateRequ
     case 'test-accessibility':
       // run-accessibility-audit falls back to URL-pattern heuristics when no
       // browser is available, which reports violations nobody measured.
-      return needs(type, 'an accessibility audit needs a browser run against the page (axe-core, pa11y or ' +
-        'Lighthouse), and the domain task handler cannot guarantee one. Use accessibility_test with the page URL.');
+      return needs(type, 'an accessibility audit needs a browser run against the page (axe-core in agent-browser), ' +
+        'and the domain task handler cannot guarantee one. Use accessibility_test with the page URL.');
 
     case 'optimize-learning':
       // optimize-strategies overwrites the stored learned strategies

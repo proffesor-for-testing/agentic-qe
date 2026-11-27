@@ -6,7 +6,11 @@
  */
 
 import { randomUUID } from 'crypto';
-import { ensureRoutingOutcomesAdr095Columns } from '../../../routing/routing-outcomes-migration.js';
+import {
+  ensureRoutingOutcomesAdr095Columns,
+  OBSERVED_HOOK_OUTCOME_TAG,
+  resolveObservedHookOutcome,
+} from '../../../routing/routing-outcomes-migration.js';
 import { Command } from 'commander';
 import chalk from 'chalk';
 import path from 'node:path';
@@ -192,7 +196,9 @@ export function registerRoutingHooks(hooks: Command): void {
               qWeight: routingTelemetry.qWeight ?? null,
             }),
             routing.recommendedAgent,
-            1,    // followed_recommendation = true
+            // Placeholder: which agent ran is unknown at decide time. Readers
+            // never use followed_recommendation from hook rows (#1481).
+            1,
             0,    // success = 0 (sentinel — post-task UPDATEs)
             -1,   // quality_score = -1 sentinel
             0,    // duration not yet tracked
@@ -236,11 +242,16 @@ export function registerRoutingHooks(hooks: Command): void {
   hooks
     .command('post-route')
     .description('Close the most-recent route sentinel from a Stop hook (#451)')
-    .option('--success [bool]', 'Whether the turn completed successfully', 'true')
+    .option('--outcome <result>', 'Observed turn result: success | failure. Only this records a routing outcome (#1481)')
+    .option('--success [bool]', 'Deprecated and ignored: use --outcome to record a routing outcome (#1481)')
     .option('--json', 'Output as JSON')
     .action(async (options) => {
       try {
-        const success = options.success === 'true' || options.success === true;
+        // #1481: the installed Stop hook passed a constant `--success true`,
+        // which observes nothing. Only --outcome closes the sentinel;
+        // otherwise it stays open and the stale sweep below retires it.
+        const observed = resolveObservedHookOutcome(options);
+        const success = observed === 'success';
         // 6-dim outcome quality, durationTier defaulted to favorable (1.0):
         //   qualityScore = 0.25*success + 0.325 + 0.10*durationTier
         // Stop hook doesn't measure turn duration, so we pick the most
@@ -267,12 +278,12 @@ export function registerRoutingHooks(hooks: Command): void {
           LIMIT 1
         `).get() as { id: string; task_json: string; used_agent: string } | undefined;
 
-        const result = sentinel
+        const result = sentinel && observed
           ? db.prepare(`
               UPDATE routing_outcomes
-              SET success = ?, quality_score = ?, duration_ms = 0, error = NULL
+              SET success = ?, quality_score = ?, duration_ms = 0, error = ?
               WHERE id = ?
-            `).run(success ? 1 : 0, qualityScore, sentinel.id)
+            `).run(success ? 1 : 0, qualityScore, OBSERVED_HOOK_OUTCOME_TAG, sentinel.id)
           : { changes: 0 };
 
         // Issue #499 fix #1: train rl_q_values from the resolved route
@@ -286,7 +297,8 @@ export function registerRoutingHooks(hooks: Command): void {
         //
         // ADR-096: state_key is 3-dim (taskType|priority|domain) — no
         // complexity bucket. See agent-routing.ts buildRoutingStateKey.
-        if (sentinel) {
+        // #1481: an unobserved turn trains nothing.
+        if (sentinel && observed) {
           try {
             const tj = JSON.parse(sentinel.task_json) as { description?: string };
             const description = String(tj.description ?? '');
@@ -316,12 +328,13 @@ export function registerRoutingHooks(hooks: Command): void {
         // belong to UNKNOWN historical turns and shouldn't inherit the
         // current turn's outcome. Tag with error='stale-sentinel' so
         // precision-sensitive queries can filter them out.
-        // Discriminator mirrors the LIMIT-1 close above and #451's symmetric
-        // design: route sentinels are owned by post-route, pre-task sentinels
-        // (task_json carries "taskId") are owned by post-task. Sweeping a
-        // pre-task sentinel here would race with updateRoutingOutcomeQuality
-        // and break the ownership split. If pre-task sentinels orphan, that
-        // belongs in a separate fix.
+        // Route sentinels (owned by post-route) are swept after 5 minutes.
+        // Pre-task sentinels (task_json carries "taskId") are owned by
+        // post-task, which can close one only within 30 minutes of its
+        // creation (updateRoutingOutcomeQuality). #1481: post-task now closes
+        // a sentinel only for an observed result, so the installed hooks
+        // leave pre-task sentinels open; sweep them once post-task can no
+        // longer reach them (30 minutes), so the sweep never races it.
         const staleResult = db.prepare(`
           UPDATE routing_outcomes
           SET success = 0,
@@ -329,17 +342,20 @@ export function registerRoutingHooks(hooks: Command): void {
               duration_ms = 0,
               error = 'stale-sentinel'
           WHERE quality_score = -1
-            AND task_json NOT LIKE '%"taskId"%'
-            AND created_at < datetime('now', '-300 seconds')
+            AND (
+              (task_json NOT LIKE '%"taskId"%' AND created_at < datetime('now', '-300 seconds'))
+              OR (task_json LIKE '%"taskId"%' AND created_at < datetime('now', '-30 minutes'))
+            )
         `).run();
 
         if (options.json) {
           printJson({
             success: true,
             resolved: result.changes > 0,
+            observed: observed !== null,
             staleSwept: staleResult.changes,
-            qualityScore,
-            turnSuccess: success,
+            qualityScore: observed ? qualityScore : null,
+            turnSuccess: observed ? success : null,
           });
         } else if (staleResult.changes > 0) {
           console.log(

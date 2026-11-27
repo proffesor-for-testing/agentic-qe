@@ -155,7 +155,21 @@ interface RoutingEvent {
   wasDowngraded: boolean;
   wasManualOverride: boolean;
   agentBoosterEligible: boolean;
+}
+
+/**
+ * An observed task outcome on a tier (#1481). Kept apart from routing
+ * events: a decision is only "decided" until an outcome is reported.
+ */
+interface OutcomeEvent {
+  timestamp: Date;
+  tier: ModelTier;
   success: boolean;
+}
+
+/** successful / observed, or null when nothing was observed */
+function rateOrNull(successful: number, observed: number): number | null {
+  return observed > 0 ? successful / observed : null;
 }
 
 /**
@@ -164,6 +178,7 @@ interface RoutingEvent {
  */
 class InMemoryMetricsTracker {
   private events: RoutingEvent[] = [];
+  private outcomes: OutcomeEvent[] = [];
   private readonly enabled: boolean;
   private readonly maxEvents = 10000;
 
@@ -172,7 +187,7 @@ class InMemoryMetricsTracker {
   }
 
   /**
-   * Record a routing event
+   * Record a routing decision (decided, no outcome yet)
    */
   record(event: RoutingEvent): void {
     if (!this.enabled) return;
@@ -186,23 +201,38 @@ class InMemoryMetricsTracker {
   }
 
   /**
+   * Record an observed task outcome for a tier
+   */
+  recordOutcome(outcome: OutcomeEvent): void {
+    if (!this.enabled) return;
+
+    this.outcomes.push(outcome);
+    if (this.outcomes.length > this.maxEvents) {
+      this.outcomes = this.outcomes.slice(-this.maxEvents);
+    }
+  }
+
+  /**
    * Get metrics
    */
   getMetrics(): RouterMetrics {
-    if (this.events.length === 0) {
+    if (this.events.length === 0 && this.outcomes.length === 0) {
       return this.createEmptyMetrics();
     }
 
     const now = new Date();
     const byTier: Partial<Record<ModelTier, TierRoutingMetrics>> = {};
+    const avg = (values: number[]) =>
+      values.length > 0 ? values.reduce((sum, v) => sum + v, 0) / values.length : 0;
 
     // Calculate per-tier metrics
     for (const tier of [0, 1, 2, 3, 4] as ModelTier[]) {
       const tierEvents = this.events.filter((e) => e.tier === tier);
+      const tierOutcomes = this.outcomes.filter((o) => o.tier === tier);
 
-      if (tierEvents.length === 0) continue;
+      if (tierEvents.length === 0 && tierOutcomes.length === 0) continue;
 
-      const successful = tierEvents.filter((e) => e.success);
+      const successfulOutcomes = tierOutcomes.filter((o) => o.success).length;
       const autoRouted = tierEvents.filter((e) => !e.wasManualOverride);
       const downgraded = tierEvents.filter((e) => e.wasDowngraded);
 
@@ -215,14 +245,12 @@ class InMemoryMetricsTracker {
         autoRouteCount: autoRouted.length,
         manualOverrideCount: tierEvents.length - autoRouted.length,
         budgetDowngradeCount: downgraded.length,
-        successRate: successful.length / tierEvents.length,
-        avgComplexity:
-          tierEvents.reduce((sum, e) => sum + e.complexity, 0) /
-          tierEvents.length,
+        successRate: rateOrNull(successfulOutcomes, tierOutcomes.length),
+        observedOutcomes: tierOutcomes.length,
+        successfulOutcomes,
+        avgComplexity: avg(tierEvents.map((e) => e.complexity)),
         totalCostUsd: tierEvents.reduce((sum, e) => sum + e.costUsd, 0),
-        avgLatencyMs:
-          tierEvents.reduce((sum, e) => sum + e.latencyMs, 0) /
-          tierEvents.length,
+        avgLatencyMs: avg(tierEvents.map((e) => e.latencyMs)),
         p95LatencyMs: latencies[p95Index] || 0,
         budgetUtilization: 0, // Would need budget config to calculate
       };
@@ -239,26 +267,32 @@ class InMemoryMetricsTracker {
     const agentBoosterUsed = this.events.filter(
       (e) => e.tier === 0
     ).length;
-    const agentBoosterSuccess = this.events.filter(
-      (e) => e.tier === 0 && e.success
-    ).length;
+    const boosterOutcomes = this.outcomes.filter((o) => o.tier === 0);
+    const boosterSuccess = boosterOutcomes.filter((o) => o.success).length;
+    const successfulOutcomes = this.outcomes.filter((o) => o.success).length;
+    const decisions = Math.max(1, this.events.length);
 
     return {
       byTier,
       totalDecisions: this.events.length,
-      avgDecisionTimeMs:
-        this.events.reduce((sum, e) => sum + e.latencyMs, 0) /
-        this.events.length,
+      avgDecisionTimeMs: avg(this.events.map((e) => e.latencyMs)),
       p95DecisionTimeMs: allLatencies[p95Index] || 0,
       p99DecisionTimeMs: allLatencies[p99Index] || 0,
-      fallbackRate: this.events.filter((e) => e.wasDowngraded).length / this.events.length,
-      ruleMatchRate: this.events.filter((e) => !e.wasManualOverride).length / this.events.length,
+      fallbackRate: this.events.filter((e) => e.wasDowngraded).length / decisions,
+      ruleMatchRate: this.events.filter((e) => !e.wasManualOverride).length / decisions,
       estimatedCostSavings: 0, // Would need to compare with baseline
       agentBoosterStats: {
         eligible: agentBoosterEligible,
         used: agentBoosterUsed,
         fallbackToLLM: Math.max(0, agentBoosterEligible - agentBoosterUsed),
-        successRate: agentBoosterUsed > 0 ? agentBoosterSuccess / agentBoosterUsed : 0,
+        successRate: rateOrNull(boosterSuccess, boosterOutcomes.length),
+        observedOutcomes: boosterOutcomes.length,
+      },
+      outcomeStats: {
+        observed: this.outcomes.length,
+        successful: successfulOutcomes,
+        failed: this.outcomes.length - successfulOutcomes,
+        successRate: rateOrNull(successfulOutcomes, this.outcomes.length),
       },
       budgetStats: {
         totalSpentUsd: this.events.reduce((sum, e) => sum + e.costUsd, 0),
@@ -267,8 +301,10 @@ class InMemoryMetricsTracker {
         overrideCount: this.events.filter((e) => e.wasManualOverride).length,
       },
       period: {
-        start: this.events[0]?.timestamp || now,
-        end: this.events[this.events.length - 1]?.timestamp || now,
+        start: this.events[0]?.timestamp || this.outcomes[0]?.timestamp || now,
+        end: this.outcomes[this.outcomes.length - 1]?.timestamp
+          || this.events[this.events.length - 1]?.timestamp
+          || now,
       },
     };
   }
@@ -278,6 +314,7 @@ class InMemoryMetricsTracker {
    */
   reset(): void {
     this.events = [];
+    this.outcomes = [];
   }
 
   /**
@@ -298,7 +335,14 @@ class InMemoryMetricsTracker {
         eligible: 0,
         used: 0,
         fallbackToLLM: 0,
-        successRate: 0,
+        successRate: null,
+        observedOutcomes: 0,
+      },
+      outcomeStats: {
+        observed: 0,
+        successful: 0,
+        failed: 0,
+        successRate: null,
       },
       budgetStats: {
         totalSpentUsd: 0,
@@ -418,6 +462,9 @@ export class ModelRouter implements IModelRouter {
       // Check cache first
       const cached = this.cache.get(input);
       if (cached) {
+        // A cache hit is still a routing decision; count it so observed
+        // outcomes never outnumber decisions (#1481).
+        this.recordDecision(cached);
         return cached;
       }
 
@@ -441,8 +488,9 @@ export class ModelRouter implements IModelRouter {
       // Cache decision
       this.cache.set(input, decision);
 
-      // Record metrics
-      this.recordMetrics(decision, true);
+      // Record the decision only. Success or failure is unknown until the
+      // task runs and its outcome is reported via recordOutcome (#1481).
+      this.recordDecision(decision);
 
       return decision;
     } catch (error) {
@@ -454,7 +502,7 @@ export class ModelRouter implements IModelRouter {
         error instanceof Error ? error : new Error('Unknown error')
       );
 
-      this.recordMetrics(fallbackDecision, false);
+      this.recordDecision(fallbackDecision);
 
       return fallbackDecision;
     }
@@ -465,6 +513,23 @@ export class ModelRouter implements IModelRouter {
    */
   getMetrics(): RouterMetrics {
     return this.metrics.getMetrics();
+  }
+
+  /**
+   * Report the observed outcome of a task that ran on `tier` (#1481).
+   * This is the only path that records a success or a failure.
+   */
+  recordOutcome(tier: ModelTier, success: boolean, durationMs = 0): void {
+    if (!Number.isInteger(tier) || tier < 0 || tier > 4) {
+      throw new ModelRouterError(`Invalid model tier: ${String(tier)}`, 'INVALID_TIER');
+    }
+    if (typeof success !== 'boolean') {
+      throw new ModelRouterError('Outcome success must be a boolean', 'INVALID_OUTCOME');
+    }
+    const duration = Number.isFinite(durationMs) && durationMs > 0 ? durationMs : 0;
+
+    this.metrics.recordOutcome({ timestamp: new Date(), tier, success });
+    this.recordPersistentOutcome(tier, success, duration).catch(console.error);
   }
 
   /**
@@ -780,10 +845,9 @@ export class ModelRouter implements IModelRouter {
   }
 
   /**
-   * Record metrics for a routing decision
+   * Record a routing decision. A decision carries no success signal (#1481).
    */
-  private recordMetrics(decision: RoutingDecision, success: boolean): void {
-    // Record to in-memory metrics (fast)
+  private recordDecision(decision: RoutingDecision): void {
     this.metrics.record({
       timestamp: decision.metadata.timestamp,
       tier: decision.tier,
@@ -793,34 +857,28 @@ export class ModelRouter implements IModelRouter {
       wasDowngraded: decision.budgetDecision.wasDowngraded,
       wasManualOverride: false, // Would need to track this
       agentBoosterEligible: decision.agentBoosterEligible,
-      success,
     });
-
-    // Also persist to SQLite if tracker is available
-    this.recordPersistentMetrics(decision, success).catch(console.error);
   }
 
   /**
-   * Record metrics to persistent storage
+   * Persist an observed outcome. Routing decisions are not persisted as
+   * outcomes: before #1481 every decision was stored as a success.
    */
-  private async recordPersistentMetrics(
-    decision: RoutingDecision,
-    success: boolean
+  private async recordPersistentOutcome(
+    tier: ModelTier,
+    success: boolean,
+    durationMs: number
   ): Promise<void> {
     if (!this.persistentMetricsTracker) return;
 
     try {
-      const taskId = `router-tier${decision.tier}-${Date.now()}`;
+      const taskId = `router-tier${tier}-${Date.now()}`;
       await this.persistentMetricsTracker.recordOutcome(
         'router',
         taskId,
         success,
-        decision.metadata.decisionTimeMs,
-        {
-          subType: `tier-${decision.tier}`,
-          confidence: decision.confidence,
-          usedFallback: decision.budgetDecision.wasDowngraded,
-        }
+        durationMs,
+        { subType: `tier-${tier}` }
       );
     } catch (error) {
       // Don't let metrics tracking failure affect routing operations

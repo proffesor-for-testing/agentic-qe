@@ -869,6 +869,21 @@ describe('Task Handlers', () => {
       expect(stats.fallbackToLLM).toBeGreaterThanOrEqual(0);
     });
 
+    it('does not count a route as a success (#1481)', async () => {
+      await handleModelRoute({ task: 'Fix a typo' });
+
+      const result = await handleRoutingMetrics({});
+      expect(result.success).toBe(true);
+
+      const { outcomeStats, agentBoosterStats, totalDecisions } = result.data!.modelRouterMetrics;
+      expect(totalDecisions).toBeGreaterThan(0);
+      // No task ran, so nothing was observed: no success rate, not 100%.
+      expect(outcomeStats.observed).toBe(0);
+      expect(outcomeStats.successRate).toBeNull();
+      expect(agentBoosterStats.observedOutcomes).toBe(0);
+      expect(agentBoosterStats.successRate).toBeNull();
+    });
+
     it('should include budget stats', async () => {
       const result = await handleRoutingMetrics({});
 

@@ -149,6 +149,12 @@ export interface SyncSource {
   /** JSON path (for JSON sources) */
   jsonPath?: string;
 
+  /**
+   * #1384: values of the cloud `key` column that `aqe sync verify` leaves out
+   * of both counts, such as rows an earlier version uploaded.
+   */
+  verifyExcludeKeys?: string[];
+
   /** Whether this source is enabled */
   enabled?: boolean;
 }
@@ -255,6 +261,12 @@ export interface DataReader<T = unknown> {
   /** Get record count */
   count(): Promise<number>;
 
+  /**
+   * #1384: entries the last read skipped as not records of this source
+   * (reported as skipped; the source still succeeds). Null when none.
+   */
+  skippedOnRead?(): { count: number; reason: string } | null;
+
   /** Close the reader */
   close(): Promise<void>;
 }
@@ -307,6 +319,12 @@ export interface UpsertOptions {
    * a successful sync of fewer records (the writer still skips them).
    */
   onSkipped?: (count: number, reason: string) => void;
+
+  /**
+   * #1432: called with the record columns the cloud table does not have.
+   * Their values are not uploaded; the rest of each record is.
+   */
+  onMissingColumns?: (columns: string[]) => void;
 }
 
 /**
@@ -368,8 +386,43 @@ export interface PullSource {
   /** Columns to strip from cloud records before local insert */
   dropColumns?: string[];
 
-  /** Type transforms for specific columns */
-  transforms?: Record<string, 'boolean-to-int' | 'jsonb-to-text' | 'timestamptz-to-text'>;
+  /**
+   * Type transforms for specific columns. #1409: `json-string-to-text`
+   * unquotes a value an earlier version stored JSON-quoted (#1407).
+   */
+  transforms?: Record<string, 'boolean-to-int' | 'jsonb-to-text' | 'timestamptz-to-text' | 'json-string-to-text' | 'timestamptz-to-epoch-ms'>;
+
+  /**
+   * #1409: values for local NOT NULL columns the cloud table has no column
+   * for. `{env}` is replaced with the row's source_env.
+   */
+  fill?: Record<string, string>;
+
+  /**
+   * #1432: values for local NOT NULL columns that are NULL in the cloud, e.g.
+   * a column added to the cloud table after its rows were uploaded.
+   */
+  defaults?: Record<string, unknown>;
+
+  /**
+   * #1409: skip rows this machine uploaded itself (source_env equal to the
+   * local environment), so a pull never copies local data back as a
+   * second row.
+   */
+  excludeOwnEnvironment?: boolean;
+
+  /** #1409: skip cloud rows whose `column` starts with `prefix`. */
+  excludePrefix?: { column: string; prefix: string };
+
+  /** #1409: insert new rows only; a row already in the local table is kept as it is. */
+  insertOnly?: boolean;
+
+  /**
+   * #1436: when the mapped local `id` is NULL (a cloud row uploaded without its
+   * local id), use `<prefix><source_env>:<cloud id>`, so pulling the row again
+   * finds it instead of inserting it once more.
+   */
+  fallbackIdPrefix?: string;
 }
 
 /**
@@ -396,7 +449,26 @@ export interface PullConfig {
 
   /** Only pull specific tables */
   tables?: string[];
+
+  /**
+   * #1409: this machine's environment, the one `aqe sync` uploads as
+   * (AQE_ENV, default 'devpod'). Sources with excludeOwnEnvironment skip it.
+   */
+  localEnvironment?: string;
 }
+
+/** #1409: rl_q_values.algorithm of Q-values pulled from another environment. */
+export const PULLED_Q_ALGORITHM = 'cloud-sync';
+
+/** #1409: kv_store namespace prefix of claude-flow memories pulled from another environment. */
+export const PULLED_CLAUDE_FLOW_NAMESPACE_PREFIX = 'claude-flow-cloud:';
+
+/**
+ * #1436: captured_experiences.source of experiences pulled from another
+ * environment (`cloud-sync:<env>`). The push of root-captured-experiences
+ * leaves them out, so they are not uploaded again as this machine's rows.
+ */
+export const PULLED_EXPERIENCE_SOURCE_PREFIX = 'cloud-sync:';
 
 /**
  * Default pull configuration
@@ -414,6 +486,7 @@ export const DEFAULT_PULL_CONFIG: PullConfig = {
     tunnelPort: parseInt(process.env.GCP_TUNNEL_PORT || '15432', 10),
   },
   environment: process.env.AQE_ENV || 'all',
+  localEnvironment: process.env.AQE_ENV || 'devpod',
   batchSize: 1000,
   sources: [
     // QE Patterns (cloud 0 records, but may grow)
@@ -486,6 +559,8 @@ export const DEFAULT_PULL_CONFIG: PullConfig = {
       mode: 'append',
       dropColumns: ['id', 'source_env', 'sync_version'],
       columnMap: {
+        // #1436: the origin's experience id, so a second pull of the same row is ignored
+        local_id: 'id',
         agent_id: 'agent',
         task_id: 'task',
         task_type: 'domain',
@@ -496,6 +571,13 @@ export const DEFAULT_PULL_CONFIG: PullConfig = {
         episode_id: 'tags',
         created_at: 'started_at',
       },
+      // #1436: mark pulled experiences, so the push leaves them out, and keep a
+      // row already present (same origin id) as it is.
+      fill: { source: `${PULLED_EXPERIENCE_SOURCE_PREFIX}{env}` },
+      // Rows uploaded before migration 004 have no local_id.
+      fallbackIdPrefix: 'cloud:',
+      excludeOwnEnvironment: true,
+      insertOnly: true,
     },
     // Q-learning patterns → rl_q_values (3 records)
     {
@@ -511,6 +593,16 @@ export const DEFAULT_PULL_CONFIG: PullConfig = {
         action: 'action_key',
         last_update: 'updated_at',
       },
+      // #1409: rl_q_values needs algorithm and agent_id, which the cloud does
+      // not keep. Pulled rows are marked as copies from another environment:
+      // AQE's routing and Q updates leave cloud-sync rows out, and so does the
+      // push of root-rl-q-values.
+      fill: { algorithm: PULLED_Q_ALGORITHM, agent_id: '{env}' },
+      transforms: { state: 'json-string-to-text', action: 'json-string-to-text' },
+      // #1415: ruvector rows belong to ruvector, not AQE's Q-table.
+      excludePrefix: { column: 'state', prefix: 'ruvector:' },
+      excludeOwnEnvironment: true,
+      insertOnly: true,
     },
     // Routing outcomes (186 records)
     {
@@ -521,6 +613,8 @@ export const DEFAULT_PULL_CONFIG: PullConfig = {
       priority: 'medium',
       mode: 'append',
       dropColumns: ['source_env', 'sync_version'],
+      // #1432: cloud rows uploaded before migration 003 have no exploration value.
+      defaults: { exploration: 0 },
     },
     // QE trajectories (0 records in cloud currently)
     {
@@ -552,7 +646,14 @@ export const DEFAULT_PULL_CONFIG: PullConfig = {
       priority: 'low',
       mode: 'incremental',
       dropColumns: ['source_env', 'sync_version'],
-      columnMap: { partition: 'namespace' },
+      // #1409: the cloud has no namespace column; kv_store.namespace is
+      // NOT NULL. Each environment's memories get their own namespace, which
+      // the push of root-kv-store leaves out.
+      fill: { namespace: `${PULLED_CLAUDE_FLOW_NAMESPACE_PREFIX}{env}` },
+      // kv_store.created_at is epoch milliseconds, not the cloud's TIMESTAMPTZ.
+      transforms: { created_at: 'timestamptz-to-epoch-ms' },
+      excludeOwnEnvironment: true,
+      insertOnly: true,
     },
     // NOTE: intelligence-qlearning (JSON push source) is NOT pulled back —
     // the cloud qlearning_patterns table is already pulled via the qlearning-patterns source above.
@@ -670,11 +771,16 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
         targetTable: 'aqe.memory_entries',
         priority: 'high',
         mode: 'incremental',
-        query: "SELECT key, namespace as partition, CASE WHEN json_valid(value) THEN value ELSE json_quote(value) END as value, created_at, expires_at FROM kv_store WHERE json_valid(value) OR json_valid(json_quote(value))",
+        // #1409: claude-flow memories pulled from other environments are not uploaded again.
+        query: "SELECT key, namespace as partition, CASE WHEN json_valid(value) THEN value ELSE json_quote(value) END as value, created_at, expires_at FROM kv_store WHERE (json_valid(value) OR json_valid(json_quote(value))) AND namespace NOT LIKE 'claude-flow-cloud:%'",
         enabled: true,
       },
       // Captured experiences → cloud learning_experiences (854+ records)
-      // Cloud id is SERIAL (auto-increment) — omit local UUID id
+      // Cloud id is SERIAL (auto-increment); the local UUID goes to local_id, and
+      // UNIQUE(local_id, source_env) makes a re-sync match the row instead of adding one (#1436).
+      // Append mode: a full sync fills columns still NULL in the cloud, it does not overwrite.
+      // Rows pulled from another environment (source cloud-sync:*, or a NULL id left by
+      // pulls before #1436) are not this machine's experiences and are not uploaded.
       {
         name: 'root-captured-experiences',
         type: 'sqlite',
@@ -682,7 +788,7 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
         targetTable: 'aqe.learning_experiences',
         priority: 'high',
         mode: 'append',
-        query: "SELECT agent as agent_id, task as task_id, domain as task_type, COALESCE(result_json, '{}') as state, COALESCE(steps_json, '{}') as action, quality as reward, COALESCE(routing_json, '{}') as next_state, tags as episode_id, started_at as created_at FROM captured_experiences",
+        query: "SELECT id as local_id, agent as agent_id, task as task_id, domain as task_type, COALESCE(result_json, '{}') as state, COALESCE(steps_json, '{}') as action, quality as reward, COALESCE(routing_json, '{}') as next_state, tags as episode_id, started_at as created_at FROM captured_experiences WHERE id IS NOT NULL AND COALESCE(source, '') NOT LIKE 'cloud-sync:%'",
         enabled: true,
       },
       // GOAP plans (91+ records)
@@ -705,7 +811,8 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
         targetTable: 'aqe.qlearning_patterns',
         priority: 'medium',
         mode: 'incremental',
-        query: "SELECT DISTINCT state_key as state, action_key as action, q_value, visits, updated_at as last_update, created_at FROM rl_q_values GROUP BY state_key, action_key",
+        // #1409: Q-values pulled from other environments are not uploaded again.
+        query: "SELECT DISTINCT state_key as state, action_key as action, q_value, visits, updated_at as last_update, created_at FROM rl_q_values WHERE algorithm <> 'cloud-sync' GROUP BY state_key, action_key",
         enabled: true,
       },
       // Routing outcomes (184+ records) - model routing decisions
@@ -749,9 +856,11 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
         targetTable: 'aqe.claude_flow_memory',
         priority: 'medium',
         mode: 'full',
+        // #1384: before 3.15.20 the whole store was uploaded as these two rows.
+        verifyExcludeKeys: ['entries', 'version'],
         enabled: true,
       },
-      // Intelligence JSON (Q-Learning)
+      // Intelligence JSON: Q-learning patterns, {"state|action": {state, action, q_value, visits, last_update}}
       {
         name: 'intelligence-qlearning',
         type: 'json',
@@ -759,8 +868,31 @@ export const DEFAULT_SYNC_CONFIG: SyncConfig = {
         targetTable: 'aqe.qlearning_patterns',
         priority: 'low',
         mode: 'full',
-        jsonPath: '$.qvalues',
+        jsonPath: '$.patterns', // #1384: real intelligence.json keeps its Q-patterns here
         enabled: true,
+      },
+      // #1408: daemon worker stats (run/success/failure counts and timings, no content).
+      {
+        name: 'claude-flow-daemon-workers',
+        type: 'json',
+        path: './.claude-flow/daemon-state.json',
+        targetTable: 'aqe.claude_flow_workers',
+        priority: 'low',
+        mode: 'full',
+        enabled: true,
+      },
+      // #1408: intelligence.json memories hold what was read, run and edited
+      // (content and embeddings), so they are not uploaded unless asked for:
+      // `aqe sync --full --sources intelligence-memories`.
+      {
+        name: 'intelligence-memories',
+        type: 'json',
+        path: './.ruvector/intelligence.json',
+        targetTable: 'aqe.intelligence_memories',
+        priority: 'low',
+        mode: 'full',
+        jsonPath: '$.memories',
+        enabled: false,
       },
     ],
   },

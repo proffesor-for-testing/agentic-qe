@@ -6,7 +6,7 @@
 
 import { existsSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'fs';
 import { basename, dirname, join, resolve } from 'path';
-import Database from 'better-sqlite3';
+import type { SqliteDatabase } from '../../shared/sqlite-types.js';
 import {
   createRvfStore,
   openRvfStore,
@@ -248,7 +248,7 @@ function isPidAlive(pid: number): boolean {
 
 /** Export brain state to a single `.rvf` file with vector embeddings + kernel. */
 export function exportBrainToRvf(
-  db: Database.Database,
+  db: SqliteDatabase,
   options: RvfBrainExportOptions,
   sourceDbLabel = 'memory.db'
 ): RvfBrainManifest {
@@ -587,7 +587,7 @@ const LEGACY_FIELD_MAP: Record<string, string> = {
 
 /** Import brain state from a `.rvf` file into a SQLite database. */
 export function importBrainFromRvf(
-  db: Database.Database,
+  db: SqliteDatabase,
   rvfPath: string,
   options: RvfBrainImportOptions
 ): RvfBrainImportResult {

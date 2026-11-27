@@ -68,7 +68,9 @@ export type IndexSkipReason =
   | 'outside-project-root'
   | 'unreadable'
   | 'excluded-by-language'
-  | 'excluded-test-file';
+  | 'excluded-test-file'
+  /** #1350: the file has more than one hardlink and the reader's policy refuses it. */
+  | 'hardlinked';
 
 export interface SkippedIndexPath {
   path: string;

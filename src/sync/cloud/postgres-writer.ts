@@ -16,6 +16,8 @@ import type { TunnelManager } from './tunnel-manager.js';
 import { validateIdentifier } from '../../shared/sql-safety.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
 import { LoggerFactory } from '../../logging/index.js';
+import { JsonbText } from '../jsonb-text.js';
+import { columnTypesQuery, serializeForKind, toColumnKinds, type ColumnKind } from './column-types.js';
 
 const logger = LoggerFactory.create('postgres-writer');
 
@@ -77,6 +79,8 @@ const PG_REINSTALL_HINT = 'Reinstall agentic-qe (or run `npm install` in the pro
  */
 export class PostgresWriter implements CloudWriter {
   private client: PgClient | null = null;
+  /** #1407: column kinds per table, read once per connection. */
+  private columnKinds = new Map<string, Map<string, ColumnKind>>();
   private readonly config: PostgresWriterConfig;
   private inTransaction = false;
   private connected = false;
@@ -218,7 +222,24 @@ export class PostgresWriter implements CloudWriter {
 
     // Get columns from first record
     const firstRecord = records[0] as Record<string, unknown>;
-    const columns = Object.keys(firstRecord);
+    const kinds = await this.columnKindsFor(table);
+    // #1432: a column the cloud table does not have would reject every row
+    // ("column ... does not exist"). It is left out and reported instead, so
+    // the rest of the row is uploaded. Kept when the table's columns are unknown.
+    const recordColumns = Object.keys(firstRecord);
+    const columns = kinds.size > 0 ? recordColumns.filter(c => kinds.has(c)) : recordColumns;
+    const missing = recordColumns.filter(c => !columns.includes(c));
+    // #1436: without its key column the table has no conflict target, and every
+    // sync would insert each row again. Refuse instead of duplicating.
+    const missingKey = missing.filter(c => requiredKeyColumns(table).includes(c));
+    if (missingKey.length > 0) {
+      throw new Error(
+        `${table} has no ${missingKey.join(', ')} column, so rows cannot be matched and every sync would ` +
+        'duplicate them. Re-apply the cloud schema (aqe sync init --output cloud-schema.sql, then run it with psql; ' +
+        'or run src/sync/schema/migration-004.sql) and sync again.',
+      );
+    }
+    if (missing.length > 0) options?.onMissingColumns?.(missing);
 
     // Build upsert SQL
     const conflictColumns = options?.conflictColumns || this.inferConflictColumns(table, columns);
@@ -231,7 +252,7 @@ export class PostgresWriter implements CloudWriter {
     for (let i = 0; i < records.length; i += batchSize) {
       const batch = records.slice(i, i + batchSize);
       try {
-        const inserted = await this.upsertBatch(table, batch, columns, conflictColumns, updateColumns, options?.skipIfExists);
+        const inserted = await this.upsertBatch(table, batch, columns, conflictColumns, updateColumns, options?.skipIfExists, kinds);
         totalInserted += inserted;
       } catch (error) {
         // Retry failed batch with individual inserts (handles oversized batches and isolated bad records)
@@ -243,7 +264,7 @@ export class PostgresWriter implements CloudWriter {
         let firstReason = '';
         for (const record of batch) {
           try {
-            const inserted = await this.upsertBatch(table, [record], columns, conflictColumns, updateColumns, options?.skipIfExists);
+            const inserted = await this.upsertBatch(table, [record], columns, conflictColumns, updateColumns, options?.skipIfExists, kinds);
             recovered += inserted;
           } catch (retryError) {
             // Skip this individual record, and report it (#1361)
@@ -273,7 +294,8 @@ export class PostgresWriter implements CloudWriter {
     columns: string[],
     conflictColumns: string[],
     updateColumns: string[],
-    skipIfExists?: boolean
+    skipIfExists?: boolean,
+    kinds: Map<string, ColumnKind> = new Map()
   ): Promise<number> {
     if (!this.client) return 0;
 
@@ -287,7 +309,7 @@ export class PostgresWriter implements CloudWriter {
       for (const col of columns) {
         const value = (record as Record<string, unknown>)[col];
         recordValues.push(`$${paramIndex++}`);
-        params.push(this.serializeValue(value, col));
+        params.push(this.serializeValue(value, col, kinds.get(col)));
       }
       valuePlaceholders.push(`(${recordValues.join(', ')})`);
     }
@@ -301,7 +323,15 @@ export class PostgresWriter implements CloudWriter {
     // Build ON CONFLICT clause (only when conflict columns are inferred/specified)
     let conflictClause = '';
     if (safeConflictColumns.length > 0) {
-      if (skipIfExists) {
+      if (skipIfExists && safeUpdateColumns.length > 0) {
+        // #1432: an append source never overwrites a cloud value, but fills
+        // one that is still NULL, e.g. a column added to the cloud table after
+        // the row was uploaded without it. Rows with nothing to fill are left
+        // alone (and not counted).
+        const fillSet = safeUpdateColumns.map(col => `${col} = COALESCE(existing.${col}, EXCLUDED.${col})`).join(', ');
+        const needsFill = safeUpdateColumns.map(col => `(existing.${col} IS NULL AND EXCLUDED.${col} IS NOT NULL)`).join(' OR ');
+        conflictClause = `ON CONFLICT (${safeConflictColumns.join(', ')}) DO UPDATE SET ${fillSet} WHERE ${needsFill}`;
+      } else if (skipIfExists) {
         conflictClause = `ON CONFLICT (${safeConflictColumns.join(', ')}) DO NOTHING`;
       } else if (safeUpdateColumns.length > 0) {
         const updateSet = safeUpdateColumns.map(col => `${col} = EXCLUDED.${col}`).join(', ');
@@ -311,7 +341,7 @@ export class PostgresWriter implements CloudWriter {
     // No ON CONFLICT for tables without a matching constraint (plain INSERT)
 
     const sql = `
-      INSERT INTO ${safeTable} (${safeColumns.join(', ')})
+      INSERT INTO ${safeTable} AS existing (${safeColumns.join(', ')})
       VALUES ${valuePlaceholders.join(', ')}
       ${conflictClause}
     `;
@@ -359,6 +389,7 @@ export class PostgresWriter implements CloudWriter {
     const stopTunnel = this.startedTunnel;
     this.client = null;
     this.connected = false;
+    this.columnKinds.clear();
     this.inTransaction = false;
     this.startedTunnel = false;
 
@@ -389,9 +420,20 @@ export class PostgresWriter implements CloudWriter {
   /**
    * Serialize value for PostgreSQL
    */
-  private serializeValue(value: unknown, columnName?: string): unknown {
+  private serializeValue(value: unknown, columnName?: string, kind?: ColumnKind): unknown {
     if (value === null || value === undefined) {
       return null;
+    }
+
+    // #1407: the column's real type decides; the name-based guesses below
+    // only apply to a column whose type could not be read.
+    if (kind) {
+      return serializeForKind(value, kind);
+    }
+
+    // #1384: already JSON for a JSONB column; no per-value guessing.
+    if (value instanceof JsonbText) {
+      return value.text;
     }
 
     // Handle BLOB embeddings (Buffer)
@@ -484,6 +526,25 @@ export class PostgresWriter implements CloudWriter {
   }
 
   /**
+   * #1407: the kinds of a table's columns, from information_schema. Empty
+   * (name-based fallback) when they cannot be read.
+   */
+  private async columnKindsFor(table: string): Promise<Map<string, ColumnKind>> {
+    const cached = this.columnKinds.get(table);
+    if (cached) return cached;
+    let kinds = new Map<string, ColumnKind>();
+    try {
+      const { sql, params } = columnTypesQuery(table);
+      const result = await this.client!.query(sql, params);
+      kinds = toColumnKinds(result.rows as Array<{ column_name: string; data_type: string; udt_name: string }>);
+    } catch (error) {
+      logger.debug(`Column types unavailable for ${table}; using name-based serialization`, { error: toErrorMessage(error) });
+    }
+    this.columnKinds.set(table, kinds);
+    return kinds;
+  }
+
+  /**
    * Check if a column is a JSONB column
    */
   private isJsonbColumn(columnName: string): boolean {
@@ -530,6 +591,11 @@ export class PostgresWriter implements CloudWriter {
       return ['state', 'action', 'source_env'];
     }
 
+    // learning_experiences: unique(local_id, source_env) (#1436, migration 004)
+    if (tableName === 'learning_experiences' && columns.includes('local_id') && columns.includes('source_env')) {
+      return ['local_id', 'source_env'];
+    }
+
     // claude_flow_workers: unique(worker_type, source_env)
     if (tableName === 'claude_flow_workers' && columns.includes('worker_type') && columns.includes('source_env')) {
       return ['worker_type', 'source_env'];
@@ -538,6 +604,19 @@ export class PostgresWriter implements CloudWriter {
     // No conflict columns → plain INSERT (no ON CONFLICT clause)
     return [];
   }
+}
+
+/**
+ * #1436: columns a table's rows are matched on. An upload whose records carry one of
+ * these must not go ahead when the cloud table lacks it.
+ */
+const REQUIRED_KEY_COLUMNS: Record<string, string[]> = {
+  learning_experiences: ['local_id'],
+};
+
+function requiredKeyColumns(table: string): string[] {
+  const tableName = table.includes('.') ? table.split('.')[1] : table;
+  return REQUIRED_KEY_COLUMNS[tableName] ?? [];
 }
 
 /**

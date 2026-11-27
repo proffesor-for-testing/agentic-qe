@@ -25,7 +25,11 @@ import {
   extractAgentFromEvent,
   readStdinJsonEvent,
 } from './hooks-shared.js';
-import { ensureRoutingOutcomesAdr095Columns } from '../../../routing/routing-outcomes-migration.js';
+import {
+  ensureRoutingOutcomesAdr095Columns,
+  OBSERVED_ROUTING_OUTCOME_SQL,
+  resolveObservedHookOutcome,
+} from '../../../routing/routing-outcomes-migration.js';
 import { deriveTaskType } from '../../../learning/agent-routing.js';
 import { detectQEDomains } from '../../../learning/qe-patterns.js';
 import { parseNestingProvenance } from './nesting-provenance.js';
@@ -152,7 +156,7 @@ export function registerTaskHooks(hooks: Command): void {
                      ROUND(AVG(quality_score), 3) AS avgQuality,
                      COUNT(*) AS n
               FROM routing_outcomes
-              WHERE success = 1 AND quality_score >= 0
+              WHERE success = 1 AND ${OBSERVED_ROUTING_OUTCOME_SQL}
               GROUP BY used_agent
               ORDER BY avgQuality DESC, n DESC
               LIMIT 1
@@ -276,6 +280,8 @@ export function registerTaskHooks(hooks: Command): void {
                   qWeight: routingWithTelemetry.qWeight ?? null,
                 }),
                 routing.recommendedAgent,
+                // Placeholder: which agent ran is unknown at decide time.
+                // Readers never use followed_recommendation from hook rows (#1481).
                 1,
                 0,    // success = 0 (sentinel — post-task UPDATEs to actual)
                 -1,   // quality_score = -1 sentinel
@@ -358,7 +364,8 @@ export function registerTaskHooks(hooks: Command): void {
     .command('post-task')
     .description('Record task outcome for pattern learning')
     .option('--task-id <id>', 'Task identifier')
-    .option('--success [bool]', 'Whether task succeeded', 'true')
+    .option('--outcome <result>', 'Observed task result: success | failure. Only this records a routing outcome (#1481)')
+    .option('--success [bool]', 'Whether task succeeded, for pattern learning. Deprecated and ignored for routing outcomes: use --outcome (#1481)')
     .option('--agent <name>', 'Agent that executed the task')
     .option('--duration <ms>', 'Task duration in milliseconds')
     .option('-d, --description <desc>', 'Task description — fallback Q-state source when pre-task bridge is absent (issue #499)')
@@ -367,7 +374,15 @@ export function registerTaskHooks(hooks: Command): void {
     .option('--json', 'Output as JSON')
     .action(async (options) => {
       try {
-        const success = options.success === 'true' || options.success === true;
+        // #1481: the installed PostToolUse hook passed a constant
+        // `--success true`. Routing outcomes (the routing_outcomes sentinel
+        // and the hook-router Q-value) record only an --outcome result.
+        const observed = resolveObservedHookOutcome(options);
+        // The other learning streams keep their previous reading of --success
+        // (absent or "true" = success); tracked separately in #1493.
+        const success = observed !== null
+          ? observed === 'success'
+          : options.success !== 'false' && options.success !== false;
 
         // Issue #460 fix: `$TOOL_INPUT_subagent_type` env-var substitution is
         // not reliable on every hook surface (same class of problem as
@@ -469,12 +484,16 @@ export function registerTaskHooks(hooks: Command): void {
 
             // Stream D (patch 150): apply 6-dim outcome quality to the
             // routing_outcomes sentinel that pre-task wrote with quality=-1.
-            await updateRoutingOutcomeQuality({
-              agent: effectiveAgent,
-              success,
-              durationMs,
-              qualityScore: outcome.qualityScore,
-            });
+            // #1481: only an observed result closes it; an unobserved one
+            // leaves the sentinel open, which metrics already exclude.
+            if (observed) {
+              await updateRoutingOutcomeQuality({
+                agent: effectiveAgent,
+                success,
+                durationMs,
+                qualityScore: outcome.qualityScore,
+              });
+            }
 
             // Stream F (patch 280): Bellman Q-update for the hook-router state.
             //
@@ -496,7 +515,7 @@ export function registerTaskHooks(hooks: Command): void {
             // bridge still carries `complexityBucket` for kv_store schema
             // compatibility but we don't read it here.
             const taskDescription = String(options.description ?? '');
-            if (outcome.bridge || taskDescription) {
+            if (observed && (outcome.bridge || taskDescription)) {
               const taskType =
                 outcome.bridge?.taskType ?? deriveTaskType(taskDescription);
               const priority = outcome.bridge?.priority ?? 'normal';
@@ -535,6 +554,7 @@ export function registerTaskHooks(hooks: Command): void {
             success: true,
             taskId: options.taskId,
             taskSuccess: success,
+            routingOutcomeObserved: observed !== null,
             patternsLearned,
             dreamTriggered: false,
             dreamReason: 'deferred-to-kernel',

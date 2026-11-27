@@ -27,22 +27,19 @@
  * flywheel actually optimizes.
  */
 
-import { join } from 'node:path';
-import type BetterSqlite3 from 'better-sqlite3';
+import type { SqliteDatabase } from '../../shared/sqlite-types.js';
 import type { RetrievalPolicy } from './policy.js';
 import type { PolicyScorer, PolicyScores } from './generation.js';
 import { loadAnchorSet, anchorMean, type AnchorItem } from '../../validation/anchor-set.js';
 import { evaluateOracle } from '../../validation/oracle-eval.js';
+import { defaultAnchorPath } from '../../validation/anchor-path.js';
 
-type SqliteDb = BetterSqlite3.Database;
-
-/** Default frozen anchor location (ADR-117), consistent with anchor-set tests. */
-export const DEFAULT_ANCHOR_PATH = join(process.cwd(), 'verification/anchors/qe-anchor-v1.json');
+type SqliteDb = SqliteDatabase;
 
 export interface CorpusScorerOptions {
   /** Read-only handle to the corpus DB (must expose a `qe_patterns` table). */
   db: SqliteDb;
-  /** Frozen anchor path (ADR-117). Defaults to the pinned qe-anchor-v1. */
+  /** Frozen anchor path (ADR-117). Defaults to the pinned qe-anchor-v1 shipped with the package. */
   anchorPath?: string;
   /**
    * Fraction of patterns used as held-out queries (deterministic id-sorted
@@ -356,7 +353,7 @@ function gradeAnchor(anchorPath: string): number {
  * varies with the policy.
  */
 export function createCorpusScorer(opts: CorpusScorerOptions): PolicyScorer {
-  const anchorPath = opts.anchorPath ?? DEFAULT_ANCHOR_PATH;
+  const anchorPath = opts.anchorPath ?? defaultAnchorPath(); // shipped anchor, package root (#1454)
   const ratio = opts.heldOutRatio ?? 1;
   const corpus = loadCorpus(opts.db);
   let anchorMeanCached: number | null = null;

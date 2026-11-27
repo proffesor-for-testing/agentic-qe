@@ -9,7 +9,7 @@
  * Idempotent: running twice creates zero new entries.
  */
 
-import { type Database as DatabaseType } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType } from '../shared/sqlite-types.js';
 import { type WitnessChain } from './witness-chain.js';
 
 /**

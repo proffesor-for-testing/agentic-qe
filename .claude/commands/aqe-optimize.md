@@ -147,30 +147,30 @@ Task("Optimize test suite for efficiency", `
 
 ```bash
 # Retrieve test suite metadata
-npx claude-flow@alpha memory retrieve --key "aqe/test-suite/${suite}"
+npx ruflo@3.76.0 memory retrieve --key "aqe/test-suite/${suite}"
 
 # Retrieve coverage matrix
-npx claude-flow@alpha memory retrieve --key "aqe/coverage-matrix"
+npx ruflo@3.76.0 memory retrieve --key "aqe/coverage-matrix"
 
 # Retrieve execution history
-npx claude-flow@alpha memory retrieve --key "aqe/execution-history"
+npx ruflo@3.76.0 memory retrieve --key "aqe/execution-history"
 ```
 
 ### Output Memory Keys
 
 ```bash
 # Store optimization results
-npx claude-flow@alpha memory store \
+npx ruflo@3.76.0 memory store \
   --key "aqe/optimization/results" \
   --value '{"testsBefore": 120, "testsAfter": 85, "coverageDelta": 0.2}'
 
 # Store optimized suite
-npx claude-flow@alpha memory store \
+npx ruflo@3.76.0 memory store \
   --key "aqe/optimized-suite" \
   --value '{"tests": ["test1.ts", "test2.ts"], "metadata": {}}'
 
 # Store optimization metrics
-npx claude-flow@alpha memory store \
+npx ruflo@3.76.0 memory store \
   --key "aqe/optimization-metrics" \
   --value '{"timeSaved": 45, "testsRemoved": 35}'
 ```
@@ -180,23 +180,28 @@ npx claude-flow@alpha memory store \
 ### Pre-Task Hook
 
 ```bash
-npx claude-flow@alpha hooks pre-task \
-  --description "Optimize ${target} with ${algorithm}" \
-  --agent "qe-coverage-analyzer"
+# One id per run; post-task below records the outcome against it
+OPT_ID="aqe-optimize-$(date +%s)"
+npx ruflo@3.76.0 hooks pre-task \
+  --task-id "${OPT_ID}" \
+  --description "Optimize ${target} with ${algorithm}"
 ```
 
 ### Post-Task Hook
 
 ```bash
-npx claude-flow@alpha hooks post-task \
-  --task-id "${OPT_ID}" \
-  --results "${OPT_RESULTS}"
+# Set TASK_SUCCEEDED to true or false from the actual result; results go to `memory store` above
+npx ruflo@3.76.0 hooks post-task \
+  --task-id "${OPT_ID:?run the pre-task block first, in the same shell}" \
+  --success "${TASK_SUCCEEDED:?set to true or false}" \
+  --agent "qe-coverage-specialist" \
+  --task "Optimize ${target} with ${algorithm}"
 ```
 
 ### Notify Fleet
 
 ```bash
-npx claude-flow@alpha hooks notify \
+npx ruflo@3.76.0 hooks notify \
   --message "Optimization: ${TEST_REDUCTION}% fewer tests, ${TIME_SAVED}s saved"
 ```
 

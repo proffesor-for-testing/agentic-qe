@@ -1,4 +1,4 @@
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType } from '../shared/sqlite-types.js';
 
 export const MIGRATION_VERSION = '20260830_add_learning_evidence_tables';
 

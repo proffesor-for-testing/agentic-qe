@@ -13,7 +13,13 @@ import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMem
 import { ToolResult } from '../../types';
 import { createVisualTesterServiceWithDependencies, VisualTesterService } from '../../../domains/visual-accessibility/services/visual-tester';
 import { AccessibilityTesterService } from '../../../domains/visual-accessibility/services/accessibility-tester';
-import { toErrorMessage } from '../../../shared/error-utils.js';
+import { auditUrlProblem } from '../../../domains/visual-accessibility/services/audit-url-policy';
+import { notRunEvidence, resolveAuditProfile, unreportedEvidence } from '../../../domains/visual-accessibility/services/audit-profile';
+import { buildAuditOutcome } from '../../../domains/visual-accessibility/services/audit-outcome';
+import type {
+  AuditOutcome, AuditRuleProfile, AuditScanEvidence,
+} from '../../../domains/visual-accessibility/interfaces';
+import { isCallerInputError, toErrorMessage } from '../../../shared/error-utils.js';
 
 // ============================================================================
 // Visual Compare Types
@@ -80,6 +86,8 @@ export interface VisualSummary {
 export interface A11yAuditParams {
   urls: string[];
   standard?: 'wcag21-aa' | 'wcag21-aaa' | 'wcag22-aa' | 'section508';
+  /** #1473: add axe-core best-practice rules (not WCAG requirements). Default false. */
+  includeBestPractices?: boolean;
   includeWarnings?: boolean;
   checkContrast?: boolean;
   checkKeyboard?: boolean;
@@ -88,6 +96,8 @@ export interface A11yAuditParams {
 }
 
 export interface A11yAuditResult {
+  /** #1473: the rule profile the standard resolved to, for every URL. */
+  profile: AuditRuleProfile;
   audits: UrlAudit[];
   summary: A11ySummary;
   topIssues: TopIssue[];
@@ -98,13 +108,27 @@ export interface UrlAudit {
   url: string;
   /** 0-100 when measured; -1 when the URL was not measured (#1145). */
   score: number;
+  /** Legacy: the automated scan found no critical or serious violation. Not a conformance verdict (see outcome). */
   passed: boolean;
   violations: A11yViolation[];
   warnings: A11yWarning[];
+  /** #1473: undecided axe-core checks that need a manual review, apart from violations. */
+  needsReview: A11yReviewItem[];
   passedRules: number;
   /** False when no browser audited the URL; it is then neither passing nor failing (#1145). */
   measured?: boolean;
   notMeasuredReason?: string;
+  /** #1473: what ran: effective profile, applied tags, backend, engine version, coverage. */
+  scan: AuditScanEvidence;
+  /** #1473: structured verdict and scope statement for summaries. */
+  outcome: AuditOutcome;
+}
+
+export interface A11yReviewItem {
+  id: string;
+  description: string;
+  reason: string;
+  nodes: number;
 }
 
 export interface A11yViolation {
@@ -350,7 +374,9 @@ export class VisualCompareTool extends MCPToolBase<VisualCompareParams, VisualCo
 export class A11yAuditTool extends MCPToolBase<A11yAuditParams, A11yAuditResult> {
   readonly config: MCPToolConfig = {
     name: 'qe/a11y/audit',
-    description: 'WCAG accessibility auditing with violation detection, contrast checking, and keyboard navigation testing.',
+    // #1473: `passed` is the automated scan's severity threshold, not a conformance verdict
+    description: 'Automated axe-core scan by WCAG 2.1/2.2 or Section 508 rule profile, plus contrast and keyboard checks. ' +
+      'passed = no critical/serious automated finding, not conformance; see outcome and needsReview.',
     domain: 'visual-accessibility',
     schema: A11Y_AUDIT_SCHEMA,
     streaming: true,
@@ -382,11 +408,24 @@ export class A11yAuditTool extends MCPToolBase<A11yAuditParams, A11yAuditResult>
   ): Promise<ToolResult<A11yAuditResult>> {
     const {
       urls,
-      standard = 'wcag21-aa',
       includeWarnings = true,
       checkContrast = true,
       checkKeyboard = true,
     } = params;
+
+    // #1465: only http(s) pages are audited; reject the whole call before any browser work
+    const badUrl = (urls ?? []).map((u) => ({ u, problem: auditUrlProblem(u) })).find((x) => x.problem);
+    if (badUrl) return { success: false, error: `Invalid input: ${badUrl.problem}` };
+
+    // #1473: resolve the standard once into the rule profile the backend runs
+    let profile: AuditRuleProfile;
+    try {
+      profile = resolveAuditProfile(params.standard, { includeBestPractices: params.includeBestPractices === true });
+    } catch (error) {
+      if (isCallerInputError(error)) return { success: false, error: `Invalid input: ${toErrorMessage(error)}` };
+      throw error;
+    }
+    const { standard, wcagLevel } = profile;
 
     try {
       this.emitStream(context, {
@@ -404,9 +443,6 @@ export class A11yAuditTool extends MCPToolBase<A11yAuditParams, A11yAuditResult>
       const service = await this.getService(context);
       const audits: UrlAudit[] = [];
 
-      // Map standard to WCAG level
-      const wcagLevel = standardToWcagLevel(standard);
-
       for (const url of urls) {
         this.emitStream(context, {
           status: 'scanning',
@@ -417,21 +453,27 @@ export class A11yAuditTool extends MCPToolBase<A11yAuditParams, A11yAuditResult>
         const auditResult = await service.audit(url, {
           wcagLevel,
           includeWarnings,
+          profile,
         });
 
         if (!auditResult.success || auditResult.value.measured !== true) {
           // #1145: an unmeasured URL carries no findings and no verdict
+          const notMeasuredReason = auditResult.success
+            ? auditResult.value.notMeasuredReason ?? 'not measured'
+            : auditResult.error.message;
+          const scan = (auditResult.success ? auditResult.value.scan : undefined) ?? notRunEvidence('none', profile);
           audits.push({
             url,
             score: -1,
             passed: false,
             violations: [],
             warnings: [],
+            needsReview: [],
             passedRules: 0,
             measured: false,
-            notMeasuredReason: auditResult.success
-              ? auditResult.value.notMeasuredReason ?? 'not measured'
-              : auditResult.error.message,
+            notMeasuredReason,
+            scan,
+            outcome: buildAuditOutcome({ measured: false, scan, violations: [], needsReview: 0, notMeasuredReason }),
           });
           continue;
         }
@@ -552,18 +594,24 @@ export class A11yAuditTool extends MCPToolBase<A11yAuditParams, A11yAuditResult>
           nodes: i.nodes.length,
         })), ...notMeasuredWarnings];
 
-        const hasCriticalOrSerious = violations.some(
-          (v) => v.impact === 'critical' || v.impact === 'serious'
-        );
+        const needsReview = report.incomplete.map((i) => ({
+          id: i.id, description: i.description, reason: i.reason, nodes: i.nodes.length,
+        }));
+        const scan = withExtraChecks(report.scan ?? unreportedEvidence(profile), checkContrast, checkKeyboard);
+        const outcome = buildAuditOutcome({ measured: true, scan, violations, needsReview: needsReview.length });
 
         audits.push({
           url,
           score: report.score,
-          passed: !hasCriticalOrSerious,
+          // no critical or serious violation, and some rule ran (#1473)
+          passed: outcome.severityThresholdMet,
           violations,
           warnings,
+          needsReview,
           passedRules: report.passes.length,
           measured: true,
+          scan,
+          outcome,
         });
       }
 
@@ -600,6 +648,7 @@ export class A11yAuditTool extends MCPToolBase<A11yAuditParams, A11yAuditResult>
       return {
         success: true,
         data: {
+          profile,
           audits,
           summary,
           topIssues,
@@ -680,9 +729,16 @@ const A11Y_AUDIT_SCHEMA: MCPToolSchema = {
     },
     standard: {
       type: 'string',
-      description: 'WCAG standard to validate against',
+      description: 'Rule profile (default wcag21-aa). Each runs only its own axe-core WCAG tags; section508 runs the ' +
+        'automated WCAG 2.0 A/AA subset of the 2018 baseline. Results report the effective profile and engine version; ' +
+        'if the backend cannot apply it, outcome.status is profile-unavailable and outcome still counts the violations found.',
       enum: ['wcag21-aa', 'wcag21-aaa', 'wcag22-aa', 'section508'],
       default: 'wcag21-aa',
+    },
+    includeBestPractices: {
+      type: 'boolean',
+      description: 'Also run axe-core best-practice rules, which are not WCAG requirements',
+      default: false,
     },
     includeWarnings: {
       type: 'boolean',
@@ -712,16 +768,15 @@ const A11Y_AUDIT_SCHEMA: MCPToolSchema = {
 // Helper Functions
 // ============================================================================
 
-function standardToWcagLevel(standard: string): 'A' | 'AA' | 'AAA' {
-  switch (standard) {
-    case 'wcag21-aaa':
-      return 'AAA';
-    case 'wcag21-aa':
-    case 'wcag22-aa':
-    case 'section508':
-    default:
-      return 'AA';
-  }
+/** Say that the contrast and keyboard passes ran outside the rule profile (#1473). */
+function withExtraChecks(scan: AuditScanEvidence, contrast: boolean, keyboard: boolean): AuditScanEvidence {
+  const extra = [contrast && 'color contrast', keyboard && 'keyboard'].filter(Boolean);
+  if (extra.length === 0) return scan;
+  return {
+    ...scan,
+    limitations: [...scan.limitations,
+      `Separate ${extra.join(' and ')} checks ran outside the rule profile; their findings are included in violations.`],
+  };
 }
 
 function generateVisualRecommendations(comparisons: VisualComparison[], summary: VisualSummary): string[] {

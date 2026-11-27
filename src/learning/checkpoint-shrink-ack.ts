@@ -12,7 +12,7 @@
 
 import { lstatSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType } from '../shared/sqlite-types.js';
 import {
   mirroredTableCounts,
   type CheckpointShrinkAck,

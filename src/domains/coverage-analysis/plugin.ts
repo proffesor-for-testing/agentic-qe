@@ -225,6 +225,8 @@ export class CoverageAnalysisPlugin extends BaseDomainPlugin {
         await this.coordinator.analyze({
           coverageData: payload.coverageData as Parameters<CoverageAnalysisAPI['analyze']>[0]['coverageData'],
           includeFileDetails: true,
+          // #1474: collected by the test run that just finished — fresh for this checkout.
+          evidenceComplete: true,
         });
       } finally {
         this._activeAnalyses--;

@@ -26,7 +26,7 @@
 
 import { existsSync } from 'node:fs';
 import { basename } from 'node:path';
-import { type Database as DatabaseType } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType } from '../shared/sqlite-types.js';
 import { openDatabase } from '../shared/safe-db.js';
 import { WitnessChain, type WitnessEntry } from './witness-chain.js';
 import type { WitnessKeyManager } from './witness-key-manager.js';

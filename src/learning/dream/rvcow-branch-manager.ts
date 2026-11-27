@@ -27,7 +27,7 @@
  */
 
 import { existsSync, unlinkSync } from 'fs';
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType } from '../../shared/sqlite-types.js';
 import type { WitnessChain } from '../../audit/witness-chain.js';
 
 // ============================================================================

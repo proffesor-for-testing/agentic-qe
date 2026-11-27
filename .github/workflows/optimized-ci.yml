@@ -95,6 +95,33 @@ jobs:
           fi
           echo "Publish assets match their sources."
 
+  # ─── Public declarations (#1443) ───
+  # Our .d.ts files ship to every consumer. A type imported from a package
+  # whose types the consumer does not get (a devDependency, or better-sqlite3
+  # whose @types package is a devDependency) is TS7016/TS2307 for consumers
+  # with skipLibCheck: false and a silent `any` for everyone else. Scan the
+  # built declarations, then type-check every typed `exports` entry from a
+  # clean install of the packed tarball with skipLibCheck: false.
+  public-declarations:
+    name: Public Declarations
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: '24.22.1', cache: 'npm' }
+      - run: npm ci
+      - run: npm run build
+      - name: Scan declarations for imports consumers cannot resolve
+        run: node scripts/check-public-declarations.mjs
+      - name: Type-check the packed tarball as a consumer (skipLibCheck false)
+        run: |
+          set -euo pipefail
+          TARBALL=$(npm pack --ignore-scripts --json --pack-destination "${RUNNER_TEMP}" | jq -r '.[0].filename')
+          node scripts/check-public-declarations.mjs --consumer "${RUNNER_TEMP}/${TARBALL}"
+
   # ─── Witness chain audit gate (ADR-070 Phase 6.2 / A13) ───
   # Seeds a throwaway chain (append -> archive -> verify, then a deliberate
   # tamper) and exercises the real `aqe audit verify --chain=audit` path
@@ -189,6 +216,7 @@ jobs:
             tests/integration/feedback/ \
             tests/integration/migration/ \
             tests/integration/opencode/ \
+            tests/integration/packaging/ \
             tests/integration/parsers/ \
             tests/integration/planning/ \
             tests/integration/protocols/ \

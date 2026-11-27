@@ -19,7 +19,7 @@
  * shrink left, so it cannot approve a later, unrelated drop.
  */
 
-import type Database from 'better-sqlite3';
+import type { SqliteDatabase } from '../../shared/sqlite-types.js';
 import { TABLE_CONFIGS, countRows } from './brain-shared.js';
 
 export type RichnessPolicy = 'strict' | 'checkpoint';
@@ -111,7 +111,7 @@ export function assertNotPoorerThanMirror(
 }
 
 /** Row counts of every mirrored table, counted the way the RVF export counts them. */
-export function mirroredTableCounts(db: Database.Database): Record<string, number> {
+export function mirroredTableCounts(db: SqliteDatabase): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const { tableName } of TABLE_CONFIGS) {
     counts[tableName] = tableName === 'vectors'

@@ -1,5 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { mkdtemp, readFile } from 'node:fs/promises';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -10,6 +12,15 @@ import {
   loadQualityEvidence,
 } from '../../../src/cli/commands/quality.js';
 import { qualityGateToMarkdown } from '../../../src/cli/utils/ci-output.js';
+import { createGitCandidateFixture, evidenceKeyFixture } from '../../fixtures/quality-evidence-candidates.js';
+import { resolveQualityEvidenceCandidate } from '../../../src/domains/quality-assessment/evidence-candidate.js';
+
+// #1474: the gate resolves its candidate from the project checkout; point the
+// root at a Git fixture so it resolves, and answer its candidate-bound keys.
+beforeAll(() => {
+  vi.stubEnv('AQE_PROJECT_ROOT', createGitCandidateFixture('aqe-cli-quality-'));
+  return () => vi.unstubAllEnvs();
+});
 
 describe('quality command evidence loading', () => {
   const passing = {
@@ -30,14 +41,8 @@ describe('quality command evidence loading', () => {
   it('loads measured coverage and test pass rate from canonical AgentDB keys', async () => {
     const memory = {
       get: async (key: string) => {
-        const metric = key.split(':')[1] as keyof typeof passing;
-        return {
-          schemaVersion: 1,
-          metric,
-          value: passing[metric],
-          measuredAt: new Date().toISOString(),
-          source: 'test',
-        };
+        const fixture = evidenceKeyFixture(key);
+        return fixture?.record(passing[fixture.metric]);
       },
     };
     const evidence = await loadQualityEvidence(memory as never);
@@ -68,9 +73,9 @@ describe('quality command with unmeasured evidence (#996)', () => {
   const now = () => new Date().toISOString();
   const partialMemory = (present: Record<string, number>) => ({
     get: async (key: string) => {
-      const metric = key.split(':')[1];
-      return metric in present
-        ? { schemaVersion: 1, metric, value: present[metric], measuredAt: now(), source: 'test' }
+      const fixture = evidenceKeyFixture(key);
+      return fixture && fixture.metric in present
+        ? fixture.record(present[fixture.metric], { measuredAt: now() })
         : undefined;
     },
   });
@@ -106,10 +111,11 @@ describe('quality command with unmeasured evidence (#996)', () => {
     const stale = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
     const memory = {
       get: async (key: string) => {
-        const metric = key.split(':')[1];
-        if (metric === 'coverage') return { schemaVersion: 1, metric, value: 90, measuredAt: stale, source: 'test' };
-        if (metric === 'testsPassing') return { schemaVersion: 1, metric, value: 100, source: 'test' };
-        return { schemaVersion: 1, metric, value: 0, measuredAt: fresh, source: 'test' };
+        const fixture = evidenceKeyFixture(key);
+        if (!fixture) return undefined;
+        if (fixture.metric === 'coverage') return fixture.record(90, { measuredAt: stale });
+        if (fixture.metric === 'testsPassing') return fixture.record(100, { measuredAt: undefined });
+        return fixture.record(0, { measuredAt: fresh });
       },
     };
 
@@ -161,5 +167,56 @@ describe('quality command with unmeasured evidence (#996)', () => {
     expect(md).toMatch(/insufficient evidence/i);
     expect(md).toContain('coverage');
     expect(md).not.toContain('PASSED');
+  });
+});
+
+// #1474 re-review BLOCK: `aqe quality --gate -o <path>` must not hide real source changes.
+describe('quality --gate -o registers only its own successfully written report', () => {
+  function sourceProject(): string {
+    const root = createGitCandidateFixture('aqe-cli-o-');
+    mkdirSync(join(root, 'src'));
+    writeFileSync(join(root, 'src', 'add.mjs'), 'export const add = (a, b) => a + b;\n');
+    execFileSync('git', ['-c', 'user.email=f@example.invalid', '-c', 'user.name=f', 'add', '-A'], { cwd: root });
+    execFileSync('git', ['-c', 'user.email=f@example.invalid', '-c', 'user.name=f', 'commit', '-qm', 's'], { cwd: root });
+    vi.stubEnv('AQE_PROJECT_ROOT', root);
+    return root;
+  }
+  async function gate(root: string, output: string) {
+    const exit = vi.fn(async (_code: number) => undefined);
+    const command = createQualityCommand({ kernel: { memory: { get: async () => undefined } } } as never, exit as never, async () => true);
+    await command.parseAsync(['--gate', '--format', 'json', '--output', join(root, output)], { from: 'user' });
+    return exit.mock.calls[0]?.[0];
+  }
+
+  it('-o src: the write fails (exit 1), nothing is registered, and an edit to src still changes the candidate', async () => {
+    const root = sourceProject();
+    const before = resolveQualityEvidenceCandidate(root);
+    expect(await gate(root, 'src')).toBe(1);
+    expect(existsSync(join(root, '.agentic-qe', 'candidate-ignore.json'))).toBe(false);
+    writeFileSync(join(root, 'src', 'add.mjs'), 'export const add = (a, b) => a - b;\n');
+    expect(resolveQualityEvidenceCandidate(root).id).not.toBe(before.id);
+  });
+
+  it('-o gate-report.json: re-gating an unchanged checkout keeps the candidate measured before the report existed', async () => {
+    const root = sourceProject();
+    const measured = resolveQualityEvidenceCandidate(root);
+    expect(await gate(root, 'gate-report.json')).toBe(3);
+    const after = resolveQualityEvidenceCandidate(root);
+    expect(after.id).toBe(measured.id);
+    expect(after).toMatchObject({ dirty: false, ignored: [{ path: 'gate-report.json' }] });
+    expect(await gate(root, 'gate-report.json')).toBe(3);
+    expect(resolveQualityEvidenceCandidate(root).id).toBe(measured.id);
+    writeFileSync(join(root, 'src', 'add.mjs'), 'export const add = () => 0;\n');
+    expect(resolveQualityEvidenceCandidate(root).id).not.toBe(measured.id);
+  });
+
+  it('an -o report the user later overwrites with other content counts again', async () => {
+    const root = sourceProject();
+    const measured = resolveQualityEvidenceCandidate(root);
+    await gate(root, 'gate-report.json');
+    writeFileSync(join(root, 'gate-report.json'), 'export const notAReport = 1;\n');
+    const after = resolveQualityEvidenceCandidate(root);
+    expect(after.id).not.toBe(measured.id);
+    expect(after).toMatchObject({ rejectedIgnores: [{ path: 'gate-report.json' }] });
   });
 });

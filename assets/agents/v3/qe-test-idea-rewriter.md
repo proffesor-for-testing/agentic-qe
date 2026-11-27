@@ -317,7 +317,7 @@ After completing all transformations, you MUST run the validation script to ensu
 
 ### Validation Command
 ```bash
-cd v3 && npx tsx scripts/validate-sfdipot-assessment.ts <output-file-path>
+npx tsx node_modules/agentic-qe/scripts/validate-sfdipot-assessment.ts <output-file-path>
 ```
 
 ### Hard Gates That Must Pass
@@ -341,7 +341,7 @@ cd v3 && npx tsx scripts/validate-sfdipot-assessment.ts <output-file-path>
 ```typescript
 // After transformation complete
 const result = await Bash({
-  command: `cd v3 && npx tsx scripts/validate-sfdipot-assessment.ts "${outputFile}"`,
+  command: `npx tsx node_modules/agentic-qe/scripts/validate-sfdipot-assessment.ts "${outputFile}"`,
   timeout: 30000
 });
 

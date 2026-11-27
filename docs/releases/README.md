@@ -4,6 +4,11 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.15.24](v3.15.24.md) | 2026-11-27 | Prove and routing report only measured results; real ruflo calls. |
+| [v3.15.23](v3.15.23.md) | 2026-11-24 | Gate binds evidence to the commit; a11y runs your standard; quality-gate works. |
+| [v3.15.22](v3.15.22.md) | 2026-11-20 | Plugin works on npm 12; no duplicate cloud experiences; no picomatch. |
+| [v3.15.21](v3.15.21.md) | 2026-11-17 | Unmark/revoke curation; no unproven LLM edge cases; node16 types; sync fixes. |
+| [v3.15.20](v3.15.20.md) | 2026-11-12 | Only trusted patterns applied; per-memory sync; pinned third-party CLIs. |
 | [v3.15.19](v3.15.19.md) | 2026-11-06 | Scaffolds aren't tests; per-language gate; honest sync; no startup freeze. |
 | [v3.15.18](v3.15.18.md) | 2026-11-01 | No lock on concurrent open; sync reads non-WAL DBs; honest git timeouts. |
 | [v3.15.17](v3.15.17.md) | 2026-10-28 | pytest runs; Copilot reloads tools on upgrade; stable embedding spaces. |

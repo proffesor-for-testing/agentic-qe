@@ -37,6 +37,11 @@ export interface TestGenerateParams {
 }
 
 export interface TestGenerateResult {
+  /**
+   * #1388: number of real tests (tests.length); scaffolds are not counted.
+   * isLearnableResult reads it, so a scaffold-only result is never learned from.
+   */
+  testsGenerated: number;
   tests: GeneratedTest[];
   /** null means unmeasured; never coerce unknown coverage to measured zero. */
   coverageEstimate: number | null;
@@ -232,6 +237,7 @@ export class TestGenerateTool extends MCPToolBase<TestGenerateParams, TestGenera
       return {
         success: true,
         data: {
+          testsGenerated: tests.length,
           tests,
           coverageEstimate: domainTests.coverageEstimate,
           patternsUsed: domainTests.patternsUsed,

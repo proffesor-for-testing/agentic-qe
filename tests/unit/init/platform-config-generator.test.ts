@@ -93,7 +93,7 @@ describe('PlatformConfigGenerator', () => {
     it('copilot entry stamps AQE_INIT_VERSION from package.json and keeps @latest (#1269)', () => {
       const entry = JSON.parse(generator.generateMcpConfig('copilot').content).servers['agentic-qe'];
       expect(getCopilotInitVersionEnv()).toEqual({ AQE_INIT_VERSION: PKG_VERSION });
-      expect(entry.args).toEqual(['-y', 'agentic-qe@latest', 'mcp']);
+      expect(entry.args).toEqual(['-y', '--allow-scripts=better-sqlite3,hnswlib-node', 'agentic-qe@latest', 'mcp']); // #1466
       expect(entry.env).toEqual({
         AQE_MEMORY_PATH: '.agentic-qe/memory.db',
         AQE_V3_MODE: 'true',

@@ -13,6 +13,7 @@ import { LoggerFactory } from '../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { ConfinedReadError, readConfinedTextSync } from '../../../shared/io/confined-read.js';
 import { templateImportPath } from './template-import-path.js';
+import { queryApplicablePatterns } from './applicable-patterns.js';
 import { isUnexecutableScaffold } from '../gates/gate-verdict.js';
 
 import * as path from 'path';
@@ -1228,59 +1229,15 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
     sourceFile: string,
     requestedPatterns: string[]
   ): Promise<Pattern[]> {
-    const patterns: Pattern[] = [];
-
-    // Query qe_patterns table directly instead of broken memory.get('pattern:...')
+    // Query qe_patterns directly instead of broken memory.get('pattern:...').
+    // #1388: learned patterns apply only with a measured success (read-only).
     try {
       const { getUnifiedMemory } = await import('../../../kernel/unified-memory.js');
-      const db = getUnifiedMemory().getDatabase();
-
-      // Look up requested patterns by name or ID
-      for (const patternName of requestedPatterns) {
-        const row = db.prepare(
-          `SELECT id, name, description, pattern_type, usage_count, quality_score
-           FROM qe_patterns WHERE id = ? OR name = ? LIMIT 1`
-        ).get(patternName, patternName) as { id: string; name: string; description: string; pattern_type: string; usage_count: number; quality_score: number } | undefined;
-
-        if (row) {
-          patterns.push({
-            id: row.id,
-            name: row.name,
-            structure: row.pattern_type,
-            examples: row.usage_count,
-            applicability: row.quality_score,
-          });
-        }
-      }
-
-      // Find patterns relevant to the file extension/domain
-      const extension = sourceFile.split('.').pop() || '';
-      const domainPatterns = db.prepare(
-        `SELECT id, name, description, pattern_type, usage_count, quality_score
-         FROM qe_patterns
-         WHERE qe_domain = 'test-generation'
-           AND context_json LIKE ?
-         ORDER BY quality_score DESC
-         LIMIT 5`
-      ).all(`%${extension}%`) as Array<{ id: string; name: string; description: string; pattern_type: string; usage_count: number; quality_score: number }>;
-
-      for (const row of domainPatterns) {
-        if (!patterns.some((p) => p.id === row.id)) {
-          patterns.push({
-            id: row.id,
-            name: row.name,
-            structure: row.pattern_type,
-            examples: row.usage_count,
-            applicability: row.quality_score,
-          });
-        }
-      }
-    } catch (e) {
-      // Fallback: if unified memory is not available, return empty
-      // This preserves backward compatibility
+      return queryApplicablePatterns(getUnifiedMemory().getDatabase(), sourceFile, requestedPatterns);
+    } catch {
+      // Unified memory unavailable: apply no stored patterns.
+      return [];
     }
-
-    return patterns;
   }
 
   private groupConsecutiveLines(lines: number[]): number[][] {

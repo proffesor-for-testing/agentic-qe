@@ -325,7 +325,13 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
       // failed/partial required engine, never a completed scan with no findings.
       let dependencyScan: DependencyAdvisoryOutcome | null = null;
       if (payload.dependencies === true) {
-        dependencyScan = await runDependencyAdvisoryScan(ctx.getSecurityScanner(), targetPath);
+        // #1350: package.json, the lockfile and pnpm-workspace.yaml are sent
+        // to OSV as names and versions, so any hardlink is refused, even under
+        // node_modules: pnpm and bun never hardlink a project's own manifest,
+        // and a disclosure after the lookup would come too late.
+        dependencyScan = await runDependencyAdvisoryScan(ctx.getSecurityScanner(), targetPath, {
+          hardlinks: 'refuse', onRefusedHardlink: (file) => { refused.add(file); },
+        });
         engines.push(dependencyScan.engine);
       }
 
@@ -350,8 +356,10 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
         file.status === 'analyzed' && requestedPaths.has(file.path)).map(file => file.path));
       const requiredEngines = engines.filter(engine => engine.requested && engine.required);
       const hasExecuted = analyzedPaths.size > 0 || (dependencyScan?.report.packagesChecked ?? 0) > 0;
+      // #1350: a hardlink read under the node_modules exemption cannot be told
+      // apart from a planted one, so a scan that read one is not complete.
       const complete = hasExecuted && requiredEngines.every(engine => engine.status === 'completed') &&
-        (!discoveryResult || discoveryResult.discovery.status === 'complete');
+        (!discoveryResult || discoveryResult.discovery.status === 'complete') && exemptHardlinks.size === 0;
       const evidence: SecurityScanEvidence = {
         schemaVersion: 1, completeness: complete ? 'complete' : hasExecuted ? 'partial' : 'none',
         requestedFiles: filesToScan.length, requestedPaths: filesToScan, duplicateInputs: 0,

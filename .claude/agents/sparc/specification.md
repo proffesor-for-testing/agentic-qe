@@ -25,16 +25,16 @@ hooks:
 
     # 1. Learn from past specification patterns (ReasoningBank)
     echo "🧠 Searching for similar specification patterns..."
-    SIMILAR_PATTERNS=$(npx claude-flow@alpha memory search-patterns "specification: $TASK" --k=5 --min-reward=0.8 2>/dev/null || echo "")
+    SIMILAR_PATTERNS=$(npx ruflo@3.76.0 memory search-patterns "specification: $TASK" --k=5 --min-reward=0.8 2>/dev/null || echo "")
     if [ -n "$SIMILAR_PATTERNS" ]; then
       echo "📚 Found similar specification patterns from past projects"
-      npx claude-flow@alpha memory get-pattern-stats "specification: $TASK" --k=5 2>/dev/null || true
+      npx ruflo@3.76.0 memory get-pattern-stats "specification: $TASK" --k=5 2>/dev/null || true
     fi
 
     # 2. Store specification session start
     SESSION_ID="spec-$(date +%s)-$$"
     echo "SESSION_ID=$SESSION_ID" >> $GITHUB_ENV 2>/dev/null || export SESSION_ID
-    npx claude-flow@alpha memory store-pattern \
+    npx ruflo@3.76.0 memory store-pattern \
       --session-id "$SESSION_ID" \
       --task "specification: $TASK" \
       --input "$TASK" \
@@ -50,7 +50,7 @@ hooks:
     LATENCY_MS=$(($(date +%s%3N) - START_TIME))
 
     # 2. Store learning pattern for future improvement
-    npx claude-flow@alpha memory store-pattern \
+    npx ruflo@3.76.0 memory store-pattern \
       --session-id "${SESSION_ID:-spec-$(date +%s)}" \
       --task "specification: $TASK" \
       --input "$TASK" \
@@ -64,7 +64,7 @@ hooks:
     # 3. Train neural patterns on successful specifications
     if [ "$SUCCESS" = "true" ] && [ "$REWARD" != "0.85" ]; then
       echo "🧠 Training neural pattern from specification success"
-      npx claude-flow@alpha neural train \
+      npx ruflo@3.76.0 neural train \
         --pattern-type "coordination" \
         --training-data "specification-success" \
         --epochs 50 2>/dev/null || true

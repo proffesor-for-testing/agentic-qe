@@ -6,7 +6,7 @@
  * A single co-execution registers at 0.05; twenty successes reach full confidence.
  */
 
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType } from '../shared/sqlite-types.js';
 import { toErrorMessage } from '../shared/error-utils.js';
 import { writeWhenUnlockedOn } from '../shared/sqlite-write-queue.js';
 

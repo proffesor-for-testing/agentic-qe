@@ -100,7 +100,7 @@ describe('Codex AQE hook adapter', () => {
 
     expect(stdout).toBe('');
     expect(readFileSync(join(projectRoot, 'calls.log'), 'utf8').trim().split('\n')).toEqual([
-      'post-route --success true --json',
+      'post-route --json',
       'session-end --save-state --json',
     ]);
   });

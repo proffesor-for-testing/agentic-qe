@@ -1066,7 +1066,7 @@ export class PatternStore implements IPatternStore {
         example: undefined,
       },
       embedding: options.embedding,
-      tier: 'short-term',
+      tier: options.tier ?? 'short-term',
       createdAt: now,
       lastUsedAt: now,
       successfulUses: 0,

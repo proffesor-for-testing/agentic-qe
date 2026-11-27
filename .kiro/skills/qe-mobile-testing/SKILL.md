@@ -196,9 +196,9 @@ const mobileFleet = await FleetManager.coordinate({
 ---
 
 ## Related Skills
-- [accessibility-testing](../accessibility-testing/) - VoiceOver, TalkBack
-- [performance-testing](../performance-testing/) - Mobile performance
-- [compatibility-testing](../compatibility-testing/) - Device compatibility
+- [accessibility-testing](../qe-accessibility-testing/) - VoiceOver, TalkBack
+- [performance-testing](../qe-performance-testing/) - Mobile performance
+- [compatibility-testing](../qe-compatibility-testing/) - Device compatibility
 
 ---
 

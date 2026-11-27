@@ -204,9 +204,9 @@ const regressionFleet = await FleetManager.coordinate({
 ---
 
 ## Related Skills
-- [risk-based-testing](../risk-based-testing/) - Risk-based prioritization
-- [test-automation-strategy](../test-automation-strategy/) - Automation pyramid
-- [continuous-testing-shift-left](../continuous-testing-shift-left/) - CI/CD integration
+- [risk-based-testing](../qe-risk-based-testing/) - Risk-based prioritization
+- [test-automation-strategy](../qe-test-automation-strategy/) - Automation pyramid
+- [shift-left-testing](../qe-shift-left-testing/) - CI/CD integration
 
 ---
 

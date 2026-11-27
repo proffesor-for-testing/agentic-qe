@@ -262,13 +262,12 @@ export class CodeIntelligencePhase extends BasePhase<CodeIntelligenceResult> {
       if (changedFiles) {
         filesToIndex = changedFiles;
       } else {
-        const { glob } = await import('tinyglobby');
+        const { safeGlob: glob } = await import('../../shared/safe-glob.js');
         const files = await glob([
           '**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', '**/*.py'
         ], {
           cwd: projectRoot,
           ignore: SCAN_IGNORE_PATTERNS,
-          expandDirectories: false,
         });
         filesToIndex = files.map(f => join(projectRoot, f));
       }
@@ -515,13 +514,12 @@ export class CodeIntelligencePhase extends BasePhase<CodeIntelligenceResult> {
    * Find files modified since the given date
    */
   private async findChangedFiles(projectRoot: string, since: Date): Promise<string[]> {
-    const { glob } = await import('tinyglobby');
+    const { safeGlob: glob } = await import('../../shared/safe-glob.js');
     const files = await glob([
       '**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', '**/*.py'
     ], {
       cwd: projectRoot,
       ignore: SCAN_IGNORE_PATTERNS,
-      expandDirectories: false,
     });
 
     const sinceMs = since.getTime();

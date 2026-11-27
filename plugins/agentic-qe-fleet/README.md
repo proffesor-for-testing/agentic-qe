@@ -17,7 +17,7 @@ Or add the marketplace first:
 /plugin install agentic-qe-fleet@agentic-qe
 ```
 
-The install registers the MCP server `plugin:agentic-qe-fleet:agentic-qe`, which runs `npx -y agentic-qe@<plugin version> mcp`. You don't need to run `claude mcp add`. Check it with `claude mcp list`.
+The install registers the MCP server `plugin:agentic-qe-fleet:agentic-qe`, which runs `npx -y --allow-scripts=better-sqlite3,hnswlib-node agentic-qe@<plugin version> mcp`. The flag lets npm 12 run the install scripts that build `better-sqlite3` and `hnswlib-node`; without it `fleet_init` fails. You don't need to run `claude mcp add`. Check it with `claude mcp list`.
 
 ### Options (`userConfig`)
 
@@ -123,7 +123,7 @@ node scripts/sync-plugin-versions.cjs --check      # plugin versions == package.
 
 ## As a mod (Claude Code >= 2.1.287)
 
-The plugin ships a hooks module, `aqe-mod` (`hooks/hooks.json` -> `hooks/register.ts`), which loads with the plugin by default.
+The plugin ships a hooks module, `aqe-mod` (`plugin.json` `hooks` -> `hooks/aqe-mod.json` -> `hooks/register.ts`), which loads with the plugin by default. The mod manifest is deliberately not at `hooks/hooks.json`: Codex reads that path as a lifecycle-hooks file, so Codex installs use `.codex-plugin/plugin.json`, which declares no hooks (the guard is Claude Code only).
 
 - **Learning-data guard (on by default).** It refuses Bash, Monitor, PowerShell, Write, Edit and NotebookEdit calls that would destroy AQE's learning data:
   - `rm`, `mv`, `cp`/`install`/`ln` over, `truncate`, `shred`, `dd`, `tee`, `gzip`, `sed -i` or a `>` redirect on `.agentic-qe/*.db` (and `-wal`, `-shm`, `*.rvf`)

@@ -158,7 +158,7 @@ export interface ISecurityScannerService {
 
   // Dependency Scanning (OSV)
   scanDependencies(dependencies: Record<string, string>): Promise<import('../../../../shared/types/index.js').Result<DependencyScanResult>>;
-  scanPackageJson(packageJsonPath: string): Promise<import('../../../../shared/types/index.js').Result<DependencyScanResult>>;
+  scanPackageJson(packageJsonPath: string, read?: import('./dependency-resolver.js').DependencyReadOptions): Promise<import('../../../../shared/types/index.js').Result<DependencyScanResult>>;
 
   // Combined
   runFullScan(

@@ -12,7 +12,7 @@ validation:
 
 ## Purpose
 
-Run structured validation pipelines that execute steps sequentially, enforce gates at blocking failures, and produce scored reports. Uses `.claude/helpers/validation-pipeline.cjs` with 13 requirements validation steps (BMAD-003).
+Run structured validation pipelines that execute steps sequentially, enforce gates at blocking failures, and produce scored reports. Uses the `validation-pipeline.cjs` helper shipped in the agentic-qe package (`node_modules/agentic-qe/assets/helpers/validation-pipeline.cjs`; `aqe init` does not copy it into the project) with 13 requirements validation steps (BMAD-003).
 
 ## Activation
 
@@ -56,11 +56,11 @@ Choose the appropriate pipeline based on the user's request:
 |----------|-------|----------|
 | `requirements` | 13 | Requirements documents, PRDs, user stories |
 
-Additional pipelines can be added to `.claude/helpers/validation-pipeline.cjs`.
+Additional pipelines can be added to a copy of `validation-pipeline.cjs`.
 
 ### Step 3: Execute Pipeline
 
-The pipeline helper (`.claude/helpers/validation-pipeline.cjs`) handles execution:
+The pipeline helper (`node_modules/agentic-qe/assets/helpers/validation-pipeline.cjs`) handles execution:
 
 1. **Sequential execution** — steps run in order, each receiving results from prior steps
 2. **Gate enforcement** — blocking steps that fail halt the pipeline (unless `--continue-on-failure`)

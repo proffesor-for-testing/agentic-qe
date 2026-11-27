@@ -25,23 +25,23 @@ Provides access to 9 reinforcement learning algorithms via AgentDB's plugin syst
 
 ```bash
 # Interactive wizard
-npx agentdb@latest create-plugin
+npx agentdb@3.3.0 create-plugin
 
 # Use specific template
-npx agentdb@latest create-plugin -t decision-transformer -n my-agent
+npx agentdb@3.3.0 create-plugin -t decision-transformer -n my-agent
 
 # Preview without creating
-npx agentdb@latest create-plugin -t q-learning --dry-run
+npx agentdb@3.3.0 create-plugin -t q-learning --dry-run
 
 # Custom output directory
-npx agentdb@latest create-plugin -t actor-critic -o ./plugins
+npx agentdb@3.3.0 create-plugin -t actor-critic -o ./plugins
 ```
 
 ### List Available Templates
 
 ```bash
 # Show all plugin templates
-npx agentdb@latest list-templates
+npx agentdb@3.3.0 list-templates
 
 # Available templates:
 # - decision-transformer (sequence modeling RL - recommended)
@@ -55,10 +55,10 @@ npx agentdb@latest list-templates
 
 ```bash
 # List installed plugins
-npx agentdb@latest list-plugins
+npx agentdb@3.3.0 list-plugins
 
 # Get plugin information
-npx agentdb@latest plugin-info my-agent
+npx agentdb@3.3.0 plugin-info my-agent
 
 # Shows: algorithm, configuration, training status
 ```
@@ -121,7 +121,7 @@ console.log('Duration:', metrics.duration, 'ms');
 **Strengths**: No online interaction needed, stable training
 
 ```bash
-npx agentdb@latest create-plugin -t decision-transformer -n dt-agent
+npx agentdb@3.3.0 create-plugin -t decision-transformer -n dt-agent
 ```
 
 **Use Cases**:
@@ -149,7 +149,7 @@ npx agentdb@latest create-plugin -t decision-transformer -n dt-agent
 **Strengths**: Proven, simple, works well for small/medium problems
 
 ```bash
-npx agentdb@latest create-plugin -t q-learning -n q-agent
+npx agentdb@3.3.0 create-plugin -t q-learning -n q-agent
 ```
 
 **Use Cases**:
@@ -176,7 +176,7 @@ npx agentdb@latest create-plugin -t q-learning -n q-agent
 **Strengths**: More conservative than Q-Learning, better for safety
 
 ```bash
-npx agentdb@latest create-plugin -t sarsa -n sarsa-agent
+npx agentdb@3.3.0 create-plugin -t sarsa -n sarsa-agent
 ```
 
 **Use Cases**:
@@ -201,7 +201,7 @@ npx agentdb@latest create-plugin -t sarsa -n sarsa-agent
 **Strengths**: Stable, works for continuous/discrete actions
 
 ```bash
-npx agentdb@latest create-plugin -t actor-critic -n ac-agent
+npx agentdb@3.3.0 create-plugin -t actor-critic -n ac-agent
 ```
 
 **Use Cases**:
@@ -482,16 +482,16 @@ const confidence = result.memories[0].similarity;
 
 ```bash
 # Create plugin
-npx agentdb@latest create-plugin -t decision-transformer -n my-plugin
+npx agentdb@3.3.0 create-plugin -t decision-transformer -n my-plugin
 
 # List plugins
-npx agentdb@latest list-plugins
+npx agentdb@3.3.0 list-plugins
 
 # Get plugin info
-npx agentdb@latest plugin-info my-plugin
+npx agentdb@3.3.0 plugin-info my-plugin
 
 # List templates
-npx agentdb@latest list-templates
+npx agentdb@3.3.0 list-templates
 ```
 
 ---
@@ -535,7 +535,7 @@ await adapter.retrieveWithReasoning(queryEmbedding, {
 
 - **Algorithm Papers**: See docs/algorithms/ for detailed papers
 - **GitHub**: https://github.com/ruvnet/agentic-flow/tree/main/packages/agentdb
-- **MCP Integration**: `npx agentdb@latest mcp`
+- **MCP Integration**: `npx agentdb@3.3.0 mcp`
 - **Website**: https://agentdb.ruv.io
 
 ---

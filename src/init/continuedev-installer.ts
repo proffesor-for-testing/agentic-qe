@@ -9,6 +9,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { toErrorMessage } from '../shared/error-utils.js';
+import { aqeNpxMcpYamlArgs } from '../shared/npx-launch.js';
 import {
   createPlatformConfigGenerator,
   type PlatformConfigGenerator,
@@ -132,9 +133,7 @@ export class ContinueDevInstaller {
         const serverEntry = `  - name: agentic-qe
     command: npx
     args:
-      - "-y"
-      - agentic-qe@latest
-      - mcp
+${aqeNpxMcpYamlArgs('      ')}
     env:
 ${envBlock}`;
         return existing.trimEnd() + '\n' + serverEntry + '\n';

@@ -15,7 +15,7 @@
  * foreground writes that had already been acknowledged.
  */
 
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType } from '../../shared/sqlite-types.js';
 import type { DreamCycle } from './types.js';
 import type { DreamInsight } from './insight-generator.js';
 

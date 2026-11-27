@@ -324,6 +324,9 @@ export class CoverageAnalyzeTool extends MCPToolBase<CoverageAnalyzeParams, Cove
         threshold: thresholds.lines || 80,
         includeFileDetails: true,
         measured: true, // parsed from a real report (no estimation fallback here)
+        // #1474: this path does not check the report against the sources, so a
+        // stale report cannot be told apart: never record it as gate evidence.
+        evidenceComplete: false,
       });
 
       if (!analyzeResult.success) {

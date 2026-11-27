@@ -22,6 +22,7 @@ import { quickStart, MCPProtocolServer } from './protocol-server';
 import { createHTTPServer, type HTTPServer } from './http-server.js';
 import { createRequire } from 'module';
 import { bootstrapTokenTracking, shutdownTokenTracking } from '../init/token-bootstrap.js';
+import { closeLiveAuditSessions, killLiveAuditSessionsSync } from '../integrations/browser/agent-browser/audit-sessions.js';
 import { initializeExperienceCapture, stopCleanupTimer } from '../learning/experience-capture-middleware.js';
 import { createInfraHealingOrchestratorSync, ShellCommandRunner } from '../strange-loop/infra-healing/index.js';
 import { setInfraHealingOrchestrator, handleFleetInit } from './handlers/index.js';
@@ -31,6 +32,7 @@ import { resetSharedRvfAdapter } from '../integrations/ruvector/shared-rvf-adapt
 import { resetSharedRvfDualWriter } from '../integrations/ruvector/shared-rvf-dual-writer.js';
 import { claimProcessLifecycle, closeRegisteredStores } from '../kernel/process-lifecycle.js';
 import { INTERACTIVE_LOCK_WAIT_MS, isLockedMessage, retryOnceWhenLocked, setLockWaitCap } from '../shared/sqlite-lock-wait.js';
+import { setDefaultFileReaderHardlinks } from '../shared/io/file-reader.js';
 import { getBackgroundWorkersState, startBackgroundWorkers } from './background-workers.js';
 import {
   DAEMON_HEARTBEAT_ENV, DAEMON_LOG_MAX_SIZE_ENV, DAEMON_LOG_PATH_ENV, DAEMON_MODE_ENV,
@@ -62,6 +64,9 @@ function releaseSharedRvfStores(): void {
 
 let processStoresReleased = false;
 
+/** Bound on closing open accessibility-audit browser sessions at shutdown (#1465). */
+const AUDIT_SESSION_CLOSE_MS = 1500;
+
 /** Longest graceful shutdown waits for queued memory.db writes (#1283). */
 const SHUTDOWN_WRITE_DRAIN_MS = 2000;
 /** The drain ends this long after shutdown starts, before the 3 s watchdog. */
@@ -84,6 +89,10 @@ async function main(): Promise<void> {
   // #1263: a write waiting on another process's lock blocks the event loop, so
   // memory writes wait briefly per attempt and retry asynchronously instead.
   setLockWaitCap(INTERACTIVE_LOCK_WAIT_MS);
+  // #1350: every FileReader in this process serves MCP callers, who name the
+  // paths read, so a file with more than one hardlink is refused. FileReader
+  // reads cannot disclose a node_modules exemption, so there is none.
+  setDefaultFileReaderHardlinks('refuse');
   initFeatureFlagsFromEnv();
   // Output startup message BEFORE suppressing stderr (Claude Code health check needs this)
   const version = pkg.version;
@@ -124,6 +133,9 @@ async function main(): Promise<void> {
     watchdog.unref();
 
     try {
+      // #1465: close the browser sessions of audits still running; their
+      // agent-browser daemons would otherwise outlive this process.
+      await closeLiveAuditSessions(AUDIT_SESSION_CLOSE_MS).catch(() => undefined);
       stopCleanupTimer();
       await shutdownTokenTracking();
       await shutdownDaemon();
@@ -162,6 +174,8 @@ async function main(): Promise<void> {
   // Last line of defence for exits that bypass shutdown() (the watchdog, or a
   // process.exit elsewhere): 'exit' listeners run synchronously on every exit.
   process.on('exit', releaseProcessStores);
+  // #1465: any audit session still open on exit: SIGTERM its daemon (Linux).
+  process.on('exit', killLiveAuditSessionsSync);
 
   // Issue #513: when the parent (e.g. the Claude Code session) exits, our stdin
   // reaches EOF. An orphaned stdio MCP server has no parent to serve, so exit

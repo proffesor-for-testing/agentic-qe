@@ -96,4 +96,51 @@ describe('handleRoutingEconomics MCP handler', () => {
       expect(scores[i - 1]).toBeGreaterThanOrEqual(scores[i]);
     }
   });
+
+  // #1481: taskComplexity used to be dropped and every call scored at 0.5.
+  it('scores the tiers for the requested taskComplexity', async () => {
+    const low = await handleRoutingEconomics({ taskComplexity: 0.1 });
+    const high = await handleRoutingEconomics({ taskComplexity: 0.9 });
+    const quality = (r: typeof low, tier: string) =>
+      r.data!.tierEfficiency.find((t) => t.tier === tier)!.qualityScore;
+
+    expect(low.data!.taskComplexity).toBe(0.1);
+    expect(high.data!.taskComplexity).toBe(0.9);
+    // Cheaper tiers degrade with complexity: haiku -0.2x, booster -0.4x.
+    expect(quality(low, 'haiku') - quality(high, 'haiku')).toBeCloseTo(0.16);
+    expect(quality(low, 'booster')).toBeGreaterThan(quality(high, 'booster'));
+    // The top tier's quality does not depend on complexity.
+    expect(quality(low, 'opus')).toBe(quality(high, 'opus'));
+  });
+
+  it('defaults taskComplexity to 0.5 when omitted', async () => {
+    const result = await handleRoutingEconomics({});
+
+    expect(result.success).toBe(true);
+    expect(result.data!.taskComplexity).toBe(0.5);
+  });
+
+  it('accepts a decimal string like the CLI ("0.9")', async () => {
+    const result = await handleRoutingEconomics({ taskComplexity: '0.9' as unknown as number });
+
+    expect(result.success).toBe(true);
+    expect(result.data!.taskComplexity).toBe(0.9);
+  });
+
+  it('treats taskComplexity null as omitted (0.5 default), like the CLI', async () => {
+    const result = await handleRoutingEconomics({ taskComplexity: null });
+
+    expect(result.success).toBe(true);
+    expect(result.data!.taskComplexity).toBe(0.5);
+  });
+
+  it.each([[-0.1], [1.5], [Number.NaN], ['high' as unknown as number], ['' as unknown as number], ['0x1' as unknown as number], [true as unknown as number]])(
+    'rejects taskComplexity %s outside 0-1',
+    async (value) => {
+      const result = await handleRoutingEconomics({ taskComplexity: value });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('taskComplexity must be a number between 0 and 1');
+    },
+  );
 });

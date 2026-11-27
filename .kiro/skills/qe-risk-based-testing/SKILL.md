@@ -184,10 +184,10 @@ const riskFleet = await FleetManager.coordinate({
 ---
 
 ## Related Skills
-- [agentic-quality-engineering](../agentic-quality-engineering/) - Risk-aware agents
-- [context-driven-testing](../context-driven-testing/) - Context affects risk
-- [regression-testing](../regression-testing/) - Risk-based regression selection
-- [shift-right-testing](../shift-right-testing/) - Production informs risk
+- [agentic-quality-engineering](../qe-agentic-quality-engineering/) - Risk-aware agents
+- [context-driven-testing](../qe-context-driven-testing/) - Context affects risk
+- [regression-testing](../qe-regression-testing/) - Risk-based regression selection
+- [shift-right-testing](../qe-shift-right-testing/) - Production informs risk
 
 ---
 

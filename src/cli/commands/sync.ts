@@ -18,6 +18,8 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
+import { subcommandOptions } from './sync-subcommand-options.js';
+import { restoreStatement } from '../../sync/cloud/dedupe-experiences.js';
 import {
   createSyncAgent,
   syncToCloud,
@@ -106,9 +108,11 @@ export function createSyncCommands(): Command {
           process.exitCode = 1;
           return;
         }
-        config.sync!.sources = DEFAULT_SYNC_CONFIG.sync.sources.filter(
-          s => sourceNames.includes(s.name)
-        );
+        // #1408: naming a source turns it on, so an opt-in source (one that is
+        // off by default, such as intelligence-memories) runs only when asked for.
+        config.sync!.sources = DEFAULT_SYNC_CONFIG.sync.sources
+          .filter(s => sourceNames.includes(s.name))
+          .map(s => ({ ...s, enabled: true }));
       }
 
       const spinner = ora('Initializing sync agent...').start();
@@ -145,13 +149,21 @@ export function createSyncCommands(): Command {
     .option('--dry-run', 'Preview pull without writing to local DB')
     .option('--target <path>', 'Custom target SQLite database path')
     .option('--since <date>', 'Pull changes since date (ISO 8601)')
+    .option('--local-env <environment>', "This machine's sync environment: its own claude-flow memories and Q-values are not pulled back (default: AQE_ENV, or devpod)")
     .option('-v, --verbose', 'Enable verbose output')
-    .action(async (options) => {
+    .action(async (_options, command: Command) => {
+      // #1409: --full/--env/--since given after `pull` reached the parent command.
+      const options = subcommandOptions<{
+        full?: boolean; env: string; tables?: string; dryRun?: boolean; target?: string; since?: string; verbose?: boolean;
+        localEnv?: string;
+      }>(command);
       const pullConfig: Partial<PullAgentConfig> = {
         environment: options.env,
         verbose: options.verbose,
         dryRun: options.dryRun,
         targetDb: options.target,
+        // #1409: set it when you push with `aqe sync --env X` rather than AQE_ENV.
+        ...(options.localEnv ? { localEnvironment: options.localEnv } : {}),
       };
 
       // Filter tables if specified
@@ -195,7 +207,8 @@ export function createSyncCommands(): Command {
     .command('status')
     .description('Show sync status and data source information')
     .option('-e, --env <environment>', 'Environment identifier', process.env.AQE_ENV || 'devpod')
-    .action(async (options) => {
+    .action(async (_options, command: Command) => {
+      const options = subcommandOptions<{ env: string }>(command); // #1409
       const spinner = ora('Checking sync status...').start();
 
       try {
@@ -217,7 +230,8 @@ export function createSyncCommands(): Command {
     .command('verify')
     .description('Verify sync integrity between local and cloud')
     .option('-e, --env <environment>', 'Environment identifier', process.env.AQE_ENV || 'devpod')
-    .action(async (options) => {
+    .action(async (_options, command: Command) => {
+      const options = subcommandOptions<{ env: string }>(command); // #1409
       const spinner = ora('Verifying sync integrity...').start();
 
       try {
@@ -239,13 +253,52 @@ export function createSyncCommands(): Command {
       }
     });
 
+  // #1436: one-off cleanup of experiences duplicated before migration 004
+  syncCmd
+    .command('dedupe-experiences')
+    .description('Remove learning experiences duplicated by syncs before migration 004 (dry run unless --apply)')
+    .option('-e, --env <environment>', 'Environment identifier', process.env.AQE_ENV || 'devpod')
+    .option('--apply', 'Back up the duplicates to a cloud table, then delete them')
+    .option('--dry-run', 'Only show what would be deleted (the default without --apply)')
+    .option('--json', 'Output JSON')
+    .action(async (_options, command: Command) => {
+      const options = subcommandOptions<{ env: string; apply?: boolean; dryRun?: boolean; json?: boolean }>(command);
+      // A typed --dry-run (here or on `aqe sync`) always wins over --apply.
+      const apply = options.apply === true && options.dryRun !== true;
+      const spinner = options.json ? null : ora(`Checking ${options.env} experiences in the cloud...`).start();
+      try {
+        const agent = createSyncAgent({ environment: options.env, verbose: false });
+        let outcome: Awaited<ReturnType<typeof agent.dedupeExperiences>>;
+        try {
+          await agent.initialize();
+          outcome = await agent.dedupeExperiences({ apply });
+        } finally {
+          await agent.close();
+        }
+        spinner?.stop();
+        if (options.json) {
+          const applied = apply && !outcome.blocked && 'deleted' in outcome && outcome.deleted > 0;
+          console.log(JSON.stringify({ requestedApply: apply, applied, ...outcome }, null, 2));
+        } else {
+          printDedupeOutcome(outcome, apply);
+        }
+        process.exitCode = outcome.blocked ? 1 : 0;
+      } catch (error) {
+        if (spinner) spinner.fail(`dedupe-experiences failed: ${toErrorMessage(error)}`);
+        else console.log(JSON.stringify({ error: toErrorMessage(error) }));
+        process.exitCode = 1;
+      }
+    });
+
   // Init subcommand
   syncCmd
     .command('init')
     .description('Initialize cloud schema (requires GCP credentials)')
     .option('--dry-run', 'Print schema without executing')
     .option('-o, --output <file>', 'Save schema to file')
-    .action(async (options) => {
+    .action(async (_options, command: Command) => {
+      // #1432: the parent's --dry-run took the flag, so init --dry-run did not print the schema.
+      const options = subcommandOptions<{ dryRun?: boolean; output?: string }>(command);
       // Read schema file.
       // fix/init-v3-9-4: same chunk-split bundle regression as
       // governance-installer. Walk up to the agentic-qe package root
@@ -348,6 +401,46 @@ export function createSyncCommands(): Command {
 /**
  * Print sync report
  */
+
+/** #1436: human-readable dedupe plan or result. */
+function printDedupeOutcome(
+  outcome: { environment: string; totalRows: number; keyedRows: number; legacyRows: number;
+    legacyWithKeyedTwin: number; legacyChanged: number; legacyRepeats: number; legacyKept: number;
+    toDelete: number; localExperiences?: number;
+    rowsAfter: number; blocked?: string; deleted?: number; backupTable?: string | null; verifiedRowsAfter?: number },
+  applied: boolean,
+): void {
+  console.log(chalk.cyan(`\n=== aqe.learning_experiences, environment ${outcome.environment} ===\n`));
+  if (outcome.blocked) {
+    console.log(chalk.red(`Not run: ${outcome.blocked}`));
+    return;
+  }
+  console.log(`  Rows:                         ${outcome.totalRows}`);
+  console.log(`  Uploaded with local_id:       ${outcome.keyedRows} (kept)`);
+  if (outcome.localExperiences !== undefined) {
+    console.log(`  Local experiences:            ${outcome.localExperiences}`);
+  }
+  console.log(`  Uploaded before migration 004: ${outcome.legacyRows}`);
+  console.log(`    same as a local_id row:     ${outcome.legacyWithKeyedTwin} (duplicate)`);
+  console.log(`    older copy, changed since:  ${outcome.legacyChanged} (duplicate)`);
+  console.log(`    repeat of an earlier row:   ${outcome.legacyRepeats} (duplicate)`);
+  console.log(`    only copy, kept:            ${outcome.legacyKept}`);
+  console.log(`  Duplicates:                   ${outcome.toDelete}`);
+  console.log(`  Rows afterwards:              ${outcome.rowsAfter}`);
+  if (!applied) {
+    console.log(chalk.yellow(outcome.toDelete > 0
+      ? '\nDry run: nothing was changed. Run again with --apply to back up and delete the duplicates.'
+      : '\nNo duplicates.'));
+    return;
+  }
+  if (!outcome.deleted) {
+    console.log(chalk.green('\nNo duplicates; nothing was changed.'));
+    return;
+  }
+  console.log(chalk.green(`\nDeleted ${outcome.deleted} duplicates. Backup: ${outcome.backupTable}`));
+  console.log(`Rows now: ${outcome.verifiedRowsAfter}. Check with: aqe sync verify --env ${outcome.environment}`);
+  if (outcome.backupTable) console.log(`To put them back: psql -c "${restoreStatement(outcome.backupTable)}"`);
+}
 function printSyncReport(report: SyncReport): void {
   const statusColor = report.status === 'completed' ? chalk.green :
                       report.status === 'partial' ? chalk.yellow :
@@ -381,6 +474,9 @@ function printSyncReport(report: SyncReport): void {
       console.log(`      Records: ${result.recordsSynced}`);
       if (result.sourceMissing) console.log(`      ${chalk.gray('Not read: the source file does not exist')}`);
       console.log(`      Duration: ${result.durationMs}ms`);
+      // #1384: entries skipped while reading (the source still succeeded).
+      if (result.success && result.recordsSkipped > 0) console.log(`      Skipped: ${chalk.yellow(result.recordsSkipped)}`);
+      for (const warning of result.warnings ?? []) console.log(`      Note: ${chalk.yellow(warning)}`);
       if (result.error) {
         console.log(`      Error: ${chalk.red(result.error)}`);
       }
@@ -509,6 +605,8 @@ function printPullReport(report: SyncReport): void {
       if (result.recordsSkipped > 0) {
         console.log(`      Skipped: ${chalk.yellow(result.recordsSkipped)}`);
       }
+      // #1409: rows kept as they were, and rows not pulled by design.
+      for (const warning of result.warnings ?? []) console.log(`      Note: ${chalk.yellow(warning)}`);
       if (result.error) {
         console.log(`      Error: ${chalk.red(result.error)}`);
       }

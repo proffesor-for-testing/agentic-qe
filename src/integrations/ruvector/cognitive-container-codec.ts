@@ -13,7 +13,7 @@
 import { createHash } from 'crypto';
 import { Buffer } from 'buffer';
 import { gunzipSync, gzipSync } from 'zlib';
-import Database from 'better-sqlite3';
+import type { SqliteDatabase } from '../../shared/sqlite-types.js';
 import {
   queryAll,
   domainFilterForColumn,
@@ -81,7 +81,7 @@ function segmentForTable(tableName: string): SegmentName {
  * Collect all table data from the database, grouped by segment.
  */
 export function collectSegmentData(
-  db: Database.Database,
+  db: SqliteDatabase,
   domains?: readonly string[],
 ): Record<SegmentName, Record<string, unknown[]>> {
   const segments: Record<SegmentName, Record<string, unknown[]>> = {

@@ -137,6 +137,8 @@ export interface SecurityPostureSummary {
   averageResolutionTime: number;
   lastAuditDate: Date;
   recommendations: string[];
+  /** #1350: checks the latest audit could not complete; absent when it completed them all. */
+  incompleteChecks?: string[];
 }
 
 export interface TriagedVulnerabilities {

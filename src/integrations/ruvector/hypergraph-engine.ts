@@ -15,7 +15,7 @@
  */
 
 import * as nodePath from 'node:path';
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType } from '../../shared/sqlite-types.js';
 import { v4 as uuidv4 } from 'uuid';
 import {
   HypergraphSchemaManager,

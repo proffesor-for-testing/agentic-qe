@@ -1208,11 +1208,13 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'accessibility_test',
-        description: `Test accessibility against WCAG 2.1/2.2 and Section 508 standards. ${SAVE_RESULTS_HINT} Example: accessibility_test({ url: "http://localhost:3000", standard: "wcag21-aa" })`,
+        // #1473: `passed` is the automated scan's severity threshold, not a conformance verdict
+        description: `axe-core scan by WCAG 2.1/2.2 or Section 508 profile; passed = no critical/serious finding, not conformance. ${SAVE_RESULTS_HINT} Example: accessibility_test({ url: "http://localhost:3000" })`,
         category: 'domain',
         parameters: [
           { name: 'url', type: 'string', description: 'URL to test', required: true },
-          { name: 'standard', type: 'string', description: 'Accessibility standard' },
+          { name: 'standard', type: 'string', description: 'Rule profile (default wcag21-aa). Each runs only its own axe-core WCAG tags; section508 runs the automated WCAG 2.0 A/AA subset of the 2018 baseline. The result reports the effective profile, applied tags and engine version; if the backend cannot apply it, outcome.status is profile-unavailable and outcome still counts the violations found.', enum: ['wcag21-aa', 'wcag21-aaa', 'wcag22-aa', 'section508'] },
+          { name: 'includeBestPractices', type: 'boolean', description: 'Also run axe-core best-practice rules, which are not WCAG requirements (default false)', default: false },
           saveResultsParameter('accessibility_test'),
         ],
       },

@@ -15,6 +15,12 @@ import type {
 } from '../../../../src/coordination/handlers/handler-types.js';
 import type { QueenTask } from '../../../../src/coordination/queen-coordinator.js';
 
+// #1474: evidence is bound to the checkout's candidate; this suite's project root is
+// not a Git work tree, so resolve every checkout to one fixed candidate.
+import { evidenceKeyFixture } from '../../../fixtures/quality-evidence-candidates';
+vi.mock('../../../../src/domains/quality-assessment/evidence-candidate', async (importOriginal) =>
+  (await import('../../../../tests/fixtures/quality-evidence-candidates')).fixedCandidateModule(importOriginal));
+
 interface MetricDetail { name: string; value: number }
 
 function report(metrics: MetricDetail[], overall: number, coverage = -1) {
@@ -271,8 +277,8 @@ describe('assess-quality handler evidence sufficiency (#996)', () => {
       securityVulnerabilities: 0, technicalDebt: 2, duplications: 3,
     };
     const memoryGet = vi.fn(async (key: string) => {
-      const metric = key.split(':')[1];
-      return { schemaVersion: 1, metric, value: values[metric], measuredAt: now, source: 'test' };
+      const fixture = evidenceKeyFixture(key);
+      return fixture?.record(values[fixture.metric], { measuredAt: now, source: 'test' });
     });
     const { run } = setup(report([], 0), memoryGet as never);
 
@@ -280,6 +286,10 @@ describe('assess-quality handler evidence sufficiency (#996)', () => {
 
     expect((result as { value: Data }).value).toMatchObject({
       passed: true, gateEvaluated: true, evidenceStatus: 'measured', unmeasured: [],
+      // #1474: the verdict names the candidate it judged and the receipts it used.
+      candidate: { status: 'resolved' },
+      receipts: { coverage: { metric: 'coverage', key: expect.stringMatching(/^quality-evidence:v2:/) } },
+      thresholds: { coverage: { value: 80 } },
     });
   });
 });

@@ -27,7 +27,7 @@ import type {
   EmbeddingDimension,
   QuantizationType,
 } from '../base/types.js';
-import type Database from 'better-sqlite3';
+import type { SqliteDatabase } from '../../../shared/sqlite-types.js';
 import { openDatabase } from '../../../shared/safe-db.js';
 import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
@@ -83,7 +83,7 @@ export class EmbeddingCache {
   private ttl: number;
   private persistent: boolean;
   private compression: boolean;
-  private db: Database.Database | null = null;
+  private db: SqliteDatabase | null = null;
   private storagePath: string;
   private useUnified: boolean;
   private unifiedMemory: UnifiedMemoryManager | null = null;

@@ -34,11 +34,11 @@ agents:
   total: 10
   sub_agents: 0
 skills: [tdd-london-chicago, mutation-testing, performance-testing, security-testing]
-# Execution Models (Workflow is PRIMARY where the harness supports it — ADR-102)
+# Execution Models (Task Tool is PRIMARY; the qcsd-development-review workflow is used only where it exists — ADR-102)
 execution:
-  primary: workflow
+  primary: task-tool
   workflow_name: qcsd-development-review
-  alternatives: [task-tool, mcp-tools, cli]
+  alternatives: [workflow, mcp-tools, cli]
 swarm_pattern: true
 parallel_batches: 3
 last_updated: 2026-06-10
@@ -193,29 +193,32 @@ skip to step N. Ensure you have the required prerequisite data from prior steps.
 
 | Model | When to Use | Agent Spawn |
 |-------|-------------|-------------|
-| **Workflow** (PRIMARY, ADR-102) | Harness with the Workflow tool | `Workflow({ name: "qcsd-development-review", args: { sourcePath, testPath } })` |
-| **Task Tool** (fallback) | Claude Code sessions without Workflow support | `Task({ subagent_type, run_in_background: true })` |
+| **Task Tool** (PRIMARY) | Claude Code sessions, including every project set up by `aqe init` | `Task({ subagent_type, run_in_background: true })` |
+| **Workflow** (ADR-102) | Only when the harness has the Workflow tool AND the project has `.claude/workflows/qcsd-development-review.js` (the agentic-qe repository does; `aqe init` does not install it) | `Workflow({ name: "qcsd-development-review", args: { sourcePath, testPath } })` |
 | **MCP Tools** | MCP server available | `fleet_init({})` / `task_submit({})` |
 | **CLI** | Terminal/scripts | `swarm init` / `agent spawn` |
 
 ### Workflow execution (ADR-102)
 
-`.claude/workflows/qcsd-development-review.js` runs the review as a deterministic
-pipeline: one finder per quality dimension (TDD adherence, complexity, coverage
+The [`qcsd-development-review.js`](https://github.com/proffesor-for-testing/agentic-qe/blob/main/.claude/workflows/qcsd-development-review.js)
+Claude Code workflow in the agentic-qe repository (`aqe init` does not install it) runs
+the review as a deterministic pipeline: one finder per quality dimension (TDD adherence, complexity, coverage
 gaps — `args.dimensions` selects a subset) → **3 blind adversarial refuters per
 finding** (Loki-mode, ADR-074: refuters see only the bare claim + evidence,
 never the finder's confidence or each other; uncertainty defaults to refuted)
 → deterministic synthesis into `finding-verdict@1` envelopes (ADR-103,
-`schemas/finding-verdict.schema.json`). A finding survives only if fewer than
+[finding-verdict.schema.json](https://github.com/proffesor-for-testing/agentic-qe/blob/main/schemas/finding-verdict.schema.json), also shipped in
+the agentic-qe npm package). A finding survives only if fewer than
 ⌈N/2⌉ refuters kill it. The final report contains ONLY confirmed findings;
 killed findings are retained under `killed` with their refutations for audit.
 
 Args: `sourcePath` (required), `testPath`, `dimensions` (subset of
 `tdd-adherence|complexity|coverage-gaps`), `maxFindings` per dimension (default 5).
 
-When the Workflow tool is unavailable, fall back to the Task-tool protocol
-below — the report format and gates are identical, minus the adversarial
-verification stage (note this in the report header as `verification: none`).
+When the Workflow tool or the workflow file is unavailable (any project set up by
+`aqe init`), use the Task-tool protocol below — the report format and gates are
+identical, minus the adversarial verification stage (note this in the report header
+as `verification: none`).
 
 ---
 

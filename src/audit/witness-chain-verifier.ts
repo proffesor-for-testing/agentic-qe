@@ -34,7 +34,7 @@
  * history-deleting edit produces.
  */
 
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType } from '../shared/sqlite-types.js';
 import type { WitnessEntry } from './witness-chain.js';
 import type { WitnessKeyManager } from './witness-key-manager.js';
 import { GENESIS_PREV_HASH, hashWith, serializeEntry, signaturePayload } from './witness-chain-hash.js';

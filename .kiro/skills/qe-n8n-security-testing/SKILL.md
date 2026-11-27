@@ -573,9 +573,9 @@ async function checkErrorMessageSecurity(workflowId: string): Promise<ErrorMessa
 ---
 
 ## Related Skills
-- [n8n-workflow-testing-fundamentals](../n8n-workflow-testing-fundamentals/)
-- [n8n-integration-testing-patterns](../n8n-integration-testing-patterns/)
-- [compliance-testing](../compliance-testing/)
+- [n8n-workflow-testing-fundamentals](../qe-n8n-workflow-testing-fundamentals/)
+- [n8n-integration-testing-patterns](../qe-n8n-integration-testing-patterns/)
+- [compliance-testing](../qe-compliance-testing/)
 
 ---
 

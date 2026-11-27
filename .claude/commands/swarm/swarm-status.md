@@ -4,5 +4,5 @@ Command documentation for swarm-status in category swarm.
 
 Usage:
 ```bash
-npx claude-flow swarm swarm-status [options]
+npx ruflo@3.76.0 swarm swarm-status [options]
 ```

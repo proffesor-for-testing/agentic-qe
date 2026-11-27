@@ -196,10 +196,20 @@ describe('prototype-chain keys (#1157)', () => {
   it('the security scan tool still reports a real vulnerable dependency next to one named constructor', async () => {
     fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ dependencies: { constructor: '1.0.0', lodash: '4.0.0' } }));
     fs.writeFileSync(path.join(dir, 'requirements.txt'), 'constructor\n__proto__\ntoString\n');
+    // #1350: the tool reads only files inside the project root, so the
+    // fixture directory is the project, as a real target would be.
+    vi.stubEnv('AQE_PROJECT_ROOT', dir);
 
-    const result = await new SecurityScanTool().invoke({ target: dir, scanType: ['dependency'] } as never);
+    let result;
+    try {
+      result = await new SecurityScanTool().invoke({ target: dir, scanType: ['dependency'] } as never);
+    } finally {
+      vi.unstubAllEnvs();
+    }
 
     expect(result.success, JSON.stringify(result)).toBe(true);
+    // Both manifests were read, not refused.
+    expect((result.data as { refused?: unknown }).refused).toBeUndefined();
     const ids = (result.data as { vulnerabilities: Array<{ id: string }> }).vulnerabilities.map(v => v.id);
     expect(ids).toContain('DEP-lodash-CVE-2021-23337');
     expect(ids.filter(id => /constructor|__proto__|toString/.test(id))).toEqual([]);

@@ -40,6 +40,15 @@ export interface ClaudeFlowFeatures {
 }
 
 /**
+ * Outcome of a Claude Flow call that has no local fallback (#1455).
+ * `unavailable`: Claude Flow was not detected. `failed`: ruflo ran but did not do it.
+ */
+export type ClaudeFlowCallResult<T = undefined> =
+  | { status: 'ok'; value: T }
+  | { status: 'unavailable'; reason: string }
+  | { status: 'failed'; reason: string };
+
+/**
  * Claude Flow adapter interface
  */
 export interface ClaudeFlowAdapter extends EnhancementAdapter {
@@ -48,14 +57,14 @@ export interface ClaudeFlowAdapter extends EnhancementAdapter {
   /** Get available features */
   getFeatures(): Promise<ClaudeFlowFeatures>;
 
-  /** Start a SONA trajectory */
-  startTrajectory(task: string, agent?: string): Promise<string>;
+  /** Start a SONA trajectory; the value is ruflo's trajectory id */
+  startTrajectory(task: string, agent?: string): Promise<ClaudeFlowCallResult<string>>;
 
   /** Record a trajectory step */
-  recordStep(trajectoryId: string, action: string, result?: string, quality?: number): Promise<void>;
+  recordStep(trajectoryId: string, action: string, result?: string, quality?: number): Promise<ClaudeFlowCallResult>;
 
   /** End a trajectory */
-  endTrajectory(trajectoryId: string, success: boolean, feedback?: string): Promise<void>;
+  endTrajectory(trajectoryId: string, success: boolean, feedback?: string): Promise<ClaudeFlowCallResult>;
 
   /** Route task to optimal model */
   routeModel(task: string): Promise<{ model: 'haiku' | 'sonnet' | 'opus'; confidence: number }>;
@@ -66,11 +75,16 @@ export interface ClaudeFlowAdapter extends EnhancementAdapter {
   /** Run pretrain analysis on repository */
   runPretrain(path: string, depth?: 'shallow' | 'medium' | 'deep'): Promise<unknown>;
 
-  /** Store a pattern */
-  storePattern(pattern: string, type: string, confidence: number, metadata?: Record<string, unknown>): Promise<void>;
+  /** Store a pattern; the value is ruflo's pattern id */
+  storePattern(
+    pattern: string,
+    type: string,
+    confidence: number,
+    metadata?: Record<string, unknown>
+  ): Promise<ClaudeFlowCallResult<string>>;
 
   /** Search patterns */
-  searchPatterns(query: string, topK?: number): Promise<Array<{ pattern: string; similarity: number }>>;
+  searchPatterns(query: string, topK?: number): Promise<ClaudeFlowCallResult<Array<{ pattern: string; similarity: number }>>>;
 }
 
 /**

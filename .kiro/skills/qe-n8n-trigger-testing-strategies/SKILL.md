@@ -516,9 +516,9 @@ Polling Scenarios:
 ---
 
 ## Related Skills
-- [n8n-workflow-testing-fundamentals](../n8n-workflow-testing-fundamentals/)
-- [n8n-integration-testing-patterns](../n8n-integration-testing-patterns/)
-- [n8n-security-testing](../n8n-security-testing/)
+- [n8n-workflow-testing-fundamentals](../qe-n8n-workflow-testing-fundamentals/)
+- [n8n-integration-testing-patterns](../qe-n8n-integration-testing-patterns/)
+- [n8n-security-testing](../qe-n8n-security-testing/)
 
 ---
 

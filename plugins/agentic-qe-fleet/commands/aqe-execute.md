@@ -145,30 +145,30 @@ Task("Execute comprehensive test suite", `
 
 ```bash
 # Retrieve test suite metadata
-npx claude-flow@alpha memory retrieve --key "aqe/test-suite/${suite}"
+npx ruflo@3.76.0 memory retrieve --key "aqe/test-suite/${suite}"
 
 # Retrieve flaky test data
-npx claude-flow@alpha memory retrieve --key "aqe/flaky-tests"
+npx ruflo@3.76.0 memory retrieve --key "aqe/flaky-tests"
 
 # Retrieve execution configuration
-npx claude-flow@alpha memory retrieve --key "aqe/execution-config"
+npx ruflo@3.76.0 memory retrieve --key "aqe/execution-config"
 ```
 
 ### Output Memory Keys
 
 ```bash
 # Store execution results
-npx claude-flow@alpha memory store \
+npx ruflo@3.76.0 memory store \
   --key "aqe/execution/results/${run_id}" \
   --value '{"numTotalTests": 120, "numPassedTests": 118, "numFailedTests": 2}'
 
 # Update current coverage
-npx claude-flow@alpha memory store \
+npx ruflo@3.76.0 memory store \
   --key "aqe/coverage/current" \
   --value '{"pct": 94.5}'
 
 # Store test failures
-npx claude-flow@alpha memory store \
+npx ruflo@3.76.0 memory store \
   --key "aqe/test-failures" \
   --value '[{"test": "user-auth-test", "error": "timeout"}]'
 ```
@@ -178,25 +178,30 @@ npx claude-flow@alpha memory store \
 ### Pre-Task Hook
 
 ```bash
-npx claude-flow@alpha hooks pre-task \
-  --description "Execute test suite: ${suite}" \
-  --agent "qe-test-executor"
+# One id per run; post-task below records the outcome against it
+RUN_ID="aqe-execute-$(date +%s)"
+npx ruflo@3.76.0 hooks pre-task \
+  --task-id "${RUN_ID}" \
+  --description "Execute test suite: ${suite}"
 ```
 
 ### During Execution (real-time updates)
 
 ```bash
 # Notify fleet of progress
-npx claude-flow@alpha hooks notify \
+npx ruflo@3.76.0 hooks notify \
   --message "Executing: ${TEST_FILE} (${CURRENT}/${TOTAL})"
 ```
 
 ### Post-Task Hook
 
 ```bash
-npx claude-flow@alpha hooks post-task \
-  --task-id "${RUN_ID}" \
-  --results "${EXECUTION_RESULTS}"
+# Set TASK_SUCCEEDED to true or false from the actual result; results go to `memory store` above
+npx ruflo@3.76.0 hooks post-task \
+  --task-id "${RUN_ID:?run the pre-task block first, in the same shell}" \
+  --success "${TASK_SUCCEEDED:?set to true or false}" \
+  --agent "qe-parallel-executor" \
+  --task "Execute test suite: ${suite}"
 ```
 
 ## Expected Outputs

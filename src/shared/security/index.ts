@@ -25,6 +25,7 @@ export { CompliancePatternAnalyzer, getCompliancePatternAnalyzer } from './compl
 export type {
   PatternMatch,
   CompliancePatternResult,
+  UnreadFile,
   EncryptionAnalysis,
   AccessControlAnalysis,
   LoggingAnalysis,

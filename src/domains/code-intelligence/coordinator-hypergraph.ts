@@ -28,7 +28,7 @@ const logger = LoggerFactory.create('code-intelligence/hypergraph');
 export async function initializeHypergraph(
   hypergraphDbPath: string | undefined,
   enableGNN: boolean
-): Promise<{ engine: HypergraphEngine; db: import('better-sqlite3').Database }> {
+): Promise<{ engine: HypergraphEngine; db: import('../../shared/sqlite-types.js').SqliteDatabase }> {
   const { openDatabase } = await import('../../shared/safe-db.js');
   const fs = await import('fs');
   const path = await import('path');

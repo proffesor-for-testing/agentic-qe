@@ -19,6 +19,31 @@ import {
   SECRET_PATTERNS,
 } from '../../../domains/security-compliance/services/scanners/security-patterns.js';
 import { writeQualityEvidence } from '../../../domains/quality-assessment/quality-evidence.js';
+import { ConfinedReadError, readConfinedTextSync, type ConfinedReadReason } from '../../../shared/io/confined-read.js';
+
+/**
+ * #1350: every file this tool reads is named by, or found under a target
+ * named by, the MCP caller. It is read confined to the project root and
+ * refusing a hardlink outside node_modules (which can point outside the
+ * project); a file that exists but was not read is listed in `refused`.
+ */
+const MAX_SCAN_FILE_BYTES = 1_000_000;
+
+function readScanFile(filePath: string, refused: RefusedScanFile[]): string | null {
+  try {
+    return readConfinedTextSync(filePath, { hardlinks: 'refuse-outside-node-modules', maxBytes: MAX_SCAN_FILE_BYTES });
+  } catch (error) {
+    if (error instanceof ConfinedReadError && error.reason !== 'not-found') {
+      refused.push({ path: filePath, reason: error.reason });
+    }
+    return null;
+  }
+}
+
+export interface RefusedScanFile {
+  path: string;
+  reason: ConfinedReadReason;
+}
 
 // ============================================================================
 // Types
@@ -41,6 +66,8 @@ export interface SecurityScanResult {
   complianceResults?: ComplianceResult[];
   recommendations: string[];
   passed: boolean;
+  /** #1350: files that exist but were not read (outside the project, hardlinked, too large, ...). */
+  refused?: RefusedScanFile[];
 }
 
 export interface ScanSummary {
@@ -190,18 +217,19 @@ export class SecurityScanTool extends MCPToolBase<SecurityScanParams, SecuritySc
       });
 
       const vulnerabilities: Vulnerability[] = [];
+      const refused: RefusedScanFile[] = [];
 
       // SAST scanning — apply real security patterns against real files
       if (scanType.includes('sast') || scanType.includes('secret')) {
         this.emitStream(context, { status: 'sast', message: 'Running static analysis' });
-        const sastVulns = await scanFilesWithPatterns(files, scanType);
+        const sastVulns = await scanFilesWithPatterns(files, scanType, refused);
         vulnerabilities.push(...sastVulns);
       }
 
       // Dependency scanning — parse real package manifests
       if (scanType.includes('dependency')) {
         this.emitStream(context, { status: 'dependency', message: 'Scanning dependencies' });
-        const depVulns = await scanDependencies(target);
+        const depVulns = await scanDependencies(target, refused);
         vulnerabilities.push(...depVulns);
       }
 
@@ -231,7 +259,8 @@ export class SecurityScanTool extends MCPToolBase<SecurityScanParams, SecuritySc
       const worstSeverity = vulnerabilities.length > 0
         ? Math.min(...vulnerabilities.map(v => severityOrder.indexOf(v.severity)))
         : severityOrder.length;
-      const passed = worstSeverity > failThreshold;
+      // #1350: files that were not read leave the scan incomplete, never passed.
+      const passed = worstSeverity > failThreshold && refused.length === 0;
 
       await writeQualityEvidence(await getMemoryBackend(context), {
         securityVulnerabilities: vulnerabilities.length,
@@ -255,6 +284,7 @@ export class SecurityScanTool extends MCPToolBase<SecurityScanParams, SecuritySc
           complianceResults: complianceResults.length > 0 ? complianceResults : undefined,
           recommendations: generateRecommendations(vulnerabilities, summary),
           passed,
+          ...(refused.length > 0 ? { refused } : {}),
         },
       };
     } catch (error) {
@@ -410,9 +440,9 @@ async function discoverFiles(target: string, depth: string): Promise<string[]> {
 
 async function scanFilesWithPatterns(
   files: string[],
-  scanTypes: string[]
+  scanTypes: string[],
+  refused: RefusedScanFile[],
 ): Promise<Vulnerability[]> {
-  const fs = await import('fs');
   const path = await import('path');
   const vulnerabilities: Vulnerability[] = [];
   let vulnCounter = 0;
@@ -485,15 +515,11 @@ async function scanFilesWithPatterns(
   }
 
   for (const filePath of files) {
-    let content: string;
-    try {
-      content = fs.readFileSync(filePath, 'utf-8');
-    } catch {
-      continue; // Can't read file, skip
-    }
+    const content = readScanFile(filePath, refused);
+    if (content === null) continue; // Can't read file; a refused one is listed
 
-    // Skip binary files or very large files
-    if (content.includes('\0') || content.length > 1_000_000) continue;
+    // Skip binary files
+    if (content.includes('\0')) continue;
 
     const lines = content.split('\n');
     const relPath = path.relative(process.cwd(), filePath);
@@ -541,7 +567,7 @@ async function scanFilesWithPatterns(
 // Real Dependency Scanning
 // ============================================================================
 
-async function scanDependencies(target: string): Promise<Vulnerability[]> {
+async function scanDependencies(target: string, refused: RefusedScanFile[]): Promise<Vulnerability[]> {
   const fs = await import('fs');
   const path = await import('path');
   const vulnerabilities: Vulnerability[] = [];
@@ -551,7 +577,9 @@ async function scanDependencies(target: string): Promise<Vulnerability[]> {
   const pkgJsonPath = path.join(resolved, 'package.json');
   if (fs.existsSync(pkgJsonPath)) {
     try {
-      const pkg = safeJsonParse<{ dependencies?: Record<string, string>; devDependencies?: Record<string, string> }>(fs.readFileSync(pkgJsonPath, 'utf-8'));
+      const pkgText = readScanFile(pkgJsonPath, refused);
+      if (pkgText === null) throw new Error('not read');
+      const pkg = safeJsonParse<{ dependencies?: Record<string, string>; devDependencies?: Record<string, string> }>(pkgText);
       const allDeps = { ...pkg.dependencies, ...pkg.devDependencies };
       vulnerabilities.push(...checkKnownVulnerableDeps(allDeps, 'package.json'));
     } catch { /* skip malformed */ }
@@ -561,7 +589,8 @@ async function scanDependencies(target: string): Promise<Vulnerability[]> {
   const pyprojectPath = path.join(resolved, 'pyproject.toml');
   if (fs.existsSync(pyprojectPath)) {
     try {
-      const content = fs.readFileSync(pyprojectPath, 'utf-8');
+      const content = readScanFile(pyprojectPath, refused);
+      if (content === null) throw new Error('not read');
       const deps = extractPythonDeps(content);
       vulnerabilities.push(...checkKnownVulnerablePythonDeps(deps, 'pyproject.toml'));
     } catch { /* skip */ }
@@ -571,7 +600,8 @@ async function scanDependencies(target: string): Promise<Vulnerability[]> {
   const reqPath = path.join(resolved, 'requirements.txt');
   if (fs.existsSync(reqPath)) {
     try {
-      const content = fs.readFileSync(reqPath, 'utf-8');
+      const content = readScanFile(reqPath, refused);
+      if (content === null) throw new Error('not read');
       const deps = extractRequirementsTxtDeps(content);
       vulnerabilities.push(...checkKnownVulnerablePythonDeps(deps, 'requirements.txt'));
     } catch { /* skip */ }

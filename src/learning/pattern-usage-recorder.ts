@@ -21,7 +21,7 @@
  *   quality_score = confidence * 0.3 + min(usage_count/100, 1) * 0.2 + success_rate * 0.5
  */
 
-import type { Database as DatabaseType } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType } from '../shared/sqlite-types.js';
 
 export interface PatternUsageRecord {
   patternId: string;

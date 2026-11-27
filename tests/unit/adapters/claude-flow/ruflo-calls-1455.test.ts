@@ -1,0 +1,571 @@
+/**
+ * Issue #1455: the Claude Flow bridges and ClaudeFlowAdapterImpl ran ruflo subcommands
+ * that do not exist (`hooks intelligence trajectory-*` / `pattern-*`, `hooks transfer
+ * --source-path`) and hid the failure behind invented ids and empty results.
+ *
+ * child_process is mocked; the ruflo outputs below were captured from real
+ * `npx --no-install ruflo ...` runs of 3.76.0 (the pinned release); 3.80.7 printed the same.
+ */
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+// `ruflo mcp exec` runs through runCommandTree (async, kills the process tree on
+// timeout; tested for real in process-tree-1455.test.ts); the kept hooks calls use execFileSync.
+const execFile = vi.fn();
+const execFileSync = vi.fn();
+vi.mock('child_process', () => ({ execFileSync: (...a: unknown[]) => execFileSync(...a) }));
+vi.mock('../../../../src/adapters/claude-flow/process-tree.js', () => ({
+  runCommandTree: (...a: unknown[]) => execFile(...a),
+}));
+
+/** A runCommandTree implementation that exits 0 with `stdout`, after `ms`. */
+const reply =
+  (stdout: string, ms = 0) =>
+  (_bin: string, _args: string[], _opts: unknown) =>
+    new Promise<string>((resolve) => setTimeout(() => resolve(stdout), ms));
+/** A runCommandTree implementation that fails like a non-zero exit (or a timeout, with `extra`). */
+const exit1 =
+  (stderr: string, stdout = '', extra: Record<string, unknown> = {}) =>
+  (_bin: string, _args: string[], _opts: unknown) =>
+    new Promise<string>((_resolve, reject) =>
+      setImmediate(() => reject(Object.assign(new Error('Command failed with exit code 1: npx --no-install ruflo mcp'), { code: 1, stdout, stderr }, extra)))
+    );
+/** Queue runCommandTree replies, one per call. */
+function replies(...impls: Array<ReturnType<typeof reply>>) {
+  for (const impl of impls) execFile.mockImplementationOnce(impl);
+}
+
+const detection = { available: true, method: 'npx-cached', version: '3.76.0' };
+vi.mock('../../../../src/adapters/claude-flow/detect.js', () => ({
+  detectClaudeFlow: () => detection,
+  resolveCliPackage: () => 'ruflo',
+}));
+
+const run = vi.fn();
+vi.mock('../../../../src/kernel/unified-memory.js', () => ({
+  getUnifiedMemory: () => ({
+    isInitialized: () => true,
+    getDatabase: () => ({
+      prepare: (sql: string) => ({ all: () => [{ name: 'feedback' }], run: (...args: unknown[]) => run(sql, ...args) }),
+      exec: vi.fn(),
+    }),
+  }),
+}));
+
+import { mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import {
+  KeyedSerialQueue,
+  TIMEOUT_COOL_DOWN_MS,
+  clearRufloTimeouts,
+  parseMcpExecOutput,
+  projectKey,
+  runRufloTool,
+} from '../../../../src/adapters/claude-flow/ruflo-tool.js';
+import { TrajectoryBridge } from '../../../../src/adapters/claude-flow/trajectory-bridge.js';
+import { ModelRouterBridge, confidenceFraction } from '../../../../src/adapters/claude-flow/model-router-bridge.js';
+import { PretrainBridge, parseTransferOutput } from '../../../../src/adapters/claude-flow/pretrain-bridge.js';
+import { ClaudeFlowAdapterImpl } from '../../../../src/init/enhancements/claude-flow-adapter.js';
+
+/** `ruflo mcp exec` stdout (its `[INFO] Executing tool` line goes to stderr). */
+const mcpExec = (result: Record<string, unknown>) =>
+  `  Parameters: {}\n\n[OK] Tool executed in 501.33ms\n\nResult:\n${JSON.stringify(result, null, 2)}\n`;
+
+const STARTED = mcpExec({ trajectoryId: 'traj-1795598815055-kmjsaq', status: 'recording', persisted: true });
+const STEP_RECORDED = mcpExec({ trajectoryId: 'traj-1795598815055-kmjsaq', recorded: true, implementation: 'real-step-recording' });
+const STEP_NOT_FOUND = mcpExec({ trajectoryId: 'nope', recorded: false, persisted: false, implementation: 'trajectory-not-found' });
+const ENDED = mcpExec({ trajectoryId: 'traj-1795598815055-kmjsaq', success: true, persisted: true, trajectory: { totalSteps: 1 } });
+const END_NOT_FOUND = mcpExec({ trajectoryId: 'none', persisted: false, trajectory: null, note: 'Trajectory not found' });
+
+/** What `ruflo hooks intelligence trajectory-start --task ...` printed (exit 0): the status table. */
+const INTELLIGENCE_STATUS = 'RuVector Intelligence System\nIntelligence system active\n| Mode: balanced |\n';
+
+const argvOf = (call: number) => execFile.mock.calls[call][1] as string[];
+const syncArgvOf = (call: number) => execFileSync.mock.calls[call][1] as string[];
+
+beforeEach(() => {
+  clearRufloTimeouts();
+  execFile.mockReset();
+  execFileSync.mockReset();
+  run.mockReset();
+  detection.available = true;
+  vi.spyOn(console, 'debug').mockImplementation(() => {});
+});
+
+describe('runRufloTool', () => {
+  it('should_runMcpExecAsynchronouslyWithJsonParams_when_calledWithAToolName', async () => {
+    replies(reply(STARTED));
+    const r = await runRufloTool('hooks_intelligence_trajectory-start', { task: 't', agent: 'a' }, { cwd: '/p' });
+    expect(execFile.mock.calls[0][0]).toBe('npx');
+    expect(argvOf(0)).toEqual([
+      '--no-install', 'ruflo', 'mcp', 'exec', '--tool', 'hooks_intelligence_trajectory-start', '--params', '{"task":"t","agent":"a"}',
+    ]);
+    expect(execFile.mock.calls[0][2]).toMatchObject({ cwd: '/p', timeoutMs: 15000 });
+    expect(execFileSync).not.toHaveBeenCalled();
+    expect(r).toEqual({ ok: true, data: expect.objectContaining({ trajectoryId: 'traj-1795598815055-kmjsaq' }) });
+  });
+
+  it('should_notBlockTheEventLoop_when_rufloIsRunning', async () => {
+    let finish: ((out: string) => void) | undefined;
+    execFile.mockImplementationOnce(() => new Promise<string>((resolve) => { finish = resolve; }));
+    const pending = runRufloTool('hooks_intelligence_pattern-search', { query: 'q' }, { cwd: '/loop' });
+    let ticked = false;
+    await new Promise<void>((resolve) => setImmediate(() => { ticked = true; resolve(); }));
+    expect(ticked).toBe(true);
+    finish!(mcpExec({ results: [] }));
+    expect(await pending).toMatchObject({ ok: true });
+  });
+
+  it('should_reportTheRufloError_when_theToolIsUnknown', async () => {
+    replies(exit1('[INFO] Executing tool: hooks_intelligence_nope\n[ERROR] Tool not found: hooks_intelligence_nope\n'));
+    const r = await runRufloTool('hooks_intelligence_pattern-search', {});
+    expect(r).toEqual({ ok: false, reason: expect.stringContaining('[ERROR] Tool not found') });
+  });
+
+  it('should_reportATimeout_when_rufloIsKilled', async () => {
+    replies(exit1('[INFO] Executing tool: hooks_intelligence_trajectory-end\n', '', { killed: true, signal: 'SIGTERM', message: 'timed out after 30000 ms' }));
+    const r = await runRufloTool('hooks_intelligence_trajectory-end', { trajectoryId: 't' }, { timeoutMs: 30000 });
+    expect(r).toEqual({ ok: false, reason: 'ruflo mcp exec hooks_intelligence_trajectory-end failed: timed out after 30000 ms' });
+  });
+
+  it('should_fail_when_outputHasNoResult', async () => {
+    replies(reply(INTELLIGENCE_STATUS));
+    expect(await runRufloTool('hooks_intelligence_pattern-search', {})).toEqual({
+      ok: false,
+      reason: 'ruflo mcp exec hooks_intelligence_pattern-search printed no JSON result',
+    });
+  });
+
+  it('should_fail_when_theToolReportsSuccessFalse', async () => {
+    replies(reply(mcpExec({ success: false, error: 'sourcePath contains path traversal (..)' })));
+    const r = await runRufloTool('hooks_intelligence_pattern-store', { pattern: 'p' });
+    expect(r).toEqual({ ok: false, reason: expect.stringContaining('path traversal') });
+  });
+
+  it('should_succeed_when_trajectoryEndEchoesAFailedOutcome', async () => {
+    // Real 3.76.0 result of ending a trajectory with success: false.
+    replies(reply(mcpExec({ trajectoryId: 't', success: false, persisted: true, trajectory: { totalSteps: 1 } })));
+    const r = await runRufloTool('hooks_intelligence_trajectory-end', { trajectoryId: 't', success: false });
+    expect(r).toMatchObject({ ok: true, data: { success: false, trajectory: { totalSteps: 1 } } });
+  });
+
+  it('should_parseTheResultObject_when_textFollowsIt', () => {
+    expect(parseMcpExecOutput(`${mcpExec({ a: '}{', b: [1] })}\nUpdate available: 3.80.7 {x}\n`)).toEqual({ a: '}{', b: [1] });
+    expect(parseMcpExecOutput('Result:\nnot json')).toBeNull();
+  });
+});
+
+describe('KeyedSerialQueue', () => {
+  it('should_runTasksOfOneKeyInOrder_when_startedTogether', async () => {
+    const q = new KeyedSerialQueue();
+    const log: string[] = [];
+    const task = (name: string, ms: number) => () =>
+      new Promise<string>((resolve) => setTimeout(() => { log.push(name); resolve(name); }, ms));
+    const results = await Promise.all([q.run('t', task('a', 30)), q.run('t', task('b', 1)), q.run('u', task('c', 5))]);
+    expect(results).toEqual(['a', 'b', 'c']);
+    expect(log).toEqual(['c', 'a', 'b']);
+  });
+
+  it('should_keepGoing_when_aTaskRejects', async () => {
+    const q = new KeyedSerialQueue();
+    const failed = q.run('t', () => Promise.reject(new Error('x')));
+    const next = q.run('t', () => Promise.resolve('ok'));
+    await expect(failed).rejects.toThrow('x');
+    expect(await next).toBe('ok');
+  });
+});
+
+describe('runRufloTool project queue', () => {
+  /** Tracks how many ruflo processes run at once, per cwd. */
+  function trackConcurrency() {
+    const inFlight = new Map<string, number>();
+    const max = new Map<string, number>();
+    execFile.mockImplementation((_b: string, _a: string[], opts: { cwd: string }) => {
+      inFlight.set(opts.cwd, (inFlight.get(opts.cwd) ?? 0) + 1);
+      max.set(opts.cwd, Math.max(max.get(opts.cwd) ?? 0, inFlight.get(opts.cwd)!));
+      return new Promise<string>((resolve) =>
+        setTimeout(() => { inFlight.set(opts.cwd, inFlight.get(opts.cwd)! - 1); resolve(STEP_RECORDED); }, 5)
+      );
+    });
+    return max;
+  }
+
+  it('should_runOneRufloProcessAtATimePerProject_when_differentTrajectoriesAndToolsAreCalled', async () => {
+    const max = trackConcurrency();
+    await Promise.all([
+      runRufloTool('hooks_intelligence_trajectory-start', { task: 'a' }, { cwd: '/proj' }),
+      runRufloTool('hooks_intelligence_trajectory-start', { task: 'b' }, { cwd: '/proj/' }), // same resolved path
+      runRufloTool('hooks_intelligence_trajectory-step', { trajectoryId: 'x', action: 's' }, { cwd: '/proj' }),
+      runRufloTool('hooks_intelligence_pattern-store', { pattern: 'p' }, { cwd: '/proj' }),
+      runRufloTool('hooks_intelligence_pattern-search', { query: 'q' }, { cwd: '/proj' }),
+    ]);
+    expect(max.get('/proj')).toBe(1);
+    expect(execFile.mock.calls.map((c) => (c[1] as string[])[5])).toEqual([
+      'hooks_intelligence_trajectory-start',
+      'hooks_intelligence_trajectory-start',
+      'hooks_intelligence_trajectory-step',
+      'hooks_intelligence_pattern-store',
+      'hooks_intelligence_pattern-search',
+    ]);
+  });
+
+  // Round-3 review: one timed-out call made every queued call wait its own timeout.
+  it('should_failQueuedCallsAtOnce_when_aCallInTheProjectTimedOut', async () => {
+    execFile.mockImplementationOnce(exit1('', '', { killed: true, message: 'timed out after 15000 ms' }));
+    const started = Date.now();
+    const results = await Promise.all([
+      runRufloTool('hooks_intelligence_trajectory-start', { task: 'a' }, { cwd: '/slow' }),
+      runRufloTool('hooks_intelligence_trajectory-step', { trajectoryId: 't', action: 's' }, { cwd: '/slow' }),
+      runRufloTool('hooks_intelligence_trajectory-end', { trajectoryId: 't' }, { cwd: '/slow' }),
+    ]);
+    expect(results[0]).toEqual({ ok: false, reason: expect.stringContaining('timed out after 15000 ms') });
+    expect(results.slice(1)).toEqual([
+      { ok: false, reason: expect.stringMatching(/^ruflo mcp exec hooks_intelligence_trajectory-step skipped: a ruflo call in \/slow timed out/) },
+      { ok: false, reason: expect.stringMatching(/skipped: a ruflo call in \/slow timed out/) },
+    ]);
+    expect(execFile).toHaveBeenCalledTimes(1); // the skipped calls started no ruflo
+    expect(Date.now() - started).toBeLessThan(1000);
+    expect(TIMEOUT_COOL_DOWN_MS).toBe(30_000);
+
+    // Other projects are unaffected, and the project works again after the cool-down.
+    replies(reply(STEP_RECORDED), reply(STEP_RECORDED));
+    expect(await runRufloTool('hooks_intelligence_pattern-search', { query: 'q' }, { cwd: '/fast' })).toMatchObject({ ok: true });
+    const now = Date.now();
+    const spy = vi.spyOn(Date, 'now').mockReturnValue(now + TIMEOUT_COOL_DOWN_MS + 1);
+    expect(await runRufloTool('hooks_intelligence_pattern-search', { query: 'q' }, { cwd: '/slow' })).toMatchObject({ ok: true });
+    spy.mockRestore();
+  });
+
+  it('should_notCoolDown_when_rufloOnlyExitsNonZero', async () => {
+    replies(exit1('[ERROR] Tool not found: x\n'), reply(STEP_RECORDED));
+    await runRufloTool('hooks_intelligence_pattern-search', { query: 'q' }, { cwd: '/err' });
+    expect(await runRufloTool('hooks_intelligence_pattern-search', { query: 'q' }, { cwd: '/err' })).toMatchObject({ ok: true });
+  });
+
+  // Round-3 review: `/link` and `/real` named one project but got two queues.
+  it('should_shareOneQueue_when_theProjectIsNamedThroughASymlink', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'aqe-1455-key-'));
+    const realDir = mkdtempSync(join(root, 'real-'));
+    const linkDir = join(root, 'link');
+    symlinkSync(realDir, linkDir);
+    try {
+      const max = trackConcurrency();
+      await Promise.all([
+        runRufloTool('hooks_intelligence_pattern-search', { query: 'a' }, { cwd: realDir }),
+        runRufloTool('hooks_intelligence_pattern-search', { query: 'b' }, { cwd: linkDir }),
+        runRufloTool('hooks_intelligence_pattern-search', { query: 'c' }, { cwd: `${linkDir}/.` }),
+      ]);
+      const key = realpathSync(realDir);
+      expect(projectKey(linkDir)).toBe(key);
+      expect([...max.keys()]).toEqual([key]); // every call ran in the real path
+      expect(max.get(key)).toBe(1);
+      expect(projectKey('/no/such/dir/../x')).toBe('/no/such/x'); // fallback: path.resolve
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('should_runProjectsInParallel_when_cwdsDiffer', async () => {
+    const max = trackConcurrency();
+    let both = 0;
+    const orig = execFile.getMockImplementation()!;
+    execFile.mockImplementation((b: string, a: string[], o: { cwd: string }) => { both++; return orig(b, a, o); });
+    const pending = [
+      runRufloTool('hooks_intelligence_pattern-search', { query: 'q' }, { cwd: '/one' }),
+      runRufloTool('hooks_intelligence_pattern-search', { query: 'q' }, { cwd: '/two' }),
+    ];
+    await new Promise((r) => setTimeout(r, 1));
+    expect(both).toBe(2); // both started before either finished
+    await Promise.all(pending);
+    expect([max.get('/one'), max.get('/two')]).toEqual([1, 1]);
+  });
+});
+
+describe('TrajectoryBridge with Claude Flow', () => {
+  async function bridge() {
+    const b = new TrajectoryBridge({ projectRoot: '/p' });
+    await b.initialize();
+    return b;
+  }
+
+  it('should_useRuflosTrajectoryAndKeepStepsLocally_when_rufloRecordsThem', async () => {
+    replies(reply(STARTED), reply(STEP_RECORDED), reply(ENDED));
+    const b = await bridge();
+
+    const id = await b.startTrajectory('generate tests', 'qe-test-architect');
+    await b.recordStep(id, 'read file', 'ok', 0.9);
+    const done = await b.endTrajectory(id, true, 'good');
+
+    expect(id).toBe('traj-1795598815055-kmjsaq');
+    expect(argvOf(1)).toContain('hooks_intelligence_trajectory-step');
+    expect(JSON.parse(argvOf(1).at(-1)!)).toEqual({ trajectoryId: id, action: 'read file', result: 'ok', quality: 0.9 });
+    expect(JSON.parse(argvOf(2).at(-1)!)).toEqual({ trajectoryId: id, success: true, feedback: 'good' });
+    expect(done).toMatchObject({ id, rufloTracked: true, success: true, steps: [expect.objectContaining({ action: 'read file' })] });
+    expect(run).toHaveBeenCalledTimes(1); // persisted to qe_trajectories
+  });
+
+  it('should_neverSendAnUnknownIdToRuflo_when_theTrajectoryWasNotStartedHere', async () => {
+    // AQELearningEngine passed its experience id (exp-...) before the review of #1455.
+    const b = await bridge();
+    await b.recordStep('exp-123-abc', 'x');
+    expect(await b.endTrajectory('exp-123-abc', true)).toBeUndefined();
+    expect(execFile).not.toHaveBeenCalled();
+  });
+
+  it('should_sendStepsOneAtATimeInOrderAndPrune_when_recordedConcurrently', async () => {
+    replies(reply(STARTED));
+    const b = await bridge();
+    const id = await b.startTrajectory('t');
+
+    let inFlight = 0;
+    let maxInFlight = 0;
+    execFile.mockImplementation((_b: string, args: string[]) => {
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      return new Promise<string>((resolve) =>
+        setTimeout(() => {
+          inFlight--;
+          resolve(args.includes('hooks_intelligence_trajectory-end') ? ENDED : STEP_RECORDED);
+        }, 5)
+      );
+    });
+    const steps = [1, 2, 3, 4, 5].map((n) => b.recordStep(id, `step ${n}`));
+    const done = await b.endTrajectory(id, true); // called while the steps are pending
+    await Promise.all(steps);
+
+    expect(maxInFlight).toBe(1);
+    const sent = execFile.mock.calls.slice(1).map((c) => JSON.parse((c[1] as string[]).at(-1)!).action ?? 'end');
+    expect(sent).toEqual(['step 1', 'step 2', 'step 3', 'step 4', 'step 5', 'end']);
+    expect(done?.steps.map((s) => s.action)).toEqual(['step 1', 'step 2', 'step 3', 'step 4', 'step 5']);
+    // Ended trajectories are removed: no leak, and later calls for the id are ignored.
+    expect(b.getTrajectory(id)).toBeUndefined();
+    expect(b.openTrajectoryIds()).toEqual([]);
+    await b.recordStep(id, 'late');
+    expect(await b.endTrajectory(id, true)).toBeUndefined();
+    expect(execFile).toHaveBeenCalledTimes(7);
+  });
+
+  it('should_trackLocallyAndStopCallingRuflo_when_rufloStartsNoTrajectory', async () => {
+    // Before #1455 this printed the intelligence status and exited 0.
+    replies(reply(INTELLIGENCE_STATUS));
+    const b = await bridge();
+
+    const id = await b.startTrajectory('generate tests');
+    await b.recordStep(id, 'read file');
+    const done = await b.endTrajectory(id, false);
+
+    expect(id).toMatch(/^trajectory-[0-9a-f-]{36}$/);
+    expect(execFile).toHaveBeenCalledTimes(1);
+    expect(done).toMatchObject({ rufloTracked: false, success: false, steps: [expect.objectContaining({ action: 'read file' })] });
+    expect(console.debug).toHaveBeenCalledWith(expect.stringContaining('did not start a trajectory'), expect.anything());
+  });
+
+  it('should_logAndKeepLocalSteps_when_rufloDoesNotRecordTheStepOrEnd', async () => {
+    replies(reply(STARTED), reply(STEP_NOT_FOUND), reply(END_NOT_FOUND));
+    const b = await bridge();
+
+    const id = await b.startTrajectory('t');
+    await b.recordStep(id, 'a');
+    const done = await b.endTrajectory(id, true);
+
+    expect(done?.steps).toHaveLength(1);
+    expect(console.debug).toHaveBeenCalledWith(expect.stringContaining('did not record the trajectory step'), 'trajectory-not-found');
+    expect(console.debug).toHaveBeenCalledWith(expect.stringContaining('did not end the trajectory'), 'Trajectory not found');
+  });
+
+  it('should_recordLocally_when_rufloExitsNonZero', async () => {
+    execFile.mockImplementation(exit1('[ERROR] Invalid JSON parameters\n'));
+    const b = await bridge();
+    const id = await b.startTrajectory('t');
+    await b.recordStep(id, 'a');
+    expect((await b.endTrajectory(id, true))?.steps).toHaveLength(1);
+    expect(execFile).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('ModelRouterBridge', () => {
+  it('should_returnAFraction_when_rufloPrintsConfidenceAsAPercentage', async () => {
+    execFileSync.mockReturnValueOnce(
+      '+-- Model Routing Result ---+\n| Selected Model: 🌸 HAIKU  |\n| Confidence: 80.5%         |\n+---------------------------+\n\nReasoning\n' +
+        'Complexity: 14% | Confidence: 81% | Model: haiku - Fast, cost-effective for simple tasks | Cost: 0.04x baseline\n',
+    );
+    const b = new ModelRouterBridge({ projectRoot: '/p' });
+    await b.initialize();
+    const r = await b.routeTask('fix typo');
+    expect(syncArgvOf(0)).toEqual(['--no-install', 'ruflo', 'hooks', 'model-route', '--task', 'fix typo']);
+    expect(r.model).toBe('haiku');
+    expect(r.confidence).toBeCloseTo(0.805);
+  });
+
+  it.each([
+    ['0.5%', 0.005],
+    ['1.0%', 0.01],
+    ['80.5%', 0.805],
+    ['100%', 1],
+    ['0.8', 0.8],
+    ['1', 1],
+  ])('should_divideOnlyPercentages_when_parsing %s', (raw, expected) => {
+    expect(confidenceFraction(raw)).toBeCloseTo(expected);
+  });
+
+  it('should_returnNull_when_theMatchIsNotANumber', () => {
+    expect(confidenceFraction('.')).toBeNull();
+    expect(confidenceFraction('.%')).toBeNull();
+  });
+});
+
+describe('PretrainBridge', () => {
+  async function bridge() {
+    const b = new PretrainBridge({ projectRoot: '/p' });
+    await b.initialize();
+    return b;
+  }
+
+  it('should_returnLocalConfigsWithoutRunningRuflo_when_generatingAgentConfigs', async () => {
+    const b = await bridge();
+    const yaml = await b.generateAgentConfigs('yaml');
+    const json = await b.generateAgentConfigs('json');
+    expect(execFileSync).not.toHaveBeenCalled();
+    expect(execFile).not.toHaveBeenCalled();
+    expect(yaml.map((c) => c.name)).toContain('qe-test-architect');
+    expect(json).toEqual(yaml);
+  });
+
+  it('should_runTransferFromProject_when_transferringPatterns', async () => {
+    execFileSync.mockReturnValueOnce(
+      '[INFO] Transferring patterns from: /src\nTransferred 1 patterns\n\nTransfer Summary\n' +
+        '| Total Transferred        |     1 |\n| Skipped (Low Confidence) |     1 |\n| Skipped (Duplicates)     |     2 |\n| Skipped (Conflicts)      |     0 |\n',
+    );
+    const b = await bridge();
+    expect(await b.transferPatterns('/src', 0.7)).toEqual({ transferred: 1, skipped: 3 });
+    expect(syncArgvOf(0)).toEqual(['--no-install', 'ruflo', 'hooks', 'transfer', 'from-project', '--source', '/src', '--min-confidence', '0.7']);
+  });
+
+  it('should_reportZeroWithoutError_when_allPatternsAreDuplicates', async () => {
+    // Real 3.76.0 output of a second transfer from the same source (exit 0).
+    execFileSync.mockReturnValueOnce('Transferred 0 patterns\n| Skipped (Low Confidence) |     1 |\n| Skipped (Duplicates)     |     1 |\n');
+    const b = await bridge();
+    expect(await b.transferPatterns('/src')).toEqual({ transferred: 0, skipped: 2 });
+  });
+
+  it('should_reportTheReason_when_rufloTransfersNothing', async () => {
+    execFileSync.mockImplementationOnce(() => {
+      throw Object.assign(new Error('Command failed'), { status: 1, stderr: '', stdout: '[INFO] Transferring patterns from: /src\nNo patterns found in source project\n' });
+    });
+    const b = await bridge();
+    expect(await b.transferPatterns('/src')).toEqual({ transferred: 0, skipped: 0, error: 'No patterns found in source project' });
+  });
+
+  it('should_reportAnError_when_rufloExitsZeroWithoutACount', async () => {
+    // What the old `hooks transfer --source-path` printed: the transfer help.
+    execFileSync.mockReturnValueOnce('Pattern Transfer System\nSubcommands:\n  - from-project - Transfer patterns from another project\n');
+    const b = await bridge();
+    expect(await b.transferPatterns('/src')).toEqual({
+      transferred: 0,
+      skipped: 0,
+      error: 'ruflo exited 0 without a "Transferred N patterns" line',
+    });
+  });
+
+  it('should_sayClaudeFlowIsUnavailable_when_notDetected', async () => {
+    detection.available = false;
+    const b = await bridge();
+    expect(await b.transferPatterns('/src')).toEqual({ transferred: 0, skipped: 0, error: 'Claude Flow not available' });
+    expect(execFileSync).not.toHaveBeenCalled();
+  });
+
+  it('should_parseTransferCounts_when_outputHasColours', () => {
+    expect(parseTransferOutput('\x1b[32mTransferred 0 patterns\x1b[0m')).toEqual({ transferred: 0, skipped: 0 });
+    expect(parseTransferOutput('No count here')).toBeNull();
+  });
+});
+
+describe('ClaudeFlowAdapterImpl', () => {
+  async function adapter() {
+    const a = new ClaudeFlowAdapterImpl();
+    await a.initialize();
+    return a;
+  }
+
+  it('should_reportUnavailable_when_claudeFlowIsNotDetected', async () => {
+    detection.available = false;
+    const a = await adapter();
+    const unavailable = { status: 'unavailable', reason: 'Claude Flow not available' };
+    expect(await a.startTrajectory('t')).toEqual(unavailable);
+    expect(await a.recordStep('id', 'x')).toEqual(unavailable);
+    expect(await a.endTrajectory('id', true)).toEqual(unavailable);
+    expect(await a.storePattern('p', 'test', 0.9)).toEqual(unavailable);
+    expect(await a.searchPatterns('q')).toEqual(unavailable);
+    expect(execFile).not.toHaveBeenCalled();
+  });
+
+  it('should_returnRuflosIds_when_theToolsSucceed', async () => {
+    replies(
+      reply(STARTED),
+      reply(STEP_RECORDED),
+      reply(ENDED),
+      reply(mcpExec({ patternId: '2', indexed: true })),
+      reply(mcpExec({ results: [{ patternId: '2', pattern: 'use mocks for network', similarity: 0.93 }] })),
+    );
+    const a = await adapter();
+
+    expect(await a.startTrajectory('generate tests', 'qe-test-architect')).toEqual({ status: 'ok', value: 'traj-1795598815055-kmjsaq' });
+    expect(await a.recordStep('traj-1795598815055-kmjsaq', 'read file', 'ok', 0.9)).toEqual({ status: 'ok', value: undefined });
+    expect(await a.endTrajectory('traj-1795598815055-kmjsaq', true)).toEqual({ status: 'ok', value: undefined });
+    expect(await a.storePattern('use mocks for network', 'test', 0.9, { src: 'aqe' })).toEqual({ status: 'ok', value: '2' });
+    expect(await a.searchPatterns('mocks network', 5)).toEqual({
+      status: 'ok',
+      value: [{ pattern: 'use mocks for network', similarity: 0.93 }],
+    });
+    expect(execFile.mock.calls.map((c) => (c[1] as string[])[5])).toEqual([
+      'hooks_intelligence_trajectory-start',
+      'hooks_intelligence_trajectory-step',
+      'hooks_intelligence_trajectory-end',
+      'hooks_intelligence_pattern-store',
+      'hooks_intelligence_pattern-search',
+    ]);
+    expect(JSON.parse(argvOf(3).at(-1)!)).toEqual({ pattern: 'use mocks for network', type: 'test', confidence: 0.9, metadata: { src: 'aqe' } });
+    expect(JSON.parse(argvOf(4).at(-1)!)).toEqual({ query: 'mocks network', topK: 5 });
+  });
+
+  it('should_serializeRufloCalls_when_calledConcurrently', async () => {
+    const a = await adapter();
+    let inFlight = 0;
+    let maxInFlight = 0;
+    execFile.mockImplementation(() => {
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      return new Promise<string>((resolve) => setTimeout(() => { inFlight--; resolve(STEP_RECORDED); }, 5));
+    });
+    const results = await Promise.all([a.recordStep('traj-x', 's1'), a.recordStep('traj-y', 's2'), a.recordStep('traj-x', 's3')]);
+    expect(results.every((r) => r.status === 'ok')).toBe(true);
+    expect(maxInFlight).toBe(1);
+  });
+
+  it('should_reportFailed_when_rufloDoesNotDoIt', async () => {
+    replies(
+      reply(INTELLIGENCE_STATUS),
+      reply(mcpExec({ status: 'recording' })),
+      reply(STEP_NOT_FOUND),
+      reply(END_NOT_FOUND),
+      exit1('[ERROR] Tool not found: hooks_intelligence_pattern-store\n'),
+      reply(mcpExec({ query: 'q' })),
+    );
+    const a = await adapter();
+
+    expect(await a.startTrajectory('t')).toEqual({ status: 'failed', reason: expect.stringContaining('printed no JSON result') });
+    expect(await a.startTrajectory('t')).toEqual({ status: 'failed', reason: 'ruflo returned no trajectoryId' });
+    expect(await a.recordStep('nope', 'x')).toEqual({ status: 'failed', reason: expect.stringContaining('trajectory-not-found') });
+    expect(await a.endTrajectory('none', true)).toEqual({ status: 'failed', reason: expect.stringContaining('Trajectory not found') });
+    expect(await a.storePattern('p', 't', 1)).toEqual({ status: 'failed', reason: expect.stringContaining('Tool not found') });
+    expect(await a.searchPatterns('q')).toEqual({ status: 'failed', reason: 'ruflo returned no results array' });
+  });
+
+  it('should_returnAFraction_when_routingAModel', async () => {
+    execFileSync.mockReturnValueOnce('| Confidence: 54.7%       |\nReasoning\nComplexity: 14% | Confidence: 55% | Model: opus - Most capable\n');
+    const a = await adapter();
+    const r = await a.routeModel('fix typo');
+    expect(r.model).toBe('opus');
+    expect(r.confidence).toBeCloseTo(0.547);
+  });
+});

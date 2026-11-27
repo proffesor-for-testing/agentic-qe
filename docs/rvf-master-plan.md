@@ -197,7 +197,7 @@ Auto-generate `reports/rvf-benchmark-comparison.md` showing before/after deltas.
 ### Agent Fleet
 
 ```bash
-npx @claude-flow/cli@latest swarm init \
+npx ruflo@3.76.0 swarm init \
   --topology hierarchical \
   --max-agents 8 \
   --strategy specialized

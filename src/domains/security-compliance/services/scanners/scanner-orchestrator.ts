@@ -28,6 +28,7 @@ import { DEFAULT_CONFIG } from './scanner-types.js';
 import { SASTScanner } from './sast-scanner.js';
 import { DASTScanner } from './dast-scanner.js';
 import { DependencyScanner } from './dependency-scanner.js';
+import type { DependencyReadOptions } from './dependency-resolver.js';
 import { toError } from '@shared/error-utils.js';
 
 // ============================================================================
@@ -168,8 +169,8 @@ export class SecurityScannerService implements ISecurityScannerService {
   /**
    * Scan a package.json file for dependency vulnerabilities
    */
-  async scanPackageJson(packageJsonPath: string): Promise<Result<DependencyScanResult>> {
-    return this.dependencyScanner.scanPackageJson(packageJsonPath);
+  async scanPackageJson(packageJsonPath: string, read?: DependencyReadOptions): Promise<Result<DependencyScanResult>> {
+    return this.dependencyScanner.scanPackageJson(packageJsonPath, read);
   }
 
   // ==========================================================================

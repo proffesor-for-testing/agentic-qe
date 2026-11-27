@@ -11,8 +11,8 @@ Display comprehensive status information for a specific agent including metrics,
 ## Usage
 
 ```bash
-npx claude-flow agent status <agent-id>
-npx claude-flow agent status --id <agent-id>
+npx ruflo@3.76.0 agent status <agent-id>
+npx ruflo@3.76.0 agent status --id <agent-id>
 ```
 
 ## Options
@@ -26,13 +26,13 @@ npx claude-flow agent status --id <agent-id>
 
 ```bash
 # Get status by ID
-npx claude-flow agent status coder-lx7m9k2
+npx ruflo@3.76.0 agent status coder-lx7m9k2
 
 # Using --id flag
-npx claude-flow agent status --id researcher-abc123
+npx ruflo@3.76.0 agent status --id researcher-abc123
 
 # JSON output
-npx claude-flow agent status coder-lx7m9k2 --format json
+npx ruflo@3.76.0 agent status coder-lx7m9k2 --format json
 ```
 
 ## Output
@@ -109,7 +109,7 @@ The status command provides:
 
 ## Related Commands
 
-- `npx claude-flow agent list` - Find agent IDs
-- `npx claude-flow agent metrics` - Aggregate metrics
-- `npx claude-flow agent health` - Health check
-- `npx claude-flow agent logs <id>` - Activity logs
+- `npx ruflo@3.76.0 agent list` - Find agent IDs
+- `npx ruflo@3.76.0 agent metrics` - Aggregate metrics
+- `npx ruflo@3.76.0 agent health` - Health check
+- `npx ruflo@3.76.0 agent logs <id>` - Activity logs

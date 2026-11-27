@@ -159,35 +159,35 @@
 
 ```bash
 # Initialize project
-npx @claude-flow/cli@latest init --wizard
+npx ruflo@3.76.0 init --wizard
 
 # Start daemon
-npx @claude-flow/cli@latest daemon start
+npx ruflo@3.76.0 daemon start
 
 # Spawn agent
-npx @claude-flow/cli@latest agent spawn -t coder --name my-coder
+npx ruflo@3.76.0 agent spawn -t coder --name my-coder
 
 # Initialize swarm
-npx @claude-flow/cli@latest swarm init --topology hierarchical --max-agents 8
+npx ruflo@3.76.0 swarm init --topology hierarchical --max-agents 8
 
 # Memory operations
-npx @claude-flow/cli@latest memory store --key "key" --value "value" --namespace ns
-npx @claude-flow/cli@latest memory search --query "search terms"
-npx @claude-flow/cli@latest memory list --namespace patterns
+npx ruflo@3.76.0 memory store --key "key" --value "value" --namespace ns
+npx ruflo@3.76.0 memory search --query "search terms"
+npx ruflo@3.76.0 memory list --namespace patterns
 
 # Hooks
-npx @claude-flow/cli@latest hooks pre-task --description "task"
-npx @claude-flow/cli@latest hooks route --task "task description"
-npx @claude-flow/cli@latest hooks worker dispatch --trigger audit
+npx ruflo@3.76.0 hooks pre-task --description "task"
+npx ruflo@3.76.0 hooks route --task "task description"
+npx ruflo@3.76.0 hooks worker dispatch --trigger audit
 
 # Session
-npx @claude-flow/cli@latest session restore --latest
-npx @claude-flow/cli@latest hooks session-end --export-metrics true
+npx ruflo@3.76.0 session restore --latest
+npx ruflo@3.76.0 hooks session-end --export-metrics true
 
 # Diagnostics
-npx @claude-flow/cli@latest doctor --fix
-npx @claude-flow/cli@latest performance benchmark --suite all
-npx @claude-flow/cli@latest security scan --depth full
+npx ruflo@3.76.0 doctor --fix
+npx ruflo@3.76.0 performance benchmark --suite all
+npx ruflo@3.76.0 security scan --depth full
 ```
 
 ---
@@ -210,13 +210,13 @@ CLAUDE_FLOW_MEMORY_PATH=./data/memory
 
 ```bash
 # Add MCP server
-claude mcp add claude-flow -- npx -y @claude-flow/cli@latest
+claude mcp add claude-flow -- npx -y ruflo@3.76.0
 
 # Start daemon
-npx @claude-flow/cli@latest daemon start
+npx ruflo@3.76.0 daemon start
 
 # Run diagnostics
-npx @claude-flow/cli@latest doctor --fix
+npx ruflo@3.76.0 doctor --fix
 ```
 
 ---
@@ -224,8 +224,8 @@ npx @claude-flow/cli@latest doctor --fix
 ## Migration (V2 to V3)
 
 ```bash
-npx @claude-flow/cli@latest migrate status
-npx @claude-flow/cli@latest migrate run --backup
-npx @claude-flow/cli@latest migrate rollback
-npx @claude-flow/cli@latest migrate validate
+npx ruflo@3.76.0 migrate status
+npx ruflo@3.76.0 migrate run --backup
+npx ruflo@3.76.0 migrate rollback
+npx ruflo@3.76.0 migrate validate
 ```

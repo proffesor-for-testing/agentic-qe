@@ -276,22 +276,22 @@ Cost Optimization Recommendations:
 
 ```bash
 # Retrieve stored cost data
-npx claude-flow@alpha memory retrieve --key "aqe/costs/tracker-data"
+npx ruflo@3.76.0 memory retrieve --key "aqe/costs/tracker-data"
 
 # Retrieve previous cost reports
-npx claude-flow@alpha memory retrieve --key "aqe/costs/reports/latest"
+npx ruflo@3.76.0 memory retrieve --key "aqe/costs/reports/latest"
 ```
 
 ### Output Memory Keys
 
 ```bash
 # Store cost report
-npx claude-flow@alpha memory store \
+npx ruflo@3.76.0 memory store \
   --key "aqe/costs/reports/${timestamp}" \
   --value '{"totalCost": 5.234, "savings": 13.531}'
 
 # Store cost optimization recommendations
-npx claude-flow@alpha memory store \
+npx ruflo@3.76.0 memory store \
   --key "aqe/costs/recommendations" \
   --value '[{"action": "migrate-to-local", "potentialSavings": 13.53}]'
 ```

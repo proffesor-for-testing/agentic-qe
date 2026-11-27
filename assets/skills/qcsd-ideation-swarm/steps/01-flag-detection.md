@@ -9,8 +9,25 @@
 
 ### URL Mode Check
 
-If a URL was provided, this step also includes the URL-based content fetch cascade.
-Use the Read tool to read `steps/01a-url-fetch.md` for the URL fetch protocol if applicable.
+If a URL was provided, fetch the page before flag detection and use the fetched
+content as the epic content:
+
+1. Run the browser cascade that ships with the agentic-qe package (Playwright+Stealth,
+   then HTTP fetch; 30s per tier):
+
+   ```bash
+   node node_modules/agentic-qe/scripts/fetch-content.cjs "${URL}" "${OUTPUT_FOLDER}" --timeout 30000
+   # global install: node "$(npm root -g)/agentic-qe/scripts/fetch-content.cjs" ...
+   ```
+
+2. Read `${OUTPUT_FOLDER}/fetch-result.json`. The script exits 0 even when every real
+   tier failed: it then reports `"tier": "websearch-fallback"`, `"status": "degraded"`
+   and writes a "Manual Research Required" placeholder to `content.html`. Treat that
+   as a failed fetch, not as page content.
+3. On success (`status` is not `degraded`), read `${OUTPUT_FOLDER}/content.html` and note
+   the tier that produced it.
+4. If the script is not installed, or the fetch failed as above, use the WebFetch tool
+   instead and state in the report which method produced the content.
 
 ### Flag Detection (Check ALL flags)
 

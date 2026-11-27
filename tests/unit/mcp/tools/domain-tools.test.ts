@@ -24,6 +24,12 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AccessibilityTesterService } from '../../../../src/domains/visual-accessibility/services/accessibility-tester';
+import { isLearnableResult } from '../../../../src/learning/learnable-result';
+
+// #1474: evidence is bound to the checkout's candidate; this suite's project root is
+// not a Git work tree, so resolve every checkout to one fixed candidate.
+vi.mock('../../../../src/domains/quality-assessment/evidence-candidate', async (importOriginal) =>
+  (await import('../../../../tests/fixtures/quality-evidence-candidates')).fixedCandidateModule(importOriginal));
 
 // Mock shared memory backend to prevent real SQLite initialization in unit tests
 vi.mock('../../../../src/mcp/tools/base', async (importOriginal) => {
@@ -77,6 +83,7 @@ describe('TestGenerateTool', () => {
 
     expect(result.success).toBe(true);
     expect(result.data?.tests).toBeDefined();
+    expect(result.data?.testsGenerated).toBe(result.data?.tests.length);
     // #1370: without an LLM the output is scaffolding, returned apart from tests.
     expect((result.data?.tests.length ?? 0) + (result.data?.scaffolds?.length ?? 0)).toBeGreaterThan(0);
   });
@@ -94,6 +101,10 @@ describe('TestGenerateTool', () => {
       expect(result.data?.scaffolds).toHaveLength(1);
       expect(result.data?.scaffolds?.[0]).toMatchObject({ scaffold: true, rejectedBecause: expect.stringMatching(/^Template scaffolding/) });
       expect(result.data?.warning).toMatch(/^No tests generated, only 1 scaffold/);
+      // #1388: the result carries testsGenerated, so a scaffold-only result is
+      // never learnable if this tool is ever wrapped by the learning middleware.
+      expect(result.data?.testsGenerated).toBe(0);
+      expect(isLearnableResult('test-generation', result.data)).toBe(false);
     } finally {
       vi.unstubAllEnvs();
       rmSync(root, { recursive: true, force: true });
@@ -715,7 +726,8 @@ describe('A11yAuditTool', () => {
     // browser mode is not available, so heuristic analysis is used.
     // Use a data URL for instant, deterministic offline testing.
     const result = await tool.invoke({
-      urls: ['data:text/html,<html><head><title>Test</title></head><body><h1>Accessible Page</h1><p>Content</p></body></html>'],
+      // #1465: only http(s) URLs are audited; port 1 refuses, so the URL is unmeasured
+      urls: ['http://127.0.0.1:1/'],
     });
 
     // The tool should succeed with heuristic-based accessibility analysis
@@ -727,7 +739,8 @@ describe('A11yAuditTool', () => {
   it('should support WCAG standard selection', async () => {
     // Use data URL for instant, deterministic offline testing
     const result = await tool.invoke({
-      urls: ['data:text/html,<html><head><title>WCAG Test</title></head><body><main><h1>Main Content</h1></main></body></html>'],
+      // #1465: only http(s) URLs are audited; port 1 refuses, so the URL is unmeasured
+      urls: ['http://127.0.0.1:1/'],
       standard: 'wcag21-aa',
     });
 

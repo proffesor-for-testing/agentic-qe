@@ -16,7 +16,7 @@
 
 import { generateKeyPairSync, sign, verify, randomUUID } from 'crypto';
 import { Buffer } from 'buffer';
-import Database from 'better-sqlite3';
+import type { SqliteDatabase } from '../../shared/sqlite-types.js';
 import {
   ensureTargetTables,
   mergeGenericRow,
@@ -137,7 +137,7 @@ export class CognitiveContainer {
    * with per-segment checksums and optional Ed25519 signing.
    */
   exportContainer(
-    db: Database.Database,
+    db: SqliteDatabase,
     options: ExportOptions = {},
   ): { data: Buffer; manifest: ContainerManifest } {
     const compress = options.compress ?? true;
@@ -194,7 +194,7 @@ export class CognitiveContainer {
    * Verifies segment checksums before importing. Optionally verifies
    * the Ed25519 signature.
    */
-  importContainer(data: Buffer, db: Database.Database, options: ImportOptions): ImportResult {
+  importContainer(data: Buffer, db: SqliteDatabase, options: ImportOptions): ImportResult {
     const { manifest, dataOffset } = unpackHeader(data);
     const segmentBuffers = extractSegments(data, dataOffset, manifest.segments);
 
@@ -361,7 +361,7 @@ export class CognitiveContainer {
   }
 
   private executeImport(
-    db: Database.Database,
+    db: SqliteDatabase,
     manifest: ContainerManifest,
     segmentBuffers: Map<string, Buffer>,
     mergeStrategy: MergeStrategy,

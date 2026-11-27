@@ -27,10 +27,10 @@ hooks:
 
     # 2. Learn from past algorithm patterns (ReasoningBank)
     echo "🧠 Searching for similar algorithm patterns..."
-    SIMILAR_ALGOS=$(npx claude-flow@alpha memory search-patterns "algorithm: $TASK" --k=5 --min-reward=0.8 2>/dev/null || echo "")
+    SIMILAR_ALGOS=$(npx ruflo@3.76.0 memory search-patterns "algorithm: $TASK" --k=5 --min-reward=0.8 2>/dev/null || echo "")
     if [ -n "$SIMILAR_ALGOS" ]; then
       echo "📚 Found similar algorithm patterns - applying learned optimizations"
-      npx claude-flow@alpha memory get-pattern-stats "algorithm: $TASK" --k=5 2>/dev/null || true
+      npx ruflo@3.76.0 memory get-pattern-stats "algorithm: $TASK" --k=5 2>/dev/null || true
     fi
 
     # 3. GNN search for similar algorithm implementations
@@ -39,7 +39,7 @@ hooks:
     # 4. Store pseudocode session start
     SESSION_ID="pseudo-$(date +%s)-$$"
     echo "SESSION_ID=$SESSION_ID" >> $GITHUB_ENV 2>/dev/null || export SESSION_ID
-    npx claude-flow@alpha memory store-pattern \
+    npx ruflo@3.76.0 memory store-pattern \
       --session-id "$SESSION_ID" \
       --task "pseudocode: $TASK" \
       --input "$(memory_search 'spec_complete' | tail -1)" \
@@ -55,7 +55,7 @@ hooks:
     LATENCY_MS=$(($(date +%s%3N) - START_TIME))
 
     # 2. Store algorithm pattern for future learning
-    npx claude-flow@alpha memory store-pattern \
+    npx ruflo@3.76.0 memory store-pattern \
       --session-id "${SESSION_ID:-pseudo-$(date +%s)}" \
       --task "pseudocode: $TASK" \
       --input "$(memory_search 'spec_complete' | tail -1)" \
@@ -69,7 +69,7 @@ hooks:
     # 3. Train neural patterns on efficient algorithms
     if [ "$SUCCESS" = "true" ]; then
       echo "🧠 Training neural pattern from algorithm design"
-      npx claude-flow@alpha neural train \
+      npx ruflo@3.76.0 neural train \
         --pattern-type "optimization" \
         --training-data "algorithm-design" \
         --epochs 50 2>/dev/null || true

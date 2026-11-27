@@ -10,7 +10,7 @@
  * Uses better-sqlite3 for synchronous, high-performance SQLite operations.
  */
 
-import { type Database as DatabaseType, type Statement } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType, SqliteStatement as Statement } from '../../../shared/sqlite-types.js';
 import { v4 as uuidv4 } from 'uuid';
 import type { RLAlgorithmType } from '../interfaces.js';
 import { getUnifiedPersistence, type UnifiedPersistenceManager } from '../../../kernel/unified-persistence.js';

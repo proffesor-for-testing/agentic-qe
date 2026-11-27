@@ -20,7 +20,7 @@
  */
 
 import * as fs from 'fs';
-import { readConfinedTextSync } from '../../shared/io/confined-read.js';
+import { ConfinedReadError, readConfinedTextSync, type HardlinkPolicy } from '../../shared/io/confined-read.js';
 import * as os from 'os';
 import * as path from 'path';
 import type { CoverageData, FileCoverage } from '../../domains/coverage-analysis/interfaces';
@@ -582,17 +582,37 @@ export function walkSourceFiles(targetPath: string): string[] {
  *     denominator and the gap list
  *   - declaration counting is language-aware instead of JS-shaped
  *   - branch counts are reported as uncollected rather than invented
+ *
+ * `read.hardlinks` (#1350): the MCP handler passes
+ * 'refuse-outside-node-modules'; a source file refused as a hardlink (it can
+ * point outside the project) is left out of the estimate and named in a
+ * provenance note. Default 'allow' (CLI).
  */
-export function buildEstimatedCoverage(targetPath: string): CollectedCoverage | null {
+export function buildEstimatedCoverage(
+  targetPath: string,
+  read: { hardlinks?: HardlinkPolicy } = {},
+): CollectedCoverage | null {
   if (!fs.existsSync(targetPath) || !fs.statSync(targetPath).isDirectory()) return null;
 
-  const sourceFiles = walkSourceFiles(targetPath);
+  const walked = walkSourceFiles(targetPath);
+  const contents = new Map<string, string>();
+  const refused: string[] = [];
+  for (const filePath of walked) {
+    let content = '';
+    // #1161: a source file linked out of the project is treated as unreadable.
+    try {
+      content = readConfinedTextSync(filePath, { outsideRoot: 'allow', hardlinks: read.hardlinks ?? 'allow' });
+    } catch (error) {
+      if (error instanceof ConfinedReadError && error.reason === 'hardlinked') { refused.push(filePath); continue; }
+      /* unreadable — treat as empty */
+    }
+    contents.set(filePath, content);
+  }
+  const sourceFiles = [...contents.keys()];
   if (sourceFiles.length === 0) return null;
 
   const files: FileCoverage[] = sourceFiles.map(filePath => {
-    let content = '';
-    // #1161: a source file linked out of the project is treated as unreadable.
-    try { content = readConfinedTextSync(filePath, { outsideRoot: 'allow' }); } catch { /* unreadable — treat as empty */ }
+    const content = contents.get(filePath) ?? '';
 
     const ext = path.extname(filePath);
     const totalLines = countLines(content);
@@ -655,6 +675,11 @@ export function buildEstimatedCoverage(targetPath: string): CollectedCoverage | 
         'source shape (file size, declaration counts, presence of a test file) — ' +
         'they are not measured coverage and must not be reported as such.',
         'Branch and function coverage were not collected and are reported as null.',
+        ...(refused.length > 0 ? [
+          `${refused.length} source file(s) were refused unread and left out of the estimate because they have ` +
+          `more than one hardlink (a hardlink can point outside the project): ${refused.slice(0, 10).join(', ')}` +
+          `${refused.length > 10 ? ', ...' : ''}.`,
+        ] : []),
       ],
     },
   };

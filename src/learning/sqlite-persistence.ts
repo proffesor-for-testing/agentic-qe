@@ -12,7 +12,7 @@
  * - Unified storage via UnifiedMemoryManager (ADR-046)
  */
 
-import { type Database as DatabaseType, type Statement } from 'better-sqlite3';
+import type { SqliteDatabase as DatabaseType, SqliteStatement as Statement } from '../shared/sqlite-types.js';
 import { openDatabase } from '../shared/safe-db.js';
 import { v4 as uuidv4 } from 'uuid';
 import { safeJsonParse } from '../shared/safe-json.js';
@@ -34,6 +34,7 @@ import {
 } from './embedding-space.js';
 import { recordPatternUsage } from './pattern-usage-recorder.js';
 import { MEASURED_USAGE_SQL, USAGE_RUN_SQL } from './usage-outcome.js';
+import { OBSERVED_ROUTING_OUTCOME_SQL } from '../routing/routing-outcomes-migration.js';
 
 /**
  * SQLite persistence configuration
@@ -76,7 +77,7 @@ export const DEFAULT_SQLITE_CONFIG: SQLitePersistenceConfig = {
 /**
  * Database row structure for pattern queries
  */
-interface PatternRow {
+export interface PatternRow {
   id: string;
   pattern_type: string;
   qe_domain: string;
@@ -105,6 +106,45 @@ interface PatternRow {
   reuse_count?: number;
   average_token_savings?: number;
   total_tokens_saved?: number;
+}
+
+/** A qe_patterns row as a QEPattern (also used by read-only readers, #1422). */
+export function patternFromRow(row: PatternRow): QEPattern {
+  let embedding: number[] | undefined;
+  if (row.embedding) {
+    embedding = Array.from(
+      new Float32Array(row.embedding.buffer, row.embedding.byteOffset, row.dimension)
+    );
+  }
+
+  return {
+    id: row.id,
+    patternType: row.pattern_type as QEPatternType,
+    qeDomain: row.qe_domain as QEDomain,
+    domain: row.domain as import('../shared/types/index.js').DomainName,
+    name: row.name,
+    description: row.description,
+    confidence: row.confidence,
+    usageCount: row.usage_count,
+    successRate: row.success_rate,
+    qualityScore: row.quality_score,
+    tier: row.tier as 'short-term' | 'long-term',
+    template: safeJsonParse(row.template_json || '{}'),
+    context: safeJsonParse(row.context_json || '{}'),
+    createdAt: new Date(row.created_at),
+    lastUsedAt: row.last_used_at ? new Date(row.last_used_at) : new Date(row.created_at),
+    successfulUses: row.successful_uses,
+    embedding,
+    // Token tracking fields (ADR-042)
+    tokensUsed: row.tokens_used,
+    inputTokens: row.input_tokens,
+    outputTokens: row.output_tokens,
+    latencyMs: row.latency_ms,
+    reusable: row.reusable === 1,
+    reuseCount: row.reuse_count || 0,
+    averageTokenSavings: row.average_token_savings || 0,
+    totalTokensSaved: row.total_tokens_saved,
+  };
 }
 
 /**
@@ -171,6 +211,20 @@ export function hashEmbedding(text: string, dimension: number = 384): number[] {
 function ftsTokens(text: string): string[] {
   return text.normalize('NFKD').replace(/\p{M}+/gu, '').toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
 }
+
+/**
+ * #1388: the upsert replaces context_json, but keeps an existing curation
+ * marker (a person imported or stored the pattern) when the incoming context
+ * has none and the template is unchanged, so a later automatic store of the
+ * same content cannot silently uncurate it. Changed content drops the marker
+ * and must earn its trust again. (SET expressions read the row's old values.)
+ */
+const UPSERT_CONTEXT_SQL = `CASE
+  WHEN json_valid(qe_patterns.context_json) AND json_extract(qe_patterns.context_json, '$.curation') IS NOT NULL
+   AND qe_patterns.template_json IS excluded.template_json
+   AND json_valid(excluded.context_json) AND json_extract(excluded.context_json, '$.curation') IS NULL
+  THEN json_set(excluded.context_json, '$.curation', json_extract(qe_patterns.context_json, '$.curation'))
+  ELSE excluded.context_json END`;
 
 /**
  * SQLite-based pattern persistence
@@ -403,13 +457,13 @@ export class SQLitePatternStore {
         confidence = excluded.confidence,
         tier = excluded.tier,
         template_json = excluded.template_json,
-        context_json = excluded.context_json,
+        context_json = ${UPSERT_CONTEXT_SQL},
         updated_at = datetime('now')
       ON CONFLICT(name, qe_domain, pattern_type) DO UPDATE SET
         confidence = excluded.confidence,
         tier = excluded.tier,
         template_json = excluded.template_json,
-        context_json = excluded.context_json,
+        context_json = ${UPSERT_CONTEXT_SQL},
         updated_at = datetime('now')
     `));
 
@@ -910,7 +964,9 @@ export class SQLitePatternStore {
     };
 
     // routing_outcomes carries (success, quality_score) per closed turn.
-    // Sentinels still have quality_score = -1, so filter to closed rows.
+    // Open sentinels (quality_score = -1) and swept stale sentinels carry no
+    // observed outcome, nor do hook rows closed by the constant --success true;
+    // the closed count, quality average and success count skip them (#1481).
     const routing = safeGet<{
       total: number;
       closed: number;
@@ -919,9 +975,9 @@ export class SQLitePatternStore {
     }>(`
       SELECT
         COUNT(*) AS total,
-        COUNT(CASE WHEN quality_score >= 0 THEN 1 END) AS closed,
-        AVG(CASE WHEN quality_score >= 0 THEN quality_score END) AS avg_q,
-        COALESCE(SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END), 0) AS succ
+        COUNT(CASE WHEN ${OBSERVED_ROUTING_OUTCOME_SQL} THEN 1 END) AS closed,
+        AVG(CASE WHEN ${OBSERVED_ROUTING_OUTCOME_SQL} THEN quality_score END) AS avg_q,
+        COALESCE(SUM(CASE WHEN success = 1 AND ${OBSERVED_ROUTING_OUTCOME_SQL} THEN 1 ELSE 0 END), 0) AS succ
       FROM routing_outcomes
     `);
 
@@ -983,41 +1039,7 @@ export class SQLitePatternStore {
    * Convert database row to QEPattern
    */
   private rowToPattern(row: PatternRow): QEPattern {
-    let embedding: number[] | undefined;
-    if (row.embedding) {
-      embedding = Array.from(
-        new Float32Array(row.embedding.buffer, row.embedding.byteOffset, row.dimension)
-      );
-    }
-
-    return {
-      id: row.id,
-      patternType: row.pattern_type as QEPatternType,
-      qeDomain: row.qe_domain as QEDomain,
-      domain: row.domain as import('../shared/types/index.js').DomainName,
-      name: row.name,
-      description: row.description,
-      confidence: row.confidence,
-      usageCount: row.usage_count,
-      successRate: row.success_rate,
-      qualityScore: row.quality_score,
-      tier: row.tier as 'short-term' | 'long-term',
-      template: safeJsonParse(row.template_json || '{}'),
-      context: safeJsonParse(row.context_json || '{}'),
-      createdAt: new Date(row.created_at),
-      lastUsedAt: row.last_used_at ? new Date(row.last_used_at) : new Date(row.created_at),
-      successfulUses: row.successful_uses,
-      embedding,
-      // Token tracking fields (ADR-042)
-      tokensUsed: row.tokens_used,
-      inputTokens: row.input_tokens,
-      outputTokens: row.output_tokens,
-      latencyMs: row.latency_ms,
-      reusable: row.reusable === 1,
-      reuseCount: row.reuse_count || 0,
-      averageTokenSavings: row.average_token_savings || 0,
-      totalTokensSaved: row.total_tokens_saved,
-    };
+    return patternFromRow(row);
   }
 
   /**
