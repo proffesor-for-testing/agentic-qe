@@ -15,6 +15,7 @@ import { TokenMetricsCollector } from '../learning/token-tracker.js';
 import { createDefaultMemoryBackend } from '../kernel/memory-factory.js';
 import type { MemoryBackend } from '../kernel/interfaces.js';
 import { findProjectRoot } from '../kernel/project-root.js';
+import { isInProjectStore } from '../kernel/project-store.js';
 
 // ============================================================================
 // Configuration
@@ -89,8 +90,10 @@ export async function bootstrapTokenTracking(
   // a project that was never initialized made `aqe status`/`aqe health` treat
   // it as initialized. Metrics are saved there only once `aqe init` or the
   // kernel has created it; an explicit non-default location is still created.
+  // Any location inside the project store (by real path) belongs to the
+  // store's owner, e.g. AQE_STORAGE_PATH=<root>/.agentic-qe/metrics.
   const storageDir = path.resolve(cfg.storagePath);
-  const ownsStorageDir = storageDir !== path.resolve(projectStore);
+  const ownsStorageDir = !isInProjectStore(path.dirname(projectStore), storageDir);
   if (cfg.enablePersistence && ownsStorageDir && !fs.existsSync(storageDir)) {
     fs.mkdirSync(storageDir, { recursive: true });
   }

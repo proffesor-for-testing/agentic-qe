@@ -170,9 +170,12 @@ async function ensureInitializedStrict(): Promise<boolean> {
   // #1490: a real store (config.yaml or a non-empty memory.db), not merely
   // the `.agentic-qe` directory, which other tools can leave behind.
   const { findProjectRoot } = await import('../kernel/project-root.js');
-  const { isProjectInitialized } = await import('../kernel/project-store.js');
-  if (!isProjectInitialized(findProjectRoot())) {
+  const { isProjectInitialized, describeUninitializedStore } = await import('../kernel/project-store.js');
+  const projectRoot = findProjectRoot();
+  if (!isProjectInitialized(projectRoot)) {
     console.error(chalk.red('\nError: AQE system not initialized in this directory.'));
+    const leftover = describeUninitializedStore(projectRoot);
+    if (leftover) console.error(chalk.yellow(leftover));
     console.log(chalk.yellow('Run `aqe init` first to set up this project.\n'));
     process.exitCode = 1;
     return false;

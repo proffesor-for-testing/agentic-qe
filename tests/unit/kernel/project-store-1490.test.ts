@@ -7,10 +7,12 @@
  *   metrics there only once something else has created it.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { hasEvidenceStore, isProjectInitialized } from '../../../src/kernel/project-store.js';
+import {
+  describeUninitializedStore, hasEvidenceStore, isInProjectStore, isProjectInitialized,
+} from '../../../src/kernel/project-store.js';
 import { hasEvidenceStore as proveHasEvidenceStore } from '../../../src/cli/commands/prove.js';
 import { clearProjectRootCache } from '../../../src/kernel/project-root.js';
 import { bootstrapTokenTracking, shutdownTokenTracking } from '../../../src/init/token-bootstrap.js';
@@ -72,6 +74,74 @@ describe('isProjectInitialized (#1490)', () => {
   });
 });
 
+describe('describeUninitializedStore (#1490 review)', () => {
+  it('is null when there is no .agentic-qe', () => {
+    expect(describeUninitializedStore(root)).toBeNull();
+  });
+
+  it('names the resolved directory when it is not an initialized store', () => {
+    mkdirSync(store());
+    const message = describeUninitializedStore(root);
+    expect(message).toContain(`at ${store()} that is not an initialized AQE store`);
+    expect(message).toContain(`Run \`aqe init\` in ${root}`);
+  });
+
+  it('is null for an initialized project', () => {
+    mkdirSync(store());
+    writeFileSync(join(store(), 'config.yaml'), 'version: "3"\n');
+    expect(describeUninitializedStore(root)).toBeNull();
+  });
+});
+
+describe('isInProjectStore (#1490 review)', () => {
+  it('owns the store itself and any path inside it, existing or not', () => {
+    expect(isInProjectStore(root, store())).toBe(true);
+    expect(isInProjectStore(root, join(store(), 'metrics'))).toBe(true);
+    expect(isInProjectStore(root, join(store(), 'a', 'b'))).toBe(true);
+  });
+
+  it('does not own siblings or locations outside the store', () => {
+    expect(isInProjectStore(root, root)).toBe(false);
+    expect(isInProjectStore(root, join(root, '.agentic-qe-metrics'))).toBe(false);
+    expect(isInProjectStore(root, join(root, 'custom'))).toBe(false);
+  });
+
+  it('compares real paths, so a symlinked spelling of the root counts', () => {
+    const link = `${root}-link`;
+    symlinkSync(root, link);
+    try {
+      expect(isInProjectStore(root, join(link, '.agentic-qe', 'metrics'))).toBe(true);
+      expect(isInProjectStore(link, join(store(), 'metrics'))).toBe(true);
+    } finally {
+      rmSync(link, { force: true });
+    }
+  });
+});
+
+describe('TokenMetricsCollector.save into a missing directory (#1490 review)', () => {
+  afterEach(() => {
+    TokenMetricsCollector.configurePersistence({ createDirectory: true });
+  });
+
+  it('writes nothing and stays dirty, then writes once the directory exists', async () => {
+    const filePath = join(store(), 'token-metrics.json');
+    TokenMetricsCollector.configurePersistence({ filePath, createDirectory: false });
+    TokenMetricsCollector.recordCacheHit(42);
+
+    await TokenMetricsCollector.save();
+
+    expect(existsSync(store())).toBe(false);
+    expect(TokenMetricsCollector.hasUnsavedChanges()).toBe(true);
+
+    mkdirSync(store());
+    await TokenMetricsCollector.save();
+
+    expect(TokenMetricsCollector.hasUnsavedChanges()).toBe(false);
+    const saved = JSON.parse(readFileSync(filePath, 'utf-8'));
+    expect(saved.optimizationStats.cacheHits).toBeGreaterThanOrEqual(1);
+  });
+});
+
 describe('startup token tracking does not create the project store (#1490)', () => {
   beforeEach(() => {
     vi.stubEnv('AQE_PROJECT_ROOT', '');
@@ -108,6 +178,27 @@ describe('startup token tracking does not create the project store (#1490)', () 
     await TokenMetricsCollector.save();
 
     expect(existsSync(join(store(), 'token-metrics.json'))).toBe(true);
+  });
+
+  it.each([
+    ['a path inside the store', () => join(store(), 'metrics')],
+    ['a symlinked spelling of the store', () => {
+      const link = `${root}-link`;
+      symlinkSync(root, link);
+      return join(link, '.agentic-qe');
+    }],
+  ])('does not recreate .agentic-qe through AQE_STORAGE_PATH set to %s', async (_label, target) => {
+    vi.stubEnv('AQE_STORAGE_PATH', target());
+    const configure = vi.spyOn(TokenMetricsCollector, 'configurePersistence');
+    try {
+      await bootstrapTokenTracking({ enableOptimization: false, enablePersistence: true });
+      await TokenMetricsCollector.save();
+
+      expect(configure).toHaveBeenCalledWith(expect.objectContaining({ createDirectory: false }));
+      expect(existsSync(store())).toBe(false);
+    } finally {
+      rmSync(`${root}-link`, { force: true });
+    }
   });
 
   it('still creates an explicit, non-default metrics location', async () => {

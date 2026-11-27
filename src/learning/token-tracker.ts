@@ -751,7 +751,10 @@ class TokenMetricsCollectorImpl {
     if (!fs.existsSync(dirPath)) {
       // The directory is another owner's (e.g. the project store `aqe init`
       // creates): leave the metrics unsaved rather than create it.
-      if (!this.persistenceConfig.createDirectory) return;
+      if (!this.persistenceConfig.createDirectory) {
+        ttLogger.debug('Token metrics not saved: directory does not exist yet', { dirPath });
+        return;
+      }
       fs.mkdirSync(dirPath, { recursive: true });
     }
 

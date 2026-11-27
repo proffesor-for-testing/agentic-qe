@@ -47,3 +47,52 @@ export function isProjectInitialized(projectRoot: string): boolean {
   return isNonEmptyFile(path.join(projectRoot, PROJECT_STORE_DIR, 'config.yaml'))
     || hasEvidenceStore(projectRoot);
 }
+
+/**
+ * For a project that is not initialized but has a `.agentic-qe` at its
+ * resolved root, a line naming that directory: in a monorepo the root can be
+ * an ancestor whose leftover `.agentic-qe` captured the lookup. Null when
+ * there is no such directory (or the project is initialized).
+ */
+export function describeUninitializedStore(projectRoot: string): string | null {
+  if (isProjectInitialized(projectRoot)) return null;
+  const dir = path.join(projectRoot, PROJECT_STORE_DIR);
+  try {
+    if (!fs.statSync(dir).isDirectory()) return null;
+  } catch {
+    return null;
+  }
+  return `Found a ${PROJECT_STORE_DIR} at ${dir} that is not an initialized AQE store `
+    + '(no config.yaml or memory.db). Run `aqe init` in '
+    + `${projectRoot}, or remove that directory if it is a leftover.`;
+}
+
+/**
+ * The real path of `p`, resolving symlinks in the longest existing prefix so
+ * a path that does not exist yet still compares by its real location.
+ */
+function realPathLoose(p: string): string {
+  const abs = path.resolve(p);
+  const rest: string[] = [];
+  let current = abs;
+  for (;;) {
+    try {
+      return path.join(fs.realpathSync(current), ...rest.reverse());
+    } catch {
+      const parent = path.dirname(current);
+      if (parent === current) return abs;
+      rest.push(path.basename(current));
+      current = parent;
+    }
+  }
+}
+
+/**
+ * Whether `target` is the project's `.agentic-qe` or inside it, comparing real
+ * paths so a symlinked spelling of the same location counts.
+ */
+export function isInProjectStore(projectRoot: string, target: string): boolean {
+  const store = realPathLoose(path.join(projectRoot, PROJECT_STORE_DIR));
+  const relative = path.relative(store, realPathLoose(target));
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
