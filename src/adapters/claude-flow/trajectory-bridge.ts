@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { CLAUDE_FLOW_BRIDGE_TRAJECTORY_SOURCE } from '../../learning/hook-outcome-provenance.js';
 
 /**
  * Trajectory Bridge
@@ -222,6 +223,9 @@ export class TrajectoryBridge {
         if (!cols.some(c => c.name === 'feedback')) {
           db.exec('ALTER TABLE qe_trajectories ADD COLUMN feedback TEXT');
         }
+        if (!cols.some(c => c.name === 'metadata_json')) {
+          db.exec('ALTER TABLE qe_trajectories ADD COLUMN metadata_json TEXT');
+        }
       } catch { /* fail-soft */ }
 
       const startedIso = new Date(trajectory.startedAt).toISOString();
@@ -229,8 +233,8 @@ export class TrajectoryBridge {
 
       db.prepare(`
         INSERT OR REPLACE INTO qe_trajectories
-          (id, task, agent, domain, started_at, ended_at, success, steps_json, feedback)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          (id, task, agent, domain, started_at, ended_at, success, steps_json, feedback, metadata_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         trajectory.id,
         trajectory.task,
@@ -241,6 +245,14 @@ export class TrajectoryBridge {
         trajectory.success ? 1 : 0,
         JSON.stringify(trajectory.steps),
         trajectory.feedback || null,
+        // #1493: provenance. The id may be ruflo's `traj-<ms>-<base36>`, so
+        // mark the row; its success is the result the caller reported at
+        // endTrajectory, i.e. an observed outcome.
+        JSON.stringify({
+          source: CLAUDE_FLOW_BRIDGE_TRAJECTORY_SOURCE,
+          outcome: 'observed',
+          rufloTracked: trajectory.rufloTracked === true,
+        }),
       );
     } catch (error) {
       // Non-critical: persistence is optional

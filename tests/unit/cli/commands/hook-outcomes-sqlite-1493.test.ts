@@ -31,6 +31,7 @@ import {
   OBSERVED_EXPERIENCE_SQL,
   OBSERVED_HOOK_TASK_SOURCE,
   OBSERVED_TRAJECTORY_SQL,
+  legacyHookTrajectorySql,
   observedTrajectorySql,
 } from '../../../../src/learning/hook-outcome-provenance.js';
 import {
@@ -218,43 +219,112 @@ describe('hook task outcomes on SQLite (#1493)', () => {
     expect(multi[0].success).toBe(0);
   });
 
-  it('TrajectoryTracker returns no legacy post-task trajectory as a success', async () => {
+  // Every shape qe_trajectories can hold. Legacy = the exact rows post-task
+  // wrote before #1493; everything else, including claude-flow bridge rows
+  // that carry ruflo's `traj-<ms>-<base36>` ids, must be kept.
+  const LEGACY_IDS = [
+    'traj-1791529377439-c19e3c9a', // single step, synthetic hook- task id
+    'traj-1791529377440-0a1b2c3d', // single step, real task id
+    'traj-multi-1791529377441-deadbeef', // stitched
+    'traj-1791529377442-11112222', // ADR-101 provenance only, no outcome
+    'traj-1791529377443-33334444', // unparseable metadata
+  ];
+  const KEPT_IDS = [
+    '3f2a9c1e-7b6d-4e5f-9a8b-1c2d3e4f5a6b', // TrajectoryTracker (uuid)
+    'TRAJ-1791529377445-c19e3c9a', // legacy shape, but GLOB is case-sensitive
+    'traj-1791529377444-55556666', // post-task row marked observed
+    'traj-1795000000000-ab12cd', // ruflo trajectory-start id via TrajectoryBridge, NULL metadata
+    'traj-1795000000001-abc12345', // ruflo id that happens to look like 8 hex chars
+  ];
+  const seedTrajectoryZoo = (): void => {
     const insert = db.prepare(`INSERT INTO qe_trajectories (id, task, agent, domain, started_at, ended_at, success,
-      steps_json, metadata_json) VALUES (?, ?, 'coder', 'test-generation', datetime('now'), datetime('now'), 1, ?, ?)`);
-    insert.run('traj-100-legacy', 'coder:hook-100', '[{"step":1,"task":"hook-100","success":true}]', null);
-    insert.run('traj-101-observed', 'coder:t101', '[{"step":1,"task":"t101","success":true}]', '{"outcome":"observed"}');
+      steps_json, metadata_json) VALUES (?, ?, ?, 'test-generation', datetime('now'), datetime('now'), 1, ?, ?)`);
+    const single = (task: string) => JSON.stringify([{ step: 1, task, success: true }]);
+    insert.run(LEGACY_IDS[0], 'general-purpose:hook-1791529377430', 'general-purpose', single('hook-1791529377430'), null);
+    insert.run(LEGACY_IDS[1], 'coder:abc', 'coder', single('abc'), null);
+    insert.run(LEGACY_IDS[2], 'multi:abc', 'coder',
+      JSON.stringify([{ step: 1, task: 'coder:abc', agent: 'coder', success: true }]), null);
+    insert.run(LEGACY_IDS[3], 'coder:p1', 'coder', single('p1'), '{"depth":1}');
+    insert.run(LEGACY_IDS[4], 'coder:p2', 'coder', single('p2'), 'not json');
+    insert.run(KEPT_IDS[0], 'generate tests', 'qe-test-architect', '[]', null);
+    insert.run(KEPT_IDS[1], 'general-purpose:hook-1', 'general-purpose', single('hook-1'), null);
+    insert.run(KEPT_IDS[2], 'coder:o1', 'coder', single('o1'), '{"outcome":"observed"}');
+    const bridgeSteps = JSON.stringify([{ id: 'step-1', action: 'run', result: 'ok', timestamp: 1 }]);
+    insert.run(KEPT_IDS[3], 'run the suite', 'qe-test-architect', bridgeSteps, null);
+    insert.run(KEPT_IDS[4], 'coder:hook-9', 'coder', bridgeSteps, null);
+  };
+  const keptBy = (database: Database.Database, sql: string) =>
+    (database.prepare(`SELECT id FROM qe_trajectories WHERE ${sql} ORDER BY id`).all() as Array<{ id: string }>)
+      .map((r) => r.id);
+  const sorted = (ids: string[]) => [...ids].sort();
+
+  it('trajectory predicates exclude exactly the legacy post-task rows', () => {
+    seedTrajectoryZoo();
+
+    expect(keptBy(db, OBSERVED_TRAJECTORY_SQL)).toEqual(sorted(KEPT_IDS));
+    expect(keptBy(db, observedTrajectorySql(db))).toEqual(sorted(KEPT_IDS));
+    expect(keptBy(db, `${legacyHookTrajectorySql()} = 1`)).toEqual(sorted(LEGACY_IDS));
+  });
+
+  it('matches the shape the post-task writer really produces (single and stitched)', async () => {
+    await persistTaskOutcome({ taskId: 'w1', agent: 'coder', success: true });
+    await persistTaskOutcome({ taskId: 'w1', agent: 'tester', success: true });
+    expect(keptBy(db, `${legacyHookTrajectorySql()} = 1`)).toEqual([]); // marked observed
+
+    // The same rows without the marker are what pre-#1493 post-task left behind.
+    db.exec(`UPDATE qe_trajectories SET metadata_json = NULL`);
+
+    const legacy = keptBy(db, `${legacyHookTrajectorySql()} = 1`);
+    expect(legacy).toHaveLength(3);
+    expect(legacy.filter((id) => id.startsWith('traj-multi-'))).toHaveLength(1);
+  });
+
+  it('applies the same structural test to a table without metadata_json', () => {
+    const bare = new Database(':memory:');
+    bare.exec(`CREATE TABLE qe_trajectories (id TEXT PRIMARY KEY, task TEXT, agent TEXT, success INTEGER, steps_json TEXT)`);
+    const insert = bare.prepare(`INSERT INTO qe_trajectories VALUES (?, ?, ?, 1, ?)`);
+    insert.run('traj-1791529377439-c19e3c9a', 'coder:hook-1', 'coder', '[{"step":1,"task":"hook-1","success":true}]');
+    insert.run('traj-1795000000000-ab12cd', 'run', 'x', '[{"id":"step-1"}]');
+    insert.run('TRAJ-1791529377439-c19e3c9a', 'coder:hook-1', 'coder', '[{"step":1,"task":"hook-1","success":true}]');
+
+    expect(keptBy(bare, observedTrajectorySql(bare))).toEqual(['TRAJ-1791529377439-c19e3c9a', 'traj-1795000000000-ab12cd']);
+    bare.close();
+  });
+
+  it('TrajectoryTracker keeps bridge rows and drops legacy rows', async () => {
+    seedTrajectoryZoo();
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     const tracker = new TrajectoryTracker();
     await tracker.initialize();
     log.mockRestore();
 
-    const ids = (await tracker.getSuccessfulTrajectories('test-generation' as never)).map((t) => t.id);
+    const ids = (await tracker.getSuccessfulTrajectories('test-generation' as never, 50)).map((t) => t.id);
 
-    expect(ids).toEqual(['traj-101-observed']);
+    expect(sorted(ids)).toEqual(sorted(KEPT_IDS));
   });
 
-  it('trajectory predicates drop legacy post-task rows and keep everything else', () => {
-    const insert = db.prepare(`INSERT INTO qe_trajectories (id, task, agent, domain, success, steps_json, metadata_json)
-      VALUES (?, 't', 'a', 'general', 1, '[]', ?)`);
-    insert.run('traj-1-legacy', null);
-    insert.run('traj-multi-1-legacy', null);
-    insert.run('traj-2-provenance-only', '{"depth":1}');
-    insert.run('traj-3-bad-json', 'not json');
-    insert.run('traj-4-observed', '{"outcome":"observed"}');
-    insert.run('3f2a9c1e-uuid-tracker-row', null);
-    insert.run('trajectory-bridge-row', null);
+  it('the trajectory judge scores bridge rows and never legacy rows', async () => {
+    seedTrajectoryZoo();
+    db.exec(`ALTER TABLE qe_trajectories ADD COLUMN feedback TEXT`);
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
+    vi.stubEnv('ANTHROPIC_BASE_URL', 'http://judge.invalid');
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ content: [{ text: '{"quality":0.5,"reasoning":"ok"}' }] }),
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const { scoreUnjudgedTrajectories } = await import('../../../../src/mcp/handlers/trajectory-judge.js');
+      await scoreUnjudgedTrajectories();
+    } finally {
+      vi.unstubAllGlobals();
+      vi.unstubAllEnvs();
+    }
 
-    const kept = (sql: string) => (db.prepare(`SELECT id FROM qe_trajectories WHERE ${sql} ORDER BY id`).all() as
+    const judged = (db.prepare(`SELECT id FROM qe_trajectories WHERE feedback IS NOT NULL ORDER BY id`).all() as
       Array<{ id: string }>).map((r) => r.id);
-
-    expect(kept(OBSERVED_TRAJECTORY_SQL)).toEqual(['3f2a9c1e-uuid-tracker-row', 'traj-4-observed', 'trajectory-bridge-row']);
-    expect(kept(observedTrajectorySql(db))).toEqual(kept(OBSERVED_TRAJECTORY_SQL));
-
-    const bare = new Database(':memory:');
-    bare.exec(`CREATE TABLE qe_trajectories (id TEXT PRIMARY KEY, success INTEGER)`);
-    bare.exec(`INSERT INTO qe_trajectories VALUES ('traj-1', 1), ('uuid-1', 1)`);
-    expect(bare.prepare(`SELECT id FROM qe_trajectories WHERE ${observedTrajectorySql(bare)}`).all()).toEqual([{ id: 'uuid-1' }]);
-    bare.close();
+    expect(fetchMock).toHaveBeenCalledTimes(KEPT_IDS.length);
+    expect(judged).toEqual(sorted(KEPT_IDS));
   });
 
   it('OBSERVED_EXPERIENCE_SQL keeps every source except the legacy hook rows', () => {

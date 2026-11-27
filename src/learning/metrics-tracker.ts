@@ -382,6 +382,10 @@ export class LearningMetricsTracker {
         success_rate: number;
       };
 
+      // With no measured row, success_rate is NULL and is reported as 0:
+      // LearningMetricsSnapshot.successRate is a number, read by the
+      // dashboard, history snapshots and trend math. Making it nullable is a
+      // wider change than #1493; 0 here means "no measured outcome".
       return {
         total: stats.total || 0,
         recordedToday: stats.recorded_today || 0,

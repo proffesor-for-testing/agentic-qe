@@ -302,6 +302,12 @@ describe('TrajectoryBridge with Claude Flow', () => {
     expect(JSON.parse(argvOf(2).at(-1)!)).toEqual({ trajectoryId: id, success: true, feedback: 'good' });
     expect(done).toMatchObject({ id, rufloTracked: true, success: true, steps: [expect.objectContaining({ action: 'read file' })] });
     expect(run).toHaveBeenCalledTimes(1); // persisted to qe_trajectories
+    // #1493: ruflo's `traj-<ms>-<base36>` id shares the post-task prefix, so
+    // the row carries its provenance and observed outcome.
+    const [sql, ...args] = run.mock.calls[0] as [string, ...unknown[]];
+    expect(sql).toContain('metadata_json');
+    expect(args[0]).toBe('traj-1795598815055-kmjsaq');
+    expect(JSON.parse(args.at(-1) as string)).toEqual({ source: 'claude-flow-bridge', outcome: 'observed', rufloTracked: true });
   });
 
   it('should_neverSendAnUnknownIdToRuflo_when_theTrajectoryWasNotStartedHere', async () => {

@@ -16,7 +16,8 @@
  *    outcomeBasis = 'hook-observed'
  *
  * Rows written before that carry the legacy source 'cli-hook-post-task' (and,
- * in qe_trajectories, a `traj-` id with no observed marker). Every
+ * in qe_trajectories, the exact post-task row shape with no observed marker;
+ * see legacyHookTrajectorySql). Every
  * one of them came from post-task, and (for all practical purposes) from the
  * installed hook's constant success. Readers of success-based metrics and
  * pattern promotion exclude them with the predicates below. Stored rows are
@@ -89,37 +90,64 @@ export const LEGACY_HOOK_USAGE_SQL =
   ` AND COALESCE(CASE WHEN json_valid(metrics_json) THEN json_extract(metrics_json, '$.outcome') END, '')` +
   ` <> 'measured')`;
 
-/** Id prefix of every trajectory post-task writes (`traj-` and `traj-multi-`). */
-export const HOOK_TRAJECTORY_ID_PREFIX = 'traj-';
+const DIGITS_13 = '[0-9]'.repeat(13);
+const HEX_8 = '[0-9a-f]'.repeat(8);
 
 /**
- * SQL predicate over qe_trajectories: true for a row post-task wrote before
- * #1493. Only post-task uses the `traj-` id prefix (the trajectory tracker
- * writes UUIDs, the claude-flow bridge `trajectory-<uuid>`), and from #1493
- * on it marks its rows `metadata_json.outcome = 'observed'`. NULL-safe and
- * json_valid-guarded. Needs the metadata_json column; see
- * {@link observedTrajectorySql} for tables that may lack it.
+ * GLOB (case-sensitive, whole-string) of the ids post-task writes:
+ * `traj-${Date.now()}-${randomUUID().slice(0, 8)}` for a single step and
+ * `traj-multi-${Date.now()}-${randomUUID().slice(0, 8)}` for a stitched run.
+ * The `traj-` prefix alone is NOT a post-task marker: ruflo's
+ * `hooks_intelligence_trajectory-start` returns `traj-${Date.now()}-<base36>`
+ * ids, which the claude-flow TrajectoryBridge stores as they are.
  */
-export function legacyHookTrajectorySql(alias?: string): string {
+export const HOOK_TRAJECTORY_ID_GLOB = `traj-${DIGITS_13}-${HEX_8}`;
+export const HOOK_MULTI_TRAJECTORY_ID_GLOB = `traj-multi-${DIGITS_13}-${HEX_8}`;
+
+/** metadata_json.source the claude-flow TrajectoryBridge writes (#1493). */
+export const CLAUDE_FLOW_BRIDGE_TRAJECTORY_SOURCE = 'claude-flow-bridge';
+
+/**
+ * SQL predicate over qe_trajectories: 1 for a row post-task wrote before
+ * #1493, 0 otherwise (never NULL). A row is legacy when it has the exact
+ * shape post-task writes and no `metadata_json.outcome = 'observed'`:
+ *  - single step: id `traj-<13 digits>-<8 hex>`, steps_json
+ *    `[{"step":1,"task":<taskId>,...}]` and task `<agent>:<taskId>`;
+ *  - stitched: id `traj-multi-<13 digits>-<8 hex>`, task `multi:<taskId>`,
+ *    steps_json starting with step 1.
+ * Ids are matched with GLOB (case-sensitive); JSON reads are json_valid
+ * guarded. Pass `hasMetadata: false` for a table without metadata_json,
+ * where no row can carry the observed marker.
+ */
+export function legacyHookTrajectorySql(alias?: string, opts: { hasMetadata?: boolean } = {}): string {
   const col = (name: string) => (alias ? `${alias}.${name}` : name);
-  return `(${col('id')} LIKE '${HOOK_TRAJECTORY_ID_PREFIX}%'` +
-    ` AND COALESCE(CASE WHEN json_valid(${col('metadata_json')})` +
-    ` THEN json_extract(${col('metadata_json')}, '$.outcome') END, '') <> 'observed')`;
+  const step = (path: string) =>
+    `(CASE WHEN json_valid(${col('steps_json')}) THEN json_extract(${col('steps_json')}, '${path}') END)`;
+  const shape =
+    `((${col('id')} GLOB '${HOOK_TRAJECTORY_ID_GLOB}'` +
+    ` AND ${step('$[0].step')} = 1` +
+    ` AND ${col('task')} = ${col('agent')} || ':' || ${step('$[0].task')})` +
+    ` OR (${col('id')} GLOB '${HOOK_MULTI_TRAJECTORY_ID_GLOB}'` +
+    ` AND ${col('task')} GLOB 'multi:*'` +
+    ` AND ${step('$[0].step')} = 1))`;
+  const unmarked = opts.hasMetadata === false
+    ? ''
+    : ` AND COALESCE(CASE WHEN json_valid(${col('metadata_json')})` +
+      ` THEN json_extract(${col('metadata_json')}, '$.outcome') END, '') <> 'observed'`;
+  return `(CASE WHEN ${shape}${unmarked} THEN 1 ELSE 0 END)`;
 }
 
-/** Negation of {@link legacyHookTrajectorySql}: keep every other trajectory. */
-export const OBSERVED_TRAJECTORY_SQL = `NOT ${legacyHookTrajectorySql()}`;
+/** Rows {@link legacyHookTrajectorySql} does not flag: every other trajectory. */
+export const OBSERVED_TRAJECTORY_SQL = `${legacyHookTrajectorySql()} = 0`;
 
 /**
- * {@link OBSERVED_TRAJECTORY_SQL}, or, for a qe_trajectories without the
- * metadata_json column (where no row can carry the observed marker), a
- * predicate that drops every `traj-` row.
+ * {@link OBSERVED_TRAJECTORY_SQL}, adjusted for a qe_trajectories without the
+ * metadata_json column (the same structural test, without the marker).
  */
 export function observedTrajectorySql(db: {
   prepare(sql: string): { all(...params: unknown[]): unknown[] };
 }): string {
   const cols = db.prepare(`PRAGMA table_info(qe_trajectories)`).all() as Array<{ name: string }>;
-  return cols.some((c) => c.name === 'metadata_json')
-    ? OBSERVED_TRAJECTORY_SQL
-    : `id NOT LIKE '${HOOK_TRAJECTORY_ID_PREFIX}%'`;
+  const hasMetadata = cols.some((c) => c.name === 'metadata_json');
+  return `${legacyHookTrajectorySql(undefined, { hasMetadata })} = 0`;
 }
