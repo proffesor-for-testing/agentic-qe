@@ -218,15 +218,18 @@ export class TrajectoryBridge {
 
       // Ensure feedback column exists (TrajectoryTracker.ensureSchema may not
       // have run yet on a fresh install).
+      // Each column is added on its own, so one failed ALTER cannot skip the
+      // other and fail the INSERT below.
+      let cols: Array<{ name: string }> = [];
       try {
-        const cols = db.prepare('PRAGMA table_info(qe_trajectories)').all() as Array<{ name: string }>;
-        if (!cols.some(c => c.name === 'feedback')) {
-          db.exec('ALTER TABLE qe_trajectories ADD COLUMN feedback TEXT');
-        }
-        if (!cols.some(c => c.name === 'metadata_json')) {
-          db.exec('ALTER TABLE qe_trajectories ADD COLUMN metadata_json TEXT');
-        }
+        cols = db.prepare('PRAGMA table_info(qe_trajectories)').all() as Array<{ name: string }>;
       } catch { /* fail-soft */ }
+      for (const column of ['feedback', 'metadata_json']) {
+        if (cols.some(c => c.name === column)) continue;
+        try {
+          db.exec(`ALTER TABLE qe_trajectories ADD COLUMN ${column} TEXT`);
+        } catch { /* fail-soft */ }
+      }
 
       const startedIso = new Date(trajectory.startedAt).toISOString();
       const endedIso = trajectory.completedAt ? new Date(trajectory.completedAt).toISOString() : null;
