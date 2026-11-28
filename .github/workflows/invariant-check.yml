@@ -75,7 +75,7 @@ jobs:
       # Skill-tree parity (ADR-113/114): assets + plugins must mirror canonical
       # .claude/skills bodies. Blocking — drift here is the recurring bug this guards.
       - name: Skill-tree parity (assets + plugins mirror canonical)
-        run: npm run verify:skill-parity
+        run: npm run verify:skill-parity -- --ci
 
       # .opencode/skills/*.yaml is generated from .claude/skills (#1494). Blocking:
       # regenerate with `npx tsx scripts/generate-opencode-skills.ts` when it fails.
