@@ -187,6 +187,7 @@ describe('post-task bridge loop promotes patterns (#455)', () => {
     seedBridge('pat-ready');
 
     await persistTaskOutcome({
+      bridgeKey: 'task:abc', // #1501: this task's bridge entry
       taskId: 'hook-test',
       agent: 'qe-test-architect',
       success: true,
@@ -222,6 +223,7 @@ describe('post-task bridge loop promotes patterns (#455)', () => {
     seedBridge('pat-low-success');
 
     await persistTaskOutcome({
+      bridgeKey: 'task:abc', // #1501: this task's bridge entry
       taskId: 'hook-test',
       agent: 'qe-test-architect',
       success: false, // failure — drops success_rate further
@@ -254,6 +256,7 @@ describe('post-task bridge loop promotes patterns (#455)', () => {
     seedBridge('pat-low-conf');
 
     await persistTaskOutcome({
+      bridgeKey: 'task:abc', // #1501: this task's bridge entry
       taskId: 'hook-test',
       agent: 'qe-test-architect',
       success: true,
@@ -287,6 +290,7 @@ describe('post-task bridge loop promotes patterns (#455)', () => {
     seedBridge('pat-already-long');
 
     await persistTaskOutcome({
+      bridgeKey: 'task:abc', // #1501: this task's bridge entry
       taskId: 'hook-test',
       agent: 'qe-test-architect',
       success: true,
