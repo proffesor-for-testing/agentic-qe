@@ -1,5 +1,6 @@
 import type { QERoutingResult } from './qe-reasoning-bank-types.js';
 import type { QEPattern } from './qe-patterns.js';
+import { isLegacyHookDerivedPattern } from './hook-outcome-provenance.js';
 
 export const ROUTING_PATTERN_SIMILARITY_FLOOR = 0.5;
 export const ROUTING_PATTERN_QUALITY_FLOOR = 0.3;
@@ -20,7 +21,9 @@ export function enhanceRoutingWithPatterns<T extends QERoutingResult>(
   const relevantPatterns = patternResults.filter(
     ({ pattern, similarity }) =>
       similarity >= ROUTING_PATTERN_SIMILARITY_FLOOR
-      && pattern.qualityScore >= ROUTING_PATTERN_QUALITY_FLOOR,
+      && pattern.qualityScore >= ROUTING_PATTERN_QUALITY_FLOOR
+      // #1501: its quality and confidence are the hooks' constant successes
+      && !isLegacyHookDerivedPattern(pattern),
   );
 
   if (relevantPatterns.length === 0) return routingResult;

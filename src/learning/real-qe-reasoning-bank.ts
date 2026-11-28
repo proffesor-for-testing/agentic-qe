@@ -71,7 +71,7 @@ import {
   createMemoryPattern,
   isMemoryWriteGateEnabled,
 } from '../governance/index.js';
-import { observedTrajectorySql } from './hook-outcome-provenance.js';
+import { observedTrajectorySql, isLegacyHookDerivedPattern } from './hook-outcome-provenance.js';
 
 // ============================================================================
 // Configuration
@@ -739,6 +739,8 @@ export class RealQEReasoningBank {
         if (options.minSimilarity !== undefined) continue;
         const pattern = this.sqliteStore.getPattern(lexical.id);
         if (!pattern || (options.domain && pattern.qeDomain !== options.domain)) continue;
+        // #1501: its stats are the hooks' constant successes
+        if (isLegacyHookDerivedPattern(pattern)) continue;
         patterns.push({ pattern, score: 0.5 * lexical.ftsScore * lexical.coverage,
           similarity: 0, matchType: 'lexical', canReuse: false });
       }
@@ -779,6 +781,10 @@ export class RealQEReasoningBank {
 
       const pattern = this.sqliteStore.getPattern(patternId);
       if (!pattern) continue;
+
+      // #1501: a pattern consolidated from legacy hook experiences ranks on
+      // the hooks' constant successes and carries no other content.
+      if (isLegacyHookDerivedPattern(pattern)) continue;
 
       // Filter by domain if specified
       if (options.domain && pattern.qeDomain !== options.domain) {

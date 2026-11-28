@@ -6,7 +6,7 @@
  */
 
 import type { DomainName } from '../shared/types/index.js';
-import { isLegacyHookDerivedPattern } from './hook-outcome-provenance.js';
+import { isLegacyHookDerivedPattern, observedPromotionCounts } from './hook-outcome-provenance.js';
 
 // ============================================================================
 // QE Domains - Pattern Classification
@@ -196,6 +196,13 @@ export interface QEPattern {
 
   /** Asymmetric failure penalty ratio applied (ADR-061) */
   readonly asymmetryRatio?: number;
+
+  /**
+   * #1501: how many of usageCount / successfulUses are legacy task-bridge
+   * fan-out uses, written from the hooks' constant success before #1493.
+   * Read-time annotation (not a stored column); promotion leaves them out.
+   */
+  readonly legacyHookUsage?: { readonly uses: number; readonly successes: number };
 }
 
 /**
@@ -392,10 +399,13 @@ export function shouldPromotePattern(
   // #1493: a pattern consolidated from legacy post-task hook experiences
   // has no observed uses — its successful uses are the hooks' constant
   // success — so it never meets the usage criterion.
+  // #1501: nor do the task-bridge fan-out uses written from that constant
+  // success count, on any pattern: promotion reads observed counts only.
+  const observed = observedPromotionCounts(pattern);
   const meetsUsageCriteria = pattern.tier === 'short-term'
-    && pattern.successfulUses >= PROMOTION_THRESHOLD
+    && observed.successfulUses >= PROMOTION_THRESHOLD
     && !isLegacyHookDerivedPattern(pattern);
-  const meetsQualityCriteria = pattern.successRate >= PROMOTION_MIN_SUCCESS_RATE && pattern.confidence >= 0.6;
+  const meetsQualityCriteria = observed.successRate >= PROMOTION_MIN_SUCCESS_RATE && pattern.confidence >= 0.6;
 
   // NEW: Coherence criteria - only block if coherence energy is provided and exceeds threshold
   const meetsCoherenceCriteria = coherenceEnergy === undefined || coherenceEnergy < coherenceThreshold;
