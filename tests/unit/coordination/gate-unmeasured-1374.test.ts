@@ -43,7 +43,9 @@ function row(generatedBy: string, passed: 0 | 1, opts: { flaky?: 0 | 1; age?: st
 const generated = (count: number) => {
   for (let i = 0; i < count; i++) row('qe-test-generation', 1, { domain: 'test-generation' });
 };
-const executed = (...passed: Array<0 | 1>) => passed.forEach(p => row('cli-hook-post-command', p));
+// #1501: post-command writes only observed results, as 'cli-hook-post-command-observed'.
+const HOOK = 'cli-hook-post-command-observed';
+const executed = (...passed: Array<0 | 1>) => passed.forEach(p => row(HOOK, p));
 
 /** Coverage is supplied, so only the test_outcomes inputs are read from the DB. */
 async function gate(input: Record<string, unknown> = { currentCoverage: 95 }) {
@@ -100,6 +102,14 @@ describe('quality-gate-check without execution evidence (#1374)', () => {
     expect((await gate()).reason).toMatch(/testsPassing and bugs come from executed test_outcomes rows of the last 7 days/);
   });
 
+  it('legacy post-command rows (the hooks\' constant success) are not evidence (#1501)', async () => {
+    for (let i = 0; i < 4; i++) row('cli-hook-post-command', 1);
+    const g = await gate();
+    expect(g.details.testsPassing).toMatchObject({ current: null, unmeasured: true });
+    expect(g.passed).toBe(false);
+    expect((db.prepare('SELECT COUNT(*) as c FROM test_outcomes').get() as { c: number }).c).toBe(4);
+  });
+
   it('a measured, healthy project passes', async () => {
     executed(1, 1, 1, 1);
     const g = await gate();
@@ -109,12 +119,12 @@ describe('quality-gate-check without execution evidence (#1374)', () => {
   });
 
   it('only the last 7 days count; older executed rows leave the rate unmeasured', async () => {
-    row('cli-hook-post-command', 1, { age: '-8 days' });
+    row(HOOK, 1, { age: '-8 days' });
     expect((await gate()).details.testsPassing.unmeasured).toBe(true);
   });
 
   it('flaky failures are not bugs', async () => {
-    row('cli-hook-post-command', 0, { flaky: 1 });
+    row(HOOK, 0, { flaky: 1 });
     executed(1);
     const g = await gate();
     expect(g.details.bugs.current).toBe(0);
@@ -146,7 +156,7 @@ describe('TestOutcomeTracker skips never-run generation rows (#1374)', () => {
     await tracker.initialize();
     const loaded = tracker.exportOutcomes();
     expect(loaded.map(o => `${o.generatedBy}/${o.domain}`).sort()).toEqual([
-      'cli-hook-post-command/test-execution', 'cli-hook-post-command/test-execution', 'qe-test-generation/test-execution',
+      `${HOOK}/test-execution`, `${HOOK}/test-execution`, 'qe-test-generation/test-execution',
     ]);
     expect(count()).toBe(6);
   });

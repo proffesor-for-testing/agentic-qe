@@ -10,6 +10,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -42,6 +43,10 @@ function withDb<T>(fn: (db: Database.Database) => T): T {
   try { return fn(db); } finally { db.close(); }
 }
 
+/** The kv_store key pre-task writes for a description (task-hooks.ts taskBridgeKey). */
+const bridgeKey = (description: string) =>
+  `task:${createHash('sha256').update(description).digest('hex').slice(0, 16)}`;
+
 function seedPatternAndBridge(id: string): void {
   withDb((db) => {
     db.prepare(`
@@ -50,8 +55,9 @@ function seedPatternAndBridge(id: string): void {
       VALUES (?, 'test-template', 'test-generation', 'test-generation', ?, 'seeded', 0.7, 2, 2, 1.0, 0.7,
         'short-term', '{}', '{"tags":["seeded"]}')
     `).run(id, id);
+    // #1501: post-task reads the entry pre-task wrote for the same description.
     db.prepare(`INSERT INTO kv_store (key, namespace, value, expires_at, created_at) VALUES (?, 'task-bridge', ?, ?, ?)`)
-      .run(`bridge-${id}`, JSON.stringify({
+      .run(bridgeKey(`prompt ${id}`), JSON.stringify({
         selectedPatternIds: [id], agent: 'coder', description: 'd', taskType: 'test', priority: 'normal',
         domain: 'test-generation', complexityBucket: 1, estimatedTokenSavings: 0, ts: Date.now(),
       }), Date.now() + 600_000, Date.now());
@@ -87,7 +93,7 @@ describe('post-task with the built CLI (#1493)', { timeout: 300_000 }, () => {
   it('records nothing for the installed constant --success true', () => {
     seedPatternAndBridge('pat-unobserved');
 
-    const out = postTask('--task-id', 'u1', '--agent', 'coder', '--success', 'true');
+    const out = postTask('--task-id', 'u1', '--agent', 'coder', '--description', 'prompt pat-unobserved', '--success', 'true');
 
     expect(out).toMatchObject({ success: true, taskSuccess: null, outcomeObserved: false });
     expect(patternRow('pat-unobserved')).toEqual({ tier: 'short-term', usage_count: 2, successful_uses: 2 });
@@ -110,7 +116,8 @@ describe('post-task with the built CLI (#1493)', { timeout: 300_000 }, () => {
   it('records an observed --outcome failure and success', () => {
     seedPatternAndBridge('pat-observed');
 
-    expect(postTask('--task-id', 'o1', '--agent', 'tester', '--outcome', 'success')).toMatchObject({ taskSuccess: true });
+    expect(postTask('--task-id', 'o1', '--agent', 'tester', '--description', 'prompt pat-observed', '--outcome', 'success'))
+      .toMatchObject({ taskSuccess: true });
     expect(postTask('--task-id', 'o2', '--agent', 'tester', '--outcome', 'failure')).toMatchObject({ taskSuccess: false });
 
     expect(experiences('tester')).toEqual([

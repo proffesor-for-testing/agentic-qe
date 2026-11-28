@@ -74,7 +74,7 @@ describe('post-edit dream trigger contract (ADR-094)', () => {
     registerEditingHooks(hooks);
 
     await hooks.parseAsync(
-      ['post-edit', '--file', '/tmp/test.ts', '--success', '--json'],
+      ['post-edit', '--file', '/tmp/test.ts', '--outcome', 'success', '--json'],
       { from: 'user' },
     );
 
@@ -82,6 +82,19 @@ describe('post-edit dream trigger contract (ADR-094)', () => {
     // Without it, kernel-side dream cycles would only fire on the time-based
     // cadence and would miss the experience-threshold trigger.
     expect(incrementDreamExperienceMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not bump the counter for the installed constant --success (#1501)', async () => {
+    const hooks = new Command('hooks');
+    registerEditingHooks(hooks);
+
+    await hooks.parseAsync(
+      ['post-edit', '--file', '/tmp/test.ts', '--success', '--json'],
+      { from: 'user' },
+    );
+
+    expect(incrementDreamExperienceMock).not.toHaveBeenCalled();
+    expect(printJsonMock.mock.calls[0][0]).toMatchObject({ editSuccess: null, outcomeObserved: false });
   });
 
   it('does NOT trigger a dream cycle from the hook subprocess (ADR-094 boundary)', async () => {
@@ -93,7 +106,7 @@ describe('post-edit dream trigger contract (ADR-094)', () => {
     registerEditingHooks(hooks);
 
     await hooks.parseAsync(
-      ['post-edit', '--file', '/tmp/test.ts', '--success', '--json'],
+      ['post-edit', '--file', '/tmp/test.ts', '--outcome', 'success', '--json'],
       { from: 'user' },
     );
 
@@ -117,7 +130,7 @@ describe('post-edit dream trigger contract (ADR-094)', () => {
     registerEditingHooks(hooks);
 
     await hooks.parseAsync(
-      ['post-edit', '--file', '/tmp/test.ts', '--success', '--json'],
+      ['post-edit', '--file', '/tmp/test.ts', '--outcome', 'success', '--json'],
       { from: 'user' },
     );
 

@@ -27,7 +27,13 @@ import type { WitnessChain } from '../audit/witness-chain.js';
 import type { TemporalCompressionService, CompressedVector } from '../integrations/ruvector/temporal-compression.js';
 import { isTemporalCompressionEnabled } from '../integrations/ruvector/feature-flags.js';
 import { writeWhenUnlockedOn } from '../shared/sqlite-write-queue.js';
-import { OBSERVED_EXPERIENCE_SQL } from './hook-outcome-provenance.js';
+import {
+  OBSERVED_EXPERIENCE_SQL,
+  LEGACY_HOOK_USAGE_SQL,
+  isLegacyHookDerivedPattern,
+  observedPromotionCounts,
+  type LegacyHookUsage,
+} from './hook-outcome-provenance.js';
 
 const logger = LoggerFactory.create('pattern-lifecycle');
 
@@ -535,8 +541,16 @@ Pattern extracted from ${exp.count} successful experiences.`;
 
     const avgReward = pattern.qualityScore;
     const meetsReward = avgReward >= this.config.promotionRewardThreshold;
-    const meetsOccurrences = pattern.usageCount >= this.config.promotionMinOccurrences;
-    const meetsSuccessRate = pattern.successRate >= this.config.promotionMinSuccessRate;
+    // #1501: only observed uses count. Uses the task-bridge fan-out wrote
+    // from the hooks' constant success are left out, and a pattern
+    // consolidated from legacy hook experiences has no observed uses at all.
+    const observed = observedPromotionCounts({
+      ...pattern,
+      legacyHookUsage: this.getLegacyHookUsage(patternId),
+    });
+    const meetsOccurrences = !isLegacyHookDerivedPattern(pattern)
+      && observed.usageCount >= this.config.promotionMinOccurrences;
+    const meetsSuccessRate = observed.successRate >= this.config.promotionMinSuccessRate;
 
     // ADR-121: evidence-tier gate. Only oracle:test-exec (or judge:llm under an
     // explicit budget flag) may promote; proxy:structural is never auto-promoted.
@@ -562,9 +576,23 @@ Pattern extracted from ${exp.count} successful experiences.`;
       provenanceTier,
       meetsProvenanceTier,
       currentReward: avgReward,
-      currentOccurrences: pattern.usageCount,
-      currentSuccessRate: pattern.successRate,
+      currentOccurrences: observed.usageCount,
+      currentSuccessRate: observed.successRate,
     };
+  }
+
+  /** Legacy hook fan-out uses of a pattern (#1501); none when unreadable. */
+  private getLegacyHookUsage(patternId: string): LegacyHookUsage | undefined {
+    try {
+      const row = this.db.prepare(`
+        SELECT COUNT(*) AS uses, COALESCE(SUM(success), 0) AS successes
+        FROM qe_pattern_usage
+        WHERE pattern_id = ? AND ${LEGACY_HOOK_USAGE_SQL}
+      `).get(patternId) as { uses: number; successes: number } | undefined;
+      return row && row.uses > 0 ? row : undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   /**

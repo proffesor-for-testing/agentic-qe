@@ -215,7 +215,7 @@ export class HooksPhase extends BasePhase<HooksResult> {
       'Manual testing:',
       '  npx agentic-qe hooks session-start --session-id test --json',
       '  npx agentic-qe hooks route --task "generate tests" --json',
-      '  npx agentic-qe hooks post-edit --file src/example.ts --success --json',
+      '  npx agentic-qe hooks post-edit --file src/example.ts --outcome success --json',
       '',
     ].join('\n');
 
@@ -778,7 +778,7 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
           hooks: [
             {
               type: 'command',
-              command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" post-edit --file "$TOOL_INPUT_file_path" --success --json',
+              command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" post-edit --file "$TOOL_INPUT_file_path" --json',
               timeout: 5,
               continueOnError: true,
             },
@@ -789,7 +789,7 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
           hooks: [
             {
               type: 'command',
-              command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" post-command --command "$TOOL_INPUT_command" --success true --json',
+              command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" post-command --command "$TOOL_INPUT_command" --json',
               timeout: 5,
               continueOnError: true,
             },

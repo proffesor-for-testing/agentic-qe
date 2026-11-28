@@ -61,6 +61,18 @@ function hashDescription(description: string): string {
 }
 
 /**
+ * kv_store key of the task-bridge entry pre-task writes for a description,
+ * and post-task reads back for the same description (#1501). Both hooks get
+ * the Task prompt as `--description`. Null without a description: pre-task
+ * then writes no entry.
+ */
+export function taskBridgeKey(description: unknown): string | null {
+  if (description === undefined || description === null) return null;
+  const text = String(description);
+  return text ? `task:${hashDescription(text)}` : null;
+}
+
+/**
  * QE domains where nagual patterns add meaningful context.
  * Skipped for trivial/short tasks to avoid latency with no benefit.
  */
@@ -215,7 +227,7 @@ export function registerTaskHooks(hooks: Command): void {
                 0,
                 Math.min(10, Math.round(Math.min(description.length / 200, 1) * 10)),
               );
-              bridgeKey = `task:${hashDescription(description)}`;
+              bridgeKey = taskBridgeKey(description);
               const payload = JSON.stringify({
                 selectedPatternIds,
                 agent: routing?.recommendedAgent ?? null,
@@ -425,7 +437,7 @@ export function registerTaskHooks(hooks: Command): void {
             // #1493: no result was observed, so there is no outcome to learn
             // from. Only retire this task's pre-task bridge entry, so a later
             // observed post-task cannot pick up its pattern selection.
-            await discardTaskBridge();
+            await discardTaskBridge(taskBridgeKey(options.description));
           } else {
             // Initialize system (creates ReasoningBank and HookRegistry)
             const { hookRegistry, reasoningBank } = await getHooksSystem();
@@ -480,6 +492,8 @@ export function registerTaskHooks(hooks: Command): void {
                 success,
                 parentAgentId: provenance.parentAgentId,
                 depth: provenance.depth,
+                // #1501: this task's bridge entry, not the newest one
+                bridgeKey: taskBridgeKey(options.description),
               });
 
               // Issue #460: when --agent arrives empty (Claude Code does not

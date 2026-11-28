@@ -73,6 +73,7 @@ import {
 import { PatternNullStore, type NullSummary } from './pattern-null-store.js';
 import { ensureEndpointEmbeddingSpaceIdentity, getActiveEmbeddingSpaceIdentity } from './real-embeddings.js';
 import { PatternMutationError } from './pattern-mutation-error.js';
+import { isLegacyHookDerivedPattern } from './hook-outcome-provenance.js';
 
 // ============================================================================
 // R1: HDC Fingerprint Singleton (lazy-initialized)
@@ -1480,6 +1481,13 @@ export class PatternStore implements IPatternStore {
     pattern: QEPattern,
     options: PatternSearchOptions
   ): boolean {
+    // #1501: a pattern consolidated from legacy hook experiences ranks on the
+    // hooks' constant successes and carries no other content, so search
+    // leaves it out (the stored row is unchanged).
+    if (isLegacyHookDerivedPattern(pattern)) {
+      return false;
+    }
+
     if (options.patternType && pattern.patternType !== options.patternType) {
       return false;
     }

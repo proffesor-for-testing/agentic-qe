@@ -35,6 +35,7 @@ import {
 import { recordPatternUsage } from './pattern-usage-recorder.js';
 import { MEASURED_USAGE_SQL, USAGE_RUN_SQL } from './usage-outcome.js';
 import { OBSERVED_ROUTING_OUTCOME_SQL } from '../routing/routing-outcomes-migration.js';
+import { legacyHookUsageColumnsSql } from './hook-outcome-provenance.js';
 
 /**
  * SQLite persistence configuration
@@ -106,6 +107,9 @@ export interface PatternRow {
   reuse_count?: number;
   average_token_savings?: number;
   total_tokens_saved?: number;
+  // #1501: legacy hook fan-out usage (read-time subquery columns)
+  legacy_hook_uses?: number;
+  legacy_hook_successes?: number;
 }
 
 /** A qe_patterns row as a QEPattern (also used by read-only readers, #1422). */
@@ -144,6 +148,10 @@ export function patternFromRow(row: PatternRow): QEPattern {
     reuseCount: row.reuse_count || 0,
     averageTokenSavings: row.average_token_savings || 0,
     totalTokensSaved: row.total_tokens_saved,
+    // #1501: promotion leaves legacy hook fan-out uses out
+    ...((row.legacy_hook_uses ?? 0) > 0
+      ? { legacyHookUsage: { uses: row.legacy_hook_uses ?? 0, successes: row.legacy_hook_successes ?? 0 } }
+      : {}),
   };
 }
 
@@ -477,7 +485,7 @@ export class SQLitePatternStore {
     `));
 
     this.prepared.set('getPatternWithEmbedding', this.db.prepare(`
-      SELECT p.*, e.embedding, e.dimension, e.space_id
+      SELECT p.*, e.embedding, e.dimension, e.space_id, ${legacyHookUsageColumnsSql('p')}
       FROM qe_patterns p
       LEFT JOIN qe_pattern_embeddings e ON p.id = e.pattern_id
       WHERE p.id = ?
@@ -505,11 +513,11 @@ export class SQLitePatternStore {
     `));
 
     this.prepared.set('getAllPatterns', this.db.prepare(`
-      SELECT * FROM qe_patterns ORDER BY quality_score DESC LIMIT ?
+      SELECT p.*, ${legacyHookUsageColumnsSql('p')} FROM qe_patterns p ORDER BY p.quality_score DESC LIMIT ?
     `));
 
     this.prepared.set('getPatternsByDomain', this.db.prepare(`
-      SELECT * FROM qe_patterns WHERE qe_domain = ? ORDER BY quality_score DESC LIMIT ?
+      SELECT p.*, ${legacyHookUsageColumnsSql('p')} FROM qe_patterns p WHERE p.qe_domain = ? ORDER BY p.quality_score DESC LIMIT ?
     `));
 
     this.prepared.set('getAllEmbeddings', this.db.prepare(`

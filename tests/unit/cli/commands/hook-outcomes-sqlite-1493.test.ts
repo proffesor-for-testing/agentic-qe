@@ -111,7 +111,7 @@ describe('hook task outcomes on SQLite (#1493)', () => {
     seedPattern('pat-a', 0, 0);
     seedBridge('pat-a');
 
-    await persistTaskOutcome({ taskId: 't1', agent: 'coder', success: false });
+    await persistTaskOutcome({ taskId: 't1', agent: 'coder', success: false, bridgeKey: 'bridge-1' });
 
     expect(db.prepare(`SELECT source, success FROM captured_experiences`).all())
       .toEqual([{ source: OBSERVED_HOOK_TASK_SOURCE, success: 0 }]);
@@ -132,7 +132,7 @@ describe('hook task outcomes on SQLite (#1493)', () => {
     legacy.run(JSON.stringify({ source: LEGACY_HOOK_TASK_SOURCE }));
     seedBridge('pat-b');
 
-    await persistTaskOutcome({ taskId: 't2', agent: 'coder', success: true });
+    await persistTaskOutcome({ taskId: 't2', agent: 'coder', success: true, bridgeKey: 'bridge-1' });
 
     // The observed success is recorded, but 1 observed success is not 3.
     expect(pattern('pat-b')).toEqual({ tier: 'short-term', usage_count: 3, successful_uses: 3 });
@@ -142,7 +142,7 @@ describe('hook task outcomes on SQLite (#1493)', () => {
     seedPattern('pat-c', 2, 2);
     seedBridge('pat-c');
 
-    await persistTaskOutcome({ taskId: 't3', agent: 'coder', success: true });
+    await persistTaskOutcome({ taskId: 't3', agent: 'coder', success: true, bridgeKey: 'bridge-1' });
 
     expect(pattern('pat-c').tier).toBe('long-term');
   });
@@ -151,7 +151,7 @@ describe('hook task outcomes on SQLite (#1493)', () => {
     seedPattern('pat-legacy', 5, 5, [LEGACY_HOOK_TASK_SOURCE]);
     seedBridge('pat-legacy');
 
-    await persistTaskOutcome({ taskId: 't4', agent: 'coder', success: true });
+    await persistTaskOutcome({ taskId: 't4', agent: 'coder', success: true, bridgeKey: 'bridge-1' });
 
     expect(pattern('pat-legacy')).toMatchObject({ tier: 'short-term', successful_uses: 6 });
   });
@@ -337,15 +337,47 @@ describe('hook task outcomes on SQLite (#1493)', () => {
     expect(kept).toEqual([{ id: 'm1' }, { id: 'n1' }, { id: 'o1' }]);
   });
 
-  it('discardTaskBridge retires the newest bridge entry without recording anything', async () => {
+  it('discardTaskBridge retires this task\'s bridge entry without recording anything', async () => {
     seedPattern('pat-d', 0, 0);
     seedBridge('pat-d');
+    seedBridge('pat-d', 'bridge-other');
 
-    expect(await discardTaskBridge()).toBe(true);
+    // #1501: keyed to the task; without a key nothing is removed.
+    expect(await discardTaskBridge()).toBe(false);
+    expect(await discardTaskBridge('bridge-1')).toBe(true);
 
-    expect(db.prepare(`SELECT COUNT(*) AS n FROM kv_store`).get()).toEqual({ n: 0 });
+    expect(db.prepare(`SELECT key FROM kv_store`).all()).toEqual([{ key: 'bridge-other' }]);
     expect(pattern('pat-d')).toMatchObject({ usage_count: 0 });
     expect(db.prepare(`SELECT COUNT(*) AS n FROM captured_experiences`).get()).toEqual({ n: 0 });
-    expect(await discardTaskBridge()).toBe(false);
+    expect(await discardTaskBridge('bridge-1')).toBe(false);
+  });
+
+  it('persistTaskOutcome reads this task\'s bridge entry, not the newest one (#1501)', async () => {
+    seedPattern('pat-mine', 0, 0);
+    seedPattern('pat-newer', 0, 0);
+    seedBridge('pat-mine', 'bridge-mine');
+    seedBridge('pat-newer', 'bridge-newer');
+    db.prepare(`UPDATE kv_store SET created_at = created_at + 1000 WHERE key = 'bridge-newer'`).run();
+
+    const out = await persistTaskOutcome({ taskId: 'k1', agent: 'coder', success: true, bridgeKey: 'bridge-mine' });
+
+    expect(out.bridge?.selectedPatternIds).toEqual(['pat-mine']);
+    expect(pattern('pat-mine')).toMatchObject({ usage_count: 1 });
+    expect(pattern('pat-newer')).toMatchObject({ usage_count: 0 });
+    expect(db.prepare(`SELECT key FROM kv_store`).all()).toEqual([{ key: 'bridge-newer' }]);
+
+    // No key: no bridge is read, none is consumed.
+    expect((await persistTaskOutcome({ taskId: 'k2', agent: 'coder', success: true })).bridge).toBeNull();
+    expect(pattern('pat-newer')).toMatchObject({ usage_count: 0 });
+  });
+
+  it('consumes a bridge entry that selected no pattern (#1501)', async () => {
+    db.prepare(`INSERT INTO kv_store (key, namespace, value, expires_at, created_at) VALUES ('bridge-empty', 'task-bridge', ?, ?, ?)`)
+      .run(JSON.stringify({ selectedPatternIds: [], agent: 'coder', description: 'd', taskType: 'test', priority: 'normal',
+        domain: 'general', complexityBucket: 1, estimatedTokenSavings: 0, ts: Date.now() }), Date.now() + 600_000, Date.now());
+
+    await persistTaskOutcome({ taskId: 'k3', agent: 'coder', success: true, bridgeKey: 'bridge-empty' });
+
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM kv_store`).get()).toEqual({ n: 0 });
   });
 });

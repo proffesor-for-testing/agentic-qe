@@ -355,7 +355,8 @@ export interface TaskOutcomeResult {
  * Pipeline rolled into one helper that:
  *
  *   1. Writes captured_experiences (source='cli-hook-post-task-observed')
- *   2. Reads kv_store task-bridge (selectedPatternIds + estimatedTokenSavings)
+ *   2. Reads this task's kv_store task-bridge entry, by key (#1501)
+ *      (selectedPatternIds + estimatedTokenSavings)
  *   3. Writes experience_applications: 1 base row + 1 per pattern_id (160/300)
  *   4. Deletes the bridge entry to prevent double-consumption
  *   5. Writes a single-step qe_trajectories row (120)
@@ -384,6 +385,12 @@ export async function persistTaskOutcome(opts: {
   parentAgentId?: string;
   /** ADR-101: nesting depth, 0 = top-level */
   depth?: number;
+  /**
+   * #1501: kv_store key of THIS task's pre-task bridge entry
+   * (`task:<hash of the description>`, see taskBridgeKey). Without one no
+   * bridge is read: the newest entry may belong to another, parallel task.
+   */
+  bridgeKey?: string | null;
 }): Promise<TaskOutcomeResult> {
   const { getUnifiedMemory } = await import('../../../kernel/unified-memory.js');
   const um = getUnifiedMemory();
@@ -510,13 +517,16 @@ export async function persistTaskOutcome(opts: {
 
     // 3. Read bridge → fan out per-pattern application rows + delete bridge
     try {
-      const bridgeRow = db.prepare(`
-        SELECT key, value FROM kv_store
-        WHERE namespace = 'task-bridge'
-          AND (expires_at IS NULL OR expires_at > strftime('%s','now') * 1000)
-        ORDER BY created_at DESC
-        LIMIT 1
-      `).get() as { key: string; value: string } | undefined;
+      // #1501: this task's entry, by key. The newest entry was read here
+      // before, so with parallel Task spawns one task could be credited
+      // with another's pattern selection.
+      const bridgeRow = opts.bridgeKey
+        ? db.prepare(`
+            SELECT key, value FROM kv_store
+            WHERE namespace = 'task-bridge' AND key = ?
+              AND (expires_at IS NULL OR expires_at > strftime('%s','now') * 1000)
+          `).get(opts.bridgeKey) as { key: string; value: string } | undefined
+        : undefined;
 
       if (bridgeRow?.value) {
         try {
@@ -625,10 +635,11 @@ export async function persistTaskOutcome(opts: {
             }
           } catch { /* fail-soft per pattern */ }
         }
-        // 4. Delete bridge entry (one-shot consumption)
-        if (bridgeRow) {
-          db.prepare(`DELETE FROM kv_store WHERE namespace='task-bridge' AND key = ?`).run(bridgeRow.key);
-        }
+      }
+      // 4. Delete bridge entry (one-shot consumption). #1501: also when it
+      // selected no pattern, so it cannot be consumed a second time.
+      if (bridgeRow) {
+        db.prepare(`DELETE FROM kv_store WHERE namespace='task-bridge' AND key = ?`).run(bridgeRow.key);
       }
     } catch (bridgeErr) {
       console.error(chalk.dim(`[hooks] post-task bridge: ${bridgeErr instanceof Error ? bridgeErr.message : 'unknown'}`));
@@ -782,14 +793,16 @@ export async function persistTaskOutcome(opts: {
 }
 
 /**
- * Retire the newest pre-task bridge entry without recording anything (#1493).
+ * Retire this task's pre-task bridge entry without recording anything
+ * (#1493, keyed to the task in #1501).
  *
- * An unobserved post-task records no outcome, but the bridge pre-task wrote
- * for that task must not survive it: the next observed post-task reads the
- * newest bridge entry and would credit this task's pattern selection.
- * Best-effort, like the rest of the hook learning path.
+ * An unobserved post-task records no outcome, and the bridge pre-task wrote
+ * for that task is dropped with it. Without a key nothing is removed: the
+ * newest entry may be another, parallel task's. Best-effort, like the rest
+ * of the hook learning path.
  */
-export async function discardTaskBridge(): Promise<boolean> {
+export async function discardTaskBridge(bridgeKey?: string | null): Promise<boolean> {
+  if (!bridgeKey) return false;
   try {
     const { getUnifiedMemory } = await import('../../../kernel/unified-memory.js');
     const um = getUnifiedMemory();
@@ -798,16 +811,8 @@ export async function discardTaskBridge(): Promise<boolean> {
     }
     const db = um.getDatabase();
     try { db.pragma('busy_timeout = 60000'); } catch { /* hook-side patient timeout */ }
-    const row = db.prepare(`
-      SELECT key FROM kv_store
-      WHERE namespace = 'task-bridge'
-        AND (expires_at IS NULL OR expires_at > strftime('%s','now') * 1000)
-      ORDER BY created_at DESC
-      LIMIT 1
-    `).get() as { key: string } | undefined;
-    if (!row) return false;
-    db.prepare(`DELETE FROM kv_store WHERE namespace = 'task-bridge' AND key = ?`).run(row.key);
-    return true;
+    const result = db.prepare(`DELETE FROM kv_store WHERE namespace = 'task-bridge' AND key = ?`).run(bridgeKey);
+    return result.changes > 0;
   } catch (error) {
     console.error(chalk.dim(`[hooks] discardTaskBridge: ${error instanceof Error ? error.message : 'unknown'}`));
     return false;
