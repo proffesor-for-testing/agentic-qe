@@ -127,17 +127,35 @@ jobs:
       # chromedriver's "create session" fails with HTTP 500. Wrap the
       # cached Chrome binary to always pass --no-sandbox. The wrapper is
       # ephemeral to the runner, never shipped to users.
+      # Wrap EVERY Chrome in Vibium's cache, not only the one the global
+      # Vibium reports (#1449): the project's locked Vibium (node_modules,
+      # installed by npm ci) downloads its own Chrome build, which can differ
+      # from the global one. Ubuntu 26.04 runners restrict unprivileged user
+      # namespaces via AppArmor, so an unwrapped Chrome exits on launch.
       - name: Force --no-sandbox on cached Chrome (CI workaround)
         run: |
-          CHROME="$(vibium paths | awk -F': ' '/^Chrome:/ {print $2}')"
-          echo "Wrapping: $CHROME"
-          mv "$CHROME" "${CHROME}.real"
-          cat > "$CHROME" <<WRAPPER
+          shopt -s nullglob
+          wrapped=0
+          for CHROME in "$HOME"/.cache/vibium/chrome-for-testing/*/chrome; do
+            if [ -e "${CHROME}.real" ]; then echo "Already wrapped: $CHROME"; wrapped=$((wrapped+1)); continue; fi
+            echo "Wrapping: $CHROME"
+            mv "$CHROME" "${CHROME}.real"
+            cat > "$CHROME" <<WRAPPER
           #!/usr/bin/env bash
           exec "${CHROME}.real" --no-sandbox --disable-dev-shm-usage "\$@"
           WRAPPER
-          chmod +x "$CHROME"
-          head -3 "$CHROME"
+            chmod +x "$CHROME"
+            wrapped=$((wrapped+1))
+          done
+          [ "$wrapped" -gt 0 ] || { echo "::error::no Chrome found in Vibium's cache"; exit 1; }
+          # Every Vibium the jobs launch must resolve to a wrapped Chrome.
+          check() {
+            local resolved; resolved="$("$@" paths | awk -F': ' '/^Chrome:/ {print $2}')"
+            echo "$* -> $resolved"
+            [ -e "${resolved}.real" ] || { echo "::error::$* resolves an unwrapped Chrome: $resolved"; exit 1; }
+          }
+          check vibium
+          if [ -f node_modules/vibium/bin/cli.js ]; then check node node_modules/vibium/bin/cli.js; fi
 
       - name: Run qe-browser smoke test
         run: bash .claude/skills/qe-browser/scripts/smoke-test.sh
@@ -186,17 +204,35 @@ jobs:
 
       # See smoke job. Chrome's setuid sandbox doesn't work in GitHub
       # Actions; wrap the cached binary to always pass --no-sandbox.
+      # Wrap EVERY Chrome in Vibium's cache, not only the one the global
+      # Vibium reports (#1449): the project's locked Vibium (node_modules,
+      # installed by npm ci) downloads its own Chrome build, which can differ
+      # from the global one. Ubuntu 26.04 runners restrict unprivileged user
+      # namespaces via AppArmor, so an unwrapped Chrome exits on launch.
       - name: Force --no-sandbox on cached Chrome (CI workaround)
         run: |
-          CHROME="$(vibium paths | awk -F': ' '/^Chrome:/ {print $2}')"
-          echo "Wrapping: $CHROME"
-          mv "$CHROME" "${CHROME}.real"
-          cat > "$CHROME" <<WRAPPER
+          shopt -s nullglob
+          wrapped=0
+          for CHROME in "$HOME"/.cache/vibium/chrome-for-testing/*/chrome; do
+            if [ -e "${CHROME}.real" ]; then echo "Already wrapped: $CHROME"; wrapped=$((wrapped+1)); continue; fi
+            echo "Wrapping: $CHROME"
+            mv "$CHROME" "${CHROME}.real"
+            cat > "$CHROME" <<WRAPPER
           #!/usr/bin/env bash
           exec "${CHROME}.real" --no-sandbox --disable-dev-shm-usage "\$@"
           WRAPPER
-          chmod +x "$CHROME"
-          head -3 "$CHROME"
+            chmod +x "$CHROME"
+            wrapped=$((wrapped+1))
+          done
+          [ "$wrapped" -gt 0 ] || { echo "::error::no Chrome found in Vibium's cache"; exit 1; }
+          # Every Vibium the jobs launch must resolve to a wrapped Chrome.
+          check() {
+            local resolved; resolved="$("$@" paths | awk -F': ' '/^Chrome:/ {print $2}')"
+            echo "$* -> $resolved"
+            [ -e "${resolved}.real" ] || { echo "::error::$* resolves an unwrapped Chrome: $resolved"; exit 1; }
+          }
+          check vibium
+          if [ -f node_modules/vibium/bin/cli.js ]; then check node node_modules/vibium/bin/cli.js; fi
 
       - name: Run modern library, accessibility, CLI and MCP browser regressions
         run: npm run test:integration:browser
