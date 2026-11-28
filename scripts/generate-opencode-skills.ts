@@ -11,6 +11,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { EXCLUDED_SKILLS } from '../src/init/skills-installer.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -254,8 +255,13 @@ steps:
   return yaml;
 }
 
+/**
+ * Platform and internal skills: the prefixes above, plus every skill `aqe init` leaves
+ * out of a Claude Code install (skills-installer EXCLUDED_SKILLS), so OpenCode and Kiro
+ * get the same AQE skill set (#1494).
+ */
 function isExcluded(name: string): boolean {
-  return EXCLUDED_PREFIXES.some((prefix) => name.startsWith(prefix));
+  return EXCLUDED_PREFIXES.some((prefix) => name.startsWith(prefix)) || EXCLUDED_SKILLS.includes(name);
 }
 
 /** Compute the output name, avoiding double qe- prefix */

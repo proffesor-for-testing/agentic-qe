@@ -3,7 +3,7 @@
  * scripts/generate-opencode-skills.ts, and had drifted from it. The committed yaml must
  * equal the generator's output; regenerate with `npx tsx scripts/generate-opencode-skills.ts`.
  */
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -13,6 +13,7 @@ import {
   DEFAULT_OUTPUT_DIR,
   DEFAULT_SKILLS_DIR,
 } from '../../../scripts/generate-opencode-skills.js';
+import { EXCLUDED_SKILLS } from '../../../src/init/skills-installer.js';
 
 const scratchDirs: string[] = [];
 function scratch(): string {
@@ -40,10 +41,15 @@ describe('committed .opencode/skills matches the generator (#1494)', () => {
     expect(diffOpenCodeSkills(build, DEFAULT_OUTPUT_DIR)).toEqual({ added: [], removed: [], changed: [] });
   });
 
-  it('emits no Claude Flow platform skills', () => {
-    const names = [...buildOpenCodeSkills(DEFAULT_SKILLS_DIR).files.keys()];
-    const platform = /^qe-(v3-|flow-nexus-|agentdb-|reasoningbank-|swarm-|hive-mind-|hooks-)/;
-    expect(names.filter((n) => platform.test(n))).toEqual([]);
+  it('emits only AQE skills: each one ships in assets/skills, none is a platform skill', () => {
+    const names = [...buildOpenCodeSkills(DEFAULT_SKILLS_DIR).files.keys()].map((f) => f.replace(/\.yaml$/, ''));
+    const assets = join(DEFAULT_SKILLS_DIR, '..', '..', 'assets', 'skills');
+    const source = (n: string): string | undefined =>
+      [n, n.replace(/^qe-/, '')].find((d) => existsSync(join(assets, d, 'SKILL.md')));
+    expect(names.filter((n) => !source(n))).toEqual([]);
+    expect(names.filter((n) => EXCLUDED_SKILLS.includes(source(n)!))).toEqual([]);
+    const platform = /^(v3-|flow-nexus-|agentdb-|reasoningbank-|swarm-|hive-mind-|hooks-)/;
+    expect(names.filter((n) => platform.test(source(n)!))).toEqual([]);
   });
 
   it('reports a missing, a stale and a hand-edited yaml', () => {
