@@ -1,7 +1,7 @@
 name: qe-github-multi-repo
-description: "Multi-repository coordination, synchronization, and architecture management with AI swarm orchestration"
+description: "|"
 minModelTier: tier2-good
-tags: ["multi-repo", "synchronization", "architecture", "coordination", "github", "qe", "quality-engineering", "github-integration"]
+tags: ["qe", "quality-engineering"]
 steps:
   - name: overview
     description: "Advanced multi-repository coordination system that combines swarm intelligence, package synchronization, and repository architecture optimization. This skill enables organization-wide automation, cross-project collaboration, and scalable repository management."

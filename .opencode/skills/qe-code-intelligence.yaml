@@ -1,5 +1,5 @@
 name: qe-code-intelligence
-description: "Knowledge graph-based code understanding with semantic search and 80% token reduction through intelligent context retrieval."
+description: "Builds semantic code indexes, maps dependency graphs, and performs intelligent code search across large codebases. Use when understanding unfamiliar code, tracing call chains, analyzing import dependencies, or reducing context window usage through targeted retrieval."
 minModelTier: tier3-best
 tags: ["qe", "quality-engineering"]
 steps:

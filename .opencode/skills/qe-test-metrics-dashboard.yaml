@@ -1,0 +1,45 @@
+name: qe-test-metrics-dashboard
+description: "Use when querying test history, analyzing flakiness rates, tracking MTTR, or building quality trend dashboards from test execution data."
+minModelTier: tier2-good
+tags: ["qe", "quality-engineering"]
+steps:
+  - name: key-metrics
+    description: "Key Metrics"
+    tools: ["bash", "read"]
+    prompt: |
+      Key Metrics
+  - name: test-health-metrics
+    description: "Test Health Metrics"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Test Health Metrics
+  - name: data-collection
+    description: "Data Collection"
+    tools: ["bash", "read"]
+    prompt: |
+      Data Collection
+  - name: trend-analysis
+    description: "Trend Analysis"
+    tools: ["bash", "read"]
+    prompt: |
+      Trend Analysis
+  - name: top-failing-tests
+    description: "Top Failing Tests"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Top Failing Tests
+  - name: run-history
+    description: "Store dashboard data in `${CLAUDE_PLUGIN_DATA}/test-metrics.log`:"
+    tools: ["bash", "read"]
+    prompt: |
+      Store dashboard data in `${CLAUDE_PLUGIN_DATA}/test-metrics.log`:
+  - name: composition
+    description: "Feeds into: - **`/qe-quality-assessment`** — quality gate decisions based on metrics - **`/test-failure-investigator`** — investigate top failing tests - **`/coverage-drop-investigator`** — when coverage trends down"
+    tools: ["bash", "read"]
+    prompt: |
+      Feeds into: - **`/qe-quality-assessment`** — quality gate decisions based on metrics - **`/test-failure-investigator`** — investigate top failing tests - **`/coverage-drop-investigator`** — when coverage trends down
+  - name: gotchas
+    description: "- Metrics without baselines are meaningless — establish baselines before tracking trends - Flakiness rate is underreported — a test that fails 1/100 times still breaks CI weekly - Duration trends upward over time as test count grows — set alerts on rate of increase, not absolute value - Agent may re"
+    tools: ["bash", "read"]
+    prompt: |
+      - Metrics without baselines are meaningless — establish baselines before tracking trends - Flakiness rate is underreported — a test that fails 1/100 times still breaks CI weekly - Duration trends upward over time as test count grows — set alerts on rate of increase, not absolute value - Agent may re

@@ -13,16 +13,6 @@ steps:
     tools: ["bash", "read"]
     prompt: |
       Device Coverage Tiers
-  - name: mobile-performance-goals
-    description: "Mobile Performance Goals"
-    tools: ["bash", "read"]
-    prompt: |
-      Mobile Performance Goals
-  - name: touch-gesture-testing
-    description: "Touch Gesture Testing"
-    tools: ["bash", "read"]
-    prompt: |
-      Touch Gesture Testing
   - name: mobile-specific-scenarios
     description: "Mobile-Specific Scenarios"
     tools: ["bash", "read", "grep"]

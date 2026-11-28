@@ -1,7 +1,7 @@
 name: qe-github-workflow-automation
-description: "Advanced GitHub Actions workflow automation with AI swarm coordination, intelligent CI/CD pipelines, and comprehensive repository management"
+description: "|"
 minModelTier: tier2-good
-tags: ["qe", "quality-engineering", "github"]
+tags: ["qe", "quality-engineering"]
 steps:
   - name: overview
     description: "This skill provides comprehensive GitHub Actions automation with AI swarm coordination. It integrates intelligent CI/CD pipelines, workflow orchestration, and repository management to create self-organizing, adaptive GitHub workflows."

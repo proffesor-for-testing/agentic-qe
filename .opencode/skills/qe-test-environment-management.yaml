@@ -3,26 +3,11 @@ description: "Test environment provisioning, infrastructure as code for testing,
 minModelTier: tier1-any
 tags: ["environment", "docker", "kubernetes", "infrastructure", "parity", "cost-optimization", "qe", "quality-engineering", "specialized-testing"]
 steps:
-  - name: environment-types
-    description: "Environment Types"
-    tools: ["bash", "read"]
-    prompt: |
-      Environment Types
-  - name: devprod-parity-checklist
-    description: "Dev/Prod Parity Checklist"
-    tools: ["bash", "read"]
-    prompt: |
-      Dev/Prod Parity Checklist
   - name: docker-for-test-environments
     description: "Docker for Test Environments"
     tools: ["bash", "read"]
     prompt: |
       Docker for Test Environments
-  - name: infrastructure-as-code
-    description: "Infrastructure as Code"
-    tools: ["bash", "read"]
-    prompt: |
-      Infrastructure as Code
   - name: service-virtualization
     description: "Service Virtualization"
     tools: ["bash", "read"]

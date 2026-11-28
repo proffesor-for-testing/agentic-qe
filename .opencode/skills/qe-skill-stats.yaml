@@ -1,0 +1,30 @@
+name: qe-skill-stats
+description: "Use when reviewing which QE skills are being used, finding undertriggering skills, or analyzing skill effectiveness. Shows usage patterns and recommendations."
+minModelTier: tier2-good
+tags: ["qe", "quality-engineering"]
+steps:
+  - name: what-it-reports
+    description: "1. **Most Used Skills** — Top 10 skills by invocation count 2. **Undertriggering Skills** — Skills with good descriptions but low usage 3. **Never Used Skills** — Skills that have never been triggered 4. **Trigger Method** — How skills are activated (explicit /command vs auto-selected) 5. **Recommen"
+    tools: ["bash", "read"]
+    prompt: |
+      1. **Most Used Skills** — Top 10 skills by invocation count 2. **Undertriggering Skills** — Skills with good descriptions but low usage 3. **Never Used Skills** — Skills that have never been triggered 4. **Trigger Method** — How skills are activated (explicit /command vs auto-selected) 5. **Recommen
+  - name: usage-log-format
+    description: "Skill invocations are logged to `${CLAUDE_PLUGIN_DATA}/skill-usage.log`:"
+    tools: ["bash", "read"]
+    prompt: |
+      Skill invocations are logged to `${CLAUDE_PLUGIN_DATA}/skill-usage.log`:
+  - name: hook-configuration
+    description: "The skill does not ship a logging hook. Add your own script (for example `.claude/hooks/log-skill-usage.sh`) that appends one line per invocation in the format above, and register it in `.claude/settings.json`:"
+    tools: ["bash", "read"]
+    prompt: |
+      The skill does not ship a logging hook. Add your own script (for example `.claude/hooks/log-skill-usage.sh`) that appends one line per invocation in the format above, and register it in `.claude/settings.json`:
+  - name: analysis-script
+    description: "Analysis Script"
+    tools: ["bash", "read"]
+    prompt: |
+      Analysis Script
+  - name: gotchas
+    description: "- Log file grows unbounded — rotate periodically with `tail -n 1000 $LOG > $LOG.tmp && mv $LOG.tmp $LOG` - Auto-selected skills may not always be the best match — review undertriggering skills for description improvements - Usage count alone doesn't indicate quality — a skill used 100x but failing 5"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      - Log file grows unbounded — rotate periodically with `tail -n 1000 $LOG > $LOG.tmp && mv $LOG.tmp $LOG` - Auto-selected skills may not always be the best match — review undertriggering skills for description improvements - Usage count alone doesn't indicate quality — a skill used 100x but failing 5

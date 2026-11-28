@@ -3,21 +3,6 @@ description: "Design and implement effective test automation with proper pyramid
 minModelTier: tier3-best
 tags: ["automation", "test-pyramid", "page-object", "first-principles", "ci-cd", "flaky-tests", "qe", "quality-engineering", "testing-methodologies"]
 steps:
-  - name: test-pyramid
-    description: "Test Pyramid"
-    tools: ["bash", "read"]
-    prompt: |
-      Test Pyramid
-  - name: first-principles
-    description: "F.I.R.S.T. Principles"
-    tools: ["bash", "read", "edit"]
-    prompt: |
-      F.I.R.S.T. Principles
-  - name: page-object-model
-    description: "Page Object Model"
-    tools: ["bash", "read"]
-    prompt: |
-      Page Object Model
   - name: cicd-integration
     description: "CI/CD Integration"
     tools: ["bash", "read"]
@@ -33,3 +18,8 @@ steps:
     tools: ["bash", "read"]
     prompt: |
       Agent-Assisted Automation
+  - name: gotchas
+    description: "- Agent generates 80% E2E tests and 20% unit tests (inverted pyramid) — explicitly enforce 70/20/10 ratio - Page Object Model tests become brittle when selectors change — prefer data-testid attributes over CSS selectors - Flaky tests quarantined but never fixed is technical debt — set a 2-week SLA t"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      - Agent generates 80% E2E tests and 20% unit tests (inverted pyramid) — explicitly enforce 70/20/10 ratio - Page Object Model tests become brittle when selectors change — prefer data-testid attributes over CSS selectors - Flaky tests quarantined but never fixed is technical debt — set a 2-week SLA t

@@ -1,0 +1,45 @@
+name: qe-coverage-drop-investigator
+description: "Use when test coverage has dropped and you need to find which changes caused it and what tests to add. Traces coverage regressions to specific commits and files."
+minModelTier: tier2-good
+tags: ["qe", "quality-engineering"]
+steps:
+  - name: investigation-flow
+    description: "Investigation Flow"
+    tools: ["bash", "read"]
+    prompt: |
+      Investigation Flow
+  - name: measure-current-coverage
+    description: "Measure Current Coverage"
+    tools: ["bash", "read"]
+    prompt: |
+      Measure Current Coverage
+  - name: find-when-coverage-dropped
+    description: "Find When Coverage Dropped"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Find When Coverage Dropped
+  - name: identify-uncovered-files
+    description: "Identify Uncovered Files"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Identify Uncovered Files
+  - name: map-to-recent-changes
+    description: "Map to Recent Changes"
+    tools: ["bash", "read", "edit", "grep"]
+    prompt: |
+      Map to Recent Changes
+  - name: recommend-tests
+    description: "For each uncovered file, identify: 1. **Uncovered functions** — need new test cases 2. **Uncovered branches** — need conditional test cases (if/else paths) 3. **Uncovered lines** — may indicate dead code or missing edge cases"
+    tools: ["bash", "read"]
+    prompt: |
+      For each uncovered file, identify: 1. **Uncovered functions** — need new test cases 2. **Uncovered branches** — need conditional test cases (if/else paths) 3. **Uncovered lines** — may indicate dead code or missing edge cases
+  - name: report
+    description: "Report"
+    tools: ["bash", "read"]
+    prompt: |
+      Report
+  - name: coverage-drop-report
+    description: "- **Current**: {{current_pct}}% - **Baseline (main)**: {{baseline_pct}}% - **Delta**: {{delta}}% - **Files causing drop**:"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      - **Current**: {{current_pct}}% - **Baseline (main)**: {{baseline_pct}}% - **Delta**: {{delta}}% - **Files causing drop**:

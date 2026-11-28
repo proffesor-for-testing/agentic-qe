@@ -1,7 +1,7 @@
 name: qe-sparc-methodology
-description: "SPARC (Specification, Pseudocode, Architecture, Refinement, Completion) comprehensive development methodology with multi-agent orchestration"
+description: "|"
 minModelTier: tier2-good
-tags: ["qe", "quality-engineering", "development"]
+tags: ["qe", "quality-engineering"]
 steps:
   - name: overview
     description: "SPARC (Specification, Pseudocode, Architecture, Refinement, Completion) is a systematic development methodology integrated with Claude Flow's multi-agent orchestration capabilities. It provides 17 specialized modes for comprehensive software development, from initial research through deployment and "

@@ -1,7 +1,7 @@
 name: qe-github-code-review
 description: "Comprehensive GitHub code review with AI-powered swarm coordination"
 minModelTier: tier2-good
-tags: ["code-review", "github", "swarm", "pr-management", "automation", "qe", "quality-engineering"]
+tags: ["qe", "quality-engineering"]
 steps:
   - name: simple-review
     description: "Simple Review"

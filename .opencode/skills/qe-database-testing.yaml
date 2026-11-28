@@ -8,11 +8,6 @@ steps:
     tools: ["bash", "read", "edit"]
     prompt: |
       Database Test Types
-  - name: acid-properties
-    description: "ACID Properties"
-    tools: ["bash", "read"]
-    prompt: |
-      ACID Properties
   - name: schema-testing
     description: "Schema Testing"
     tools: ["bash", "read"]

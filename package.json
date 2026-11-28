@@ -98,6 +98,7 @@
     "verify:invariants": "tsx scripts/verify-shipped-invariants.ts",
     "verify:codex-package": "tsx scripts/verify-codex-package.ts",
     "verify:skill-parity": "tsx scripts/check-skill-parity.ts",
+    "verify:opencode-skills": "tsx scripts/generate-opencode-skills.ts --check",
     "eval:live:claude": "EVAL_PROVIDER=claude tsx scripts/validate-live-oracle.ts",
     "eval:live:ollama": "EVAL_PROVIDER=ollama tsx scripts/validate-live-oracle.ts",
     "eval:models": "tsx scripts/oracle-model-bench.ts",

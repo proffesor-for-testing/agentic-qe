@@ -3,21 +3,11 @@ description: "Apply effective software quality consultancy practices. Use when c
 minModelTier: tier1-any
 tags: ["consulting", "advisory", "client-engagement", "quality-assessment", "transformation", "qe", "quality-engineering", "professional-practice"]
 steps:
-  - name: the-consulting-process
-    description: "The Consulting Process"
-    tools: ["bash", "read", "edit", "grep"]
-    prompt: |
-      The Consulting Process
-  - name: impacteffort-matrix
-    description: "Impact/Effort Matrix"
+  - name: common-patterns-what-clients-say-vs-what
+    description: "Common Patterns (What Clients Say vs. What They Mean)"
     tools: ["bash", "read"]
     prompt: |
-      Impact/Effort Matrix
-  - name: common-patterns
-    description: "Common Patterns"
-    tools: ["bash", "read"]
-    prompt: |
-      Common Patterns
+      Common Patterns (What Clients Say vs. What They Mean)
   - name: we-need-test-automation
     description: "**What they say:** \"We need test automation\" **What they mean:** \"Manual testing is too slow/expensive\""
     tools: ["bash", "read", "grep"]

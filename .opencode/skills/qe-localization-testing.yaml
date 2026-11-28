@@ -3,16 +3,11 @@ description: "Internationalization (i18n) and localization (l10n) testing for gl
 minModelTier: tier3-best
 tags: ["localization", "i18n", "l10n", "translation", "rtl", "unicode", "locale", "qe", "quality-engineering", "specialized-testing"]
 steps:
-  - name: i18n-vs-l10n
-    description: "i18n vs l10n"
+  - name: browser-engine
+    description: "Browser-driven locale checks (RTL layout diffs, language-switching flows, locale-specific screenshots) should go through the **qe-browser** fleet skill. Example:"
     tools: ["bash", "read"]
     prompt: |
-      i18n vs l10n
-  - name: common-locale-formats
-    description: "Common Locale Formats"
-    tools: ["bash", "read"]
-    prompt: |
-      Common Locale Formats
+      Browser-driven locale checks (RTL layout diffs, language-switching flows, locale-specific screenshots) should go through the **qe-browser** fleet skill. Example:
   - name: translation-coverage-testing
     description: "Translation Coverage Testing"
     tools: ["bash", "read"]

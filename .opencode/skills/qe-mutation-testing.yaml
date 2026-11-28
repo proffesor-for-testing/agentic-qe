@@ -33,3 +33,13 @@ steps:
     tools: ["bash", "read", "edit"]
     prompt: |
       Agent-Driven Mutation Testing
+  - name: run-history
+    description: "After each mutation test run, append results to `run-history.json` in this skill directory:"
+    tools: ["bash", "read"]
+    prompt: |
+      After each mutation test run, append results to `run-history.json` in this skill directory:
+  - name: skill-composition
+    description: "- **Before mutation testing** → Run `/qe-test-generation` to ensure tests exist - **After mutation results** → Use `/qe-coverage-analysis` to prioritize improvement areas - **Quality gate** → Feed results into `/qe-quality-assessment` for ship/no-ship decision"
+    tools: ["bash", "read"]
+    prompt: |
+      - **Before mutation testing** → Run `/qe-test-generation` to ensure tests exist - **After mutation results** → Use `/qe-coverage-analysis` to prioritize improvement areas - **Quality gate** → Feed results into `/qe-quality-assessment` for ship/no-ship decision

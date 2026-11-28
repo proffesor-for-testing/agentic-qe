@@ -1,5 +1,5 @@
 name: qe-quality-assessment
-description: "Comprehensive quality gates, metrics analysis, and deployment readiness assessment for continuous quality assurance."
+description: "Evaluates code quality through complexity analysis, lint results, code smell detection, and test health metrics. Use when assessing deployment readiness, configuring quality gates, scoring a codebase for release, or generating quality reports with pass/fail verdicts."
 minModelTier: tier3-best
 tags: ["qe", "quality-engineering"]
 steps:
@@ -23,6 +23,11 @@ steps:
     tools: ["bash", "read"]
     prompt: |
       2. Quality Gates
+  - name: 2a-regenerability-gate-adr-113
+    description: "Coverage measures lines executed; **mutation score** measures whether the tests would *notice a bug*, and **regenerability** answers the Deletion Test — \"if this module were deleted and regenerated, would a wrong rebuild be caught?\" Regenerability = mutation score discounted by the durability tier b"
+    tools: ["bash", "read"]
+    prompt: |
+      Coverage measures lines executed; **mutation score** measures whether the tests would *notice a bug*, and **regenerability** answers the Deletion Test — "if this module were deleted and regenerated, would a wrong rebuild be caught?" Regenerability = mutation score discounted by the durability tier b
   - name: 3-deployment-readiness
     description: "3. Deployment Readiness"
     tools: ["bash", "read", "edit"]
@@ -38,8 +43,3 @@ steps:
     tools: ["bash", "read"]
     prompt: |
       Quality Dashboard
-  - name: cicd-integration
-    description: "CI/CD Integration"
-    tools: ["bash", "read"]
-    prompt: |
-      CI/CD Integration

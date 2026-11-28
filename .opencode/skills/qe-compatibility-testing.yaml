@@ -3,21 +3,11 @@ description: "Cross-browser, cross-platform, and cross-device compatibility test
 minModelTier: tier3-best
 tags: ["compatibility", "cross-browser", "responsive", "browserstack", "playwright", "devices", "qe", "quality-engineering", "specialized-testing"]
 steps:
-  - name: browser-matrix
-    description: "Browser Matrix"
+  - name: browser-engine
+    description: "Browser-driven checks (viewport emulation, responsive validation, cross-browser screenshots) should go through the **qe-browser** fleet skill (`.claude/skills/qe-browser/`). Vibium is installed by `aqe init`. Quick reference:"
     tools: ["bash", "read"]
     prompt: |
-      Browser Matrix
-  - name: screen-breakpoints
-    description: "Screen Breakpoints"
-    tools: ["bash", "read"]
-    prompt: |
-      Screen Breakpoints
-  - name: responsive-design-testing
-    description: "Responsive Design Testing"
-    tools: ["bash", "read"]
-    prompt: |
-      Responsive Design Testing
+      Browser-driven checks (viewport emulation, responsive validation, cross-browser screenshots) should go through the **qe-browser** fleet skill (`.claude/skills/qe-browser/`). Vibium is installed by `aqe init`. Quick reference:
   - name: cross-browser-with-playwright
     description: "Cross-Browser with Playwright"
     tools: ["bash", "read"]

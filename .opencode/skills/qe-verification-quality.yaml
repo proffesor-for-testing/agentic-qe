@@ -1,35 +1,45 @@
 name: qe-verification-quality
-description: "Verify agent-written changes before they are kept: run the tests, measure coverage, scan for vulnerabilities, apply AQE's fail-closed quality gate, and revert with git when the verdict is a failure."
+description: "Verify agent-written changes before they are kept: run the tests, measure coverage, scan for vulnerabilities, apply AQE's fail-closed quality gate, and revert with git when the verdict is a failure. Use when an agent's output needs a measured pass/fail decision rather than a self-reported one."
 minModelTier: tier2-good
-tags: ["verification", "quality-gate", "quality", "rollback", "metrics", "ci-cd", "qe", "quality-engineering", "quality-assurance"]
+tags: ["qe", "quality-engineering"]
 steps:
   - name: what-this-skill-does
-    description: "Turn \"the agent says it works\" into a measured verdict"
-    tools: ["bash", "read"]
-    prompt: |
-      Turn "the agent says it works" into a measured verdict: run the tests, measure coverage, scan the change, then ask `aqe quality --gate` for a verdict. A missing metric is insufficient evidence, never a pass.
-  - name: quick-start
-    description: "Produce evidence, scan, and ask for a verdict"
-    tools: ["bash", "read"]
-    prompt: |
-      Run `aqe test execute tests/`, measure coverage with the runner (`npx vitest run --coverage`) and analyze it with `aqe coverage src/ --threshold 80`, scan with `aqe security --sast --target src/`, then run `aqe quality --gate --format json`.
-  - name: quality-gate
-    description: "Read the gate's exit code: 0 pass, 1 failed, 2 narrow pass, 3 not evaluated"
-    tools: ["bash", "read", "mcp:agentic-qe:*"]
-    prompt: |
-      `aqe quality --gate` exits 0 (passed), 1 (a measured check failed), 2 (passed within five points of a threshold) or 3 (insufficient evidence: the gate was not evaluated). Never report exit code 3 as a pass; list the `unmeasured` metrics instead. criticalBugs, codeSmells, securityVulnerabilities, technicalDebt and duplications have no AQE producer yet, so decide on the measured tests, coverage and security findings and say which gate metrics were not measured.
-  - name: verification-checks
-    description: "Tests, coverage and security checks"
-    tools: ["bash", "read", "mcp:agentic-qe:*"]
-    prompt: |
-      Tests: `aqe test execute <path>`. Coverage: `aqe coverage <path> --gaps --threshold 80` (exit 3 means no coverage was measured). Security: `aqe security --sast --target src/`, `aqe security --dependencies`. Audit trail: `aqe audit verify`.
-  - name: rollback
-    description: "Revert a failed change with git"
-    tools: ["bash", "read"]
-    prompt: |
-      AQE does not rewrite history. When the gate fails, inspect with `git status` and `git diff`, then `git restore <file>`, `git reset --soft HEAD~1` or `git revert <commit>`. Save rejected work on a branch first (`git switch -c wip/rejected-change && git add -A && git commit -m "rejected by gate"`).
-  - name: ci-integration
-    description: "Gate CI on measured evidence"
+    description: "This skill turns \"the agent says it works\" into a measured verdict:"
     tools: ["bash", "read", "edit"]
     prompt: |
-      In CI, fail on a failing test run and on `aqe coverage` exit 1 or 3; run `aqe quality --gate` and fail on exit 1, warning on exit 3 with the unmeasured metrics. A pre-commit hook blocks on exit 1 and warns on exit 3.
+      This skill turns "the agent says it works" into a measured verdict:
+  - name: the-quality-gate
+    description: "`aqe quality --gate` evaluates the measured evidence and reports a verdict with one of four exit codes:"
+    tools: ["bash", "read", "edit", "grep", "mcp:agentic-qe:*"]
+    prompt: |
+      `aqe quality --gate` evaluates the measured evidence and reports a verdict with one of four exit codes:
+  - name: pinned-checklist-verdicts
+    description: "For a two-gate, three-valued verdict on one artifact against a frozen checklist (the anchor ships with agentic-qe, so this works in any project from the release after 3.15.22; #1454):"
+    tools: ["bash", "read", "mcp:agentic-qe:*"]
+    prompt: |
+      For a two-gate, three-valued verdict on one artifact against a frozen checklist (the anchor ships with agentic-qe, so this works in any project from the release after 3.15.22; #1454):
+  - name: verification-checks
+    description: "Verification Checks"
+    tools: ["bash", "read"]
+    prompt: |
+      Verification Checks
+  - name: tests
+    description: "Tests"
+    tools: ["bash", "read"]
+    prompt: |
+      Tests
+  - name: coverage
+    description: "Coverage"
+    tools: ["bash", "read"]
+    prompt: |
+      Coverage
+  - name: security
+    description: "Security"
+    tools: ["bash", "read"]
+    prompt: |
+      Security
+  - name: audit-trail
+    description: "Audit trail"
+    tools: ["bash", "read"]
+    prompt: |
+      Audit trail

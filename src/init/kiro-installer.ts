@@ -644,8 +644,8 @@ export class KiroInstaller {
    * - Convert mcp:agentic-qe: references to @agentic-qe/ format
    */
   private convertClaudeSkillToKiro(claudeContent: string, skillName: string): string {
-    // Extract frontmatter and body
-    const fmMatch = claudeContent.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+    // Extract frontmatter and body (a CRLF SKILL.md has `---\r\n` delimiters, #1494)
+    const fmMatch = claudeContent.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
     if (!fmMatch) {
       // No frontmatter — wrap the entire content
       return `---\ninclusion: auto\nname: ${skillName}\ndescription: AQE skill\n---\n\n${claudeContent}`;

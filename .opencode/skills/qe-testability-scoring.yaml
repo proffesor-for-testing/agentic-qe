@@ -3,6 +3,11 @@ description: "AI-powered testability assessment using 10 principles of intrinsic
 minModelTier: tier3-best
 tags: ["testability", "scoring", "playwright", "vibium", "assessment", "10-principles", "intrinsic-testability", "james-bach", "michael-bolton", "qe", "quality-engineering", "testing-methodologies"]
 steps:
+  - name: browser-engine
+    description: "Uses the **qe-browser** fleet skill (`.claude/skills/qe-browser/`) as the primary browser engine. Vibium is installed by `aqe init`. The legacy `node_modules/agentic-qe/assets/skills/testability-scoring/scripts/run-assessment.sh` + Playwright path remains as a fallback when a team already has a Playwright test suite configured, but new runs should prefer:"
+    tools: ["bash", "read"]
+    prompt: |
+      Uses the **qe-browser** fleet skill (`.claude/skills/qe-browser/`) as the primary browser engine. Vibium is installed by `aqe init`. The legacy `node_modules/agentic-qe/assets/skills/testability-scoring/scripts/run-assessment.sh` + Playwright path remains as a fallback when a team already has a Playwright test suite configured, but new runs should prefer:
   - name: running-assessments
     description: "Running Assessments"
     tools: ["bash", "read"]
@@ -38,8 +43,3 @@ steps:
     tools: ["bash", "read"]
     prompt: |
       QX Partner Integration
-  - name: programmatic-usage
-    description: "Programmatic Usage"
-    tools: ["bash", "read"]
-    prompt: |
-      Programmatic Usage

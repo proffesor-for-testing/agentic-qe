@@ -1,0 +1,40 @@
+name: qe-e2e-flow-verifier
+description: "Use when verifying complete user flows end-to-end with the qe-browser skill (Vibium), recording session evidence, and asserting state at each step. For product verification with real browser automation."
+minModelTier: tier2-good
+tags: ["qe", "quality-engineering"]
+steps:
+  - name: dependency
+    description: "This skill uses `.claude/skills/qe-browser/` for all browser automation. The `vibium` binary is installed automatically by `aqe init`. See `qe-browser/SKILL.md` for the full command reference."
+    tools: ["bash", "read"]
+    prompt: |
+      This skill uses `.claude/skills/qe-browser/` for all browser automation. The `vibium` binary is installed automatically by `aqe init`. See `qe-browser/SKILL.md` for the full command reference.
+  - name: flow-verification-pattern-qe-browser-bat
+    description: "Define the flow as a JSON batch plan and drive it with the qe-browser batch runner:"
+    tools: ["bash", "read"]
+    prompt: |
+      Define the flow as a JSON batch plan and drive it with the qe-browser batch runner:
+  - name: evidence-collection
+    description: "After each flow verification, `vibium record` produces a ZIP containing:"
+    tools: ["bash", "read"]
+    prompt: |
+      After each flow verification, `vibium record` produces a ZIP containing:
+  - name: asserting-backend-state-alongside-ui
+    description: "The qe-browser `assert.js` check kinds include network assertions that capture backend calls made from the page:"
+    tools: ["bash", "read"]
+    prompt: |
+      The qe-browser `assert.js` check kinds include network assertions that capture backend calls made from the page:
+  - name: common-flows-to-verify
+    description: "Common Flows to Verify"
+    tools: ["bash", "read", "edit", "grep"]
+    prompt: |
+      Common Flows to Verify
+  - name: reusing-auth-state-across-runs
+    description: "Reusing auth state across runs"
+    tools: ["bash", "read"]
+    prompt: |
+      Reusing auth state across runs
+  - name: gotchas
+    description: "- **Re-map after DOM changes** — Vibium `@e1` refs are invalidated by navigation; use `vibium diff map` to see what changed and re-map if needed. - **Selectors break on deployment** — prefer `data-testid` over CSS classes. - **Auth tokens expire** — use fresh login per run, or rotate `storage` snaps"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      - **Re-map after DOM changes** — Vibium `@e1` refs are invalidated by navigation; use `vibium diff map` to see what changed and re-map if needed. - **Selectors break on deployment** — prefer `data-testid` over CSS classes. - **Auth tokens expire** — use fresh login per run, or rotate `storage` snaps

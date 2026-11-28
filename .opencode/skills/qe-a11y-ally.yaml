@@ -1,5 +1,5 @@
 name: qe-a11y-ally
-description: "Comprehensive WCAG accessibility auditing with multi-tool testing (axe-core + pa11y + Lighthouse), TRUE PARALLEL execution with Promise.allSettled, graceful degradation, retry with backoff, context-aware remediation, learning integration, and video accessibility. Uses 3-tier browser cascade: Vibium "
+description: "Use when running comprehensive WCAG accessibility audits with axe-core + pa11y + Lighthouse, generating context-aware remediation, or testing video accessibility. Supports 3-tier browser cascade with graceful degradation."
 minModelTier: tier3-best
 tags: ["accessibility", "wcag", "a11y", "video", "captions", "audiodesc", "vtt", "eu-compliance", "context-aware", "remediation", "axe-core", "pa11y", "lighthouse", "parallel", "resilient", "graceful-degradation", "retry", "qe", "quality-engineering", "specialized-testing"]
 steps:
@@ -14,25 +14,25 @@ steps:
     prompt: |
       **CLAUDE EXECUTES ALL STEPS WITHOUT STOPPING.**
   - name: step-1-browser-automation---content-fetc
-    description: "STEP 1: BROWSER AUTOMATION - Content Fetching"
+    description: "Uses the **qe-browser** fleet skill as the browser engine. qe-browser wraps Vibium (WebDriver BiDi, 10MB Go binary) and provides the QE primitives we rely on. See `.claude/skills/qe-browser/SKILL.md`."
     tools: ["bash", "read"]
     prompt: |
-      STEP 1: BROWSER AUTOMATION - Content Fetching
-  - name: 11-try-vibium-first-primary
-    description: "1.1: Try VIBIUM First (Primary)"
-    tools: ["bash", "read", "grep", "mcp:agentic-qe:*"]
+      Uses the **qe-browser** fleet skill as the browser engine. qe-browser wraps Vibium (WebDriver BiDi, 10MB Go binary) and provides the QE primitives we rely on. See `.claude/skills/qe-browser/SKILL.md`.
+  - name: 11-primary-qe-browser-via-vibium-cli
+    description: "1.1: PRIMARY — qe-browser via Vibium CLI"
+    tools: ["bash", "read", "mcp:agentic-qe:*"]
     prompt: |
-      1.1: Try VIBIUM First (Primary)
-  - name: 1b-try-agent-browser-fallback
-    description: "1b: Try AGENT-BROWSER Fallback"
-    tools: ["bash", "read", "grep", "mcp:agentic-qe:*"]
-    prompt: |
-      1b: Try AGENT-BROWSER Fallback
-  - name: 1c-playwright-stealth-final-fallback
-    description: "1c: PLAYWRIGHT + STEALTH (Final Fallback)"
+      1.1: PRIMARY — qe-browser via Vibium CLI
+  - name: 12-run-axe-core-wcag-assertions-via-qe-b
+    description: "1.2: Run axe-core + WCAG assertions via qe-browser"
     tools: ["bash", "read"]
     prompt: |
-      1c: PLAYWRIGHT + STEALTH (Final Fallback)
+      1.2: Run axe-core + WCAG assertions via qe-browser
+  - name: 13-fallback-pa11y-lighthouse-when-axe-al
+    description: "1.3: FALLBACK — pa11y + Lighthouse (when axe alone is insufficient)"
+    tools: ["bash", "read"]
+    prompt: |
+      1.3: FALLBACK — pa11y + Lighthouse (when axe alone is insufficient)
   - name: 1d-parallel-multi-page-audit-optional
     description: "For auditing multiple URLs simultaneously, use parallel execution:"
     tools: ["bash", "read"]

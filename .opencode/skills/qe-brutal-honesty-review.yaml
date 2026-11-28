@@ -3,6 +3,11 @@ description: "Unvarnished technical criticism combining Linus Torvalds' precisio
 minModelTier: tier2-good
 tags: ["code-review", "honesty", "critical-thinking", "technical-criticism", "quality", "qe", "quality-engineering", "quality-review"]
 steps:
+  - name: evidence-rule-no-findings-quota
+    description: "Every finding must cite evidence: a file and line, a command and its output, a test result, or a quote from the PR or docs. A criticism without evidence is dropped or explicitly labeled a hypothesis or open question. There is no minimum number of findings: if the review finds nothing serious, say so"
+    tools: ["bash", "read", "edit", "grep"]
+    prompt: |
+      Every finding must cite evidence: a file and line, a command and its output, a test result, or a quote from the PR or docs. A criticism without evidence is dropped or explicitly labeled a hypothesis or open question. There is no minimum number of findings: if the review finds nothing serious, say so
   - name: three-modes
     description: "Three Modes"
     tools: ["bash", "read", "grep"]
@@ -38,8 +43,3 @@ steps:
     tools: ["bash", "read", "edit"]
     prompt: |
       [Impact if not fixed]
-  - name: mode-examples
-    description: "Mode Examples"
-    tools: ["bash", "read"]
-    prompt: |
-      Mode Examples

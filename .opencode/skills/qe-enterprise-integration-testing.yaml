@@ -1,8 +1,13 @@
 name: qe-enterprise-integration-testing
-description: "Orchestration skill for enterprise integration testing across SAP, middleware, WMS, and backend systems. Covers E2E enterprise flows, SAP-specific patterns (RFC, BAPI, IDoc, OData, Fiori), cross-system data validation, and enterprise quality gates."
+description: "Use when testing enterprise integrations across SAP, middleware, WMS, or backend systems, validating E2E enterprise flows, testing SAP-specific patterns (RFC, BAPI, IDoc, OData, Fiori), or enforcing cross-system quality gates."
 minModelTier: tier3-best
 tags: ["enterprise", "sap", "esb", "middleware", "integration", "e2e", "order-to-cash", "qe", "quality-engineering", "enterprise-integration"]
 steps:
+  - name: browser-engine
+    description: "UI-level enterprise integration checks (SAP Fiori launchpad smoke tests, admin UI validation) should use the **qe-browser** fleet skill. RFC/BAPI/IDoc/OData/SOAP testing continues to use the dedicated `qe-soap-tester`, `qe-sap-rfc-tester`, `qe-sap-idoc-tester`, and `qe-odata-contract-tester` agents."
+    tools: ["bash", "read"]
+    prompt: |
+      UI-level enterprise integration checks (SAP Fiori launchpad smoke tests, admin UI validation) should use the **qe-browser** fleet skill. RFC/BAPI/IDoc/OData/SOAP testing continues to use the dedicated `qe-soap-tester`, `qe-sap-rfc-tester`, `qe-sap-idoc-tester`, and `qe-odata-contract-tester` agents.
   - name: enterprise-integration-types
     description: "Enterprise Integration Types"
     tools: ["bash", "read", "edit"]
@@ -38,8 +43,3 @@ steps:
     tools: ["bash", "read"]
     prompt: |
       RFC/BAPI Testing
-  - name: idoc-testing
-    description: "IDoc Testing"
-    tools: ["bash", "read"]
-    prompt: |
-      IDoc Testing

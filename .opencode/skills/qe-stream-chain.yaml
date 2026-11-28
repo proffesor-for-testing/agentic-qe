@@ -1,7 +1,7 @@
 name: qe-stream-chain
 description: "Stream-JSON chaining for multi-agent pipelines, data transformation, and sequential workflows"
 minModelTier: tier2-good
-tags: ["streaming", "pipeline", "chaining", "multi-agent", "workflow", "qe", "quality-engineering"]
+tags: ["qe", "quality-engineering"]
 steps:
   - name: overview
     description: "Stream-Chain provides two powerful modes for orchestrating multi-agent workflows:"

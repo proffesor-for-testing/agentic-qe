@@ -1,0 +1,45 @@
+name: qe-test-failure-investigator
+description: "Use when a test is failing and you need to determine root cause: is it flaky, an environment issue, or a real regression? Traces failure from symptom to fix."
+minModelTier: tier2-good
+tags: ["qe", "quality-engineering"]
+steps:
+  - name: investigation-flow
+    description: "Investigation Flow"
+    tools: ["bash", "read"]
+    prompt: |
+      Investigation Flow
+  - name: classify-the-failure
+    description: "Run the test 3 times and classify:"
+    tools: ["bash", "read"]
+    prompt: |
+      Run the test 3 times and classify:
+  - name: narrow-the-scope
+    description: "Narrow the Scope"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Narrow the Scope
+  - name: root-cause-analysis
+    description: "Root Cause Analysis"
+    tools: ["bash", "read", "edit", "mcp:agentic-qe:*"]
+    prompt: |
+      Root Cause Analysis
+  - name: flaky-test-investigation
+    description: "Flaky Test Investigation"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Flaky Test Investigation
+  - name: report
+    description: "Report"
+    tools: ["bash", "read"]
+    prompt: |
+      Report
+  - name: test-failure-report
+    description: "- **Test**: {{test_name}} - **File**: {{test_file}} - **Classification**: Regression / Flaky / Environment / Transient - **Root Cause**: {{description}} - **First Failed**: {{commit_hash}} ({{date}}) - **Fix**: {{recommended_action}} - **Verified**: [ ] Fix applied and test passes 3x consecutively"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      - **Test**: {{test_name}} - **File**: {{test_file}} - **Classification**: Regression / Flaky / Environment / Transient - **Root Cause**: {{description}} - **First Failed**: {{commit_hash}} ({{date}}) - **Fix**: {{recommended_action}} - **Verified**: [ ] Fix applied and test passes 3x consecutively
+  - name: composition
+    description: "After investigation, compose with: - **`/bug-reporting-excellence`** — if regression found, file a bug report - **`/regression-testing`** — if regression, add to regression suite - **`/qe-test-execution`** — for re-running tests after fix"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      After investigation, compose with: - **`/bug-reporting-excellence`** — if regression found, file a bug report - **`/regression-testing`** — if regression, add to regression suite - **`/qe-test-execution`** — for re-running tests after fix

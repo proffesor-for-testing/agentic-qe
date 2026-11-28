@@ -1,8 +1,13 @@
 name: qe-test-generation
-description: "AI-powered test generation using pattern recognition, code analysis, and intelligent test synthesis for comprehensive test coverage."
+description: "Generates durable-first tests — invariants, contracts, and property-based tests at boundaries that survive a reimplementation — plus unit, integration, and e2e coverage. Use when creating tests for new or changed code, filling coverage gaps, or migrating test suites between Jest, Vitest, and Playwri"
 minModelTier: tier3-best
 tags: ["qe", "quality-engineering"]
 steps:
+  - name: write-durable-first-the-core-rule
+    description: "When AI makes code cheap to regenerate, the durable asset is the test that still holds after the implementation is thrown away and rewritten. Generate tests in **durability tiers**, and lead with the durable ones (ADR-113):"
+    tools: ["bash", "read"]
+    prompt: |
+      When AI makes code cheap to regenerate, the durable asset is the test that still holds after the implementation is thrown away and rewritten. Generate tests in **durability tiers**, and lead with the durable ones (ADR-113):
   - name: agent-workflow
     description: "Agent Workflow"
     tools: ["bash", "read"]
@@ -38,8 +43,3 @@ steps:
     tools: ["bash", "read"]
     prompt: |
       Test Quality Checks
-  - name: coordination
-    description: "**Primary Agents**: qe-test-generator, qe-pattern-matcher, qe-test-architect **Coordinator**: qe-test-generation-coordinator **Related Skills**: qe-coverage-analysis, qe-test-execution"
-    tools: ["bash", "read"]
-    prompt: |
-      **Primary Agents**: qe-test-generator, qe-pattern-matcher, qe-test-architect **Coordinator**: qe-test-generation-coordinator **Related Skills**: qe-coverage-analysis, qe-test-execution

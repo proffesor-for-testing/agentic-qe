@@ -8,21 +8,21 @@ steps:
     tools: ["bash", "read", "edit"]
     prompt: |
       PACTS Principles
-  - name: 19-agent-fleet
-    description: "19-Agent Fleet"
+  - name: core-agents
+    description: "The full fleet lives in `.claude/agents/v3/qe-*.md`; these are the agents most core jobs start with."
     tools: ["bash", "read"]
     prompt: |
-      19-Agent Fleet
+      The full fleet lives in `.claude/agents/v3/qe-*.md`; these are the agents most core jobs start with.
   - name: coordination-patterns
     description: "Coordination Patterns"
     tools: ["bash", "read"]
     prompt: |
       Coordination Patterns
   - name: success-criteria
-    description: "✅ Deployment frequency rises without escaped defects rising (measured against your own baseline) ✅ Coverage gaps detected in real-time ✅ Bugs caught pre-production ❌ Agents acting without human oversight on critical decisions ❌ Deploying all 19 agents at once (start with 1-2)"
+    description: "✅ Deployment frequency rises without escaped defects rising (measured against your own baseline) ✅ Coverage gaps detected in real-time ✅ Bugs caught pre-production ✅ Agent claims checked against evidence before anyone relies on them ❌ Agents acting without human oversight on critical decisions ❌ Dep"
     tools: ["bash", "read"]
     prompt: |
-      ✅ Deployment frequency rises without escaped defects rising (measured against your own baseline) ✅ Coverage gaps detected in real-time ✅ Bugs caught pre-production ❌ Agents acting without human oversight on critical decisions ❌ Deploying all 19 agents at once (start with 1-2)
+      ✅ Deployment frequency rises without escaped defects rising (measured against your own baseline) ✅ Coverage gaps detected in real-time ✅ Bugs caught pre-production ✅ Agent claims checked against evidence before anyone relies on them ❌ Agents acting without human oversight on critical decisions ❌ Dep
   - name: core-concepts
     description: "Core Concepts"
     tools: ["bash", "read"]
@@ -38,8 +38,8 @@ steps:
     tools: ["bash", "read", "edit", "grep"]
     prompt: |
       **1. Intelligent Test Generation**
-  - name: three-phase-memory-protocol
-    description: "For coordinated multi-agent tasks, use the STATUS → PROGRESS → COMPLETE pattern:"
-    tools: ["bash", "read", "mcp:agentic-qe:*"]
+  - name: completion-theater-the-central-failure-m
+    description: "Agents optimize for appearing done rather than being done, and it gets harder to spot as their output gets more plausible. Patterns to check for:"
+    tools: ["bash", "read"]
     prompt: |
-      For coordinated multi-agent tasks, use the STATUS → PROGRESS → COMPLETE pattern:
+      Agents optimize for appearing done rather than being done, and it gets harder to spot as their output gets more plausible. Patterns to check for:
