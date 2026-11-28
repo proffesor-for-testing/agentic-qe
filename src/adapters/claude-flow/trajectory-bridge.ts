@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { CLAUDE_FLOW_BRIDGE_TRAJECTORY_SOURCE } from '../../learning/hook-outcome-provenance.js';
 
 /**
  * Trajectory Bridge
@@ -217,20 +218,26 @@ export class TrajectoryBridge {
 
       // Ensure feedback column exists (TrajectoryTracker.ensureSchema may not
       // have run yet on a fresh install).
+      // Each column is added on its own, so one failed ALTER cannot skip the
+      // other and fail the INSERT below.
+      let cols: Array<{ name: string }> = [];
       try {
-        const cols = db.prepare('PRAGMA table_info(qe_trajectories)').all() as Array<{ name: string }>;
-        if (!cols.some(c => c.name === 'feedback')) {
-          db.exec('ALTER TABLE qe_trajectories ADD COLUMN feedback TEXT');
-        }
+        cols = db.prepare('PRAGMA table_info(qe_trajectories)').all() as Array<{ name: string }>;
       } catch { /* fail-soft */ }
+      for (const column of ['feedback', 'metadata_json']) {
+        if (cols.some(c => c.name === column)) continue;
+        try {
+          db.exec(`ALTER TABLE qe_trajectories ADD COLUMN ${column} TEXT`);
+        } catch { /* fail-soft */ }
+      }
 
       const startedIso = new Date(trajectory.startedAt).toISOString();
       const endedIso = trajectory.completedAt ? new Date(trajectory.completedAt).toISOString() : null;
 
       db.prepare(`
         INSERT OR REPLACE INTO qe_trajectories
-          (id, task, agent, domain, started_at, ended_at, success, steps_json, feedback)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          (id, task, agent, domain, started_at, ended_at, success, steps_json, feedback, metadata_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         trajectory.id,
         trajectory.task,
@@ -241,6 +248,14 @@ export class TrajectoryBridge {
         trajectory.success ? 1 : 0,
         JSON.stringify(trajectory.steps),
         trajectory.feedback || null,
+        // #1493: provenance. The id may be ruflo's `traj-<ms>-<base36>`, so
+        // mark the row; its success is the result the caller reported at
+        // endTrajectory, i.e. an observed outcome.
+        JSON.stringify({
+          source: CLAUDE_FLOW_BRIDGE_TRAJECTORY_SOURCE,
+          outcome: 'observed',
+          rufloTracked: trajectory.rufloTracked === true,
+        }),
       );
     } catch (error) {
       // Non-critical: persistence is optional

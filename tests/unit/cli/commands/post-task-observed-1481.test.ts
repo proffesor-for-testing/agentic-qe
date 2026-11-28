@@ -27,6 +27,7 @@ vi.mock('../../../../src/cli/commands/hooks-handlers/hooks-shared.js', () => ({
   incrementDreamExperience: vi.fn().mockResolvedValue(0),
   checkAndTriggerDream: vi.fn().mockResolvedValue({ triggered: false }),
   persistTaskOutcome: persistTaskOutcomeMock,
+  discardTaskBridge: vi.fn().mockResolvedValue(false),
   updateHookRouterQValue: updateHookRouterQValueMock,
   updateRoutingOutcomeQuality: updateRoutingOutcomeQualityMock,
   printJson: vi.fn(),
@@ -61,8 +62,8 @@ describe('post-task records routing outcomes only when observed (#1481)', () => 
 
     expect(updateRoutingOutcomeQualityMock).not.toHaveBeenCalled();
     expect(updateHookRouterQValueMock).not.toHaveBeenCalled();
-    // Non-routing learning streams keep their previous reading of --success (#1493).
-    expect(persistTaskOutcomeMock.mock.calls[0][0].success).toBe(true);
+    // #1493: no other learning stream records an unobserved result either.
+    expect(persistTaskOutcomeMock).not.toHaveBeenCalled();
   });
 
   // A third-party `--success $status` must not record only the failures.
@@ -71,7 +72,7 @@ describe('post-task records routing outcomes only when observed (#1481)', () => 
 
     expect(updateRoutingOutcomeQualityMock).not.toHaveBeenCalled();
     expect(updateHookRouterQValueMock).not.toHaveBeenCalled();
-    expect(persistTaskOutcomeMock.mock.calls[0][0].success).toBe(false);
+    expect(persistTaskOutcomeMock).not.toHaveBeenCalled();
   });
 
   it.each([

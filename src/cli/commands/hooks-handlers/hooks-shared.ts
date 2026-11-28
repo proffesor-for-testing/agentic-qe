@@ -503,6 +503,7 @@ export {
   incrementDreamExperience,
   persistCommandExperience,
   persistTaskOutcome,
+  discardTaskBridge,
   updateHookRouterQValue,
   updateRoutingOutcomeQuality,
   consolidateExperiencesToPatterns,

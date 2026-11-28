@@ -6,6 +6,7 @@
  */
 
 import type { DomainName } from '../shared/types/index.js';
+import { isLegacyHookDerivedPattern } from './hook-outcome-provenance.js';
 
 // ============================================================================
 // QE Domains - Pattern Classification
@@ -388,7 +389,12 @@ export function shouldPromotePattern(
   coherenceEnergy?: number,
   coherenceThreshold: number = 0.4
 ): PromotionCheck {
-  const meetsUsageCriteria = pattern.tier === 'short-term' && pattern.successfulUses >= PROMOTION_THRESHOLD;
+  // #1493: a pattern consolidated from legacy post-task hook experiences
+  // has no observed uses — its successful uses are the hooks' constant
+  // success — so it never meets the usage criterion.
+  const meetsUsageCriteria = pattern.tier === 'short-term'
+    && pattern.successfulUses >= PROMOTION_THRESHOLD
+    && !isLegacyHookDerivedPattern(pattern);
   const meetsQualityCriteria = pattern.successRate >= PROMOTION_MIN_SUCCESS_RATE && pattern.confidence >= 0.6;
 
   // NEW: Coherence criteria - only block if coherence energy is provided and exceeds threshold

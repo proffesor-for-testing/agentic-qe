@@ -19,6 +19,7 @@ import { toErrorMessage } from '../shared/error-utils.js';
 import { createLogger } from '../logging/logger-factory.js';
 import { isLearnableResult } from './learnable-result.js';
 import { recordExperienceEmbeddingSpace } from './embedding-space.js';
+import { OBSERVED_EXPERIENCE_SQL } from './hook-outcome-provenance.js';
 
 const ecLogger = createLogger('ExperienceCapture');
 
@@ -747,9 +748,10 @@ export async function getCaptureStats(): Promise<CaptureStats> {
       stats.byDomain[row.domain] = row.count;
     }
 
-    // By success
+    // By success. #1493: legacy post-task hook rows record a constant
+    // success, so they are left out of the success counts and quality.
     const bySuccess = db.prepare(
-      'SELECT success, COUNT(*) as count FROM captured_experiences GROUP BY success'
+      `SELECT success, COUNT(*) as count FROM captured_experiences WHERE ${OBSERVED_EXPERIENCE_SQL} GROUP BY success`
     ).all() as Array<{ success: number; count: number }>;
     for (const row of bySuccess) {
       if (row.success === 1) stats.bySuccess.success = row.count;
@@ -758,7 +760,7 @@ export async function getCaptureStats(): Promise<CaptureStats> {
 
     // Average quality
     const avgQuality = db.prepare(
-      'SELECT AVG(quality) as avg FROM captured_experiences WHERE success = 1'
+      `SELECT AVG(quality) as avg FROM captured_experiences WHERE success = 1 AND ${OBSERVED_EXPERIENCE_SQL}`
     ).get() as { avg: number | null } | undefined;
     stats.avgQuality = avgQuality?.avg || 0;
   } catch (error) {

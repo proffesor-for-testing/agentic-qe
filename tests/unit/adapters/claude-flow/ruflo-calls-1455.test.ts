@@ -41,12 +41,17 @@ vi.mock('../../../../src/adapters/claude-flow/detect.js', () => ({
 }));
 
 const run = vi.fn();
+const exec = vi.fn();
+const tableColumns: { names: string[] } = { names: ['feedback'] };
 vi.mock('../../../../src/kernel/unified-memory.js', () => ({
   getUnifiedMemory: () => ({
     isInitialized: () => true,
     getDatabase: () => ({
-      prepare: (sql: string) => ({ all: () => [{ name: 'feedback' }], run: (...args: unknown[]) => run(sql, ...args) }),
-      exec: vi.fn(),
+      prepare: (sql: string) => ({
+        all: () => tableColumns.names.map((name) => ({ name })),
+        run: (...args: unknown[]) => run(sql, ...args),
+      }),
+      exec: (sql: string) => exec(sql),
     }),
   }),
 }));
@@ -88,6 +93,8 @@ beforeEach(() => {
   execFile.mockReset();
   execFileSync.mockReset();
   run.mockReset();
+  exec.mockReset();
+  tableColumns.names = ['feedback'];
   detection.available = true;
   vi.spyOn(console, 'debug').mockImplementation(() => {});
 });
@@ -302,6 +309,31 @@ describe('TrajectoryBridge with Claude Flow', () => {
     expect(JSON.parse(argvOf(2).at(-1)!)).toEqual({ trajectoryId: id, success: true, feedback: 'good' });
     expect(done).toMatchObject({ id, rufloTracked: true, success: true, steps: [expect.objectContaining({ action: 'read file' })] });
     expect(run).toHaveBeenCalledTimes(1); // persisted to qe_trajectories
+    // #1493: ruflo's `traj-<ms>-<base36>` id shares the post-task prefix, so
+    // the row carries its provenance and observed outcome.
+    const [sql, ...args] = run.mock.calls[0] as [string, ...unknown[]];
+    expect(sql).toContain('metadata_json');
+    expect(args[0]).toBe('traj-1795598815055-kmjsaq');
+    expect(JSON.parse(args.at(-1) as string)).toEqual({ source: 'claude-flow-bridge', outcome: 'observed', rufloTracked: true });
+  });
+
+  it('should_stillAddMetadataAndPersist_when_theFeedbackAlterFails', async () => {
+    // #1493 review: one failed ALTER must not skip the other and lose the row.
+    tableColumns.names = [];
+    exec.mockImplementation((sql: string) => {
+      if (sql.includes('feedback')) throw new Error('feedback ALTER failed');
+    });
+    replies(reply(STARTED), reply(ENDED));
+    const b = await bridge();
+
+    const id = await b.startTrajectory('generate tests');
+    await b.endTrajectory(id, false);
+
+    expect(exec.mock.calls.map((c) => c[0])).toEqual([
+      'ALTER TABLE qe_trajectories ADD COLUMN feedback TEXT',
+      'ALTER TABLE qe_trajectories ADD COLUMN metadata_json TEXT',
+    ]);
+    expect(run).toHaveBeenCalledTimes(1);
   });
 
   it('should_neverSendAnUnknownIdToRuflo_when_theTrajectoryWasNotStartedHere', async () => {

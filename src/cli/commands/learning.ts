@@ -42,6 +42,7 @@ import { inspectEmbeddingSpaceRows } from '../../learning/embedding-space.js';
 import { committedPendingIndexPatternId } from '../../learning/pattern-mutation-error.js';
 import { formatLearningOutcomes, formatPatternSuccessRate } from '../../learning/usage-outcome.js';
 import { OBSERVED_ROUTING_OUTCOME_SQL } from '../../routing/routing-outcomes-migration.js';
+import { OBSERVED_EXPERIENCE_SQL, observedTrajectorySql } from '../../learning/hook-outcome-provenance.js';
 
 // Extracted helpers
 import {
@@ -669,7 +670,7 @@ function registerExtractCommand(learning: Command): void {
         const experiences = db.prepare(`
           SELECT domain as task_type, COUNT(*) as count, AVG(quality) as avg_reward, MAX(quality) as max_reward,
                  MIN(quality) as min_reward, GROUP_CONCAT(DISTINCT agent) as actions
-          FROM captured_experiences WHERE quality >= ? AND agent != 'cli-hook' GROUP BY domain HAVING COUNT(*) >= ? ORDER BY avg_reward DESC
+          FROM captured_experiences WHERE quality >= ? AND agent != 'cli-hook' AND ${OBSERVED_EXPERIENCE_SQL} GROUP BY domain HAVING COUNT(*) >= ? ORDER BY avg_reward DESC
         `).all(minReward, minCount) as Array<{
           task_type: string; count: number; avg_reward: number; max_reward: number; min_reward: number; actions: string;
         }>;
@@ -1025,7 +1026,8 @@ function registerExportFullCommand(learning: Command): void {
         if (options.includeTrajectories) {
           try {
             const db = openDatabase(dbPath, { readonly: true });
-            const trajectories = db.prepare(`SELECT id, task, agent, domain, success, steps_json FROM qe_trajectories ORDER BY started_at DESC LIMIT 1000`).all() as Array<{ id: string; task: string; agent: string; domain: string; success: number; steps_json: string }>;
+            // #1493: legacy post-task trajectories record a constant success
+            const trajectories = db.prepare(`SELECT id, task, agent, domain, success, steps_json FROM qe_trajectories WHERE ${observedTrajectorySql(db)} ORDER BY started_at DESC LIMIT 1000`).all() as Array<{ id: string; task: string; agent: string; domain: string; success: number; steps_json: string }>;
             exportData.trajectories = trajectories.map(t => ({ id: t.id, task: t.task, agent: t.agent, domain: t.domain, success: t.success, stepsJson: t.steps_json }));
             db.close();
           } catch { /* table may not exist */ }
@@ -1034,9 +1036,9 @@ function registerExportFullCommand(learning: Command): void {
         if (options.includeExperiences) {
           try {
             const db = openDatabase(dbPath, { readonly: true });
-            const experiences = db.prepare(`SELECT domain as task_type, agent as action, AVG(quality) as avg_reward, COUNT(*) as count FROM captured_experiences WHERE agent != 'cli-hook' GROUP BY domain, agent ORDER BY count DESC LIMIT 500`).all() as Array<{ task_type: string; action: string; avg_reward: number; count: number }>;
+            const experiences = db.prepare(`SELECT domain as task_type, agent as action, AVG(quality) as avg_reward, COUNT(*) as count FROM captured_experiences WHERE agent != 'cli-hook' AND ${OBSERVED_EXPERIENCE_SQL} GROUP BY domain, agent ORDER BY count DESC LIMIT 500`).all() as Array<{ task_type: string; action: string; avg_reward: number; count: number }>;
             exportData.experiences = experiences.map(e => ({ taskType: e.task_type, action: e.action, reward: e.avg_reward, count: e.count }));
-            const metaRow = db.prepare(`SELECT COUNT(*) as total, AVG(quality) as avg_reward FROM captured_experiences WHERE agent != 'cli-hook'`).get() as { total: number; avg_reward: number };
+            const metaRow = db.prepare(`SELECT COUNT(*) as total, AVG(quality) as avg_reward FROM captured_experiences WHERE agent != 'cli-hook' AND ${OBSERVED_EXPERIENCE_SQL}`).get() as { total: number; avg_reward: number };
             exportData.metadata = { totalExperiences: metaRow.total, avgReward: metaRow.avg_reward };
             db.close();
           } catch { /* table may not exist */ }
@@ -1609,6 +1611,7 @@ function registerHealthCommand(learning: Command): void {
             SELECT domain, quality, success, started_at
             FROM captured_experiences
             WHERE agent != 'cli-hook'
+              AND ${OBSERVED_EXPERIENCE_SQL}
               AND domain IS NOT NULL
               AND domain != ''
               ${domainFilter}

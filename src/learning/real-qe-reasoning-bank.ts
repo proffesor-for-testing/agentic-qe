@@ -71,6 +71,7 @@ import {
   createMemoryPattern,
   isMemoryWriteGateEnabled,
 } from '../governance/index.js';
+import { observedTrajectorySql } from './hook-outcome-provenance.js';
 
 // ============================================================================
 // Configuration
@@ -1386,11 +1387,12 @@ export class RealQEReasoningBank {
   }>> {
     const db = this.sqliteStore.getDb();
 
-    let sql = 'SELECT * FROM qe_trajectories';
+    // #1493: leave out post-task rows written from the hooks' constant success.
+    let sql = `SELECT * FROM qe_trajectories WHERE ${observedTrajectorySql(db)}`;
     const params: unknown[] = [];
 
     if (domain) {
-      sql += ' WHERE domain = ?';
+      sql += ' AND domain = ?';
       params.push(domain);
     }
 

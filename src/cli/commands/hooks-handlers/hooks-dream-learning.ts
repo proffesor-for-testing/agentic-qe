@@ -13,6 +13,14 @@ import {
   recordPatternUsageBatch,
 } from '../../../learning/pattern-usage-recorder.js';
 import { OBSERVED_HOOK_OUTCOME_TAG } from '../../../routing/routing-outcomes-migration.js';
+import {
+  HOOK_OBSERVED_OUTCOME_BASIS,
+  LEGACY_HOOK_PATTERN_SQL,
+  LEGACY_HOOK_USAGE_SQL,
+  OBSERVED_EXPERIENCE_SQL,
+  OBSERVED_HOOK_TASK_SOURCE,
+  OBSERVED_PATTERN_NAME_SUFFIX,
+} from '../../../learning/hook-outcome-provenance.js';
 
 // ============================================================================
 // Dream Scheduler State (persisted in kv_store between hook invocations)
@@ -346,7 +354,7 @@ export interface TaskOutcomeResult {
  *
  * Pipeline rolled into one helper that:
  *
- *   1. Writes captured_experiences (source='cli-hook-post-task')
+ *   1. Writes captured_experiences (source='cli-hook-post-task-observed')
  *   2. Reads kv_store task-bridge (selectedPatternIds + estimatedTokenSavings)
  *   3. Writes experience_applications: 1 base row + 1 per pattern_id (160/300)
  *   4. Deletes the bridge entry to prevent double-consumption
@@ -360,11 +368,16 @@ export interface TaskOutcomeResult {
  * All steps run inside a single transaction so partial failures don't leave
  * inconsistent state. Returns the experience_id and derived fields for the
  * q-learning post-task integration (Stream F / patch 280).
+ *
+ * #1493: call this only for an OBSERVED outcome (`post-task --outcome`).
+ * Every row it writes is marked as observed; rows from before #1493 carry the
+ * legacy source 'cli-hook-post-task' and are excluded at read time.
  */
 export async function persistTaskOutcome(opts: {
   taskId: string;
   agent: string;
   domain?: string;
+  /** The observed result (#1493: never a default). */
   success: boolean;
   durationMs?: number;
   /** ADR-101: agent that spawned this task (nesting provenance) */
@@ -471,7 +484,7 @@ export async function persistTaskOutcome(opts: {
       opts.success ? 1 : 0,
       qualityScore,
       durationMs,
-      'cli-hook-post-task',
+      OBSERVED_HOOK_TASK_SOURCE,
     );
 
     // 2. Base experience_applications row.
@@ -529,19 +542,34 @@ export async function persistTaskOutcome(opts: {
         // that cross the thresholds (successful_uses ≥ 3, success_rate ≥ 0.7,
         // confidence ≥ 0.6) stay short-term forever — qe_patterns.long-term
         // count never grows past zero.
+        //
+        // #1493: promotion counts only observed uses. It leaves out the
+        // usage rows this fan-out wrote from the hooks' constant success
+        // before #1493, and never promotes a pattern consolidated from
+        // legacy hook experiences.
+        // A minimal or legacy qe_patterns may lack context_json; it then
+        // has no consolidation provenance to check.
+        const hasContextJson = (db.prepare(`PRAGMA table_info(qe_patterns)`).all() as Array<{ name: string }>)
+          .some((c) => c.name === 'context_json');
         const promotionSelectStmt = db.prepare(`
-          SELECT tier, successful_uses, success_rate, confidence
-          FROM qe_patterns
-          WHERE id = ?
+          SELECT p.tier, p.confidence,
+                 p.usage_count - COALESCE(l.uses, 0) AS observed_uses,
+                 p.successful_uses - COALESCE(l.successes, 0) AS observed_successes,
+                 ${hasContextJson ? LEGACY_HOOK_PATTERN_SQL : '0'} AS legacy_pattern
+          FROM qe_patterns p
+          LEFT JOIN (
+            SELECT pattern_id, COUNT(*) AS uses, SUM(success) AS successes
+            FROM qe_pattern_usage
+            WHERE pattern_id = ? AND ${LEGACY_HOOK_USAGE_SQL}
+            GROUP BY pattern_id
+          ) l ON l.pattern_id = p.id
+          WHERE p.id = ?
         `);
         const promotionUpdateStmt = db.prepare(`
           UPDATE qe_patterns
           SET tier = 'long-term', updated_at = datetime('now')
           WHERE id = ?
             AND tier = 'short-term'
-            AND successful_uses >= 3
-            AND success_rate >= 0.7
-            AND confidence >= 0.6
         `);
         for (const patternId of bridge.selectedPatternIds) {
           insertApp.run(
@@ -563,8 +591,11 @@ export async function persistTaskOutcome(opts: {
               success: opts.success,
               metrics: {
                 tokens_saved: perPatternTokens,
-                source: 'cli-hook-post-task',
+                source: OBSERVED_HOOK_TASK_SOURCE,
                 experience_id: experienceId,
+                // #1129 / #1493: the hook caller observed this result.
+                outcome: 'measured',
+                outcomeBasis: HOOK_OBSERVED_OUTCOME_BASIS,
               },
               feedback: `[Patch 160+300] task-bridge pattern_id=${patternId} ts=${perPatternTokens}`,
             });
@@ -573,13 +604,21 @@ export async function persistTaskOutcome(opts: {
           // Guarded WHERE clause makes the UPDATE idempotent and no-op for
           // already-long-term rows or rows below threshold.
           try {
-            const pm = promotionSelectStmt.get(patternId) as
-              | { tier: string; successful_uses: number; success_rate: number; confidence: number }
+            const pm = promotionSelectStmt.get(patternId, patternId) as
+              | {
+                  tier: string;
+                  confidence: number;
+                  observed_uses: number;
+                  observed_successes: number;
+                  legacy_pattern: number;
+                }
               | undefined;
             if (
               pm?.tier === 'short-term' &&
-              pm.successful_uses >= 3 &&
-              pm.success_rate >= 0.7 &&
+              !pm.legacy_pattern &&
+              pm.observed_uses > 0 &&
+              pm.observed_successes >= 3 &&
+              pm.observed_successes / pm.observed_uses >= 0.7 &&
               pm.confidence >= 0.6
             ) {
               promotionUpdateStmt.run(patternId);
@@ -599,13 +638,13 @@ export async function persistTaskOutcome(opts: {
     // ADR-101: nesting provenance lands in the metadata_json blob (stage 1 —
     // no dedicated columns / schema migration)
     const trajId = `traj-${Date.now()}-${randomUUID().slice(0, 8)}`;
-    const provenanceJson =
-      opts.parentAgentId !== undefined || opts.depth !== undefined
-        ? JSON.stringify({
-            ...(opts.parentAgentId !== undefined ? { parentAgentId: opts.parentAgentId } : {}),
-            ...(opts.depth !== undefined ? { depth: opts.depth } : {}),
-          })
-        : null;
+    // #1493: `outcome: 'observed'` tells these rows apart from the ones the
+    // hooks wrote from a constant success before #1493.
+    const provenanceJson = JSON.stringify({
+      outcome: OBSERVED_HOOK_OUTCOME_TAG,
+      ...(opts.parentAgentId !== undefined ? { parentAgentId: opts.parentAgentId } : {}),
+      ...(opts.depth !== undefined ? { depth: opts.depth } : {}),
+    });
     db.prepare(`
       INSERT INTO qe_trajectories (id, task, agent, domain, started_at, ended_at, success, steps_json, metadata_json)
       VALUES (?, ?, ?, ?, datetime('now'), datetime('now'), ?, ?, ?)
@@ -628,6 +667,7 @@ export async function persistTaskOutcome(opts: {
         WHERE consolidated_into IS NULL
           AND task LIKE ?
           AND started_at > datetime('now', '-1 hour')
+          AND ${OBSERVED_EXPERIENCE_SQL}
         ORDER BY started_at ASC
       `).all(`%:${opts.taskId}`) as Array<{
         id: string; task: string; agent: string; success: number;
@@ -648,8 +688,8 @@ export async function persistTaskOutcome(opts: {
         );
         const allSuccess = siblings.every((s) => !!s.success);
         db.prepare(`
-          INSERT INTO qe_trajectories (id, task, agent, domain, started_at, ended_at, success, steps_json)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO qe_trajectories (id, task, agent, domain, started_at, ended_at, success, steps_json, metadata_json)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
           multiTrajId,
           `multi:${opts.taskId}`,
@@ -659,6 +699,8 @@ export async function persistTaskOutcome(opts: {
           siblings[siblings.length - 1].completed_at,
           allSuccess ? 1 : 0,
           stepsJson,
+          // #1493: only observed siblings are stitched
+          JSON.stringify({ outcome: OBSERVED_HOOK_OUTCOME_TAG, multiStep: true }),
         );
         const placeholders = siblings.map(() => '?').join(',');
         db.prepare(
@@ -737,6 +779,39 @@ export async function persistTaskOutcome(opts: {
     stitchedSiblings,
     insightsApplied,
   };
+}
+
+/**
+ * Retire the newest pre-task bridge entry without recording anything (#1493).
+ *
+ * An unobserved post-task records no outcome, but the bridge pre-task wrote
+ * for that task must not survive it: the next observed post-task reads the
+ * newest bridge entry and would credit this task's pattern selection.
+ * Best-effort, like the rest of the hook learning path.
+ */
+export async function discardTaskBridge(): Promise<boolean> {
+  try {
+    const { getUnifiedMemory } = await import('../../../kernel/unified-memory.js');
+    const um = getUnifiedMemory();
+    if (!um.isInitialized()) {
+      await um.initialize();
+    }
+    const db = um.getDatabase();
+    try { db.pragma('busy_timeout = 60000'); } catch { /* hook-side patient timeout */ }
+    const row = db.prepare(`
+      SELECT key FROM kv_store
+      WHERE namespace = 'task-bridge'
+        AND (expires_at IS NULL OR expires_at > strftime('%s','now') * 1000)
+      ORDER BY created_at DESC
+      LIMIT 1
+    `).get() as { key: string } | undefined;
+    if (!row) return false;
+    db.prepare(`DELETE FROM kv_store WHERE namespace = 'task-bridge' AND key = ?`).run(row.key);
+    return true;
+  } catch (error) {
+    console.error(chalk.dim(`[hooks] discardTaskBridge: ${error instanceof Error ? error.message : 'unknown'}`));
+    return false;
+  }
 }
 
 /**
@@ -917,6 +992,8 @@ export async function consolidateExperiencesToPatterns(): Promise<number> {
       GROUP_CONCAT(DISTINCT source) as sources
     FROM captured_experiences
     WHERE application_count = 0
+      -- #1493: legacy post-task hook rows record a constant success
+      AND ${OBSERVED_EXPERIENCE_SQL}
     GROUP BY domain, agent
     HAVING cnt >= 3 AND avg_quality >= 0.5 AND success_rate >= 0.6
     ORDER BY avg_quality DESC
@@ -942,14 +1019,25 @@ export async function consolidateExperiencesToPatterns(): Promise<number> {
       // Use date-bucketed names so new patterns emerge as usage evolves,
       // instead of silently reinforcing one static pattern forever.
       const dateBucket = new Date().toISOString().slice(0, 7); // YYYY-MM
-      const patternName = `${agg.agent}-${agg.domain}-${dateBucket}`;
-
-      // Check for existing pattern with same name this month
-      const existing = db.prepare(`
-        SELECT id FROM qe_patterns
+      const baseName = `${agg.agent}-${agg.domain}-${dateBucket}`;
+      const findByName = db.prepare(`
+        SELECT id, ${LEGACY_HOOK_PATTERN_SQL} AS legacy FROM qe_patterns
         WHERE qe_domain = ? AND name = ?
         LIMIT 1
-      `).get(agg.domain, patternName) as { id: string } | undefined;
+      `);
+
+      // Check for existing pattern with same name this month.
+      // #1493: a pattern consolidated from legacy post-task hook rows is not
+      // reused: its counts are constant successes. (name, qe_domain,
+      // pattern_type) is unique, so observed experiences go to a pattern
+      // named `<base>-observed` instead.
+      let patternName = baseName;
+      let found = findByName.get(agg.domain, patternName) as { id: string; legacy: number } | undefined;
+      if (found?.legacy) {
+        patternName = `${baseName}${OBSERVED_PATTERN_NAME_SUFFIX}`;
+        found = findByName.get(agg.domain, patternName) as { id: string; legacy: number } | undefined;
+      }
+      const existing = found && !found.legacy ? { id: found.id } : undefined;
 
       if (existing) {
         // Issue #618: the aggregate writer must use the same audited write
@@ -977,6 +1065,7 @@ export async function consolidateExperiencesToPatterns(): Promise<number> {
           SET tier = 'long-term', updated_at = datetime('now')
           WHERE id = ? AND tier = 'short-term'
             AND successful_uses >= 3 AND success_rate >= 0.7 AND confidence >= 0.6
+            AND NOT ${LEGACY_HOOK_PATTERN_SQL}
         `).run(existing.id);
       } else {
         const patternId = uuidv4();
@@ -1021,9 +1110,13 @@ export async function consolidateExperiencesToPatterns(): Promise<number> {
         UPDATE captured_experiences
         SET application_count = application_count + 1
         WHERE domain = ? AND agent = ? AND application_count = 0
+          AND ${OBSERVED_EXPERIENCE_SQL}
       `).run(agg.domain, agg.agent);
-    } catch {
-      // Skip on error (e.g. constraint violations)
+    } catch (error) {
+      // Skip this aggregate; its rows stay unprocessed and retry next time.
+      console.error(chalk.dim(
+        `[hooks] consolidate ${agg.agent}/${agg.domain}: ${error instanceof Error ? error.message : 'unknown'}`,
+      ));
     }
   }
 

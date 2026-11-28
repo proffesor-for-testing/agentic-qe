@@ -23,6 +23,8 @@ import { QE_DOMAIN_LIST } from './qe-patterns.js';
 import { safeJsonParse } from '../shared/safe-json.js';
 import { LoggerFactory } from '../logging/index.js';
 import type { DomainHealthSummary } from './regret-tracker.js';
+import { OBSERVED_EXPERIENCE_SQL } from './hook-outcome-provenance.js';
+import { MEASURED_USAGE_SQL } from './usage-outcome.js';
 
 const logger = LoggerFactory.create('metrics-tracker');
 
@@ -344,6 +346,7 @@ export class LearningMetricsTracker {
           AVG(CASE WHEN success = 1 THEN 1.0 ELSE 0.0 END) as success_rate
         FROM captured_experiences
         WHERE agent != 'cli-hook'
+          AND ${OBSERVED_EXPERIENCE_SQL}
       `).get(today) as {
         total: number;
         recorded_today: number;
@@ -369,7 +372,9 @@ export class LearningMetricsTracker {
         SELECT
           COUNT(*) as total,
           SUM(CASE WHEN date(created_at) = ? THEN 1 ELSE 0 END) as recorded_today,
-          AVG(success) as success_rate
+          -- #1129 / #1493: only a measured outcome counts toward the rate.
+          -- Hook and session-consolidation usage rows are unmeasured.
+          AVG(CASE WHEN ${MEASURED_USAGE_SQL} = 1 THEN success END) as success_rate
         FROM qe_pattern_usage
       `).get(today) as {
         total: number;
@@ -377,6 +382,10 @@ export class LearningMetricsTracker {
         success_rate: number;
       };
 
+      // With no measured row, success_rate is NULL and is reported as 0:
+      // LearningMetricsSnapshot.successRate is a number, read by the
+      // dashboard, history snapshots and trend math. Making it nullable is a
+      // wider change than #1493; 0 here means "no measured outcome".
       return {
         total: stats.total || 0,
         recordedToday: stats.recorded_today || 0,
@@ -458,6 +467,7 @@ export class LearningMetricsTracker {
         FROM captured_experiences
         WHERE started_at <= datetime(?)
           AND agent != 'cli-hook'
+          AND ${OBSERVED_EXPERIENCE_SQL}
       `).get(date + ' 23:59:59') as { avg_reward: number | null };
 
       return result?.avg_reward || 0;
