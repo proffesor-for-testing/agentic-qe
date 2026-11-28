@@ -15,6 +15,7 @@ import { TokenMetricsCollector } from '../learning/token-tracker.js';
 import { createDefaultMemoryBackend } from '../kernel/memory-factory.js';
 import type { MemoryBackend } from '../kernel/interfaces.js';
 import { findProjectRoot } from '../kernel/project-root.js';
+import { isInProjectStore } from '../kernel/project-store.js';
 
 // ============================================================================
 // Configuration
@@ -73,22 +74,28 @@ export async function bootstrapTokenTracking(
   // A relative AQE_STORAGE_PATH is anchored at the project root too, so it
   // cannot recreate a cwd-local store from a subdirectory.
   const envStorage = process.env.AQE_STORAGE_PATH;
+  const projectStore = path.join(findProjectRoot(), '.agentic-qe');
   const cfg = {
     ...DEFAULT_CONFIG, ...config,
     storagePath: config?.storagePath
-      ?? (envStorage ? path.resolve(findProjectRoot(), envStorage) : path.join(findProjectRoot(), '.agentic-qe')),
+      ?? (envStorage ? path.resolve(findProjectRoot(), envStorage) : projectStore),
   };
 
   if (cfg.verbose) {
     console.log('[TokenBootstrap] Initializing token tracking...');
   }
 
-  // Ensure storage directory exists
-  if (cfg.enablePersistence) {
-    const storageDir = path.resolve(cfg.storagePath);
-    if (!fs.existsSync(storageDir)) {
-      fs.mkdirSync(storageDir, { recursive: true });
-    }
+  // #1490: never create the project store here. This runs on startup of
+  // nearly every CLI command and the MCP server, and a `.agentic-qe` made in
+  // a project that was never initialized made `aqe status`/`aqe health` treat
+  // it as initialized. Metrics are saved there only once `aqe init` or the
+  // kernel has created it; an explicit non-default location is still created.
+  // Any location inside the project store (by real path) belongs to the
+  // store's owner, e.g. AQE_STORAGE_PATH=<root>/.agentic-qe/metrics.
+  const storageDir = path.resolve(cfg.storagePath);
+  const ownsStorageDir = !isInProjectStore(path.dirname(projectStore), storageDir);
+  if (cfg.enablePersistence && ownsStorageDir && !fs.existsSync(storageDir)) {
+    fs.mkdirSync(storageDir, { recursive: true });
   }
 
   // Initialize memory backend for pattern storage
@@ -120,6 +127,7 @@ export async function bootstrapTokenTracking(
     TokenMetricsCollector.configurePersistence({
       filePath: metricsPath,
       autoSaveIntervalMs: cfg.autoSaveIntervalMs,
+      createDirectory: ownsStorageDir,
     });
 
     // Load existing metrics

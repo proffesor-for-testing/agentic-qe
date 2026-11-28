@@ -195,12 +195,19 @@ export interface TokenPersistenceConfig {
   autoSaveIntervalMs: number;
   /** Maximum number of metrics to keep in memory */
   maxMetricsInMemory: number;
+  /**
+   * Create the file's directory on save when it is missing (default: true).
+   * When false, a save into a missing directory is skipped and the metrics
+   * stay unsaved, so tracking never creates a project store (#1490).
+   */
+  createDirectory: boolean;
 }
 
 const DEFAULT_PERSISTENCE_CONFIG: TokenPersistenceConfig = {
   filePath: '.agentic-qe/token-metrics.json',
   autoSaveIntervalMs: 60000, // Auto-save every minute
   maxMetricsInMemory: 10000,
+  createDirectory: true,
 };
 
 /**
@@ -742,6 +749,12 @@ class TokenMetricsCollectorImpl {
 
     // Ensure directory exists
     if (!fs.existsSync(dirPath)) {
+      // The directory is another owner's (e.g. the project store `aqe init`
+      // creates): leave the metrics unsaved rather than create it.
+      if (!this.persistenceConfig.createDirectory) {
+        ttLogger.debug('Token metrics not saved: directory does not exist yet', { dirPath });
+        return;
+      }
       fs.mkdirSync(dirPath, { recursive: true });
     }
 

@@ -1,6 +1,6 @@
 /** Regression for commands that report failure through process.exitCode. */
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -44,6 +44,9 @@ describe.skipIf(SKIP)('CLI command exit codes', () => {
       try {
         // A directory where the database file should be makes initialization fail.
         mkdirSync(join(projectRoot, '.agentic-qe', 'memory.db'), { recursive: true });
+        // An initialized project (#1490), so status/health reach that failure
+        // instead of refusing as "not initialized".
+        writeFileSync(join(projectRoot, '.agentic-qe', 'config.yaml'), 'version: "3"\n');
         const result = spawnSync(process.execPath, [CLI_BUNDLE, ...args], {
           cwd: projectRoot,
           encoding: 'utf-8',
@@ -53,6 +56,7 @@ describe.skipIf(SKIP)('CLI command exit codes', () => {
 
         expect(result.error).toBeUndefined();
         expect(result.stdout + result.stderr).toContain('Failed to auto-initialize');
+        expect(result.stdout + result.stderr).not.toContain('not initialized in this directory');
         expect(result.status).toBe(1);
       } finally {
         rmSync(projectRoot, { recursive: true, force: true });

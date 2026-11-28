@@ -166,13 +166,16 @@ async function ensureInitializedStrict(): Promise<boolean> {
     return true;
   }
 
-  // For diagnostic commands: check if project was explicitly initialized
-  const fs = await import('fs');
-  const path = await import('path');
+  // For diagnostic commands: check if project was explicitly initialized.
+  // #1490: a real store (config.yaml or a non-empty memory.db), not merely
+  // the `.agentic-qe` directory, which other tools can leave behind.
   const { findProjectRoot } = await import('../kernel/project-root.js');
-  const configDir = path.join(findProjectRoot(), '.agentic-qe');
-  if (!fs.existsSync(configDir)) {
+  const { isProjectInitialized, describeUninitializedStore } = await import('../kernel/project-store.js');
+  const projectRoot = findProjectRoot();
+  if (!isProjectInitialized(projectRoot)) {
     console.error(chalk.red('\nError: AQE system not initialized in this directory.'));
+    const leftover = describeUninitializedStore(projectRoot);
+    if (leftover) console.error(chalk.yellow(leftover));
     console.log(chalk.yellow('Run `aqe init` first to set up this project.\n'));
     process.exitCode = 1;
     return false;
@@ -511,8 +514,8 @@ async function main(): Promise<void> {
   const commandArgs = process.argv.slice(2).filter(arg => arg !== '--');
   const learningSnapshot = commandArgs[0] === 'learning'
     && (commandArgs[1] === 'backup' || commandArgs[1] === 'restore');
-  // `aqe init` must not create a mistyped AQE_PROJECT_ROOT: the token bootstrap
-  // below does `mkdir -p <root>/.agentic-qe`, so the check has to run first.
+  // `aqe init` must not create a mistyped AQE_PROJECT_ROOT, so the check runs
+  // before anything resolves or touches the project root.
   if (commandArgs[0] === 'init') {
     const { explicitRootError } = await import('./handlers/init-guard.js');
     const rootError = explicitRootError();

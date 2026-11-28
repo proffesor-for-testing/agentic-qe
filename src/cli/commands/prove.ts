@@ -19,6 +19,7 @@ import * as path from 'path';
 import type { CLIContext } from '../handlers/interfaces.js';
 import type { MemoryBackend } from '../../kernel/interfaces.js';
 import { findProjectRoot } from '../../kernel/project-root.js';
+import { hasEvidenceStore } from '../../kernel/project-store.js';
 import { readConfinedText } from '../../shared/io/confined-read.js';
 import type { QualityGateResult } from '../utils/ci-output.js';
 import {
@@ -456,19 +457,8 @@ export async function handleProve(options: {
   return attestation;
 }
 
-/**
- * An initialized project's store: a non-empty regular file (a symlink is
- * followed; a dangling one, a directory or a 0-byte file is not a store, and
- * opening it would build a new one).
- */
-export function hasEvidenceStore(projectRoot: string): boolean {
-  try {
-    const stat = fs.statSync(path.join(projectRoot, '.agentic-qe', 'memory.db'));
-    return stat.isFile() && stat.size > 0;
-  } catch {
-    return false;
-  }
-}
+/** Shared with CLI startup checks (#1490); re-exported for existing callers. */
+export { hasEvidenceStore };
 
 /**
  * Create the Commander command following the project convention.
@@ -485,8 +475,8 @@ export function createProveCommand(
       'Write attestation to file (keeps the attested candidate stable; a shell redirect into the checkout does not)')
     .action(async (options) => {
       // #1453: an attestation only reads evidence; it never creates a store.
-      // The store file, not the directory: CLI startup creates an empty
-      // `.agentic-qe` directory before any command runs.
+      // The store file, not the directory: other tools can leave an empty
+      // `.agentic-qe` directory behind.
       if (!hasEvidenceStore(findProjectRoot())) {
         console.error('AQE is not initialized in this project, so there is no measured evidence to attest. '
           + 'Run `aqe init` first.');

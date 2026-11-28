@@ -12,6 +12,8 @@ describe.skipIf(!built && !process.env.CI)('built CLI and MCP use the ancestor p
   it.each(['sub', '.agentic-qe'])('keeps CLI status and hook storage at the project root from %s', nested => {
     const root = mkdtempSync(join(tmpdir(), 'aqe-subdir-cli-'));
     mkdirSync(join(root, '.agentic-qe'));
+    // An initialized ancestor store: `status` refuses without it (#1490).
+    writeFileSync(join(root, '.agentic-qe', 'config.yaml'), 'version: "3"\n');
     mkdirSync(join(root, 'sub'));
     writeFileSync(join(root, 'fixture.ts'), 'export const fixture = true;\n');
     const env = { ...process.env, AQE_MEMORY_BACKEND: 'memory' };
