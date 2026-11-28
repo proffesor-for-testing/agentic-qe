@@ -3,6 +3,8 @@
  * Used by tests/unit/packaging/shipped-skill-links-1457.test.ts; see that file for
  * what it checks. Also runnable against a real install:
  *   npx tsx tests/unit/packaging/helpers/skill-link-check.ts <projectRoot> [tree...]
+ * or against a plugin directory (plugin-only install, #1494):
+ *   npx tsx tests/unit/packaging/helpers/skill-link-check.ts --no-project-paths <pluginDir> skills agents commands
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
@@ -116,7 +118,20 @@ function checkLinkTarget(raw: string, file: string, at: string, broken: string[]
  * outside fences. Paths are checked everywhere: fenced commands and configs are what
  * the agent copies, so a dead path there is still a dead end.
  */
-export function findBrokenReferences(projectRoot: string, trees = INSTALLED_TREES): string[] {
+export interface CheckOptions {
+  /**
+   * Check `.claude/...`, `.kiro/...` and `.opencode/...` paths, and let `scripts/...`
+   * resolve from `projectRoot`. Default true. Turn it off when `projectRoot` is not the
+   * user's project, e.g. a Claude Code plugin's own directory (#1494).
+   */
+  projectPaths?: boolean;
+}
+
+export function findBrokenReferences(
+  projectRoot: string,
+  trees = INSTALLED_TREES,
+  { projectPaths = true }: CheckOptions = {},
+): string[] {
   const broken: string[] = [];
   for (const tree of trees) {
     const treeRoot = join(projectRoot, tree);
@@ -144,7 +159,7 @@ export function findBrokenReferences(projectRoot: string, trees = INSTALLED_TREE
             }
           }
         }
-        for (const m of line.matchAll(PROJECT_PATH)) {
+        for (const m of projectPaths ? line.matchAll(PROJECT_PATH) : []) {
           const ref = clean(m[0]);
           // `qe-*.md`, `{name}/` and `<skill>/` are patterns, not paths.
           if (/^[*{<]/.test(line.slice(m.index! + m[0].length))) continue;
@@ -155,7 +170,7 @@ export function findBrokenReferences(projectRoot: string, trees = INSTALLED_TREE
         for (const m of line.matchAll(SCRIPT)) {
           const ref = m[0];
           const ok = (owner && existsSync(join(owner, ref))) || existsSync(join(dirname(file), ref))
-            || existsSync(join(projectRoot, ref));
+            || (projectPaths && existsSync(join(projectRoot, ref)));
           if (!ok) broken.push(`${at}: script ${ref}`);
         }
         for (const m of line.matchAll(PKG_PATH)) {
@@ -171,8 +186,10 @@ export function findBrokenReferences(projectRoot: string, trees = INSTALLED_TREE
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const [root, ...trees] = process.argv.slice(2);
-  const broken = findBrokenReferences(resolve(root), trees.length ? trees : INSTALLED_TREES);
+  const args = process.argv.slice(2);
+  const projectPaths = !args.includes('--no-project-paths');
+  const [root, ...trees] = args.filter((a) => a !== '--no-project-paths');
+  const broken = findBrokenReferences(resolve(root), trees.length ? trees : INSTALLED_TREES, { projectPaths });
   for (const b of broken) console.log(b);
   console.log(`${broken.length} broken reference(s)`);
   process.exitCode = broken.length ? 1 : 0;

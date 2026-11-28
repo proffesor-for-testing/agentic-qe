@@ -221,8 +221,8 @@ const mutationFleet = await FleetManager.coordinate({
 
 ## Related Skills
 - [tdd-london-chicago](../tdd-london-chicago/) - Write effective tests first
-- [test-design-techniques](../test-design-techniques/) - Boundary value analysis
-- [quality-metrics](../quality-metrics/) - Measure test effectiveness
+- `test-design-techniques` skill - Boundary value analysis
+- `quality-metrics` skill - Measure test effectiveness
 
 ---
 
