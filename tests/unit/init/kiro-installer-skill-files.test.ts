@@ -291,6 +291,21 @@ describe('KiroInstaller skill supporting files (#1414)', () => {
       expect(readFileSync(join(kiroDir, 'steps', '02-b.md'), 'utf-8')).toBe('Step two\n');
       expect(readFileSync(join(kiroDir, 'steps', '99-removed.md'), 'utf-8')).toBe('left over\n');
     });
+
+    it('replaces the frontmatter of a CRLF SKILL.md instead of keeping it in the body (#1494)', async () => {
+      const src = join(projectRoot, '.claude', 'skills', 'qcsd-cicd-swarm');
+      writeFileSync(
+        join(src, 'SKILL.md'),
+        '---\r\nname: qcsd-cicd-swarm\r\ndescription: "CRLF skill"\r\nvalidation:\r\n  eval_path: evals/qcsd-cicd-swarm.yaml\r\n---\r\n\r\n# Body\r\n',
+      );
+
+      await kiroSkillsOnly(projectRoot).install();
+      const text = readFileSync(join(projectRoot, '.kiro', 'skills', 'qcsd-cicd-swarm', 'SKILL.md'), 'utf-8');
+
+      expect(text).toMatch(/^---\ninclusion: auto\nname: qcsd-cicd-swarm\ndescription: "CRLF skill"\n---\n/);
+      expect(text).not.toContain('eval_path');
+      expect(text).toContain('# Body');
+    });
   });
 });
 

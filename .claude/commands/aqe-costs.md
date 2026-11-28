@@ -506,4 +506,3 @@ Available providers: ruvllm, anthropic, openrouter, openai, onnx
 - `/aqe-fleet-status` - Fleet health and status
 - `/aqe-report` - Quality reports
 - `/aqe-benchmark` - Performance benchmarking
-- [Pricing Configuration](../../src/telemetry/metrics/collectors/pricing-config.ts)

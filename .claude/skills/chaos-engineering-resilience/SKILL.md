@@ -150,9 +150,9 @@ const chaosFleet = await FleetManager.coordinate({
 ---
 
 ## Related Skills
-- [shift-right-testing](../shift-right-testing/) - Production testing
-- [performance-testing](../performance-testing/) - Load testing
-- [test-environment-management](../test-environment-management/) - Environment stability
+- `shift-right-testing` skill - Production testing
+- `performance-testing` skill - Load testing
+- `test-environment-management` skill - Environment stability
 
 ---
 

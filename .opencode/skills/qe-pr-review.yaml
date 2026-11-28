@@ -1,6 +1,6 @@
 name: qe-pr-review
-description: "Scope-aware GitHub PR review with user-friendly tone and trust tier validation"
-minModelTier: tier3-best
+description: "Use when reviewing a GitHub PR for quality, scope correctness, trust tier compliance, or generating user-friendly review feedback."
+minModelTier: tier1-any
 tags: ["qe", "quality-engineering", "code-review"]
 steps:
   - name: arguments
@@ -19,10 +19,10 @@ steps:
     prompt: |
       1. Read the Full Diff
   - name: 2-scope-check
-    description: "- Only analyze AQE/QE skills (NOT Claude Flow platform skills) - Platform skills to EXCLUDE: v3-*, flow-nexus-*, agentdb-*, reasoningbank-*, swarm-*, github-*, hive-mind-advanced, hooks-automation, iterative-loop, stream-chain, skill-builder, sparc-methodology, pair-programming, release, debug-loop,"
+    description: "- Only analyze AQE/QE skills (NOT Claude Flow platform skills) - Platform skills to EXCLUDE: v3-*, flow-nexus-*, agentdb-*, reasoningbank-*, swarm-*, github-*, hive-mind-advanced, hooks-automation, iterative-loop, stream-chain, skill-builder, sparc-methodology, pair-programming, release, debug-loop "
     tools: ["bash", "read", "edit"]
     prompt: |
-      - Only analyze AQE/QE skills (NOT Claude Flow platform skills) - Platform skills to EXCLUDE: v3-*, flow-nexus-*, agentdb-*, reasoningbank-*, swarm-*, github-*, hive-mind-advanced, hooks-automation, iterative-loop, stream-chain, skill-builder, sparc-methodology, pair-programming, release, debug-loop,
+      - Only analyze AQE/QE skills (NOT Claude Flow platform skills) - Platform skills to EXCLUDE: v3-*, flow-nexus-*, agentdb-*, reasoningbank-*, swarm-*, github-*, hive-mind-advanced, hooks-automation, iterative-loop, stream-chain, skill-builder, sparc-methodology, pair-programming, release, debug-loop 
   - name: 3-summarize-changes
     description: "Write a user-friendly summary of what changed and why: - Focus on outcomes, not implementation details - Avoid overly technical jargon - Keep it to 3-5 bullet points"
     tools: ["bash", "read", "edit"]

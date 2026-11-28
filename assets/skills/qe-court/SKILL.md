@@ -191,7 +191,7 @@ Durable, attestable evidence — the "jury waiting for everything you ship."
 **Tier 3 (verified).** The court's falsifiable invariants are enforced by the
 published `agentic-qe/skills/qe-court/referee` entrypoint and covered by a
 consumer-runnable `aqe-court-referee self-test <oracle>` suite that the acceptance eval
-(`evals/qe-court.yaml`, command-eval mode) runs through the `aqe eval` CLI —
+(its [acceptance eval](https://github.com/proffesor-for-testing/agentic-qe/blob/main/.claude/skills/qe-court/evals/qe-court.yaml), command-eval mode) runs through the `aqe eval` CLI —
 15/15 green as of 2026-07-29. That suite now validates the **shipped `config.json`
 itself**, so a routing edit that seats a colluding panel fails in CI rather than in
 a user's court (issue #576). The keystone oracle: a seeded mutant a shallow panel

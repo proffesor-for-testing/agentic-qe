@@ -75,6 +75,7 @@ GO / CONDITIONAL / NO-GO decision and is the first gate in the QCSD lifecycle.
 
 - `URL`: Website to analyze (required for URL mode)
 - `OUTPUT_FOLDER`: Where to save reports (default: `${PROJECT_ROOT}/Agentic QCSD/{domain}/`)
+- URL fetch: run `node_modules/agentic-qe/scripts/fetch-content.cjs`; on `status: degraded` or a missing script, use WebFetch
 
 ### Unique Features
 

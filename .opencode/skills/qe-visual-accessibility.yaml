@@ -1,5 +1,5 @@
 name: qe-visual-accessibility
-description: "Visual regression testing, responsive design validation, and WCAG accessibility compliance testing."
+description: "Captures and compares screenshots across viewports, runs axe-core accessibility scans, and detects visual regressions with pixel-diff analysis. Use when detecting UI regressions, validating responsive layouts, testing WCAG compliance, or ensuring visual consistency after CSS or component changes."
 minModelTier: tier3-best
 tags: ["qe", "quality-engineering"]
 steps:
@@ -8,16 +8,21 @@ steps:
     tools: ["bash", "read", "edit"]
     prompt: |
       Agent Workflow
+  - name: browser-engine
+    description: "All browser automation in this skill uses the **qe-browser** fleet skill (Vibium engine). See `.claude/skills/qe-browser/SKILL.md`. The `vibium` binary is installed by `aqe init`."
+    tools: ["bash", "read"]
+    prompt: |
+      All browser automation in this skill uses the **qe-browser** fleet skill (Vibium engine). See `.claude/skills/qe-browser/SKILL.md`. The `vibium` binary is installed by `aqe init`.
   - name: visual-testing-operations
     description: "Visual Testing Operations"
     tools: ["bash", "read"]
     prompt: |
       Visual Testing Operations
-  - name: 1-visual-regression
-    description: "1. Visual Regression"
+  - name: 1-visual-regression-via-qe-browser
+    description: "1. Visual Regression (via qe-browser)"
     tools: ["bash", "read"]
     prompt: |
-      1. Visual Regression
+      1. Visual Regression (via qe-browser)
   - name: 2-responsive-testing
     description: "2. Responsive Testing"
     tools: ["bash", "read"]
@@ -38,8 +43,3 @@ steps:
     tools: ["bash", "read"]
     prompt: |
       WCAG 2.2 Checklist
-  - name: visual-test-report
-    description: "Visual Test Report"
-    tools: ["bash", "read"]
-    prompt: |
-      Visual Test Report

@@ -1,6 +1,6 @@
 name: qe-debug-loop
-description: "Hypothesis-driven autonomous debugging with real command validation"
-minModelTier: tier3-best
+description: "Use when debugging a failing test or runtime error with hypothesis-driven investigation, autonomous command validation, and systematic root cause elimination."
+minModelTier: tier1-any
 tags: ["qe", "quality-engineering", "debugging"]
 steps:
   - name: arguments

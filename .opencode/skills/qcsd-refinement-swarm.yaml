@@ -1,45 +1,45 @@
 name: qcsd-refinement-swarm
-description: "QCSD Refinement phase swarm for Sprint Refinement sessions using SFDIPOT product factors, BDD scenario generation, and requirements validation."
+description: "Use when running Sprint Refinement sessions with SFDIPOT product factors, generating BDD scenarios, or validating requirements in the QCSD Refinement phase."
 minModelTier: tier3-best
 tags: ["qcsd", "refinement", "sfdipot", "bdd", "gherkin", "requirements", "swarm", "parallel", "ddd", "qe", "quality-engineering", "qcsd-phases"]
 steps:
   - name: overview
-    description: "The Refinement Swarm takes user stories that passed Ideation and prepares them for Sprint commitment. Where the Ideation Swarm asks \"Should we build this?\" using HTSM quality criteria, the Refinement Swarm asks \"How should we test this?\" using SFDIPOT product factors, BDD scenarios, and INVEST valid"
+    description: "The Refinement Swarm takes user stories that passed Ideation and prepares them for Sprint commitment using SFDIPOT product factors, BDD scenarios, and INVEST validation. It renders a READY / CONDITIONAL / NOT-READY decision."
     tools: ["bash", "read"]
     prompt: |
-      The Refinement Swarm takes user stories that passed Ideation and prepares them for Sprint commitment. Where the Ideation Swarm asks "Should we build this?" using HTSM quality criteria, the Refinement Swarm asks "How should we test this?" using SFDIPOT product factors, BDD scenarios, and INVEST valid
-  - name: key-differentiators-from-ideation-swarm
-    description: "Key Differentiators from Ideation Swarm"
+      The Refinement Swarm takes user stories that passed Ideation and prepares them for Sprint commitment using SFDIPOT product factors, BDD scenarios, and INVEST validation. It renders a READY / CONDITIONAL / NOT-READY decision.
+  - name: qcsd-phase-positioning
+    description: "QCSD Phase Positioning"
     tools: ["bash", "read"]
     prompt: |
-      Key Differentiators from Ideation Swarm
+      QCSD Phase Positioning
+  - name: parameters
+    description: "- `STORY_CONTENT`: User story with acceptance criteria (required) - `OUTPUT_FOLDER`: Where to save reports (default: `${PROJECT_ROOT}/Agentic QCSD/refinement/`)"
+    tools: ["bash", "read"]
+    prompt: |
+      - `STORY_CONTENT`: User story with acceptance criteria (required) - `OUTPUT_FOLDER`: Where to save reports (default: `${PROJECT_ROOT}/Agentic QCSD/refinement/`)
   - name: enforcement-rules---read-first
-    description: "**These rules are NON-NEGOTIABLE. Violation means skill execution failure.**"
+    description: "ENFORCEMENT RULES - READ FIRST"
+    tools: ["bash", "read"]
+    prompt: |
+      ENFORCEMENT RULES - READ FIRST
+  - name: step-execution-protocol
+    description: "Execute steps sequentially by reading each step file with the Read tool."
+    tools: ["bash", "read"]
+    prompt: |
+      Execute steps sequentially by reading each step file with the Read tool.
+  - name: steps
+    description: "1. **Flag Detection** -- `node_modules/agentic-qe/assets/skills/qcsd-refinement-swarm/steps/01-flag-detection.md` -- Analyze story content, evaluate all 7 flags 2. **Core Agents** -- `node_modules/agentic-qe/assets/skills/qcsd-refinement-swarm/steps/02-core-agents.md` -- Spawn qe-product-factors-assessor, qe-bdd-generator, qe-requirements-validator 3. **Batch 1 Results** -- `node_modules/agentic-qe/assets/skills/qcsd-refinement-swarm/steps/03-batch1-results.md` -- Wait and ex"
     tools: ["bash", "read", "grep", "mcp:agentic-qe:*"]
     prompt: |
-      **These rules are NON-NEGOTIABLE. Violation means skill execution failure.**
-  - name: phase-1-analyze-story-content-flag-detec
-    description: "**MANDATORY: You must complete this analysis before Phase 2.**"
+      1. **Flag Detection** -- `node_modules/agentic-qe/assets/skills/qcsd-refinement-swarm/steps/01-flag-detection.md` -- Analyze story content, evaluate all 7 flags 2. **Core Agents** -- `node_modules/agentic-qe/assets/skills/qcsd-refinement-swarm/steps/02-core-agents.md` -- Spawn qe-product-factors-assessor, qe-bdd-generator, qe-requirements-validator 3. **Batch 1 Results** -- `node_modules/agentic-qe/assets/skills/qcsd-refinement-swarm/steps/03-batch1-results.md` -- Wait and ex
+  - name: execution-instructions
+    description: "1. Use the Read tool to load the current step file 2. Execute the step's instructions completely 3. Verify all success criteria are met 4. Pass output as context to next step 5. If a step fails, halt and report"
     tools: ["bash", "read"]
     prompt: |
-      **MANDATORY: You must complete this analysis before Phase 2.**
-  - name: flag-detection-check-all-seven
-    description: "Flag Detection (Check ALL SEVEN)"
+      1. Use the Read tool to load the current step file 2. Execute the step's instructions completely 3. Verify all success criteria are met 4. Pass output as context to next step 5. If a step fails, halt and report
+  - name: resume-support
+    description: "To resume from a specific step: specify `--from-step N`."
     tools: ["bash", "read"]
     prompt: |
-      Flag Detection (Check ALL SEVEN)
-  - name: validation-checkpoint
-    description: "Before proceeding to Phase 2, confirm:"
-    tools: ["bash", "read"]
-    prompt: |
-      Before proceeding to Phase 2, confirm:
-  - name: mandatory-output-flag-detection-results
-    description: "You MUST output flag detection results before proceeding:"
-    tools: ["bash", "read"]
-    prompt: |
-      You MUST output flag detection results before proceeding:
-  - name: phase-2-spawn-core-agents-parallel-batch
-    description: "PHASE 2: Spawn Core Agents (PARALLEL BATCH 1)"
-    tools: ["bash", "read"]
-    prompt: |
-      PHASE 2: Spawn Core Agents (PARALLEL BATCH 1)
+      To resume from a specific step: specify `--from-step N`.

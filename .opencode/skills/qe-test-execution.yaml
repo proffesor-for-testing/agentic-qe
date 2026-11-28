@@ -1,5 +1,5 @@
 name: qe-test-execution
-description: "Parallel test execution orchestration with intelligent scheduling, retry logic, and comprehensive result aggregation."
+description: "Orchestrates test suite execution with parallel sharding, intelligent retry, and real-time reporting across Jest, Vitest, and Playwright. Use when running test suites, optimizing execution time, handling flaky tests, configuring CI test pipelines, or analyzing test run results."
 minModelTier: tier3-best
 tags: ["qe", "quality-engineering"]
 steps:

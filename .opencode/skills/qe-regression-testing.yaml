@@ -3,11 +3,6 @@ description: "Strategic regression testing with test selection, impact analysis,
 minModelTier: tier3-best
 tags: ["regression", "test-selection", "impact-analysis", "ci-cd", "change-based", "risk-based", "qe", "quality-engineering", "specialized-testing"]
 steps:
-  - name: regression-types
-    description: "Regression Types"
-    tools: ["bash", "read", "edit"]
-    prompt: |
-      Regression Types
   - name: test-selection-strategies
     description: "Test Selection Strategies"
     tools: ["bash", "read", "edit"]
@@ -18,23 +13,23 @@ steps:
     tools: ["bash", "read", "edit"]
     prompt: |
       Change-Based Test Selection
-  - name: regression-suite-pyramid
-    description: "Regression Suite Pyramid"
-    tools: ["bash", "read", "edit"]
-    prompt: |
-      Regression Suite Pyramid
   - name: cicd-integration
     description: "CI/CD Integration"
     tools: ["bash", "read", "edit"]
     prompt: |
       CI/CD Integration
-  - name: optimization-techniques
-    description: "Optimization Techniques"
-    tools: ["bash", "read", "edit"]
-    prompt: |
-      Optimization Techniques
   - name: agent-driven-regression
     description: "Agent-Driven Regression"
     tools: ["bash", "read", "edit", "grep"]
     prompt: |
       Agent-Driven Regression
+  - name: skill-composition
+    description: "- **Test failing?** → Use `/test-failure-investigator` to diagnose root cause - **File a bug** → Use `/bug-reporting-excellence` for proper bug reporting - **Test selection** → Use `/risk-based-testing` for risk-based prioritization"
+    tools: ["bash", "read"]
+    prompt: |
+      - **Test failing?** → Use `/test-failure-investigator` to diagnose root cause - **File a bug** → Use `/bug-reporting-excellence` for proper bug reporting - **Test selection** → Use `/risk-based-testing` for risk-based prioritization
+  - name: gotchas
+    description: "- Agent defaults to \"run everything\" despite being told to select — explicitly constrain with `--affected` or file list - Change-based selection misses transitive dependencies — a model change can break a controller test 3 hops away - Flaky tests in regression suites erode trust faster than missing "
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      - Agent defaults to "run everything" despite being told to select — explicitly constrain with `--affected` or file list - Change-based selection misses transitive dependencies — a model change can break a controller test 3 hops away - Flaky tests in regression suites erode trust faster than missing 

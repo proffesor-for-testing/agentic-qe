@@ -1,5 +1,5 @@
 name: qcsd-cicd-swarm
-description: "QCSD Verification phase swarm for CI/CD pipeline quality gates using regression analysis, flaky test detection, quality gate enforcement, and deployment readiness assessment. Consumes Development outputs (SHIP/CONDITIONAL/HOLD decisions, quality metrics) and produces signals for Production monitorin"
+description: "Use when enforcing CI/CD quality gates before release, running regression analysis, detecting flaky tests, or assessing deployment readiness in the QCSD Verification phase."
 minModelTier: tier3-best
 tags: ["qcsd", "verification", "cicd", "pipeline", "quality-gate", "regression", "flaky", "security", "chaos", "coverage", "deployment", "swarm", "parallel", "ddd", "qe", "quality-engineering", "qcsd-phases"]
 steps:
@@ -10,36 +10,36 @@ steps:
       The CI/CD Swarm takes code that passed Development quality checks and validates it is safe to release through the CI/CD pipeline. Where the Development Swarm asks "Is the code quality sufficient to ship?", the CI/CD Swarm asks "Is this change safe to release?"
   - name: qcsd-phase-positioning
     description: "QCSD Phase Positioning"
-    tools: ["bash", "read", "edit"]
+    tools: ["bash", "read"]
     prompt: |
       QCSD Phase Positioning
-  - name: key-differentiators-from-development-swa
-    description: "Key Differentiators from Development Swarm"
-    tools: ["bash", "read", "edit"]
-    prompt: |
-      Key Differentiators from Development Swarm
   - name: parameters
     description: "- `PIPELINE_ARTIFACTS`: Path to CI/CD artifacts, test results, and build output (required, e.g., `ci/artifacts/`) - `BASELINE_REF`: Git ref for baseline comparison (optional, default: `main`) - `OUTPUT_FOLDER`: Where to save reports (default: `${PROJECT_ROOT}/Agentic QCSD/cicd/`) - `DEPLOY_TARGET`: "
     tools: ["bash", "read"]
     prompt: |
       - `PIPELINE_ARTIFACTS`: Path to CI/CD artifacts, test results, and build output (required, e.g., `ci/artifacts/`) - `BASELINE_REF`: Git ref for baseline comparison (optional, default: `main`) - `OUTPUT_FOLDER`: Where to save reports (default: `${PROJECT_ROOT}/Agentic QCSD/cicd/`) - `DEPLOY_TARGET`: 
   - name: enforcement-rules---read-first
-    description: "**These rules are NON-NEGOTIABLE. Violation means skill execution failure.**"
+    description: "ENFORCEMENT RULES - READ FIRST"
+    tools: ["bash", "read"]
+    prompt: |
+      ENFORCEMENT RULES - READ FIRST
+  - name: step-execution-protocol
+    description: "This skill uses a micro-file step architecture. Each step is a self-contained file loaded one at a time to avoid \"lost in the middle\" context degradation."
+    tools: ["bash", "read"]
+    prompt: |
+      This skill uses a micro-file step architecture. Each step is a self-contained file loaded one at a time to avoid "lost in the middle" context degradation.
+  - name: steps
+    description: "1. **Flag Detection** -- `node_modules/agentic-qe/assets/skills/qcsd-cicd-swarm/steps/01-flag-detection.md` -- Scan pipeline artifacts, detect all 6 flags 2. **Core Agents** -- `node_modules/agentic-qe/assets/skills/qcsd-cicd-swarm/steps/02-core-agents.md` -- Spawn qe-quality-gate, qe-regression-analyzer, qe-flaky-hunter in parallel 3. **Batch 1 Results** -- `node_modules/agentic-qe/assets/skills/qcsd-cicd-swarm/steps/03-batch1-results.md` -- Wait for core a"
     tools: ["bash", "read", "grep", "mcp:agentic-qe:*"]
     prompt: |
-      **These rules are NON-NEGOTIABLE. Violation means skill execution failure.**
-  - name: phase-1-analyze-pipeline-context-flag-de
-    description: "**MANDATORY: You must complete this analysis before Phase 2.**"
-    tools: ["bash", "read", "edit"]
+      1. **Flag Detection** -- `node_modules/agentic-qe/assets/skills/qcsd-cicd-swarm/steps/01-flag-detection.md` -- Scan pipeline artifacts, detect all 6 flags 2. **Core Agents** -- `node_modules/agentic-qe/assets/skills/qcsd-cicd-swarm/steps/02-core-agents.md` -- Spawn qe-quality-gate, qe-regression-analyzer, qe-flaky-hunter in parallel 3. **Batch 1 Results** -- `node_modules/agentic-qe/assets/skills/qcsd-cicd-swarm/steps/03-batch1-results.md` -- Wait for core a
+  - name: execution-instructions
+    description: "1. Use the Read tool to load the current step file (e.g., `Read({ file_path: \".claude/skills/qcsd-cicd-swarm/steps/01-flag-detection.md\" })`) 2. Execute the step's instructions completely 3. Verify all success criteria are met before proceeding 4. Pass the step's output as context to the next step 5"
+    tools: ["bash", "read"]
     prompt: |
-      **MANDATORY: You must complete this analysis before Phase 2.**
-  - name: flag-detection-check-all-six
-    description: "Flag Detection (Check ALL SIX)"
-    tools: ["bash", "read", "edit", "mcp:agentic-qe:*"]
+      1. Use the Read tool to load the current step file (e.g., `Read({ file_path: ".claude/skills/qcsd-cicd-swarm/steps/01-flag-detection.md" })`) 2. Execute the step's instructions completely 3. Verify all success criteria are met before proceeding 4. Pass the step's output as context to the next step 5
+  - name: resume-support
+    description: "To resume from a specific step: specify `--from-step N` and the orchestrator will skip to step N. Ensure you have the required prerequisite data from prior steps."
+    tools: ["bash", "read"]
     prompt: |
-      Flag Detection (Check ALL SIX)
-  - name: validation-checkpoint
-    description: "Before proceeding to Phase 2, confirm:"
-    tools: ["bash", "read", "edit"]
-    prompt: |
-      Before proceeding to Phase 2, confirm:
+      To resume from a specific step: specify `--from-step N` and the orchestrator will skip to step N. Ensure you have the required prerequisite data from prior steps.

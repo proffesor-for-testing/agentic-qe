@@ -1,0 +1,25 @@
+name: qe-freeze-tests
+description: "Use when refactoring production code and you want to ensure test files are not modified. Activate with /freeze-tests to block all edits to test files for safe refactoring."
+minModelTier: tier2-good
+tags: ["qe", "quality-engineering"]
+steps:
+  - name: what-it-does
+    description: "Blocks Write, Edit and MultiEdit operations on any test file (the same definition no-skip uses): - files under `spec/`, `specs/`, `e2e/`, `cypress/`, `__tests__/`, `test/` or `tests/` - `*.test.*`, `*.spec.*`, `*_spec.*`, `*-spec.*`, `*.cy.*` - `*Spec.*`, `*Test.*`, `*Tests.*`, `*IT.*` class files -"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Blocks Write, Edit and MultiEdit operations on any test file (the same definition no-skip uses): - files under `spec/`, `specs/`, `e2e/`, `cypress/`, `__tests__/`, `test/` or `tests/` - `*.test.*`, `*.spec.*`, `*_spec.*`, `*-spec.*`, `*.cy.*` - `*Spec.*`, `*Test.*`, `*Tests.*`, `*IT.*` class files -
+  - name: hook-configuration
+    description: "Add this to `.claude/settings.json` (Claude Code settings schema):"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Add this to `.claude/settings.json` (Claude Code settings schema):
+  - name: enforcement-logic
+    description: "The hook runs the shipped script, `node_modules/agentic-qe/assets/skills/freeze-tests/scripts/block-test-edits.sh`. In hook mode it reads the target path from `tool_input.file_path`, blocks test files and allows anything else."
+    tools: ["bash", "read", "edit", "grep"]
+    prompt: |
+      The hook runs the shipped script, `node_modules/agentic-qe/assets/skills/freeze-tests/scripts/block-test-edits.sh`. In hook mode it reads the target path from `tool_input.file_path`, blocks test files and allows anything else.
+  - name: gotchas
+    description: "- Frozen tests can't be fixed if they break during refactoring — that's the point (the refactoring broke behavior) - If a refactoring requires test changes, it's not a pure refactoring — deactivate and treat as a feature change - This doesn't prevent running tests — only modifying test files"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      - Frozen tests can't be fixed if they break during refactoring — that's the point (the refactoring broke behavior) - If a refactoring requires test changes, it's not a pure refactoring — deactivate and treat as a feature change - This doesn't prevent running tests — only modifying test files

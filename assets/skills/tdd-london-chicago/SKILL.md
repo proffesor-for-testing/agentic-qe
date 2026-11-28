@@ -231,9 +231,9 @@ const tddFleet = await FleetManager.coordinate({
 ---
 
 ## Related Skills
-- [agentic-quality-engineering](../agentic-quality-engineering/) - TDD with agent coordination
-- [refactoring-patterns](../refactoring-patterns/) - Refactor phase techniques
-- [api-testing-patterns](../api-testing-patterns/) - London school for API testing
+- `agentic-quality-engineering` skill - TDD with agent coordination
+- `refactoring-patterns` skill - Refactor phase techniques
+- `api-testing-patterns` skill - London school for API testing
 
 ---
 

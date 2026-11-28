@@ -1,0 +1,25 @@
+name: qe-security-watch
+description: "Use when working on security-sensitive code to catch secrets, eval(), innerHTML, and other dangerous patterns before they're written. Activate with /security-watch for real-time security scanning."
+minModelTier: tier2-good
+tags: ["qe", "quality-engineering"]
+steps:
+  - name: what-it-does
+    description: "Blocks writes containing secrets and asks before writes containing risky patterns: - **Secrets**: API keys, passwords, tokens, private keys in source code - **Dangerous functions**: `eval()`, `Function()`, `innerHTML`, `dangerouslySetInnerHTML` - **Injection vectors**: template literals interpolated"
+    tools: ["bash", "read"]
+    prompt: |
+      Blocks writes containing secrets and asks before writes containing risky patterns: - **Secrets**: API keys, passwords, tokens, private keys in source code - **Dangerous functions**: `eval()`, `Function()`, `innerHTML`, `dangerouslySetInnerHTML` - **Injection vectors**: template literals interpolated
+  - name: hook-configuration
+    description: "Add this to `.claude/settings.json` (Claude Code settings schema):"
+    tools: ["bash", "read", "edit", "grep"]
+    prompt: |
+      Add this to `.claude/settings.json` (Claude Code settings schema):
+  - name: detection-patterns
+    description: "The hook runs the shipped scanner, `node_modules/agentic-qe/assets/skills/security-watch/scripts/scan-security.sh`. In hook mode it scans the written text (`content` for Write, `new_string` for Edit, every `edits[].new_string` for MultiEdit) of every file."
+    tools: ["bash", "read", "edit", "grep"]
+    prompt: |
+      The hook runs the shipped scanner, `node_modules/agentic-qe/assets/skills/security-watch/scripts/scan-security.sh`. In hook mode it scans the written text (`content` for Write, `new_string` for Edit, every `edits[].new_string` for MultiEdit) of every file.
+  - name: gotchas
+    description: "- False positives on test fixtures that intentionally contain patterns like `eval()` — there is no ignore comment; deactivate the hook while writing such fixtures - Base64-encoded secrets won't be caught — this scans for plaintext patterns only - Template literal injection detection has false positi"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      - False positives on test fixtures that intentionally contain patterns like `eval()` — there is no ignore comment; deactivate the hook while writing such fixtures - Base64-encoded secrets won't be caught — this scans for plaintext patterns only - Template literal injection detection has false positi

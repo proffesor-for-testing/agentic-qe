@@ -4,12 +4,14 @@
  * Reads all .claude/skills/SKILL.md files and generates .opencode/skills/{name}.yaml
  * configs for the OpenCode platform.
  *
- * Usage: npx tsx scripts/generate-opencode-skills.ts
+ * Usage: npx tsx scripts/generate-opencode-skills.ts           # regenerate
+ *        npx tsx scripts/generate-opencode-skills.ts --check   # exit 1 if committed yaml drifted (#1494)
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { EXCLUDED_SKILLS } from '../src/init/skills-installer.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -205,6 +207,27 @@ function extractSteps(content: string): SkillStep[] {
   return steps;
 }
 
+/** Skill-local resource dirs; `aqe init` copies none of them into `.opencode/skills/<name>/`. */
+const LOCAL_REF = /(?<![\w./-])((?:steps|schemas|scripts|templates|resources|references)\/[\w./-]*\w)/g;
+const LOCAL_LINK = /\[([^\]\n]*)\]\(((?:steps|schemas|scripts|templates|resources|references)\/[^)\s]+)\)/g;
+
+/**
+ * OpenCode gets one flattened SKILL.md per skill, without the skill's `steps/`,
+ * `scripts/`, `references/`... files, so a skill-local path in a prompt is a dead end
+ * there (#1494). Point each one that the npm package ships (`assets/skills/<dir>/...`) at
+ * its installed copy under `node_modules/agentic-qe/`. Markdown links become plain paths.
+ */
+function packageLocalPaths(text: string, dirName: string, packagedSkillsDir: string): string {
+  const shipped = (rel: string): boolean => fs.existsSync(path.join(packagedSkillsDir, dirName, rel.split('#')[0]));
+  const pkg = (rel: string): string => `node_modules/agentic-qe/assets/skills/${dirName}/${rel}`;
+  return text
+    .replace(LOCAL_LINK, (whole, label: string, rel: string) => {
+      if (!shipped(rel)) return whole;
+      return label === rel ? `\`${pkg(rel)}\`` : `${label} (\`${pkg(rel)}\`)`;
+    })
+    .replace(LOCAL_REF, (rel: string) => (shipped(rel) ? pkg(rel) : rel));
+}
+
 function escapeYamlString(s: string): string {
   return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
@@ -232,8 +255,13 @@ steps:
   return yaml;
 }
 
+/**
+ * Platform and internal skills: the prefixes above, plus every skill `aqe init` leaves
+ * out of a Claude Code install (skills-installer EXCLUDED_SKILLS), so OpenCode and Kiro
+ * get the same AQE skill set (#1494).
+ */
 function isExcluded(name: string): boolean {
-  return EXCLUDED_PREFIXES.some((prefix) => name.startsWith(prefix));
+  return EXCLUDED_PREFIXES.some((prefix) => name.startsWith(prefix)) || EXCLUDED_SKILLS.includes(name);
 }
 
 /** Compute the output name, avoiding double qe- prefix */
@@ -246,76 +274,147 @@ function computeOutputName(dirName: string): string {
   return `qe-${safeName}`;
 }
 
-async function main(): Promise<void> {
-  const skillsDir = path.resolve(__dirname, '../.claude/skills');
-  const outputDir = path.resolve(__dirname, '../.opencode/skills');
+export const DEFAULT_SKILLS_DIR = path.resolve(__dirname, '../.claude/skills');
+export const DEFAULT_OUTPUT_DIR = path.resolve(__dirname, '../.opencode/skills');
+/** The npm package's skill copies: what `node_modules/agentic-qe/assets/skills/` holds. */
+export const DEFAULT_PACKAGED_SKILLS_DIR = path.resolve(__dirname, '../assets/skills');
 
-  fs.mkdirSync(outputDir, { recursive: true });
+export interface OpenCodeSkillsBuild {
+  /** `<name>.yaml` -> file content, for every skill the generator emits. */
+  files: Map<string, string>;
+  skipped: string[];
+}
 
-  // Clear existing generated skills
-  for (const existing of fs.readdirSync(outputDir)) {
-    if (existing.endsWith('.yaml')) {
-      fs.unlinkSync(path.join(outputDir, existing));
-    }
-  }
-
-  const entries = fs.readdirSync(skillsDir, { withFileTypes: true });
-  let generated = 0;
-  let skipped = 0;
-  const skippedNames: string[] = [];
+/**
+ * Build every `.opencode/skills/<name>.yaml` from `.claude/skills/<dir>/SKILL.md`.
+ * Pure (reads only): `main` writes the result, `--check` and the drift test compare it.
+ *
+ * Two source dirs can map to one output name (`browser` and `qe-browser` both give
+ * `qe-browser`). The dir already named like the output wins; any other clash is an error,
+ * so the result never depends on directory order.
+ */
+export function buildOpenCodeSkills(
+  skillsDir: string,
+  packagedSkillsDir = DEFAULT_PACKAGED_SKILLS_DIR,
+): OpenCodeSkillsBuild {
+  const files = new Map<string, string>();
+  const owners = new Map<string, string>();
+  const skipped: string[] = [];
+  const entries = fs.readdirSync(skillsDir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name));
 
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     if (isExcluded(entry.name)) {
-      skipped++;
+      skipped.push(`${entry.name} (excluded)`);
       continue;
     }
 
     const skillPath = path.join(skillsDir, entry.name, 'SKILL.md');
     if (!fs.existsSync(skillPath)) {
-      skippedNames.push(`${entry.name} (no SKILL.md)`);
-      skipped++;
+      skipped.push(`${entry.name} (no SKILL.md)`);
       continue;
     }
 
     const content = fs.readFileSync(skillPath, 'utf-8');
     const frontmatter = parseFrontmatter(content);
     if (!frontmatter || !frontmatter.name) {
-      skippedNames.push(`${entry.name} (no frontmatter/name)`);
-      skipped++;
+      skipped.push(`${entry.name} (no frontmatter/name)`);
       continue;
     }
 
     const outputName = computeOutputName(entry.name);
+    const owner = owners.get(outputName);
+    if (owner !== undefined) {
+      if (owner === outputName) {
+        skipped.push(`${entry.name} (${outputName} comes from .claude/skills/${outputName})`);
+        continue;
+      }
+      if (entry.name !== outputName) {
+        throw new Error(`.claude/skills/${owner} and .claude/skills/${entry.name} both map to ${outputName}.yaml`);
+      }
+      skipped.push(`${owner} (${outputName} comes from .claude/skills/${outputName})`);
+    }
+    owners.set(outputName, entry.name);
+
     const tags = [...(frontmatter.tags ?? []), 'qe', 'quality-engineering'];
     if (frontmatter.category) tags.push(frontmatter.category);
     if (frontmatter.domain) tags.push(frontmatter.domain);
 
-    const steps = extractSteps(content);
-    const minModelTier = tierToMinModel(frontmatter.trust_tier ?? 2);
-
     const config: SkillConfig = {
       name: outputName,
       description: (frontmatter.description || frontmatter.name).slice(0, 300),
-      minModelTier,
+      minModelTier: tierToMinModel(frontmatter.trust_tier ?? 2),
       tags: [...new Set(tags)],
-      steps,
+      steps: extractSteps(content).map((step) => ({
+        ...step,
+        description: packageLocalPaths(step.description, entry.name, packagedSkillsDir),
+        prompt: packageLocalPaths(step.prompt, entry.name, packagedSkillsDir),
+      })),
     };
-
-    const yaml = generateSkillYaml(config);
-    const outputPath = path.join(outputDir, `${outputName}.yaml`);
-    fs.writeFileSync(outputPath, yaml, 'utf-8');
-    generated++;
+    files.set(`${outputName}.yaml`, generateSkillYaml(config));
   }
 
-  console.log(`Skill generation complete: ${generated} generated, ${skipped} skipped`);
-  if (skippedNames.length > 0) {
-    console.log(`Skipped details: ${skippedNames.join(', ')}`);
-  }
-  console.log(`Output directory: ${outputDir}`);
+  return { files, skipped };
 }
 
-main().catch((err) => {
-  console.error('Generation failed:', err);
-  process.exit(1);
-});
+export interface OpenCodeSkillsDrift {
+  added: string[];
+  removed: string[];
+  changed: string[];
+}
+
+/** Compare a build with the yaml files committed in `outputDir`. */
+export function diffOpenCodeSkills(build: OpenCodeSkillsBuild, outputDir: string): OpenCodeSkillsDrift {
+  const committed = fs.existsSync(outputDir)
+    ? fs.readdirSync(outputDir).filter((f) => f.endsWith('.yaml'))
+    : [];
+  const added = [...build.files.keys()].filter((f) => !committed.includes(f)).sort();
+  const removed = committed.filter((f) => !build.files.has(f)).sort();
+  const changed = committed
+    .filter((f) => build.files.has(f) && fs.readFileSync(path.join(outputDir, f), 'utf-8') !== build.files.get(f))
+    .sort();
+  return { added, removed, changed };
+}
+
+function main(): void {
+  const check = process.argv.includes('--check');
+  const build = buildOpenCodeSkills(DEFAULT_SKILLS_DIR);
+
+  if (check) {
+    const drift = diffOpenCodeSkills(build, DEFAULT_OUTPUT_DIR);
+    const total = drift.added.length + drift.removed.length + drift.changed.length;
+    for (const f of drift.added) console.log(`  [MISSING] .opencode/skills/${f}`);
+    for (const f of drift.removed) console.log(`  [STALE]   .opencode/skills/${f}`);
+    for (const f of drift.changed) console.log(`  [DRIFT]   .opencode/skills/${f}`);
+    if (total > 0) {
+      console.error(`\n✗ .opencode/skills differs from the generator output (${total} file(s)).`);
+      console.error('  Run: npx tsx scripts/generate-opencode-skills.ts');
+      process.exit(1);
+    }
+    console.log(`✓ .opencode/skills matches the generator output (${build.files.size} skills)`);
+    return;
+  }
+
+  fs.mkdirSync(DEFAULT_OUTPUT_DIR, { recursive: true });
+  // Clear existing generated skills
+  for (const existing of fs.readdirSync(DEFAULT_OUTPUT_DIR)) {
+    if (existing.endsWith('.yaml')) fs.unlinkSync(path.join(DEFAULT_OUTPUT_DIR, existing));
+  }
+  for (const [file, yaml] of build.files) {
+    fs.writeFileSync(path.join(DEFAULT_OUTPUT_DIR, file), yaml, 'utf-8');
+  }
+
+  console.log(`Skill generation complete: ${build.files.size} generated, ${build.skipped.length} skipped`);
+  const details = build.skipped.filter((s) => !s.endsWith('(excluded)'));
+  if (details.length > 0) console.log(`Skipped details: ${details.join(', ')}`);
+  console.log(`Output directory: ${DEFAULT_OUTPUT_DIR}`);
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
+  try {
+    main();
+  } catch (err) {
+    console.error('Generation failed:', err);
+    process.exit(1);
+  }
+}

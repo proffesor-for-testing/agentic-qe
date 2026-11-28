@@ -3,16 +3,6 @@ description: "Move testing activities earlier in the development lifecycle to ca
 minModelTier: tier3-best
 tags: ["shift-left", "early-testing", "tdd", "bdd", "ci-cd", "prevention", "qe", "quality-engineering", "testing-methodologies"]
 steps:
-  - name: cost-of-defects-by-phase
-    description: "Cost of Defects by Phase"
-    tools: ["bash", "read", "edit"]
-    prompt: |
-      Cost of Defects by Phase
-  - name: test-pyramid
-    description: "Test Pyramid"
-    tools: ["bash", "read"]
-    prompt: |
-      Test Pyramid
   - name: shift-left-levels
     description: "Shift-Left Levels"
     tools: ["bash", "read"]
@@ -23,23 +13,18 @@ steps:
     tools: ["bash", "read"]
     prompt: |
       Level 1: Tests in Every PR
-  - name: level-2-tdd-practice
-    description: "Level 2: TDD Practice"
-    tools: ["bash", "read"]
-    prompt: |
-      Level 2: TDD Practice
-  - name: level-3-bdd-in-refinement
-    description: "Level 3: BDD in Refinement"
-    tools: ["bash", "read"]
-    prompt: |
-      Level 3: BDD in Refinement
-  - name: level-4-risk-analysis-in-design
-    description: "Level 4: Risk Analysis in Design"
-    tools: ["bash", "read", "edit"]
-    prompt: |
-      Level 4: Risk Analysis in Design
   - name: agent-assisted-shift-left
     description: "Agent-Assisted Shift-Left"
     tools: ["bash", "read", "edit"]
     prompt: |
       Agent-Assisted Shift-Left
+  - name: skill-composition
+    description: "- **TDD practice** → Use `/tdd-london-chicago` for specific TDD guidance - **Generate tests** → Use `/qe-test-generation` for AI-powered test generation - **CI/CD quality** → Use `/cicd-pipeline-qe-orchestrator` for pipeline setup"
+    tools: ["bash", "read"]
+    prompt: |
+      - **TDD practice** → Use `/tdd-london-chicago` for specific TDD guidance - **Generate tests** → Use `/qe-test-generation` for AI-powered test generation - **CI/CD quality** → Use `/cicd-pipeline-qe-orchestrator` for pipeline setup
+  - name: gotchas
+    description: "- \"Shift left\" doesn't mean \"only test left\" — production monitoring (shift right) is still needed - Agent generates tests before understanding requirements — tests for wrong behavior are worse than no tests - CI pipeline tests that take >10 minutes kill the feedback loop — keep commit-stage tests u"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      - "Shift left" doesn't mean "only test left" — production monitoring (shift right) is still needed - Agent generates tests before understanding requirements — tests for wrong behavior are worse than no tests - CI pipeline tests that take >10 minutes kill the feedback loop — keep commit-stage tests u

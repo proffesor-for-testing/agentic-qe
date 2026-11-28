@@ -3,6 +3,11 @@ description: "WCAG 2.2 compliance testing, screen reader validation, and inclusi
 minModelTier: tier3-best
 tags: ["accessibility", "wcag", "a11y", "screen-reader", "ada", "section-508", "inclusive", "qe", "quality-engineering", "specialized-testing"]
 steps:
+  - name: browser-engine
+    description: "Browser-driven a11y checks should go through the **qe-browser** fleet skill. `vibium a11y-tree --json` returns the full accessibility tree without visual rendering — feed it into axe-core via `vibium eval --stdin` for ruleset enforcement. See `.claude/skills/qe-browser/SKILL.md`."
+    tools: ["bash", "read"]
+    prompt: |
+      Browser-driven a11y checks should go through the **qe-browser** fleet skill. `vibium a11y-tree --json` returns the full accessibility tree without visual rendering — feed it into axe-core via `vibium eval --stdin` for ruleset enforcement. See `.claude/skills/qe-browser/SKILL.md`.
   - name: wcag-22-levels
     description: "WCAG 2.2 Levels"
     tools: ["bash", "read"]
@@ -25,21 +30,16 @@ steps:
       Keyboard Navigation Testing
   - name: automated-testing-with-axe-core
     description: "Automated Testing with axe-core"
-    tools: ["bash", "read", "edit"]
+    tools: ["bash", "read"]
     prompt: |
       Automated Testing with axe-core
-  - name: screen-reader-testing-checklist
-    description: "Screen Reader Testing Checklist"
+  - name: preferred-via-the-a11y-ally-aqe-skill-qe
+    description: "For new work, use the `a11y-ally` skill — it composes `qe-browser` (Vibium WebDriver BiDi) with `axe-core`, `pa11y`, and Lighthouse and produces a WCAG-tagged JSON report with remediation guidance. It avoids the 300MB Playwright install and is already wired into the AQE fleet."
     tools: ["bash", "read"]
     prompt: |
-      Screen Reader Testing Checklist
-  - name: voiceover-macos-testing
-    description: "- [ ] Page title announced on load - [ ] Headings hierarchy correct (h1 → h2 → h3) - [ ] Landmarks present (nav, main, footer) - [ ] Images have descriptive alt text - [ ] Form labels read correctly - [ ] Error messages announced - [ ] Dynamic content updates announced (aria-live)"
-    tools: ["bash", "read"]
+      For new work, use the `a11y-ally` skill — it composes `qe-browser` (Vibium WebDriver BiDi) with `axe-core`, `pa11y`, and Lighthouse and produces a WCAG-tagged JSON report with remediation guidance. It avoids the 300MB Playwright install and is already wired into the AQE fleet.
+  - name: fallback-playwright-axe-coreplaywright
+    description: "Keep this path when you have an existing Playwright suite and don't want to introduce a second browser runner, or when you need Firefox/Safari coverage that Vibium's Chrome-only BiDi backend can't provide today."
+    tools: ["bash", "read", "edit"]
     prompt: |
-      - [ ] Page title announced on load - [ ] Headings hierarchy correct (h1 → h2 → h3) - [ ] Landmarks present (nav, main, footer) - [ ] Images have descriptive alt text - [ ] Form labels read correctly - [ ] Error messages announced - [ ] Dynamic content updates announced (aria-live)
-  - name: agent-driven-accessibility
-    description: "Agent-Driven Accessibility"
-    tools: ["bash", "read"]
-    prompt: |
-      Agent-Driven Accessibility
+      Keep this path when you have an existing Playwright suite and don't want to introduce a second browser runner, or when you need Firefox/Safari coverage that Vibium's Chrome-only BiDi backend can't provide today.

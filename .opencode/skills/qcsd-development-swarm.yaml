@@ -1,5 +1,5 @@
 name: qcsd-development-swarm
-description: "QCSD Development phase swarm for in-sprint code quality assurance using TDD adherence, code complexity analysis, coverage gap detection, and defect prediction. Consumes Refinement outputs (BDD scenarios, SFDIPOT priorities) and produces signals for Verification."
+description: "Use when monitoring in-sprint code quality with TDD adherence checks, complexity analysis, coverage gap detection, or defect prediction in the QCSD Development phase."
 minModelTier: tier3-best
 tags: ["qcsd", "development", "tdd", "complexity", "coverage", "security", "performance", "mutation", "defect-prediction", "swarm", "parallel", "ddd", "qe", "quality-engineering", "qcsd-phases"]
 steps:
@@ -10,36 +10,36 @@ steps:
       The Development Swarm takes refined stories (that passed Refinement) and validates code quality during sprint execution. Where the Ideation Swarm asks "Should we build this?" and the Refinement Swarm asks "How should we test this?", the Development Swarm asks "Is the code quality sufficient to ship?
   - name: qcsd-phase-positioning
     description: "QCSD Phase Positioning"
-    tools: ["bash", "read", "edit"]
-    prompt: |
-      QCSD Phase Positioning
-  - name: key-differentiators-from-refinement-swar
-    description: "Key Differentiators from Refinement Swarm"
     tools: ["bash", "read"]
     prompt: |
-      Key Differentiators from Refinement Swarm
+      QCSD Phase Positioning
   - name: parameters
     description: "- `SOURCE_PATH`: Source code directory to analyze (required, e.g., `src/auth/`) - `TEST_PATH`: Test directory for coverage analysis (optional, e.g., `tests/auth/`) - `OUTPUT_FOLDER`: Where to save reports (default: `${PROJECT_ROOT}/Agentic QCSD/development/`)"
     tools: ["bash", "read"]
     prompt: |
       - `SOURCE_PATH`: Source code directory to analyze (required, e.g., `src/auth/`) - `TEST_PATH`: Test directory for coverage analysis (optional, e.g., `tests/auth/`) - `OUTPUT_FOLDER`: Where to save reports (default: `${PROJECT_ROOT}/Agentic QCSD/development/`)
   - name: enforcement-rules---read-first
-    description: "**These rules are NON-NEGOTIABLE. Violation means skill execution failure.**"
+    description: "ENFORCEMENT RULES - READ FIRST"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      ENFORCEMENT RULES - READ FIRST
+  - name: step-execution-protocol
+    description: "This skill uses a micro-file step architecture. Each step is a self-contained file loaded one at a time to avoid \"lost in the middle\" context degradation."
+    tools: ["bash", "read"]
+    prompt: |
+      This skill uses a micro-file step architecture. Each step is a self-contained file loaded one at a time to avoid "lost in the middle" context degradation.
+  - name: steps
+    description: "1. **Flag Detection** -- `node_modules/agentic-qe/assets/skills/qcsd-development-swarm/steps/01-flag-detection.md` -- Scan source code and tests, detect all 6 flags 2. **Core Agents** -- `node_modules/agentic-qe/assets/skills/qcsd-development-swarm/steps/02-core-agents.md` -- Spawn qe-tdd-specialist, qe-code-complexity, qe-coverage-specialist in parallel 3. **Batch 1 Results** -- `node_modules/agentic-qe/assets/skills/qcsd-development-swarm/steps/03-batch1-results.md` -- Wait fo"
     tools: ["bash", "read", "edit", "grep", "mcp:agentic-qe:*"]
     prompt: |
-      **These rules are NON-NEGOTIABLE. Violation means skill execution failure.**
-  - name: phase-1-analyze-code-context-flag-detect
-    description: "**MANDATORY: You must complete this analysis before Phase 2.**"
+      1. **Flag Detection** -- `node_modules/agentic-qe/assets/skills/qcsd-development-swarm/steps/01-flag-detection.md` -- Scan source code and tests, detect all 6 flags 2. **Core Agents** -- `node_modules/agentic-qe/assets/skills/qcsd-development-swarm/steps/02-core-agents.md` -- Spawn qe-tdd-specialist, qe-code-complexity, qe-coverage-specialist in parallel 3. **Batch 1 Results** -- `node_modules/agentic-qe/assets/skills/qcsd-development-swarm/steps/03-batch1-results.md` -- Wait fo
+  - name: execution-instructions
+    description: "1. Use the Read tool to load the current step file (e.g., `Read({ file_path: \".claude/skills/qcsd-development-swarm/steps/01-flag-detection.md\" })`) 2. Execute the step's instructions completely 3. Verify all success criteria are met before proceeding 4. Pass the step's output as context to the next"
     tools: ["bash", "read"]
     prompt: |
-      **MANDATORY: You must complete this analysis before Phase 2.**
-  - name: flag-detection-check-all-six
-    description: "Flag Detection (Check ALL SIX)"
+      1. Use the Read tool to load the current step file (e.g., `Read({ file_path: ".claude/skills/qcsd-development-swarm/steps/01-flag-detection.md" })`) 2. Execute the step's instructions completely 3. Verify all success criteria are met before proceeding 4. Pass the step's output as context to the next
+  - name: resume-support
+    description: "To resume from a specific step: specify `--from-step N` and the orchestrator will skip to step N. Ensure you have the required prerequisite data from prior steps."
     tools: ["bash", "read"]
     prompt: |
-      Flag Detection (Check ALL SIX)
-  - name: validation-checkpoint
-    description: "Before proceeding to Phase 2, confirm:"
-    tools: ["bash", "read"]
-    prompt: |
-      Before proceeding to Phase 2, confirm:
+      To resume from a specific step: specify `--from-step N` and the orchestrator will skip to step N. Ensure you have the required prerequisite data from prior steps.

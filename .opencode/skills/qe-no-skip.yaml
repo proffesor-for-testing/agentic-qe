@@ -1,0 +1,25 @@
+name: qe-no-skip
+description: "Use when you want to prevent .skip(), .only(), xit(), and xdescribe() from being committed to test files. Activate with /no-skip for session-scoped test skip prevention."
+minModelTier: tier2-good
+tags: ["qe", "quality-engineering"]
+steps:
+  - name: what-it-does
+    description: "Prevents these patterns from being written to test files: - `.skip()` — skips individual tests - `.only()` — runs only one test (excludes all others) - `xit(` / `xdescribe(` — Jasmine skip syntax - `test.todo(` — unimplemented test placeholders - `@Skip` / `@Disabled` — JUnit skip annotations"
+    tools: ["bash", "read"]
+    prompt: |
+      Prevents these patterns from being written to test files: - `.skip()` — skips individual tests - `.only()` — runs only one test (excludes all others) - `xit(` / `xdescribe(` — Jasmine skip syntax - `test.todo(` — unimplemented test placeholders - `@Skip` / `@Disabled` — JUnit skip annotations
+  - name: hook-configuration
+    description: "Add this to `.claude/settings.json` (Claude Code settings schema):"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Add this to `.claude/settings.json` (Claude Code settings schema):
+  - name: enforcement-logic
+    description: "The hook runs the shipped detector, `node_modules/agentic-qe/assets/skills/no-skip/scripts/check-skips.sh`. In hook mode it reads `tool_input.file_path` and the written text (`content` for Write, `new_string` for Edit, every `edits[].new_string` for MultiEdit). Only test files are checked; other files are allowed."
+    tools: ["bash", "read", "edit", "grep"]
+    prompt: |
+      The hook runs the shipped detector, `node_modules/agentic-qe/assets/skills/no-skip/scripts/check-skips.sh`. In hook mode it reads `tool_input.file_path` and the written text (`content` for Write, `new_string` for Edit, every `edits[].new_string` for MultiEdit). Only test files are checked; other files are allowed.
+  - name: gotchas
+    description: "- This catches NEW skips being written, not existing ones — run `grep -r '.skip(' tests/` to find existing skips - `.only()` is sometimes used intentionally during debugging — deactivate with `/no-skip off` if needed - Some frameworks use `pending()` instead of `.skip()` — add to patterns if using J"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      - This catches NEW skips being written, not existing ones — run `grep -r '.skip(' tests/` to find existing skips - `.only()` is sometimes used intentionally during debugging — deactivate with `/no-skip off` if needed - Some frameworks use `pending()` instead of `.skip()` — add to patterns if using J

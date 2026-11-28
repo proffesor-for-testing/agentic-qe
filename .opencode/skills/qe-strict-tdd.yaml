@@ -1,0 +1,25 @@
+name: qe-strict-tdd
+description: "Use when enforcing TDD discipline — blocks writing production code unless a failing test exists first. Activate with /strict-tdd to enable session-scoped Red-Green-Refactor guardrail."
+minModelTier: tier2-good
+tags: ["qe", "quality-engineering"]
+steps:
+  - name: what-it-does
+    description: "Blocks writes to `src/` (production code) unless: 1. A test file exists that covers the target module 2. That test has at least one failing assertion (Red phase confirmed)"
+    tools: ["bash", "read"]
+    prompt: |
+      Blocks writes to `src/` (production code) unless: 1. A test file exists that covers the target module 2. That test has at least one failing assertion (Red phase confirmed)
+  - name: hook-configuration
+    description: "Hook Configuration"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Hook Configuration
+  - name: enforcement-logic
+    description: "Enforcement Logic"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Enforcement Logic
+  - name: gotchas
+    description: "- Only blocks src/ files — test files and config files are always writable - During Refactor phase, tests should still pass — this is expected, don't treat as violation - If test runner isn't installed, hook will error — ensure jest/vitest is available - Agent may try to write to a different path to"
+    tools: ["bash", "read"]
+    prompt: |
+      - Only blocks src/ files — test files and config files are always writable - During Refactor phase, tests should still pass — this is expected, don't treat as violation - If test runner isn't installed, hook will error — ensure jest/vitest is available - Agent may try to write to a different path to

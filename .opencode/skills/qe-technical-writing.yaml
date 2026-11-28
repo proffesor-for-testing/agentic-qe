@@ -20,7 +20,7 @@ steps:
       - Key takeaway (1-2 sentences) - Action reader can take
   - name: core-principles
     description: "Core Principles"
-    tools: ["bash", "read"]
+    tools: ["bash", "read", "edit", "mcp:agentic-qe:*"]
     prompt: |
       Core Principles
   - name: words-to-cut

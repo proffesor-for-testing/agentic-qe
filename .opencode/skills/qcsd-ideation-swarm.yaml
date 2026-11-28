@@ -1,58 +1,45 @@
 name: qcsd-ideation-swarm
-description: "QCSD Ideation phase swarm for Quality Criteria sessions using HTSM v6.3, Risk Storming, and Testability analysis before development begins. URL mode fetches the page with the bundled fetch-content.cjs cascade (Playwright+Stealth, then HTTP fetch) and falls back to WebFetch."
+description: "Use when running Quality Criteria sessions during PI/Sprint planning with HTSM v6.3, Risk Storming, or Testability analysis in the QCSD Ideation phase."
 minModelTier: tier3-best
 tags: ["qcsd", "ideation", "htsm", "quality-criteria", "risk-storming", "testability", "swarm", "parallel", "ddd", "qe", "quality-engineering", "qcsd-phases"]
 steps:
-  - name: url-based-analysis-mode-v71
-    description: "When analyzing a live website URL, use this specialized execution pattern."
+  - name: overview
+    description: "The Ideation Swarm assesses stories and URLs before development begins, using HTSM v6.3 quality criteria, Risk Storming, and Testability analysis. It renders a GO / CONDITIONAL / NO-GO decision and is the first gate in the QCSD lifecycle."
     tools: ["bash", "read"]
     prompt: |
-      When analyzing a live website URL, use this specialized execution pattern.
+      The Ideation Swarm assesses stories and URLs before development begins, using HTSM v6.3 quality criteria, Risk Storming, and Testability analysis. It renders a GO / CONDITIONAL / NO-GO decision and is the first gate in the QCSD lifecycle.
+  - name: qcsd-phase-positioning
+    description: "QCSD Phase Positioning"
+    tools: ["bash", "read"]
+    prompt: |
+      QCSD Phase Positioning
   - name: parameters
-    description: "- `URL`: Website to analyze (required) - `OUTPUT_FOLDER`: Where to save reports (default: `${PROJECT_ROOT}/Agentic QCSD/{domain}/` or `./Agentic QCSD/{domain}/`)"
-    tools: ["bash", "read"]
+    description: "- `URL`: Website to analyze (required for URL mode) - `OUTPUT_FOLDER`: Where to save reports (default: `${PROJECT_ROOT}/Agentic QCSD/{domain}/`) - URL fetch: run `node_modules/agentic-qe/scripts/fetch-content.cjs`; on `status: degraded` or a missing script, use WebFetch"
+    tools: ["bash", "read", "mcp:agentic-qe:*"]
     prompt: |
-      - `URL`: Website to analyze (required) - `OUTPUT_FOLDER`: Where to save reports (default: `${PROJECT_ROOT}/Agentic QCSD/{domain}/` or `./Agentic QCSD/{domain}/`)
-  - name: -url-mode-complete-execution-flow
-    description: "**You MUST follow ALL phases in order. Skipping phases is a FAILURE.**"
-    tools: ["bash", "read"]
-    prompt: |
-      **You MUST follow ALL phases in order. Skipping phases is a FAILURE.**
-  - name: phase-url-1-setup-and-content-fetch-auto
-    description: "Fetch the URL with `node_modules/agentic-qe/scripts/fetch-content.cjs`; a degraded result or a missing script means use WebFetch."
+      - `URL`: Website to analyze (required for URL mode) - `OUTPUT_FOLDER`: Where to save reports (default: `${PROJECT_ROOT}/Agentic QCSD/{domain}/`) - URL fetch: run `node_modules/agentic-qe/scripts/fetch-content.cjs`; on `status: degraded` or a missing script, use WebFetch
+  - name: unique-features
+    description: "- **URL Mode**: Automated 5-tier browser cascade for live website analysis - **HAS_VIDEO Flag**: Detects video content and recommends `/a11y-ally` follow-up - **HTML Output**: Generates HTML reports when `html_output: true` - **Browser Cascade**: Vibium -> agent-browser -> Playwright+Stealth -> WebF"
     tools: ["bash", "read", "grep"]
     prompt: |
-      Fetch the page with the browser cascade that ships with the agentic-qe package
-      (Playwright+Stealth, then HTTP fetch; 30s per tier):
-
-      ```bash
-      node node_modules/agentic-qe/scripts/fetch-content.cjs "${URL}" "${OUTPUT_FOLDER}" --timeout 30000
-      # global install: node "$(npm root -g)/agentic-qe/scripts/fetch-content.cjs" ...
-      ```
-
-      Read `${OUTPUT_FOLDER}/fetch-result.json` first. The script exits 0 even when every real
-      tier failed: it then reports `"tier": "websearch-fallback"`, `"status": "degraded"` and
-      writes a "Manual Research Required" placeholder to `content.html`. Treat that as a
-      failed fetch, not as page content. On success, read `${OUTPUT_FOLDER}/content.html`.
-      If the script is not installed, or the fetch was degraded, use the WebFetch tool
-      instead and state in the report which method produced the content.
-  - name: phase-url-2-programmatic-flag-detection-
-    description: "**You MUST detect flags from the fetched content. Do NOT skip this phase.**"
-    tools: ["bash", "read", "edit"]
-    prompt: |
-      **You MUST detect flags from the fetched content. Do NOT skip this phase.**
-  - name: phase-url-3-spawn-core-agents-parallel
-    description: "**All 3 core agents MUST be spawned. Fewer is a FAILURE.**"
+      - **URL Mode**: Automated 5-tier browser cascade for live website analysis - **HAS_VIDEO Flag**: Detects video content and recommends `/a11y-ally` follow-up - **HTML Output**: Generates HTML reports when `html_output: true` - **Browser Cascade**: Vibium -> agent-browser -> Playwright+Stealth -> WebF
+  - name: enforcement-rules---read-first
+    description: "ENFORCEMENT RULES - READ FIRST"
     tools: ["bash", "read"]
     prompt: |
-      **All 3 core agents MUST be spawned. Fewer is a FAILURE.**
-  - name: website-content
-    description: "${content}"
+      ENFORCEMENT RULES - READ FIRST
+  - name: step-execution-protocol
+    description: "This skill uses a micro-file step architecture. Each step is a self-contained file loaded one at a time to avoid \"lost in the middle\" context degradation."
     tools: ["bash", "read"]
     prompt: |
-      ${content}
-  - name: analysis-requirements
-    description: "Analyze ALL 10 HTSM v6.3 categories with weight and testability score for each."
+      This skill uses a micro-file step architecture. Each step is a self-contained file loaded one at a time to avoid "lost in the middle" context degradation.
+  - name: steps
+    description: "1. **Flag Detection** -- `node_modules/agentic-qe/assets/skills/qcsd-ideation-swarm/steps/01-flag-detection.md` -- Fetch URL content (browser cascade), detect all 7 flags (HAS_UI, HAS_SECURITY, HAS_UX, HAS_VIDEO, HAS_MIDDLEWARE, HAS_SAP_INTEGRATION, HAS_AUTHORIZATION) 2. **Core Agents** -- `node_modules/agentic-qe/assets/skills/qcsd-ideation-swarm/steps/02-core-agents.md` -- Spawn qe-quality-criteria-recommender,"
+    tools: ["bash", "read", "grep", "mcp:agentic-qe:*"]
+    prompt: |
+      1. **Flag Detection** -- `node_modules/agentic-qe/assets/skills/qcsd-ideation-swarm/steps/01-flag-detection.md` -- Fetch URL content (browser cascade), detect all 7 flags (HAS_UI, HAS_SECURITY, HAS_UX, HAS_VIDEO, HAS_MIDDLEWARE, HAS_SAP_INTEGRATION, HAS_AUTHORIZATION) 2. **Core Agents** -- `node_modules/agentic-qe/assets/skills/qcsd-ideation-swarm/steps/02-core-agents.md` -- Spawn qe-quality-criteria-recommender,
+  - name: execution-instructions
+    description: "1. Use the Read tool to load the current step file (e.g., `Read({ file_path: \".claude/skills/qcsd-ideation-swarm/steps/01-flag-detection.md\" })`) 2. Execute the step's instructions completely 3. Verify all success criteria are met before proceeding 4. Pass the step's output as context to the next st"
     tools: ["bash", "read"]
     prompt: |
-      Analyze ALL 10 HTSM v6.3 categories with weight and testability score for each.
+      1. Use the Read tool to load the current step file (e.g., `Read({ file_path: ".claude/skills/qcsd-ideation-swarm/steps/01-flag-detection.md" })`) 2. Execute the step's instructions completely 3. Verify all success criteria are met before proceeding 4. Pass the step's output as context to the next st

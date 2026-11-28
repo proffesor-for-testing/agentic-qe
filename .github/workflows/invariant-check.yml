@@ -38,6 +38,9 @@ on:
       - 'verification/conservation/**'
       - 'scripts/conservation-guard.ts'
       - 'scripts/check-skill-parity.ts'
+      # Generated OpenCode skills (#1494)
+      - '.opencode/skills/**'
+      - 'scripts/generate-opencode-skills.ts'
   release:
     types: [published]
   workflow_dispatch:
@@ -72,7 +75,12 @@ jobs:
       # Skill-tree parity (ADR-113/114): assets + plugins must mirror canonical
       # .claude/skills bodies. Blocking — drift here is the recurring bug this guards.
       - name: Skill-tree parity (assets + plugins mirror canonical)
-        run: npm run verify:skill-parity
+        run: npm run verify:skill-parity -- --ci
+
+      # .opencode/skills/*.yaml is generated from .claude/skills (#1494). Blocking:
+      # regenerate with `npx tsx scripts/generate-opencode-skills.ts` when it fails.
+      - name: OpenCode skills match their generator
+        run: npm run verify:opencode-skills
 
       # Conservation layer (ADR-114): fail on breaking CLI/output-schema/dashboard-API/
       # kiro-skills removals not in the deprecation registry. Non-blocking initially —

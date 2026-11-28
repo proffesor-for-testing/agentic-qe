@@ -3,6 +3,11 @@ description: "Observability and monitoring validation patterns for dashboards, a
 minModelTier: tier3-best
 tags: ["observability", "monitoring", "kibana", "elasticsearch", "dashboards", "alerting", "metrics", "logging", "qe", "quality-engineering", "specialized-testing"]
 steps:
+  - name: browser-engine
+    description: "Dashboard screenshot validation and alert-UI verification go through the **qe-browser** fleet skill (`.claude/skills/qe-browser/`). Vibium is installed by `aqe init`. Typical dashboard regression workflow:"
+    tools: ["bash", "read"]
+    prompt: |
+      Dashboard screenshot validation and alert-UI verification go through the **qe-browser** fleet skill (`.claude/skills/qe-browser/`). Vibium is installed by `aqe init`. Typical dashboard regression workflow:
   - name: testing-levels
     description: "Testing Levels"
     tools: ["bash", "read", "grep"]
@@ -38,8 +43,3 @@ steps:
     tools: ["bash", "read"]
     prompt: |
       Alert Rule Testing
-  - name: log-aggregation-completeness
-    description: "Log Aggregation Completeness"
-    tools: ["bash", "read", "grep"]
-    prompt: |
-      Log Aggregation Completeness

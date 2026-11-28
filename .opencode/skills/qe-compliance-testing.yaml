@@ -33,3 +33,8 @@ steps:
     tools: ["bash", "read"]
     prompt: |
       Agent-Driven Compliance
+  - name: gotchas
+    description: "- Agent checks GDPR consent flow but misses data retention — always verify deletion/anonymization actually works - Compliance reports with \"100% compliant\" are suspicious — no real system is fully compliant, verify each claim - Agent may test US regulations only — explicitly specify jurisdiction (EU"
+    tools: ["bash", "read"]
+    prompt: |
+      - Agent checks GDPR consent flow but misses data retention — always verify deletion/anonymization actually works - Compliance reports with "100% compliant" are suspicious — no real system is fully compliant, verify each claim - Agent may test US regulations only — explicitly specify jurisdiction (EU

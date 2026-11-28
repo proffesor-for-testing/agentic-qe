@@ -1,0 +1,30 @@
+name: qe-coverage-guard
+description: "Use when you want to prevent coverage regressions during development. Activate with /coverage-guard to warn when coverage drops below threshold after code changes."
+minModelTier: tier2-good
+tags: ["qe", "quality-engineering"]
+steps:
+  - name: what-it-does
+    description: "After any test execution (via Bash tool), compares coverage to the threshold in config.json. Warns (doesn't block) if coverage decreased."
+    tools: ["bash", "read"]
+    prompt: |
+      After any test execution (via Bash tool), compares coverage to the threshold in config.json. Warns (doesn't block) if coverage decreased.
+  - name: configuration
+    description: "Edit `config.json` in this skill directory to set thresholds:"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Edit `config.json` in this skill directory to set thresholds:
+  - name: hook-configuration
+    description: "Hook Configuration"
+    tools: ["bash", "read"]
+    prompt: |
+      Hook Configuration
+  - name: enforcement-logic
+    description: "Enforcement Logic"
+    tools: ["bash", "read"]
+    prompt: |
+      Enforcement Logic
+  - name: gotchas
+    description: "- Coverage check runs AFTER the test command — if tests crash, no coverage report is generated - Coverage-summary.json must be configured as a reporter — default Jest config may not include it - Threshold comparisons use floating point — `79.999%` will trigger below `80%` threshold - Branch coverage"
+    tools: ["bash", "read"]
+    prompt: |
+      - Coverage check runs AFTER the test command — if tests crash, no coverage report is generated - Coverage-summary.json must be configured as a reporter — default Jest config may not include it - Threshold comparisons use floating point — `79.999%` will trigger below `80%` threshold - Branch coverage

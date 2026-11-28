@@ -1,0 +1,45 @@
+name: qe-court
+description: "Adversarial review court — a delivery (diff, PR, test suite, or artifact) is prosecuted by independent AI reviewers from different vendors, each with its own probe set, then a SHIP verdict must SURVIVE escalating deeper reviewers before it stands. Use when you want more than one reviewer's opinion o"
+minModelTier: tier3-best
+tags: ["qe", "quality-engineering"]
+steps:
+  - name: when-to-convene-the-court
+    description: "- Pre-merge gate on a risky PR or diff - Release go/no-go (\"deployment readiness with a jury\") - You got a PASS that felt too easy and want it stress-tested - A test suite claims coverage you don't trust (does it kill mutants?) - Any high-stakes \"is this actually done?\" call"
+    tools: ["bash", "read"]
+    prompt: |
+      - Pre-merge gate on a risky PR or diff - Release go/no-go ("deployment readiness with a jury") - You got a PASS that felt too easy and want it stress-tested - A test suite claims coverage you don't trust (does it kill mutants?) - Any high-stakes "is this actually done?" call
+  - name: the-court-roster-composes-existing-skill
+    description: "The court roster (composes existing skills/agents — do NOT reimplement critics)"
+    tools: ["bash", "read"]
+    prompt: |
+      The court roster (composes existing skills/agents — do NOT reimplement critics)
+  - name: model-routing-configurable-this-is-the-p
+    description: "The court's guarantees come from **who** reviews, not just how. Routing is **user-configurable** in `config.json` under `routing`; the defaults below enforce the invariants. Every model call goes through AQE's provider layer (ADR-123), so budget caps and cost receipts apply automatically."
+    tools: ["bash", "read"]
+    prompt: |
+      The court's guarantees come from **who** reviews, not just how. Routing is **user-configurable** in `config.json` under `routing`; the defaults below enforce the invariants. Every model call goes through AQE's provider layer (ADR-123), so budget caps and cost receipts apply automatically.
+  - name: the-protocol
+    description: "The protocol"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      The protocol
+  - name: verdict-states-three-valued-never-a-bare
+    description: "Verdict states (three-valued — never a bare pass/fail)"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Verdict states (three-valued — never a bare pass/fail)
+  - name: self-learning-the-court-feeds-the-flywhe
+    description: "A verdict is not the end; it is training signal. After each court run:"
+    tools: ["bash", "read", "mcp:agentic-qe:*"]
+    prompt: |
+      A verdict is not the end; it is training signal. After each court run:
+  - name: improvement-over-time-adr-124-m0c
+    description: "- **Probe-set promotion:** track each probe's historical **mutant-kill rate**; promote high-kill probes, retire dead ones (stored under a `qe-court/probes` namespace). - **DoE-gated scoring:** emit a numeric score ONLY if its rubric passes the ADR-122 ANOVA screen (it must actually discriminate). Ot"
+    tools: ["bash", "read"]
+    prompt: |
+      - **Probe-set promotion:** track each probe's historical **mutant-kill rate**; promote high-kill probes, retire dead ones (stored under a `qe-court/probes` namespace). - **DoE-gated scoring:** emit a numeric score ONLY if its rubric passes the ADR-122 ANOVA screen (it must actually discriminate). Ot
+  - name: anti-collusion-invariants-enforce-these-
+    description: "1. **Writer ≠ any juror.** 2. **Prosecutors file blind.** 3. **Overturn is asymmetric** (SHIP must survive escalation; BLOCK needs one surviving fatal charge). 4. **No un-validated scores.**"
+    tools: ["bash", "read"]
+    prompt: |
+      1. **Writer ≠ any juror.** 2. **Prosecutors file blind.** 3. **Overturn is asymmetric** (SHIP must survive escalation; BLOCK needs one surviving fatal charge). 4. **No un-validated scores.**

@@ -92,7 +92,7 @@ const V3_DOMAIN_SKILLS = [
  * - V3 internal development skills
  * - Claude Flow platform skills (managed by claude-flow package)
  */
-const EXCLUDED_SKILLS = [
+export const EXCLUDED_SKILLS: readonly string[] = [
   // V3 internal development skills
   'v3-core-implementation',
   'v3-cli-modernization',

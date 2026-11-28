@@ -1,45 +1,45 @@
 name: qcsd-production-swarm
-description: "QCSD Production Telemetry phase swarm for post-release production health assessment using DORA metrics, root cause analysis, defect prediction, and cross-phase feedback loops. Consumes CI/CD outputs (RELEASE/REMEDIATE/BLOCK decisions, release readiness metrics) and produces feedback signals to Ideat"
+description: "Use when assessing post-release production health with DORA metrics, root cause analysis, defect prediction, or cross-phase feedback loops in the QCSD Production phase."
 minModelTier: tier3-best
 tags: ["qcsd", "production", "telemetry", "dora", "rca", "defect-prediction", "feedback-loop", "learning", "swarm", "parallel", "ddd", "qe", "quality-engineering", "qcsd-phases"]
 steps:
   - name: overview
-    description: "The Production Swarm takes releases that passed CI/CD verification and assesses their health in the live production environment. Where the CI/CD Swarm asks \"Is this change safe to release?\", the Production Swarm asks \"Is the release healthy in production?\""
-    tools: ["bash", "read", "edit"]
+    description: "The Production Swarm assesses release health in the live production environment using DORA metrics, incident RCA, defect prediction, and cross-phase feedback loops. It renders a HEALTHY / DEGRADED / CRITICAL decision and is the only QCSD phase with dual responsibility: assessing current production h"
+    tools: ["bash", "read"]
     prompt: |
-      The Production Swarm takes releases that passed CI/CD verification and assesses their health in the live production environment. Where the CI/CD Swarm asks "Is this change safe to release?", the Production Swarm asks "Is the release healthy in production?"
+      The Production Swarm assesses release health in the live production environment using DORA metrics, incident RCA, defect prediction, and cross-phase feedback loops. It renders a HEALTHY / DEGRADED / CRITICAL decision and is the only QCSD phase with dual responsibility: assessing current production h
   - name: qcsd-phase-positioning
     description: "QCSD Phase Positioning"
-    tools: ["bash", "read", "edit"]
+    tools: ["bash", "read"]
     prompt: |
       QCSD Phase Positioning
-  - name: key-differentiators-from-cicd-swarm
-    description: "Key Differentiators from CI/CD Swarm"
-    tools: ["bash", "read", "edit"]
-    prompt: |
-      Key Differentiators from CI/CD Swarm
   - name: parameters
-    description: "- `TELEMETRY_DATA`: Path to production telemetry, incident reports, and DORA metrics (required, e.g., `production/telemetry/`) - `RELEASE_ID`: Release identifier for tracking (optional, e.g., `v3.6.9`) - `OUTPUT_FOLDER`: Where to save reports (default: `${PROJECT_ROOT}/Agentic QCSD/production/`) - `"
+    description: "- `TELEMETRY_DATA`: Path to production telemetry, incident reports, and DORA metrics (required) - `RELEASE_ID`: Release identifier for tracking (optional) - `OUTPUT_FOLDER`: Where to save reports (default: `${PROJECT_ROOT}/Agentic QCSD/production/`) - `SLA_DEFINITIONS`: Path to SLA/SLO target defini"
     tools: ["bash", "read"]
     prompt: |
-      - `TELEMETRY_DATA`: Path to production telemetry, incident reports, and DORA metrics (required, e.g., `production/telemetry/`) - `RELEASE_ID`: Release identifier for tracking (optional, e.g., `v3.6.9`) - `OUTPUT_FOLDER`: Where to save reports (default: `${PROJECT_ROOT}/Agentic QCSD/production/`) - `
+      - `TELEMETRY_DATA`: Path to production telemetry, incident reports, and DORA metrics (required) - `RELEASE_ID`: Release identifier for tracking (optional) - `OUTPUT_FOLDER`: Where to save reports (default: `${PROJECT_ROOT}/Agentic QCSD/production/`) - `SLA_DEFINITIONS`: Path to SLA/SLO target defini
   - name: enforcement-rules---read-first
-    description: "**These rules are NON-NEGOTIABLE. Violation means skill execution failure.**"
-    tools: ["bash", "read", "grep", "mcp:agentic-qe:*"]
-    prompt: |
-      **These rules are NON-NEGOTIABLE. Violation means skill execution failure.**
-  - name: phase-1-analyze-production-context-flag-
-    description: "**MANDATORY: You must complete this analysis before Phase 2.**"
+    description: "ENFORCEMENT RULES - READ FIRST"
     tools: ["bash", "read"]
     prompt: |
-      **MANDATORY: You must complete this analysis before Phase 2.**
-  - name: retrieve-cicd-phase-signals-cross-phase-
-    description: "Before analyzing production context, retrieve the most recent CI/CD phase signals from memory. These provide the release readiness baseline that the Production Swarm builds upon."
+      ENFORCEMENT RULES - READ FIRST
+  - name: step-execution-protocol
+    description: "This skill uses a micro-file step architecture. Each step is a self-contained file loaded one at a time to avoid \"lost in the middle\" context degradation."
+    tools: ["bash", "read"]
+    prompt: |
+      This skill uses a micro-file step architecture. Each step is a self-contained file loaded one at a time to avoid "lost in the middle" context degradation.
+  - name: steps
+    description: "1. **Flag Detection** -- `node_modules/agentic-qe/assets/skills/qcsd-production-swarm/steps/01-flag-detection.md` -- Retrieve CI/CD signals, detect telemetry source, evaluate all 7 flags 2. **Core Agents** -- `node_modules/agentic-qe/assets/skills/qcsd-production-swarm/steps/02-core-agents.md` -- Spawn qe-metrics-optimizer, qe-defect-predictor, qe-root-cause-analyzer in parallel 3. **Batch 1 Results** -- `steps/03-ba"
     tools: ["bash", "read", "grep", "mcp:agentic-qe:*"]
     prompt: |
-      Before analyzing production context, retrieve the most recent CI/CD phase signals from memory. These provide the release readiness baseline that the Production Swarm builds upon.
-  - name: step-05-auto-detect-pre-collected-teleme
-    description: "Before requiring manual telemetry input, check if the GitHub Actions telemetry collection workflow has pre-collected DORA metrics. This runs automatically after every npm publish and weekly on schedule."
-    tools: ["bash", "read", "edit"]
+      1. **Flag Detection** -- `node_modules/agentic-qe/assets/skills/qcsd-production-swarm/steps/01-flag-detection.md` -- Retrieve CI/CD signals, detect telemetry source, evaluate all 7 flags 2. **Core Agents** -- `node_modules/agentic-qe/assets/skills/qcsd-production-swarm/steps/02-core-agents.md` -- Spawn qe-metrics-optimizer, qe-defect-predictor, qe-root-cause-analyzer in parallel 3. **Batch 1 Results** -- `steps/03-ba
+  - name: execution-instructions
+    description: "1. Use the Read tool to load the current step file (e.g., `Read({ file_path: \".claude/skills/qcsd-production-swarm/steps/01-flag-detection.md\" })`) 2. Execute the step's instructions completely 3. Verify all success criteria are met before proceeding 4. Pass the step's output as context to the next "
+    tools: ["bash", "read"]
     prompt: |
-      Before requiring manual telemetry input, check if the GitHub Actions telemetry collection workflow has pre-collected DORA metrics. This runs automatically after every npm publish and weekly on schedule.
+      1. Use the Read tool to load the current step file (e.g., `Read({ file_path: ".claude/skills/qcsd-production-swarm/steps/01-flag-detection.md" })`) 2. Execute the step's instructions completely 3. Verify all success criteria are met before proceeding 4. Pass the step's output as context to the next 
+  - name: resume-support
+    description: "To resume from a specific step: specify `--from-step N` and the orchestrator will skip to step N. Ensure you have the required prerequisite data from prior steps."
+    tools: ["bash", "read"]
+    prompt: |
+      To resume from a specific step: specify `--from-step N` and the orchestrator will skip to step N. Ensure you have the required prerequisite data from prior steps.

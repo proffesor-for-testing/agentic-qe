@@ -1,0 +1,45 @@
+name: qe-validation-pipeline
+description: "Runs multi-stage validation gates with per-step scoring, pass/fail verdicts, and aggregate quality reports. Use when validating requirements, code, or artifacts through structured gate enforcement before merge or release."
+minModelTier: tier3-best
+tags: ["qe", "quality-engineering"]
+steps:
+  - name: workflow
+    description: "Workflow"
+    tools: ["bash", "read"]
+    prompt: |
+      Workflow
+  - name: read-the-target-document
+    description: "Read the file specified by the user. If no file is provided, ask for one."
+    tools: ["bash", "read"]
+    prompt: |
+      Read the file specified by the user. If no file is provided, ask for one.
+  - name: select-pipeline
+    description: "Choose the appropriate pipeline based on the user's request:"
+    tools: ["bash", "read"]
+    prompt: |
+      Choose the appropriate pipeline based on the user's request:
+  - name: execute-pipeline
+    description: "The pipeline helper (`node_modules/agentic-qe/assets/helpers/validation-pipeline.cjs`) handles execution:"
+    tools: ["bash", "read", "grep", "mcp:agentic-qe:*"]
+    prompt: |
+      The pipeline helper (`node_modules/agentic-qe/assets/helpers/validation-pipeline.cjs`) handles execution:
+  - name: report-results
+    description: "Format the pipeline result as a structured report:"
+    tools: ["bash", "read"]
+    prompt: |
+      Format the pipeline result as a structured report:
+  - name: step-results
+    description: "Step Results"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      Step Results
+  - name: blockers
+    description: "- (blocking findings listed here)"
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      - (blocking findings listed here)
+  - name: all-findings
+    description: "- [HIGH] Missing acceptance criteria: Requirement US-104 has no AC - [MEDIUM] Vague term: \"should\" used 5 times without specifics ..."
+    tools: ["bash", "read", "grep"]
+    prompt: |
+      - [HIGH] Missing acceptance criteria: Requirement US-104 has no AC - [MEDIUM] Vague term: "should" used 5 times without specifics ...

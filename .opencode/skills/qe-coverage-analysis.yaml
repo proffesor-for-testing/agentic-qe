@@ -1,5 +1,5 @@
 name: qe-coverage-analysis
-description: "O(log n) sublinear coverage gap detection with risk-weighted analysis and intelligent test prioritization."
+description: "Analyzes test coverage data (Istanbul, c8, lcov) to identify uncovered lines, branches, and functions with risk-weighted gap detection. Use when analyzing coverage reports, identifying coverage gaps, comparing coverage between branches, or prioritizing which untested code to cover first."
 minModelTier: tier3-best
 tags: ["qe", "quality-engineering"]
 steps:

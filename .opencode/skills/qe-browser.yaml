@@ -1,0 +1,45 @@
+name: qe-browser
+description: "Browser automation for QE agents using Vibium (WebDriver BiDi) with assertions, batch execution, visual diff, prompt-injection scanning, and semantic intents. Use when any QE skill needs to drive a real browser — visual testing, accessibility audits, E2E flow verification, pentest validation, or exp"
+minModelTier: tier3-best
+tags: ["qe", "quality-engineering"]
+steps:
+  - name: platform-support-verified-2026-04-09-aga
+    description: "Platform support (verified 2026-04-09 against Vibium v26.3.18)"
+    tools: ["bash", "read"]
+    prompt: |
+      Platform support (verified 2026-04-09 against Vibium v26.3.18)
+  - name: linux-arm64-workaround
+    description: "Google Chrome for Testing does not publish a `linux-arm64` build. Vibium falls back to `chrome-linux64` (x86_64) on aarch64 hosts, which fails under Rosetta with `failed to open elf at /lib64/ld-linux-x86-64.so.2`. To run qe-browser on a Linux ARM64 codespace or container:"
+    tools: ["bash", "read"]
+    prompt: |
+      Google Chrome for Testing does not publish a `linux-arm64` build. Vibium falls back to `chrome-linux64` (x86_64) on aarch64 hosts, which fails under Rosetta with `failed to open elf at /lib64/ld-linux-x86-64.so.2`. To run qe-browser on a Linux ARM64 codespace or container:
+  - name: headless-mode
+    description: "Helper scripts (`assert.js`, `batch.js`, `visual-diff.js`, `check-injection.js`, `intent-score.js`) automatically inject `--headless` into every `vibium` invocation because the qe-browser skill is designed for QE/CI use cases where there's no display server. **Vibium itself defaults to \"visible by d"
+    tools: ["bash", "read"]
+    prompt: |
+      Helper scripts (`assert.js`, `batch.js`, `visual-diff.js`, `check-injection.js`, `intent-score.js`) automatically inject `--headless` into every `vibium` invocation because the qe-browser skill is designed for QE/CI use cases where there's no display server. **Vibium itself defaults to "visible by d
+  - name: core-workflow
+    description: "Every browser-driven QE task follows the same shape:"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Every browser-driven QE task follows the same shape:
+  - name: ref-lifecycle-use-diff-map
+    description: "Vibium refs are invalidated when the DOM changes. Instead of versioning refs manually, Vibium gives you `vibium diff map` which shows exactly what's new, removed, or repositioned since the last `map` call. After any interaction that changes the DOM:"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Vibium refs are invalidated when the DOM changes. Instead of versioning refs manually, Vibium gives you `vibium diff map` which shows exactly what's new, removed, or repositioned since the last `map` call. After any interaction that changes the DOM:
+  - name: qe-primitives-this-skills-value-add
+    description: "All scripts live in `.claude/skills/qe-browser/scripts/` and shell out to `vibium`. They expect `vibium` to be on PATH (installed by `aqe init`)."
+    tools: ["bash", "read"]
+    prompt: |
+      All scripts live in `.claude/skills/qe-browser/scripts/` and shell out to `vibium`. They expect `vibium` to be on PATH (installed by `aqe init`).
+  - name: assertjs-typed-assertions-with-16-check-
+    description: "`assert.js` — Typed assertions with 16 check kinds"
+    tools: ["bash", "read"]
+    prompt: |
+      `assert.js` — Typed assertions with 16 check kinds
+  - name: batchjs-multi-step-execution-with-stop-o
+    description: "`batch.js` — Multi-step execution with stop-on-failure"
+    tools: ["bash", "read"]
+    prompt: |
+      `batch.js` — Multi-step execution with stop-on-failure

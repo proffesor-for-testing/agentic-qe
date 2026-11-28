@@ -13,11 +13,21 @@ steps:
     tools: ["bash", "read", "edit"]
     prompt: |
       Comparison Algorithms
-  - name: visual-regression-with-playwright
-    description: "Visual Regression with Playwright"
+  - name: primary-path-qe-browser-visual-diff
+    description: "**Most visual regression work should go through the `qe-browser` fleet skill.** It wraps Vibium (WebDriver BiDi) and provides pixel-diff against stored baselines with threshold enforcement and diff-image output. See `.claude/skills/qe-browser/SKILL.md`."
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      **Most visual regression work should go through the `qe-browser` fleet skill.** It wraps Vibium (WebDriver BiDi) and provides pixel-diff against stored baselines with threshold enforcement and diff-image output. See `.claude/skills/qe-browser/SKILL.md`.
+  - name: when-to-keep-playwright-visual-regressio
+    description: "Use the Playwright recipe below only when you need: - **AI semantic comparison** (Percy, Applitools) to ignore insignificant pixel drift - **Cross-browser rendering checks** in Firefox/WebKit (Vibium is Chrome-only today) - **Tight integration with an existing Playwright test suite**"
     tools: ["bash", "read"]
     prompt: |
-      Visual Regression with Playwright
+      Use the Playwright recipe below only when you need: - **AI semantic comparison** (Percy, Applitools) to ignore insignificant pixel drift - **Cross-browser rendering checks** in Firefox/WebKit (Vibium is Chrome-only today) - **Tight integration with an existing Playwright test suite**
+  - name: legacy-visual-regression-with-playwright
+    description: "LEGACY: Visual Regression with Playwright (fallback)"
+    tools: ["bash", "read"]
+    prompt: |
+      LEGACY: Visual Regression with Playwright (fallback)
   - name: handling-dynamic-content
     description: "Handling Dynamic Content"
     tools: ["bash", "read"]
@@ -33,8 +43,3 @@ steps:
     tools: ["bash", "read"]
     prompt: |
       Playwright Configuration
-  - name: agent-driven-visual-testing
-    description: "Agent-Driven Visual Testing"
-    tools: ["bash", "read"]
-    prompt: |
-      Agent-Driven Visual Testing

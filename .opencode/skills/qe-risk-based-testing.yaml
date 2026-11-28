@@ -3,36 +3,16 @@ description: "Focus testing effort on highest-risk areas using risk assessment a
 minModelTier: tier3-best
 tags: ["risk", "prioritization", "test-planning", "coverage", "impact-analysis", "qe", "quality-engineering", "testing-methodologies"]
 steps:
-  - name: risk-calculation
-    description: "Risk Calculation"
+  - name: effort-allocation-by-risk-score
+    description: "Effort Allocation by Risk Score"
     tools: ["bash", "read"]
     prompt: |
-      Risk Calculation
-  - name: probability-factors
-    description: "Probability Factors"
-    tools: ["bash", "read", "edit"]
-    prompt: |
-      Probability Factors
-  - name: impact-factors
-    description: "Impact Factors"
-    tools: ["bash", "read"]
-    prompt: |
-      Impact Factors
-  - name: risk-assessment-workflow
-    description: "Risk Assessment Workflow"
-    tools: ["bash", "read"]
-    prompt: |
-      Risk Assessment Workflow
-  - name: list-featurescomponents
-    description: "List Features/Components"
+      Effort Allocation by Risk Score
+  - name: apply-test-depth-by-risk
+    description: "Apply Test Depth by Risk"
     tools: ["bash", "read", "grep"]
     prompt: |
-      List Features/Components
-  - name: apply-test-depth
-    description: "Apply Test Depth"
-    tools: ["bash", "read", "grep"]
-    prompt: |
-      Apply Test Depth
+      Apply Test Depth by Risk
   - name: reassess-dynamically
     description: "Reassess Dynamically"
     tools: ["bash", "read", "grep"]
@@ -43,3 +23,8 @@ steps:
     tools: ["bash", "read", "edit"]
     prompt: |
       ML-Enhanced Risk Analysis
+  - name: integration-with-cicd
+    description: "Integration with CI/CD"
+    tools: ["bash", "read", "edit"]
+    prompt: |
+      Integration with CI/CD
