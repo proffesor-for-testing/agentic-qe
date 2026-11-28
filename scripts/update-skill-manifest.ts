@@ -553,7 +553,7 @@ Add this to your GitHub Actions workflow:
 - name: Check Tier 3 Skills Pass
   run: |
     for skill in api-testing-patterns security-testing performance-testing; do
-      node scripts/validate-skill.cjs "\$skill" --self-test
+      node node_modules/agentic-qe/scripts/validate-skill.cjs "\$skill" --self-test
     done
 \`\`\`
 

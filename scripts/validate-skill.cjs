@@ -11,6 +11,11 @@
  *   node scripts/validate-skill.cjs <skill-name> <output-file> [--json] [--verbose]
  *   node scripts/validate-skill.cjs --list-skills
  *
+ * Skills resolve against the project you run it from: <cwd>/.claude/skills/<name>.
+ * Pass --project <dir> or --skills-dir <dir> to look elsewhere, or give the path of a
+ * skill directory instead of a name. The copy in node_modules/agentic-qe therefore
+ * validates the user's skills, not its own (#1494).
+ *
  * Config file format (validate-config.json):
  * {
  *   "skillName": "api-testing-patterns",
@@ -41,6 +46,18 @@ let selfTest = false;
 let jsonOnly = false;
 let listTools = false;
 let listSkills = false;
+let projectArg = null;
+let skillsDirArg = null;
+
+/** Value of a `--flag <value>` option; exits when it is missing. */
+function optionValue(i, flag) {
+  const value = args[i + 1];
+  if (value === undefined || value.startsWith('--')) {
+    lib.error(`${flag} needs a directory`);
+    process.exit(1);
+  }
+  return value;
+}
 
 for (let i = 0; i < args.length; i++) {
   switch (args[i]) {
@@ -49,6 +66,8 @@ for (let i = 0; i < args.length; i++) {
     case '--verbose': case '-v': process.env.AQE_DEBUG = '1'; break;
     case '--list-tools': listTools = true; break;
     case '--list-skills': listSkills = true; break;
+    case '--project': projectArg = optionValue(i, '--project'); i++; break;
+    case '--skills-dir': skillsDirArg = optionValue(i, '--skills-dir'); i++; break;
     case '--help': case '-h': printHelp(); process.exit(0);
     default:
       if (!skillName) skillName = args[i];
@@ -64,8 +83,14 @@ Usage:
   node scripts/validate-skill.cjs <skill-name> --self-test
   node scripts/validate-skill.cjs <skill-name> <output-file> [--json] [--verbose]
   node scripts/validate-skill.cjs --list-skills
+  node node_modules/agentic-qe/scripts/validate-skill.cjs <skill-name> --self-test
+
+<skill-name> is looked up in ./.claude/skills (the current directory's project).
+It may also be the path of a skill directory.
 
 Options:
+  --project <dir>     Look up skills in <dir>/.claude/skills
+  --skills-dir <dir>  Look up skills in <dir>
   --self-test     Run validator self-test for the skill
   --json          Output results as JSON only
   --verbose, -v   Enable debug output
@@ -79,16 +104,35 @@ Options:
 // Skill Discovery
 // =============================================================================
 
-const PROJECT_ROOT = path.resolve(__dirname, '..');
-const SKILLS_DIR = path.join(PROJECT_ROOT, '.claude', 'skills');
+/** This script's own package (the agentic-qe repo, or node_modules/agentic-qe). */
+const PACKAGE_ROOT = path.resolve(__dirname, '..');
+
+/**
+ * Skills directories to search, in order. An explicit --skills-dir or --project is the
+ * only place looked at. Otherwise the project in the current directory comes first; the
+ * package's own .claude/skills (present in the repo, not in the npm package) is the
+ * fallback, so running the repo copy from another directory still works.
+ */
+function skillsDirs() {
+  if (skillsDirArg) return [path.resolve(skillsDirArg)];
+  if (projectArg) return [path.resolve(projectArg, '.claude', 'skills')];
+  const dirs = [path.resolve('.claude', 'skills'), path.join(PACKAGE_ROOT, '.claude', 'skills')];
+  return [...new Set(dirs)];
+}
+
+function isSkillDir(dir) {
+  return fs.existsSync(dir) && fs.statSync(dir).isDirectory();
+}
 
 function findSkillDir(name) {
-  const candidates = [
-    path.join(SKILLS_DIR, name),
-    path.join(PROJECT_ROOT, 'v3', '.claude', 'skills', name),
-  ];
-  for (const dir of candidates) {
-    if (fs.existsSync(dir)) return dir;
+  // A path to a skill directory (`./my-skill`, `.claude/skills/x`, an absolute path).
+  if (name.includes('/') || name.includes(path.sep) || name.startsWith('.')) {
+    const dir = path.resolve(name);
+    return isSkillDir(dir) ? dir : null;
+  }
+  for (const root of skillsDirs()) {
+    const dir = path.join(root, name);
+    if (isSkillDir(dir)) return dir;
   }
   return null;
 }
@@ -109,16 +153,20 @@ function loadConfig(skillDir) {
 // =============================================================================
 
 if (listSkills) {
-  const skills = fs.readdirSync(SKILLS_DIR).filter(d => {
-    const configPath = path.join(SKILLS_DIR, d, 'scripts', 'validate-config.json');
+  const skillsDir = skillsDirs().find(isSkillDir);
+  if (!skillsDir) {
+    lib.error(`No skills directory found (looked in: ${skillsDirs().join(', ')})`);
+    process.exit(1);
+  }
+  const skills = fs.readdirSync(skillsDir).filter(d => {
+    const configPath = path.join(skillsDir, d, 'scripts', 'validate-config.json');
     return fs.existsSync(configPath);
   });
 
   if (skills.length === 0) {
-    console.log('No skills with validate-config.json found.');
-    console.log('Run: node scripts/migrate-validators.cjs to generate configs from existing .sh files.');
+    console.log(`No skills with scripts/validate-config.json found in ${skillsDir}.`);
   } else {
-    console.log(`Skills with cross-platform validators (${skills.length}):`);
+    console.log(`Skills with cross-platform validators in ${skillsDir} (${skills.length}):`);
     for (const s of skills) console.log(`  - ${s}`);
   }
   process.exit(0);
@@ -149,13 +197,16 @@ if (!skillName) {
 
 const skillDir = findSkillDir(skillName);
 if (!skillDir) {
-  lib.error(`Skill not found: ${skillName}`);
+  const where = /[\\/]/.test(skillName) || skillName.startsWith('.')
+    ? path.resolve(skillName)
+    : skillsDirs().join(', ');
+  lib.error(`Skill not found: ${skillName} (looked in: ${where})`);
   process.exit(1);
 }
 
 const config = loadConfig(skillDir);
 if (!config) {
-  lib.error(`No validate-config.json found for ${skillName}. Run: node scripts/migrate-validators.cjs`);
+  lib.error(`No scripts/validate-config.json in ${skillDir}`);
   process.exit(1);
 }
 

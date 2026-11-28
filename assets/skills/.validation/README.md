@@ -53,14 +53,20 @@ This directory contains the validation infrastructure for AQE skills - ensuring 
 ### Validate a Skill Output
 
 Validated skills describe their checks in `<skill>/scripts/validate-config.json` (required
-fields, schema path, required terms). The agentic-qe repository runs them with its
-[validate-skill.cjs](https://github.com/proffesor-for-testing/agentic-qe/blob/main/scripts/validate-skill.cjs) runner:
+fields, schema path, required terms). The agentic-qe package ships a runner for them. Run it
+from your project root; it looks up `.claude/skills/<skill-name>` there:
 
 ```bash
-# AQE_REPO: an agentic-qe checkout
-node "$AQE_REPO/scripts/validate-skill.cjs" <skill-name> output.json [--json] [--verbose]
-node "$AQE_REPO/scripts/validate-skill.cjs" <skill-name> --self-test
+node node_modules/agentic-qe/scripts/validate-skill.cjs <skill-name> output.json [--json] [--verbose]
+node node_modules/agentic-qe/scripts/validate-skill.cjs <skill-name> --self-test
+node node_modules/agentic-qe/scripts/validate-skill.cjs --list-skills
+# another project or skills directory, or a skill directory path:
+node node_modules/agentic-qe/scripts/validate-skill.cjs <skill-name> --self-test --project <dir>
+node node_modules/agentic-qe/scripts/validate-skill.cjs <skill-name> --self-test --skills-dir <dir>
+node node_modules/agentic-qe/scripts/validate-skill.cjs ./path/to/my-skill --self-test
 ```
+
+With a global install, use `"$(npm root -g)/agentic-qe/scripts/validate-skill.cjs"`.
 
 ### Create a Skill Validator
 
