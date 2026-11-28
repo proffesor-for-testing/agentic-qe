@@ -37,7 +37,7 @@ export function createHooksCommand(): Command {
 Examples:
   # File editing hooks (learning from edits)
   aqe hooks pre-edit --file src/utils.ts --operation create
-  aqe hooks post-edit --file src/utils.ts --success
+  aqe hooks post-edit --file src/utils.ts --outcome success          # observed result (#1501)
 
   # Task routing and guidance
   aqe hooks route --task "Generate tests for UserService"
@@ -47,7 +47,7 @@ Examples:
 
   # Bash command hooks
   aqe hooks pre-command --command "npm test" --json
-  aqe hooks post-command --command "npm test" --success true
+  aqe hooks post-command --command "npm test" --outcome failure      # observed result (#1501)
 
   # Session lifecycle (Stop hook)
   aqe hooks session-start --session-id "session-123"

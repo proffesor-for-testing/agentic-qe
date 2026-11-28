@@ -22,6 +22,11 @@ import {
   readStdinJsonEvent,
   extractFilePathFromEvent,
 } from './hooks-shared.js';
+import { resolveObservedHookOutcome } from '../../../routing/routing-outcomes-migration.js';
+import {
+  HOOK_OBSERVED_OUTCOME_BASIS,
+  OBSERVED_HOOK_EDIT_SOURCE,
+} from '../../../learning/hook-outcome-provenance.js';
 
 /**
  * Register pre-edit and post-edit subcommands on the hooks command.
@@ -95,15 +100,19 @@ export function registerEditingHooks(hooks: Command): void {
     .command('post-edit')
     .description('Record editing outcome for pattern learning')
     .requiredOption('-f, --file <path>', 'File path that was edited')
-    .option('--success', 'Edit was successful')
-    .option('--failure', 'Edit failed')
+    .option('--outcome <result>', 'Observed edit result: success | failure. Only this records an edit outcome for learning (#1501)')
+    .option('--success', 'Deprecated and ignored: installed hooks passed it after every edit. Use --outcome (#1501)')
+    .option('--failure', 'Deprecated and ignored: use --outcome failure (#1501)')
     .option('--pattern-id <id>', 'Pattern ID that was applied')
     .option('--json', 'Output as JSON')
     .action(async (options) => {
       try {
-        const { hookRegistry } = await getHooksSystem();
-
-        const success = options.success || !options.failure;
+        // #1501 (as #1481/#1493 for post-task): the installed PostToolUse
+        // hook ran `post-edit ... --success` after every edit, whatever
+        // happened, so neither --success nor --failure is an observed result.
+        // Only --outcome is; without it no learning stream records anything.
+        const observed = resolveObservedHookOutcome(options);
+        const success: boolean | null = observed === null ? null : observed === 'success';
 
         // Generate synthetic patternId from file path if none provided.
         //
@@ -126,71 +135,29 @@ export function registerEditingHooks(hooks: Command): void {
         const domain = isTestFile ? 'test-generation' : 'code-intelligence';
         const syntheticPatternId = options.patternId || `edit:${domain}:${fileName}`;
 
-        const results = await hookRegistry.emit(QE_HOOK_EVENTS.PostTestGeneration, {
-          targetFile: filePath,
-          success,
-          patternId: syntheticPatternId,
-          generatedTests: null,
-          testCount: 0,
-        });
-
-        const result = results[0] || { success: true, patternsLearned: 0 };
-
-        // Also explicitly call recordOutcome so qe_pattern_usage gets a row
-        try {
-          const { reasoningBank } = await getHooksSystem();
-          await reasoningBank.recordOutcome({
-            patternId: syntheticPatternId,
-            success,
-            metrics: { executionTimeMs: 0 },
-            feedback: `Edit ${success ? 'succeeded' : 'failed'}: ${filePath}`,
-          });
-        } catch {
-          // best-effort
-        }
-
-        // Persist as captured experience
-        try {
-          await persistCommandExperience({
-            task: `edit: ${filePath}`,
-            agent: 'cli-hook',
-            domain,
-            success,
-            source: 'cli-hook-post-edit',
-          });
-        } catch {
-          // best-effort
-        }
-
-        // ADR-094: post-edit bumps the experience counter but DOES NOT
-        // trigger dream cycles inline. Dream cycles run in the long-lived
-        // kernel (see QEKernelImpl._dreamScheduler) so the 10-second SQLite
-        // write transaction doesn't block other writers from this short-lived
-        // hook subprocess. The JSON output retains dreamTriggered/dreamReason
-        // so existing operator scripts don't break — dreamReason now reads
-        // 'deferred-to-kernel' to signal where the actual cycle runs.
-        try {
-          const projectRoot = findProjectRoot();
-          const dataDir = path.join(projectRoot, '.agentic-qe');
-          const memoryBackend = await createHybridBackendWithTimeout(dataDir);
-          await incrementDreamExperience(memoryBackend);
-        } catch {
-          // best-effort
+        let patternsLearned = 0;
+        if (success !== null) {
+          patternsLearned = await recordObservedEdit({ filePath, domain, syntheticPatternId, success });
         }
 
         if (options.json) {
           printJson({
             success: true,
             file: filePath,
+            // null when no result was observed (#1501)
             editSuccess: success,
-            patternsLearned: result.patternsLearned || 0,
+            outcomeObserved: success !== null,
+            patternsLearned,
             dreamTriggered: false,
             dreamReason: 'deferred-to-kernel',
           });
+        } else if (success === null) {
+          printSuccess(`Edit outcome not observed for ${filePath || '(unknown file)'}: nothing recorded`);
+          console.log(chalk.dim('  Pass --outcome success|failure to record one'));
         } else {
           printSuccess(`Recorded edit outcome for ${filePath || '(unknown file)'}`);
-          if (result.patternsLearned) {
-            console.log(chalk.green(`  Patterns learned: ${result.patternsLearned}`));
+          if (patternsLearned) {
+            console.log(chalk.green(`  Patterns learned: ${patternsLearned}`));
           }
         }
         return;
@@ -199,4 +166,73 @@ export function registerEditingHooks(hooks: Command): void {
         throw error;
       }
     });
+}
+
+/**
+ * Feed an OBSERVED edit outcome (`post-edit --outcome`) into the learning
+ * streams (#1501): PostTestGeneration handlers, ReasoningBank pattern
+ * outcomes, captured_experiences and the dream counter. Every step is
+ * best-effort. Returns the patterns learned.
+ */
+async function recordObservedEdit(opts: {
+  filePath: string;
+  domain: string;
+  syntheticPatternId: string;
+  success: boolean;
+}): Promise<number> {
+  const { filePath, domain, syntheticPatternId, success } = opts;
+  const { hookRegistry, reasoningBank } = await getHooksSystem();
+
+  const results = await hookRegistry.emit(QE_HOOK_EVENTS.PostTestGeneration, {
+    targetFile: filePath,
+    success,
+    patternId: syntheticPatternId,
+    generatedTests: null,
+    testCount: 0,
+  });
+  const result = results[0] || { success: true, patternsLearned: 0 };
+
+  // Also explicitly call recordOutcome so qe_pattern_usage gets a row
+  try {
+    await reasoningBank.recordOutcome({
+      patternId: syntheticPatternId,
+      success,
+      // #1129 / #1501: the hook caller observed this result
+      metrics: { executionTimeMs: 0, outcome: 'measured', outcomeBasis: HOOK_OBSERVED_OUTCOME_BASIS },
+      feedback: `Edit ${success ? 'succeeded' : 'failed'}: ${filePath}`,
+    });
+  } catch {
+    // best-effort
+  }
+
+  // Persist as captured experience
+  try {
+    await persistCommandExperience({
+      task: `edit: ${filePath}`,
+      agent: 'cli-hook',
+      domain,
+      success,
+      source: OBSERVED_HOOK_EDIT_SOURCE,
+    });
+  } catch {
+    // best-effort
+  }
+
+  // ADR-094: post-edit bumps the experience counter but DOES NOT
+  // trigger dream cycles inline. Dream cycles run in the long-lived
+  // kernel (see QEKernelImpl._dreamScheduler) so the 10-second SQLite
+  // write transaction doesn't block other writers from this short-lived
+  // hook subprocess. The JSON output retains dreamTriggered/dreamReason
+  // so existing operator scripts don't break — dreamReason now reads
+  // 'deferred-to-kernel' to signal where the actual cycle runs.
+  try {
+    const projectRoot = findProjectRoot();
+    const dataDir = path.join(projectRoot, '.agentic-qe');
+    const memoryBackend = await createHybridBackendWithTimeout(dataDir);
+    await incrementDreamExperience(memoryBackend);
+  } catch {
+    // best-effort
+  }
+
+  return result.patternsLearned || 0;
 }

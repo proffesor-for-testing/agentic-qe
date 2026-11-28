@@ -27,6 +27,11 @@ import {
   createProjectToolLoopGuardrail,
   type ToolLoopCheck,
 } from './tool-loop-guardrail.js';
+import { resolveObservedHookOutcome } from '../../../routing/routing-outcomes-migration.js';
+import {
+  HOOK_OBSERVED_OUTCOME_BASIS,
+  OBSERVED_HOOK_COMMAND_SOURCE,
+} from '../../../learning/hook-outcome-provenance.js';
 
 /**
  * Detect test framework from a Bash command. Returns null when no recognized
@@ -44,6 +49,8 @@ function detectTestFramework(command: string): string | null {
  * Persist test_outcomes (patch 070) and coverage_sessions (patch 170) for a
  * test-framework command. Best-effort — failures are logged at debug level.
  * Exported for tests.
+ *
+ * #1501: call this only for an OBSERVED outcome (`post-command --outcome`).
  */
 export async function persistTestAndCoverage(opts: {
   command: string;
@@ -66,12 +73,15 @@ export async function persistTestAndCoverage(opts: {
       INSERT INTO test_outcomes (
         id, test_id, test_name, generated_by, framework, language, domain,
         passed, execution_time_ms, maintainability_score, created_at
-      ) VALUES (?, ?, ?, 'cli-hook-post-command', ?, ?, 'test-execution',
+      ) VALUES (?, ?, ?, ?, ?, ?, 'test-execution',
                 ?, ?, 0.5, datetime('now'))
     `).run(
       `to-${Date.now()}-${randomUUID().slice(0, 8)}`,
       `cmd:${cmdSlug}`,
       opts.command.slice(0, 200),
+      // #1501: marks an observed result; the legacy 'cli-hook-post-command'
+      // rows hold the installed hook's constant success.
+      OBSERVED_HOOK_COMMAND_SOURCE,
       opts.framework,
       language,
       opts.success ? 1 : 0,
@@ -341,20 +351,21 @@ export function registerCommandHooks(hooks: Command): void {
     .command('post-command')
     .description('Record Bash command outcome')
     .option('-c, --command <cmd>', 'Command that was executed')
-    .option('--success [bool]', 'Whether command succeeded', 'true')
-    .option('--exit-code <code>', 'Command exit code')
+    .option('--outcome <result>', 'Observed command result: success | failure. Only this records a command outcome for learning (#1501)')
+    .option('--success [bool]', 'Deprecated and ignored: installed hooks passed a constant "true". Use --outcome (#1501)')
+    .option('--exit-code <code>', 'Command exit code (reported only; pass --outcome to record a result)')
     .option('--json', 'Output as JSON')
     .action(async (options) => {
       try {
-        const success = options.success === 'true' || options.success === true;
-        const exitCode = options.exitCode ? parseInt(options.exitCode, 10) : (success ? 0 : 1);
+        // #1501 (as #1481/#1493 for post-task): the installed PostToolUse
+        // hook ran `post-command ... --success true` after every command and
+        // --success defaulted to true, so it is no observed result. Only
+        // --outcome is; without it no learning stream records anything.
+        const observed = resolveObservedHookOutcome(options);
+        const success: boolean | null = observed === null ? null : observed === 'success';
+        const parsedExit = options.exitCode !== undefined ? parseInt(options.exitCode, 10) : NaN;
+        const exitCode = Number.isFinite(parsedExit) ? parsedExit : (success === null ? null : (success ? 0 : 1));
         const command = (options.command || '').substring(0, 200);
-
-        // ADR-100: feed the tool-loop breaker — success resets, failure
-        // increments. Synchronous sidecar write; fail-open.
-        try {
-          createProjectToolLoopGuardrail(findProjectRoot()).record(command, success);
-        } catch { /* guardrail must never break the hook */ }
 
         // Determine if this is a test/build/lint command for richer learning
         const isTestCmd = /\b(test|vitest|jest|pytest|mocha)\b/i.test(command);
@@ -364,76 +375,88 @@ export function registerCommandHooks(hooks: Command): void {
         let patternsLearned = 0;
         let experienceRecorded = false;
 
-        try {
-          const { reasoningBank } = await getHooksSystem();
+        if (success !== null) {
+          try {
+            // ADR-100: feed the tool-loop breaker — success resets, failure
+            // increments. Synchronous sidecar write; fail-open. #1501: only an
+            // observed result counts; a constant success only ever reset it.
+            try {
+              createProjectToolLoopGuardrail(findProjectRoot()).record(command, success);
+            } catch { /* guardrail must never break the hook */ }
 
-          // For test commands, emit TestExecutionResult for pattern learning
-          if (isTestCmd) {
-            const { hookRegistry } = await getHooksSystem();
-            await hookRegistry.emit(QE_HOOK_EVENTS.TestExecutionResult, {
-              runId: `cmd-${Date.now()}`,
-              patternId: `cmd:test:${command.split(/\s+/).slice(0, 3).join('-')}`,
-              passed: success ? 1 : 0,
-              failed: success ? 0 : 1,
-              duration: 0,
-              flaky: false,
-            });
-          }
+            const { reasoningBank } = await getHooksSystem();
 
-          // Record outcome for all commands
-          const cmdSlug = command.replace(/[^a-zA-Z0-9]/g, '-').slice(0, 80);
-          const domain = isTestCmd ? 'test-execution' : isBuildCmd ? 'code-intelligence' : isLintCmd ? 'quality-assessment' : 'code-intelligence';
-          await reasoningBank.recordOutcome({
-            patternId: `cmd:${cmdSlug}`,
-            success,
-            metrics: { executionTimeMs: 0 },
-            feedback: `Command: ${command}, exit: ${exitCode}`,
-          });
-          patternsLearned = 1;
+            // For test commands, emit TestExecutionResult for pattern learning
+            if (isTestCmd) {
+              const { hookRegistry } = await getHooksSystem();
+              await hookRegistry.emit(QE_HOOK_EVENTS.TestExecutionResult, {
+                runId: `cmd-${Date.now()}`,
+                patternId: `cmd:test:${command.split(/\s+/).slice(0, 3).join('-')}`,
+                passed: success ? 1 : 0,
+                failed: success ? 0 : 1,
+                duration: 0,
+                flaky: false,
+              });
+            }
 
-          // Persist as captured experience — gated to test/build/lint commands
-          // so non-test Bash (git, ls, etc.) doesn't flood captured_experiences
-          // with low-success-rate noise that dilutes pattern signal.
-          // reasoningBank.recordOutcome above is the broader metric path and
-          // stays unconditional.
-          if (isTestCmd || isBuildCmd || isLintCmd) {
-            await persistCommandExperience({
-              task: `bash: ${command}`,
-              agent: 'cli-hook',
-              domain,
+            // Record outcome for all commands
+            const cmdSlug = command.replace(/[^a-zA-Z0-9]/g, '-').slice(0, 80);
+            const domain = isTestCmd ? 'test-execution' : isBuildCmd ? 'code-intelligence' : isLintCmd ? 'quality-assessment' : 'code-intelligence';
+            await reasoningBank.recordOutcome({
+              patternId: `cmd:${cmdSlug}`,
               success,
-              source: 'cli-hook-post-command',
+              // #1129 / #1501: the hook caller observed this result
+              metrics: { executionTimeMs: 0, outcome: 'measured', outcomeBasis: HOOK_OBSERVED_OUTCOME_BASIS },
+              feedback: `Command: ${command}, exit: ${exitCode ?? 'unknown'}`,
             });
-            experienceRecorded = true;
-          }
+            patternsLearned = 1;
 
-          // Patches 070 + 170: when a recognized test framework ran, write
-          // test_outcomes and (if Istanbul coverage summary is present) a
-          // coverage_sessions row. Best-effort.
-          const framework = detectTestFramework(command);
-          if (framework) {
-            await persistTestAndCoverage({
-              command,
-              framework,
-              success,
-              durationMs: 0, // post-command does not currently track exec time
-            });
-          }
+            // Persist as captured experience — gated to test/build/lint commands
+            // so non-test Bash (git, ls, etc.) doesn't flood captured_experiences
+            // with low-success-rate noise that dilutes pattern signal.
+            // reasoningBank.recordOutcome above is the broader metric path and
+            // stays unconditional.
+            if (isTestCmd || isBuildCmd || isLintCmd) {
+              await persistCommandExperience({
+                task: `bash: ${command}`,
+                agent: 'cli-hook',
+                domain,
+                success,
+                source: OBSERVED_HOOK_COMMAND_SOURCE,
+              });
+              experienceRecorded = true;
+            }
 
-          // Increment dream experience counter
-          const projectRoot = findProjectRoot();
-          const dataDir = path.join(projectRoot, '.agentic-qe');
-          const memoryBackend = await createHybridBackendWithTimeout(dataDir);
-          await incrementDreamExperience(memoryBackend);
-        } catch (initError) {
-          console.error(chalk.dim(`[hooks] post-command learning: ${initError instanceof Error ? initError.message : 'unknown'}`));
+            // Patches 070 + 170: when a recognized test framework ran, write
+            // test_outcomes and (if Istanbul coverage summary is present) a
+            // coverage_sessions row. Best-effort.
+            const framework = detectTestFramework(command);
+            if (framework) {
+              await persistTestAndCoverage({
+                command,
+                framework,
+                success,
+                durationMs: 0, // post-command does not currently track exec time
+              });
+            }
+
+            // Increment dream experience counter
+            const projectRoot = findProjectRoot();
+            const dataDir = path.join(projectRoot, '.agentic-qe');
+            const memoryBackend = await createHybridBackendWithTimeout(dataDir);
+            await incrementDreamExperience(memoryBackend);
+          } catch (initError) {
+            console.error(chalk.dim(`[hooks] post-command learning: ${initError instanceof Error ? initError.message : 'unknown'}`));
+          }
         }
 
         if (options.json) {
           printJson({
             success: true,
             command: command.substring(0, 100),
+            // null when no result was observed (#1501)
             commandSuccess: success,
+            outcomeObserved: success !== null,
             exitCode,
             patternsLearned,
             experienceRecorded,

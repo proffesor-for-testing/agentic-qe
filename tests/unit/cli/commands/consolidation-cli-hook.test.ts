@@ -113,14 +113,28 @@ describe('consolidation does not exclude cli-hook agent (#464)', () => {
     try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
   });
 
-  it('creates a pattern from high-quality cli-hook experiences (post-edit shape)', async () => {
-    // 4 post-edit cli-hook rows, all success, avg_quality 0.75 — well above
-    // HAVING thresholds. Pre-fix this returned 0; now we expect 1 pattern.
+  it('builds no pattern from legacy post-edit / post-command rows, whose success was constant (#1501)', async () => {
     seed(db, [
       { agent: 'cli-hook', domain: 'code-intelligence', quality: 0.75, success: 1, source: 'cli-hook-post-edit' },
       { agent: 'cli-hook', domain: 'code-intelligence', quality: 0.75, success: 1, source: 'cli-hook-post-edit' },
-      { agent: 'cli-hook', domain: 'code-intelligence', quality: 0.75, success: 1, source: 'cli-hook-post-edit' },
-      { agent: 'cli-hook', domain: 'code-intelligence', quality: 0.75, success: 1, source: 'cli-hook-post-edit' },
+      { agent: 'cli-hook', domain: 'code-intelligence', quality: 0.75, success: 1, source: 'cli-hook-post-command' },
+      { agent: 'cli-hook', domain: 'code-intelligence', quality: 0.75, success: 1, source: 'cli-hook-post-command' },
+    ]);
+
+    expect(await consolidateExperiencesToPatterns()).toBe(0);
+    // the rows are kept unchanged
+    expect(db.prepare(`SELECT COUNT(*) AS n FROM captured_experiences WHERE application_count = 0`).get())
+      .toEqual({ n: 4 });
+  });
+
+  it('creates a pattern from high-quality cli-hook experiences (post-edit shape)', async () => {
+    // 4 observed post-edit cli-hook rows, all success, avg_quality 0.75 — well
+    // above HAVING thresholds. Pre-#464 this returned 0; now we expect 1 pattern.
+    seed(db, [
+      { agent: 'cli-hook', domain: 'code-intelligence', quality: 0.75, success: 1, source: 'cli-hook-post-edit-observed' },
+      { agent: 'cli-hook', domain: 'code-intelligence', quality: 0.75, success: 1, source: 'cli-hook-post-edit-observed' },
+      { agent: 'cli-hook', domain: 'code-intelligence', quality: 0.75, success: 1, source: 'cli-hook-post-edit-observed' },
+      { agent: 'cli-hook', domain: 'code-intelligence', quality: 0.75, success: 1, source: 'cli-hook-post-edit-observed' },
     ]);
 
     const created = await consolidateExperiencesToPatterns();
@@ -141,10 +155,10 @@ describe('consolidation does not exclude cli-hook agent (#464)', () => {
     // 4 rows: quality 0.4, success_rate 0.25. Mirrors the #348 Bash-telemetry
     // shape. HAVING filters this out even though the agent is now eligible.
     seed(db, [
-      { agent: 'cli-hook', domain: 'shell-ops', quality: 0.4, success: 1, source: 'cli-hook-post-command' },
-      { agent: 'cli-hook', domain: 'shell-ops', quality: 0.4, success: 0, source: 'cli-hook-post-command' },
-      { agent: 'cli-hook', domain: 'shell-ops', quality: 0.4, success: 0, source: 'cli-hook-post-command' },
-      { agent: 'cli-hook', domain: 'shell-ops', quality: 0.4, success: 0, source: 'cli-hook-post-command' },
+      { agent: 'cli-hook', domain: 'shell-ops', quality: 0.4, success: 1, source: 'cli-hook-post-command-observed' },
+      { agent: 'cli-hook', domain: 'shell-ops', quality: 0.4, success: 0, source: 'cli-hook-post-command-observed' },
+      { agent: 'cli-hook', domain: 'shell-ops', quality: 0.4, success: 0, source: 'cli-hook-post-command-observed' },
+      { agent: 'cli-hook', domain: 'shell-ops', quality: 0.4, success: 0, source: 'cli-hook-post-command-observed' },
     ]);
 
     const created = await consolidateExperiencesToPatterns();
@@ -169,9 +183,9 @@ describe('consolidation does not exclude cli-hook agent (#464)', () => {
 
   it('marks consolidated experiences as processed (application_count > 0)', async () => {
     seed(db, [
-      { agent: 'cli-hook', domain: 'code-intelligence', quality: 0.8, success: 1, source: 'cli-hook-post-edit' },
-      { agent: 'cli-hook', domain: 'code-intelligence', quality: 0.8, success: 1, source: 'cli-hook-post-edit' },
-      { agent: 'cli-hook', domain: 'code-intelligence', quality: 0.8, success: 1, source: 'cli-hook-post-edit' },
+      { agent: 'cli-hook', domain: 'code-intelligence', quality: 0.8, success: 1, source: 'cli-hook-post-edit-observed' },
+      { agent: 'cli-hook', domain: 'code-intelligence', quality: 0.8, success: 1, source: 'cli-hook-post-edit-observed' },
+      { agent: 'cli-hook', domain: 'code-intelligence', quality: 0.8, success: 1, source: 'cli-hook-post-edit-observed' },
     ]);
 
     await consolidateExperiencesToPatterns();

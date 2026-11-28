@@ -22,6 +22,15 @@
  * installed hook's constant success. Readers of success-based metrics and
  * pattern promotion exclude them with the predicates below. Stored rows are
  * not modified.
+ *
+ * #1501: `post-edit` and `post-command` had the same problem. The installed
+ * hooks ran `post-edit ... --success` and `post-command ... --success true`
+ * after every edit and command, and post-command defaulted `--success` to
+ * true. They now record an outcome only for `--outcome success|failure` and
+ * write the `-observed` sources below; their legacy sources
+ * ('cli-hook-post-edit', 'cli-hook-post-command') are excluded like the
+ * post-task one. The same goes for post-command's test_outcomes rows (see
+ * src/feedback/test-outcome-provenance.ts).
  */
 
 /** captured_experiences.source of post-task rows written before #1493. */
@@ -29,6 +38,33 @@ export const LEGACY_HOOK_TASK_SOURCE = 'cli-hook-post-task';
 
 /** captured_experiences.source of post-task rows with an observed outcome. */
 export const OBSERVED_HOOK_TASK_SOURCE = 'cli-hook-post-task-observed';
+
+/** captured_experiences.source of post-edit rows written before #1501. */
+export const LEGACY_HOOK_EDIT_SOURCE = 'cli-hook-post-edit';
+
+/** captured_experiences.source of post-edit rows with an observed outcome. */
+export const OBSERVED_HOOK_EDIT_SOURCE = 'cli-hook-post-edit-observed';
+
+/**
+ * captured_experiences.source (and test_outcomes.generated_by) of
+ * post-command rows written before #1501.
+ */
+export const LEGACY_HOOK_COMMAND_SOURCE = 'cli-hook-post-command';
+
+/** The same for post-command rows with an observed outcome. */
+export const OBSERVED_HOOK_COMMAND_SOURCE = 'cli-hook-post-command-observed';
+
+/**
+ * Every source a hook wrote from a constant success: post-task (#1493),
+ * post-edit and post-command (#1501).
+ */
+export const LEGACY_HOOK_SOURCES: readonly string[] = [
+  LEGACY_HOOK_TASK_SOURCE,
+  LEGACY_HOOK_EDIT_SOURCE,
+  LEGACY_HOOK_COMMAND_SOURCE,
+];
+
+const LEGACY_HOOK_SOURCES_SQL = LEGACY_HOOK_SOURCES.map((s) => `'${s}'`).join(', ');
 
 /**
  * Suffix of a consolidated pattern built from observed hook experiences when
@@ -42,13 +78,14 @@ export const HOOK_OBSERVED_OUTCOME_BASIS = 'hook-observed';
 
 /**
  * SQL predicate over captured_experiences: true unless the row is a legacy
- * post-task hook row whose success nobody observed. NULL sources pass.
+ * post-task / post-edit / post-command hook row whose success nobody
+ * observed. NULL sources pass.
  *
  * @param alias - optional table alias, e.g. `ce` for `ce.source`
  */
 export function observedExperienceSql(alias?: string): string {
   const column = alias ? `${alias}.source` : 'source';
-  return `COALESCE(${column}, '') <> '${LEGACY_HOOK_TASK_SOURCE}'`;
+  return `COALESCE(${column}, '') NOT IN (${LEGACY_HOOK_SOURCES_SQL})`;
 }
 
 /** {@link observedExperienceSql} for an unaliased captured_experiences. */
@@ -56,7 +93,8 @@ export const OBSERVED_EXPERIENCE_SQL = observedExperienceSql();
 
 /**
  * SQL predicate over qe_patterns: true for a pattern that session-end
- * consolidation built from legacy post-task hook experiences. Consolidation
+ * consolidation built from legacy hook experiences (any of
+ * {@link LEGACY_HOOK_SOURCES}). Consolidation
  * stores the experiences' sources as `context_json.tags`, so the legacy
  * source in the tags marks a pattern whose usage and success counts came
  * from constant hook successes.
@@ -69,14 +107,21 @@ export const OBSERVED_EXPERIENCE_SQL = observedExperienceSql();
  */
 export const LEGACY_HOOK_PATTERN_SQL =
   `(json_valid(context_json) AND EXISTS (` +
-  `SELECT 1 FROM json_each(context_json, '$.tags') WHERE json_each.value = '${LEGACY_HOOK_TASK_SOURCE}'))`;
+  `SELECT 1 FROM json_each(context_json, '$.tags') WHERE json_each.value IN (${LEGACY_HOOK_SOURCES_SQL})))`;
 
-/** TypeScript twin of {@link LEGACY_HOOK_PATTERN_SQL}. */
+/**
+ * TypeScript twin of {@link LEGACY_HOOK_PATTERN_SQL}.
+ *
+ * #1501: such a pattern's success rate, confidence and quality score are the
+ * hooks' constant successes, so it is also left out of pattern search and
+ * routing guidance (it carries no content beyond "<agent> pattern for
+ * <domain>"), whatever its tier. The row itself is kept unchanged.
+ */
 export function isLegacyHookDerivedPattern(pattern: {
   context?: { tags?: readonly unknown[] } | null;
 }): boolean {
   const tags = pattern.context?.tags;
-  return Array.isArray(tags) && tags.includes(LEGACY_HOOK_TASK_SOURCE);
+  return Array.isArray(tags) && tags.some((t) => typeof t === 'string' && LEGACY_HOOK_SOURCES.includes(t));
 }
 
 /**
@@ -84,11 +129,54 @@ export function isLegacyHookDerivedPattern(pattern: {
  * fan-out wrote from an unobserved (constant) hook success. Observed hook
  * rows are tagged `outcome = 'measured'` and do not match.
  */
-export const LEGACY_HOOK_USAGE_SQL =
-  `(COALESCE(CASE WHEN json_valid(metrics_json) THEN json_extract(metrics_json, '$.source') END, '')` +
-  ` = '${LEGACY_HOOK_TASK_SOURCE}'` +
-  ` AND COALESCE(CASE WHEN json_valid(metrics_json) THEN json_extract(metrics_json, '$.outcome') END, '')` +
-  ` <> 'measured')`;
+export function legacyHookUsageSql(alias?: string): string {
+  const m = alias ? `${alias}.metrics_json` : 'metrics_json';
+  return `(COALESCE(CASE WHEN json_valid(${m}) THEN json_extract(${m}, '$.source') END, '')` +
+    ` = '${LEGACY_HOOK_TASK_SOURCE}'` +
+    ` AND COALESCE(CASE WHEN json_valid(${m}) THEN json_extract(${m}, '$.outcome') END, '')` +
+    ` <> 'measured')`;
+}
+
+/** {@link legacyHookUsageSql} for an unaliased qe_pattern_usage. */
+export const LEGACY_HOOK_USAGE_SQL = legacyHookUsageSql();
+
+/**
+ * Select-list columns `legacy_hook_uses` and `legacy_hook_successes` for a
+ * qe_patterns row aliased `patternAlias`: how many of its usage rows (and
+ * successes) are legacy task-bridge fan-out (#1501). Read into
+ * QEPattern.legacyHookUsage so in-memory promotion checks count only
+ * observed uses. Uses idx_usage_pattern.
+ */
+export function legacyHookUsageColumnsSql(patternAlias: string): string {
+  const where = `u.pattern_id = ${patternAlias}.id AND ${legacyHookUsageSql('u')}`;
+  return `(SELECT COUNT(*) FROM qe_pattern_usage u WHERE ${where}) AS legacy_hook_uses, ` +
+    `(SELECT COALESCE(SUM(u.success), 0) FROM qe_pattern_usage u WHERE ${where}) AS legacy_hook_successes`;
+}
+
+/** Uses and successes of a pattern that came from legacy hook fan-out. */
+export interface LegacyHookUsage {
+  readonly uses: number;
+  readonly successes: number;
+}
+
+/**
+ * A pattern's promotion counts without its legacy hook fan-out uses
+ * (#1501). With none recorded, the stored counts are returned as they are.
+ */
+export function observedPromotionCounts(pattern: {
+  usageCount: number;
+  successfulUses: number;
+  successRate: number;
+  legacyHookUsage?: LegacyHookUsage;
+}): { usageCount: number; successfulUses: number; successRate: number } {
+  const legacy = pattern.legacyHookUsage;
+  if (!legacy || (legacy.uses <= 0 && legacy.successes <= 0)) {
+    return { usageCount: pattern.usageCount, successfulUses: pattern.successfulUses, successRate: pattern.successRate };
+  }
+  const usageCount = Math.max(0, pattern.usageCount - legacy.uses);
+  const successfulUses = Math.max(0, pattern.successfulUses - legacy.successes);
+  return { usageCount, successfulUses, successRate: usageCount > 0 ? successfulUses / usageCount : 0 };
+}
 
 const DIGITS_13 = '[0-9]'.repeat(13);
 const HEX_8 = '[0-9a-f]'.repeat(8);

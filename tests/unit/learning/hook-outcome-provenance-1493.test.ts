@@ -32,7 +32,8 @@ describe('promotion of hook-derived patterns (#1493)', () => {
     expect(check.blockReason).toBe('insufficient_usage');
   });
 
-  it.each([[[OBSERVED_HOOK_TASK_SOURCE]], [['cli-hook-post-edit']], [[]]])(
+  // #1501: legacy 'cli-hook-post-edit' tags block promotion too.
+  it.each([[[OBSERVED_HOOK_TASK_SOURCE]], [['cli-hook-post-edit-observed']], [[]]])(
     'still promotes a pattern tagged %j', (tags) => {
       expect(shouldPromotePattern(promotable(tags)).meetsUsageCriteria).toBe(true);
     });
